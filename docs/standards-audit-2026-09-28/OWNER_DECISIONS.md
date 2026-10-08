@@ -482,6 +482,20 @@ Question 4 of the same review needed no new decision: the Mix filter's first opt
 - **D60 — A Journey Start's own Mix is left to the Start.** Someone added from a Journey Start is not given an Everyone place in the Mix the Start then starts for them.
 - **Applied in:** JITM-09 §2.77–§2.78 (6.3.0); `docs/MIX_NEXT_STEP_2026-10-06.md`.
 
+### D61–D68 — Stages from the work: PR #132's open questions (2026-10-07)
+
+- **Context:** PR #132 builds D35 (`docs/MIX_STAGES_2026-10-07.md`). Its six WF-05 reviews left sixteen agent defaults, P8's label lists and eight questions, each with a recommended answer. Kevin, on 2026-10-07: "I will go based on your recommendations for all the answers."
+- **D61 — The ready-made Mega-Mix stage labels are confirmed as listed (P8).** Trade milestones such as "Offer", "Under contract", "Closed" and "Booking decision" stay where they are the trade's own words; owners can rename any label.
+- **D62 — A save that starts people on a Mix that names a stage is always reviewed,** whatever Personal preferences → Starting mixes says: turning it on, ticking Everyone or adding a tag. The review says how many people move. This is an exception to JITM-09 §2.39.
+- **D63 — A paused Everyone Mix takes in no newcomers, even when the owner saves it while it is paused** (D58, applied to the editor). Turning it back on takes them in.
+- **D64 — Remove on an Everyone Mix stops that Mix for the person,** so no later save or resume puts them back in it.
+- **D65 — A tag added while a Mix is paused moves its members to the Mix's stage when the Mix resumes,** after the same review as adding a tag to a Mix that is on.
+- **D66 — An Everyone Mix moves only people who have no stage yet.** People in a stage keep it. New people have the stage new people join (D55), so an Everyone Mix doesn't move them either; tags and the owner's own starts move people as before.
+- **D67 — A stage's "Mix completed" rule following its Mix run from Journey waits for slice 4.**
+- **D68 — Every way of adding people will put them in the first stage at once,** as Add a contact does, in a later slice; D55 is replaced then.
+- **Confirms:** agent defaults 1–16 in `docs/MIX_STAGES_2026-10-07.md` as built, with default 15 as D62 and default 1's Everyone case as D66.
+- **Applied in:** PR #132 (D61, D62, D66; JITM-09 6.9.0). D63–D65 in the follow-up to #132. D67 and D68 are planned.
+
 ## Still open
 
 The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).

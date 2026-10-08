@@ -1,11 +1,11 @@
 # Stages from the work — 2026-10-07
 
-**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Six WF-05 reviews: rounds 1–3 requested changes (round 1: 1 HIGH, 4 MEDIUM, 6 LOW; round 2: 2 MEDIUM, 5 LOW; round 3: 1 MEDIUM, 5 LOW), and rounds 4, 5 and 6 approved with LOW findings only. Each round's findings and fixes are below; round 6's LOW fixes came after its approval and weren't reviewed again, as with #128's last LOW. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
+**Status:** built on `feat/mix-stages-20261007` (PR #132), not released. Six WF-05 reviews: rounds 1–3 requested changes (round 1: 1 HIGH, 4 MEDIUM, 6 LOW; round 2: 2 MEDIUM, 5 LOW; round 3: 1 MEDIUM, 5 LOW), and rounds 4, 5 and 6 approved with LOW findings only. Kevin then answered the open questions (D61–D68); D66 changes what an Everyone Mix moves, so a seventh review of that change is next. The branch carries PR #131 (the record of the previous release) until that pull request is merged.
 
 **Decisions:**
 - **D35** (2026-10-05): a Mix can set a person's stage, and a Mega-Mix can create stage labels that the owner can still change.
 - **P7's timing** (confirmed 2026-10-05 with D33): the stage is set when the person starts the Mix, not when they finish it.
-- The rest of **P7**, and **P8**, are proposed defaults in force until Kevin confirms them (JITM-17 §2.5). P8 asks Kevin to review the ready-made label lists before release; they are under "Mega-Mix label lists for review" below.
+- **D61–D68** (2026-10-07): Kevin answered every open question with the recommended answer ("I will go based on your recommendations for all the answers"). D61 confirms the ready-made label lists (P8). D62 makes the always-reviewed save an exception to JITM-09 §2.39. D66: an Everyone Mix moves only people with no stage yet (built here). D63–D65 come in the follow-up to this PR; D67 in slice 4; D68 in a later slice. They also confirm agent defaults 1–16 below. The log is in `docs/standards-audit-2026-09-28/OWNER_DECISIONS.md`.
 
 **Rules:** JITM-09 §2.51 and §2.79. This is the third build slice in [Mix placement and contact stages](MIX_PLACEMENT_AND_STAGES_2026-10-05.md). Stage presets and milestones in the owner's words (§2.80, slice 4) are not built.
 
@@ -26,9 +26,9 @@ One function does it: `setStagesFromMixStarts` in `src/lib/mix-stage.ts`. Every 
 | Start from the profile, Today's "What's next?" | `startMixForContact` (`src/lib/contact-mix-start.ts`) | It starts or restarts. A Mix already running keeps the person's stage as it is. |
 | Bulk Add to a Mix | the same | The same. Undo puts the earlier stage back. |
 | The New contacts setting's Mix, a lead connection's Mix, an import's chosen Mix | `placeNewContacts` → `startMixForContact` | The same. |
-| An Everyone Mix takes in a newcomer | `placeNewContacts` (`src/lib/new-contact-placement.ts`) | Each Everyone place it adds. |
-| Saving a Mix | `saveMixAction` | The Mix is on after the save, and its audience (Everyone or a tag) newly takes the person in, or the save turns a draft on. |
-| Turning a Mix on from the Mixes list | `activateMixAction` (`src/lib/mix-lifecycle-actions.ts`) | A draft: its whole audience. A paused Everyone Mix: the people it has no place for and who aren't in it by another route (a tag, their own start, a visit or a Journey run), mostly people added while it was off. |
+| An Everyone Mix takes in a newcomer | `placeNewContacts` (`src/lib/new-contact-placement.ts`) | Never for the stage: a newcomer has, or is about to get, the stage new people join (D66). |
+| Saving a Mix | `saveMixAction` | The Mix is on after the save, and its audience (Everyone, for someone with no stage yet, D66; or a tag) newly takes the person in, or the save turns a draft on. |
+| Turning a Mix on from the Mixes list | `activateMixAction` (`src/lib/mix-lifecycle-actions.ts`) | A draft: its whole audience (Everyone's part only for people with no stage yet, D66). A paused Everyone Mix: the people it has no place for and who aren't in it by another route (a tag, their own start, a visit or a Journey run), and of those only people with no stage yet (D66). |
 | A tag given later | Add a contact, Edit a contact, both bulk tag actions, imports (`setStagesFromTagJoins`) | A shown tag that an active Mix runs for, newly given to the person. |
 | A saved date adds its date-based Mix | `createImportantDateAction` (`src/lib/important-date-actions.ts`) | The Mix was not already on for the person. |
 | Add a contact's follow-up date with a date-based Mix | `createContact` (`src/lib/contact-actions.ts`) | Always: the person is new. |
@@ -56,12 +56,12 @@ Not a start: the stage's own Mix starting when someone enters the stage, resumin
 
 ### Saves that move people to a stage (UX-01, UX-02)
 
-A save that starts people on a Mix that names a stage moves them all: turning the Mix on starts its whole audience, and on a Mix already on, ticking Everyone or adding a tag starts everyone they cover, including people already in the Mix through another tag. Those saves are always reviewed, whatever Personal preferences → Starting mixes says (an exception to JITM-09 §2.39 for Kevin to confirm):
+A save that starts people on a Mix that names a stage can move many of them: turning the Mix on starts its whole audience, and on a Mix already on, ticking Everyone or adding a tag starts everyone they cover, including people already in the Mix through another tag. A tag moves its members from any stage. Everyone moves only people with no stage yet (D66): people in a stage keep it, and new people, who have or are about to get the stage new people join, aren't moved either; someone in both a tag and Everyone is moved by the tag. Those saves are always reviewed, whatever Personal preferences → Starting mixes says (D62, an exception to JITM-09 §2.39):
 - The editor's button reads "Review and start", and the review adds: "Starting moves {n} people to {stage}, including {m} now in another stage. Pausing, removing or stopping the Mix doesn’t move them back." ("Saving moves …" on a Mix already on.) While transitions are paused it reads "No one moves to {stage}: automatic transitions are paused."
-- The count covers only the people the save starts: the whole audience when it turns the Mix on, all people when it ticks Everyone, or the members of the tags it adds. It comes from `stageMovesForAudience` (`src/lib/mix-stage.ts`) through `/api/contacts/audience?stage=…&mix=…&stageAll=1&stageGroup=…`, and leaves out what the start leaves out: archived, Do not contact, stopped in this Mix, paused stage changes, already in the stage, and hidden tags. A test checks that it equals the people the confirmed save moves.
+- The count covers only the people the save starts: the whole audience when it turns the Mix on, all people when it ticks Everyone, or the members of the tags it adds. It comes from `stageMovesForAudience` (`src/lib/mix-stage.ts`) through `/api/contacts/audience?stage=…&mix=…&stageAll=1&stageGroup=…`, and leaves out what the start leaves out: archived, Do not contact, stopped in this Mix, paused stage changes, already in the stage, hidden tags, and, for Everyone, anyone with a stage or added since stages were turned on. A test checks that it equals the people the confirmed save moves.
 - The server refuses such a save without the review ("Review who moves to the Mix’s stage before turning it on." or "… before adding them."), and Start Mix on the Mixes list opens the review instead of starting.
 - On a Mix already on, the review reads "Save these changes?", counts only the people the save starts, and its buttons are "Review and save" and "Save the Mix" (COPY-02).
-- Re-saving an Everyone Mix re-syncs its places but moves no one: not someone the owner removed from the Mix, nor someone a tag, their own start or a Journey Start already put in it (UX-03). Resuming a paused Everyone Mix, from the editor or from the Mixes list, moves the people it takes in then: those it had no place for and who aren't in it by another route (a tag, their own start, a visit, or a Journey Start or connection, D60). That is mostly the people added while it was off (D58). A "Keep paused" save gives newcomers a place, so after one, resume moves none of them and their stage isn't set; D58 says newcomers aren't placed while a Mix is paused, so this is partly whether the editor should follow D58 (UX-04, a question for Kevin).
+- Re-saving an Everyone Mix re-syncs its places but moves no one: not someone the owner removed from the Mix, nor someone a tag, their own start or a Journey Start already put in it (UX-03). Resuming a paused Everyone Mix, from the editor or from the Mixes list, moves the people it takes in then who have no stage yet (D66): those it had no place for and who aren't in it by another route (a tag, their own start, a visit, or a Journey Start or connection, D60). People added while it was off have the stage new people join, so in practice it moves only people added before stages who have none. A "Keep paused" save gives newcomers a place, so after one, resume moves none of them and their stage isn't set; D58 says newcomers aren't placed while a Mix is paused, so this is partly whether the editor should follow D58 (UX-04, a question for Kevin).
 - Not reviewed: resuming a paused Mix, which starts only the people "Everyone" took in since, and saves that start no one.
 
 ### Retiring a stage
@@ -81,7 +81,7 @@ Retiring unlinks the Mixes that set the stage: their stage becomes None. The con
 - **The preview** shows "Stage: {label}" under each Mix that has one, at 13px, in the library and the setup step; onboarding's preview leaves it out, as onboarding adds no labels (`src/components/MegaMixPreview.tsx`).
 - Onboarding's Mega-Mix doesn't offer or add labels (agent default 9).
 
-### Mega-Mix label lists for review
+### Mega-Mix label lists (confirmed, D61)
 
 Drafted from each Mega-Mix's own Mixes (`src/lib/mega-mixes.ts`). The Mixes for a concern, a quiet conversation or an agreed later time name no stage, so the person keeps the stage they had. Every starting Mix names one. No label mentions a sale (§2.80).
 
@@ -109,9 +109,9 @@ One drift on promoting again: under the previous code, retiring a stage doesn't 
 
 Deploy order: with the new worker and the old web for a few minutes, only Journey connections set stages; with the old worker and the new web, connections don't set them in that window.
 
-## Agent defaults for Kevin
+## Agent defaults (confirmed, D61–D66)
 
-Each is reversible and in force until Kevin confirms or changes it (JITM-15 §2.12).
+Kevin confirmed all sixteen on 2026-10-07 with the recommended answers to their questions (D61–D68). Default 15 is D62; default 1's Everyone case is D66, so an Everyone Mix moves only people with no stage yet. The questions below are kept as asked.
 
 1. **Every route is a start**, as listed in the table above, including a tag given later, a saved date and a visit. *Should only the starts you make yourself and Journey connections set the stage?*
 2. **Changing a Mix's stage moves no one already in it.** It applies to people who start the Mix from then on. *Should the editor offer to move the people already in the Mix?*
@@ -247,7 +247,7 @@ The final run is at 94cf83e, after round 6's LOW fixes, on TrixBot, against fres
 
 ## NOT RUN
 
-- **A review of round 6's LOW fixes** (UX-07, PERF-02, TST-06, DOC-06), which came after round 6's approval; #128's last LOW fix (LAY-05) was released the same way.
+- **The seventh WF-05 review**, of D66 and of round 6's LOW fixes (UX-07, PERF-02, TST-06, DOC-06).
 - **Physical devices.**
 - **Production:** nothing released; no production data read. How many accounts have Everyone Mixes, or stages with their own Mix, is unknown.
 - **CI jobs**, which GitHub Actions can't run (billing, JITM-12 §2.12). Run here: schema, syntax and import validation, typecheck, the standards check, the migration rehearsal and release check, Vitest, `worker:qualify`, the production build and the browser batches below. Not run:
