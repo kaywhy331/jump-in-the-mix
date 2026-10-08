@@ -216,10 +216,11 @@ test("a tag added while a Mix is paused is reviewed when the Mix starts again, w
   expect(await Promise.all([fay, sam].map(async person => (await prisma.contactJourney.findUnique({ where: { contactId: person.id } }))?.stageId))).toEqual([prospect.id, prospect.id]);
 });
 
-test("Remove on an Everyone Mix says it stops the Mix for the person, and Resume brings it back (D64)", async ({ page }) => {
+test("Remove on a paused Everyone Mix says it stops the Mix for the person, and Resume brings it back (D64, UX-10)", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
+  // The Mix is paused: it still offers Resume once Rae is removed (UX-10).
   const mix = await mixWithBeat("Monthly tips");
-  await prisma.mix.update({ where: { id: mix.id }, data: { audienceEveryone: true } });
+  await prisma.mix.update({ where: { id: mix.id }, data: { audienceEveryone: true, status: "PAUSED" } });
   const rae = await prisma.contact.create({ data: { workspaceId, displayName: "Rae Removed" } });
   await prisma.mixAssignment.create({ data: { workspaceId, mixId: mix.id, contactId: rae.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${mix.id}:audience:${rae.id}`, startDate: new Date() } });
 
