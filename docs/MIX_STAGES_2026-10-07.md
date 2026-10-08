@@ -223,18 +223,18 @@ Round 6 (`REVIEW-6.md`, private) at 758f46e: **approve**, 4 LOW. Round 5's findi
 
 ## Verification
 
-The final run is at 94cf83e, after round 6's LOW fixes, on TrixBot, against fresh local databases (`jitm_design_mst1007_r7*`), with the environment of CI's validate job. Every ledger step records its head; the record's verification section is the only thing committed after it. Logs, JSON reports and the ledger are in `.artifacts/mix-stages-20261007/verification/` (private); step names refer to its ledger. Earlier runs are kept there: round 1 (steps 01–13), R2-* to R6-*, including all 12 browser batches at 1270f53 (R4-*) and batches C and A at 6a92fc4 (R5-*).
+The final run is at ecbc8f6, with D66 and round 6's LOW fixes, on TrixBot, against fresh local databases (`jitm_design_mst1007_r8*`), with the environment of CI's validate job. Every ledger step records its head; the record's verification section is the only thing committed after it. Logs, JSON reports and the ledger are in `.artifacts/mix-stages-20261007/verification/` (private); step names refer to its ledger. Earlier runs are kept there: round 1 (steps 01–13) and R2-* to R7-*.
 
 | Check | Label | Result |
 |---|---|---|
-| `db:generate`, typecheck, `validate:static`, `standards:check` | VERIFIED | Passed (R7-20a–R7-21b). `standards:check` has one existing warning: JITM-09 is over 300 lines. |
-| Full Vitest, in eight chunks on a fresh database | VERIFIED; four suites BLOCKED | 312 files, 2,429 tests: 2,364 passed and 41 skipped (R7-23, totals from the JSON). The 24 failures are all `spawn pg_dump ENOENT` in `backup-database`, `recovery-bundle`, `recovery-cutoff` and `recovery-state` (`logs/R7-23-*.full.log`): TrixBot has no `pg_dump` (JITM-12 §2.17), and this change touches no backup code. `mix-stage.integration` 38/38. |
-| `npm run worker:qualify` | VERIFIED | 10/10 (R7-24). |
+| `db:generate`, typecheck, `validate:static`, `standards:check` | VERIFIED | Passed (R8-20a–R8-21b). `standards:check` has one existing warning: JITM-09 is over 300 lines. |
+| Full Vitest, in eight chunks on a fresh database | VERIFIED; four suites BLOCKED | 312 files, 2,429 tests: 2,364 passed and 41 skipped (R8-23, totals from the JSON). The 24 failures are all `spawn pg_dump ENOENT` in `backup-database`, `recovery-bundle`, `recovery-cutoff` and `recovery-state` (`logs/R8-23-*.full.log`): TrixBot has no `pg_dump` (JITM-12 §2.17), and this change touches no backup code. `mix-stage.integration` 38/38. While building D66, 20 neighboring files passed 184/184 (R8-03). |
+| `npm run worker:qualify` | VERIFIED | 10/10 (R8-24). |
 | Migration | VERIFIED at 9a0433e; not changed since | `db:rehearse-migration` passed, and `db:verify-release` reported `{"status":"ready","required":78,"missing":0,"mismatched":0}` (R2-25a–d). |
-| Production build | VERIFIED | Passed at 94cf83e (R7-30a). |
-| Browser specs against the standalone build, desktop and phone, no retries | VERIFIED | Rounds 6 and 7 change only the resume paths' helper, so batches S (stages, Mega-Mixes, journeys, onboarding) and M (Mix authoring, library and the Mixes list) ran: desktop 14 spec files, 72 passed; phone 13 files, 64 passed, 3 skipped; no failures (R7-31–R7-34). Batches C and A last passed at 6a92fc4 (R5-35–R5-38), and I and J at 1270f53 (R4-41–R4-44); nothing they exercise changed since. |
-| Accessibility | VERIFIED | Axe (WCAG 2.0, 2.1 and 2.2 AA) passes in light and dark on the editor's stage choice, the open stage on Contact stages, the Mega-Mix label choice, and both review variants (`mix-stages`, in batch S). 320px with 200% text and the keyboard pass. |
-| Screenshots | VERIFIED, inspected | `screens-r4/` (the "Save these changes?" review) and `screens-r2b/` (the rest), inspected; no layout changed since. `screens-r7/` holds the same set at 94cf83e. |
+| Production build | VERIFIED | Passed at ecbc8f6 (R8-30a). |
+| Browser specs against the standalone build, desktop and phone, no retries | VERIFIED | D66 touches every way people are added, so batches S (stages, Mega-Mixes, journeys, onboarding), M (Mix authoring and the Mixes list), C (No Mix, What's next, core flows, Journey connections, Marketplace, Quick Add), I (imports, phone contacts, contacts, invitations, Today) and A (accessibility, fitment, sheets, contacts, visits) ran: desktop 33 spec files, 201 passed, 7 skipped; phone 31 files, 157 passed, 37 skipped; no failures (R8-31–R8-40). Batch J (search, friction, workflows, save recovery, quiet days) last passed at 1270f53 (R4-43, R4-44); nothing it exercises changed since. |
+| Accessibility | VERIFIED | Axe (WCAG 2.0, 2.1 and 2.2 AA) passes in light and dark on the editor's stage choice, the open stage on Contact stages, the Mega-Mix label choice, and both review variants (`mix-stages`). 320px with 200% text and the keyboard pass. |
+| Screenshots | VERIFIED, inspected | `screens-r4/` (the "Save these changes?" review) and `screens-r2b/` (the rest), inspected; D66 changes the hint's and the review's text, not the layout. `screens-r8/` holds the set at ecbc8f6. |
 | Baseline comparison (JITM-12 §2.14) | NOT RUN | No browser test failed. |
 
 ## Found, not fixed
@@ -257,4 +257,4 @@ The final run is at 94cf83e, after round 6's LOW fixes, on TrixBot, against fres
   - restored-database isolation, authenticated load qualification, the hosted fixture rehearsal and the restricted-credential browser flows;
   - the browser fixture preflight, invited registration with captured mail, the staff onboarding, library, admission and voice flows with MFA, and the staff and waitlist flows;
   - mobile Lighthouse budgets and the production web and worker images.
-- **Browser specs left out:** the round-4 batches ran 39 of the 90 spec files (round 5 re-ran 26 of them, rounds 6 and 7 14). The rest cover pages and flows this change doesn't touch: public, marketing and profession pages, registration, the waitlist, staff and administration, support, email and push, billing, privacy, data retention, the demo and staging smoke.
+- **Browser specs left out:** the round-4 batches ran 39 of the 90 spec files (later rounds re-ran the batches their changes touch; the final run, 33 of them). The rest cover pages and flows this change doesn't touch: public, marketing and profession pages, registration, the waitlist, staff and administration, support, email and push, billing, privacy, data retention, the demo and staging smoke.
