@@ -47,7 +47,7 @@ import { snoozeJumpAction } from "@/lib/snooze-actions";
 import { snoozeChoices, type SnoozePreset } from "@/lib/snooze-schedule";
 import { LiveAttentionSummary, LiveCount, LiveSection, TodayLiveCounts, TodayMomentum } from "@/components/TodayMomentum";
 import { followUpPhone, parseTodayCursor, readTodayPage, TODAY_PAGE_SIZE } from "@/lib/today-list";
-import { calendarDaysOverdue, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
+import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
 import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
 import { sendsByItself } from "@/lib/automatic-delivery";
 import { INVITATIONS_PATH, invitationsLeft } from "@/lib/invitation-allowance";
@@ -444,11 +444,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       .catch(() => null)
     : null;
 
-  // Whether this view's Done grows by an outcome recorded here: the due view counts today's completed follow-ups;
-  // other views count the completed ones they list, which their status and priority filters may leave out.
-  // A view with a page or more of pending follow-ups lists them before any completed one, so its Done stays as it is.
-  const listsCompleted = priority !== "overdue" && pendingCount < TODAY_PAGE_SIZE;
-  const doneCounts = range === "due" ? { done: true, skipped: false } : { done: listsCompleted && (status === "all" || status === "done"), skipped: listsCompleted && (status === "all" || status === "skipped") };
+  // Whether this view's Done grows by an outcome recorded here (CNT-03, CNT-05).
+  const doneCounts = doneGrowth({ range, status, priority }, { pending: pendingCount, listedCompleted: completed.length, size: TODAY_PAGE_SIZE });
   // What the header says with nothing due; the live summary says the same once the last due follow-up is done.
   const zeroLine = !workflowAttention ? "Your next steps could not be checked." : workflowAttention.total ? `${workflowAttention.total} item${workflowAttention.total === 1 ? " needs" : "s need"} your input.` : workflowAttention.preparing || preparation.state !== "ready" ? "Your follow-up list is awaiting preparation." : (upcomingCount + (workflowAttention.futureTotal ?? 0)) ? `${(upcomingCount + (workflowAttention.futureTotal ?? 0)).toLocaleString()} upcoming follow-up${upcomingCount === 1 ? "" : "s"}.` : activeFilterCount ? "No open follow-ups in this view." : "You’re caught up.";
 

@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
-import { calendarDaysOverdue, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
+import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
 
 const NEW_YORK = "America/New_York";
 
@@ -81,5 +81,31 @@ describe("doneSummaryCount", () => {
     expect(doneSummaryCount("week", 2, 7)).toBe(2);
     expect(doneSummaryCount("month", 0, 7)).toBe(0);
     expect(doneSummaryCount("all", 30, 7)).toBe(30);
+  });
+});
+
+describe("doneGrowth", () => {
+  const view = { range: "week", status: "all", priority: "all" };
+  const size = 30;
+
+  it("grows the due view's Done with completed outcomes, never skipped ones", () => {
+    expect(doneGrowth({ ...view, range: "due" }, { pending: 45, listedCompleted: 0, size })).toEqual({ done: true, skipped: false });
+  });
+
+  it("grows a list's Done while every pending follow-up fits on the page", () => {
+    expect(doneGrowth(view, { pending: 29, listedCompleted: 0, size })).toEqual({ done: true, skipped: true });
+    expect(doneGrowth(view, { pending: 30, listedCompleted: 0, size })).toEqual({ done: true, skipped: true });
+    expect(doneGrowth(view, { pending: 31, listedCompleted: 0, size })).toEqual({ done: false, skipped: false });
+  });
+
+  it("grows it on a later page that already lists completed follow-ups", () => {
+    expect(doneGrowth(view, { pending: 45, listedCompleted: 12, size })).toEqual({ done: true, skipped: true });
+  });
+
+  it("follows the status filter, and doesn't grow when only overdue follow-ups are listed", () => {
+    expect(doneGrowth({ ...view, status: "pending" }, { pending: 3, listedCompleted: 0, size })).toEqual({ done: false, skipped: false });
+    expect(doneGrowth({ ...view, status: "done" }, { pending: 0, listedCompleted: 4, size })).toEqual({ done: true, skipped: false });
+    expect(doneGrowth({ ...view, status: "skipped" }, { pending: 0, listedCompleted: 4, size })).toEqual({ done: false, skipped: true });
+    expect(doneGrowth({ ...view, priority: "overdue" }, { pending: 3, listedCompleted: 0, size })).toEqual({ done: false, skipped: false });
   });
 });
