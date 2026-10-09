@@ -103,7 +103,7 @@ test("person drill-down retains real progress controls and updates counts after 
   await expect(page.getByRole("combobox", { name: "Highlight work", exact: true })).toHaveValue(alexWork);
   await expect(page.getByRole("link", { name: "Open contact", exact: true })).toHaveAttribute("href", `/contacts/${alexId}`);
   await page.getByRole("button", { name: "Pause this work", exact: true }).click();
-  await expect(page.locator('[aria-label="Journey details"] .status-pill')).toHaveText("paused");
+  await expect(page.locator('[aria-label="Journey details"] .status-pill')).toHaveText("Paused");
   await page.getByRole("region", { name: "Mix and Beat journey", exact: true }).getByRole("button", { name: "All people", exact: true }).click();
   await expect(page.getByRole("button", { name: "2 Paused", exact: true })).toBeVisible();
 });

@@ -32,7 +32,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { projectDraftSource, type DraftValues } from "@/lib/draft-segments";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
-import { followUpEndedReason, zoneLabel } from "@/lib/display-labels";
+import { channelName, followUpEndedReason, zoneLabel } from "@/lib/display-labels";
 import { readJumpDrafts } from "@/lib/jump-drafts";
 import { buildJumpReplacementValues } from "@/lib/jump-render";
 import { detachedChanges, preparationFamilyForChannel, type PreparationFamily } from "@/lib/preparation-family";
@@ -109,11 +109,6 @@ const doneStatuses: JumpStatus[] = ["DONE"];
 const completedStatuses: JumpStatus[] = [...doneStatuses, "SKIPPED"];
 const channels: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
 
-function channelLabel(channel: Channel): string {
-  if (channel === "PHONE_CALL") return "call";
-  if (channel === "VOICEMAIL") return "voicemail";
-  return channel.replaceAll("_", " ").toLowerCase();
-}
 
 /** The chip for one usable variant: the family's plain name, WhatsApp when the person prefers it. */
 function choiceOption(family: PreparationFamily, channel: Channel): ChannelChoiceOption {
@@ -341,8 +336,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     // card fell back to an alternative without anyone choosing it.
     const chosen = Boolean(alternative && followUp.selectedFamily === active?.family);
     const heldNote = !heldByChoice || !active ? null : chosen
-      ? `Because you chose ${choiceOption(active.family, active.channel).label.toLowerCase()} instead of the plan’s ${channelLabel(planChannel)}, this one waits for you and won’t send automatically.`
-      : `The plan’s ${channelLabel(planChannel)} needs ${planChannel === "EMAIL" ? "an email address" : "a phone number"} this person doesn’t have, so this one waits for you and won’t send automatically.`;
+      ? `Because you chose ${choiceOption(active.family, active.channel).label.toLowerCase()} instead of the Mix’s ${channelName(planChannel).toLowerCase()}, this one waits for you and won’t send automatically.`
+      : `The Mix’s ${channelName(planChannel).toLowerCase()} needs ${planChannel === "EMAIL" ? "an email address" : "a phone number"} this person doesn’t have, so this one waits for you and won’t send automatically.`;
     const choice = isPending && active ? <FollowUpChannelChoice
       jumpId={followUp.id}
       contactName={followUp.contact.displayName}
@@ -399,7 +394,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         <article id={`jump-${followUp.id}`} className={`jump-card jump-task-card ${isNext ? "next-follow-up" : ""} ${isPending ? "" : "jump-task-complete"}`}>
           <div className="jump-card-main"><span className="person-initials jump-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>
             {isNext && <span className="eyebrow">Next up</span>}
-            <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span title={dueLabel} className={isPending && followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{isPending && followUp.scheduledAt >= startToday && followUp.scheduledAt < endToday ? new Intl.DateTimeFormat(displayPreferences.locale, { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(followUp.scheduledAt) : dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
+            <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span title={dueLabel} className={isPending && followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{isPending && followUp.scheduledAt >= startToday && followUp.scheduledAt < endToday ? new Intl.DateTimeFormat(displayPreferences.locale, { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(followUp.scheduledAt) : dueLabel}</span><span className="channel-pill">{channelName(followUpChannel)}</span></div>
             <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}{failure && <span className="jump-delivery-failed" data-delivery-failed={failure.kind}><AppIcon name="alert" />{failure.kind === "uncertain" ? "Send not confirmed" : "Automatic send failed"}</span>}<span>{followUp.mix.name}</span>{followUp.reason && followUp.reason.trim().toLowerCase() !== followUp.mix.name.trim().toLowerCase() && <span>{followUp.reason}</span>}</div>
             <p className="jump-snippet">{snippet}</p>
           </div>
@@ -479,7 +474,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             <input type="hidden" name="q" value={query} /><input type="hidden" name="view" value={compact ? "compact" : "focus"} /><label className="field"><span>Priority</span><select name="priority" defaultValue={priority}><option value="all">All priorities</option><option value="overdue">Overdue commitments</option></select></label>
             <label className="field"><span>Dates</span><select name="range" defaultValue={range}><option value="due">Due now</option><option value="week">Next 7 days</option><option value="month">Next 30 days</option><option value="all">All dates</option></select></label>
             <label className="field"><span>Status</span><select name="status" defaultValue={status}><option value="all">Open and completed</option><option value="pending">Open</option><option value="done">Completed</option><option value="skipped">Skipped</option></select></label>
-            <label className="field"><span>How</span><select name="channel" defaultValue={channel}><option value="all">Any method</option>{channels.map((item) => <option key={item} value={item}>{channelLabel(item)}</option>)}</select></label>
+            <label className="field"><span>How</span><select name="channel" defaultValue={channel}><option value="all">Any method</option>{channels.map((item) => <option key={item} value={item}>{channelName(item)}</option>)}</select></label>
           </AutoSubmitForm>
 
       <nav className="page-actions" aria-label="Today layout"><TodayLink className="button small" aria-current={!compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "focus" })}`}>Focused work</TodayLink><TodayLink className="button small" aria-current={compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "compact" })}`}>Compact scan</TodayLink><TodayLink className="button small" href="/jumps?range=all&status=pending&priority=overdue&view=compact">Review overdue</TodayLink></nav>

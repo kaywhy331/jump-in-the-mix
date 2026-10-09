@@ -32,6 +32,7 @@ import { formatDateInput } from "@/lib/mix-broadcast";
 import { resumeMixForContactAction, stopMixForContactAction } from "@/lib/mix-stop-actions";
 import { prisma } from "@/lib/prisma";
 import { readPreparationStatus } from "@/lib/preparation";
+import { recurrenceLabel } from "@/lib/display-labels";
 
 
 const MONTHS = ["January", "February", "March", "April", "May", "June", "July", "August", "September", "October", "November", "December"] as const;
@@ -266,7 +267,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
           <section>
             <div className="card-header"><div><h2>Dates</h2><p>Moments that can start a follow-up Mix.</p></div></div>
             {contact.jumpDates.length ? <div className="important-date-list">{contact.jumpDates.map((item) => <article className="important-date-row" key={item.id}>
-              <div className="important-date-summary"><h3>{item.dateType.name}</h3><div className="jump-meta"><span>{item.dateValue ? formatDate(item.dateValue, displayPreferences) : `${item.month}/${item.day}`}</span><span>{item.recurrence.toLowerCase()}</span>{item.label && <span>{item.label}</span>}</div></div>
+              <div className="important-date-summary"><h3>{item.dateType.name}</h3><div className="jump-meta"><span>{item.dateValue ? formatDate(item.dateValue, displayPreferences) : `${item.month}/${item.day}`}</span><span>{recurrenceLabel(item.recurrence)}</span>{item.label && <span>{item.label}</span>}</div></div>
               <div className="important-date-actions">
                 <Sheet trigger={<button className="button small" type="button">Edit</button>} title={`Edit ${item.dateType.name}`} description={`Update this saved date for ${contact.displayName}.`}>
                   <form action={updateImportantDateAction} className="form-stack"><input type="hidden" name="contactId" value={contact.id} /><input type="hidden" name="jumpDateId" value={item.id} />{!item.dateValue && <input type="hidden" name="monthDayOnly" value="1" />}<label className="field"><span>Type</span><select name="dateTypeId" defaultValue={item.dateTypeId} required>{dateTypes.map((type) => <option key={type.id} value={type.id}>{type.name}</option>)}</select></label>{item.dateValue ? <label className="field"><span>Date</span><input name="dateValue" type="date" defaultValue={formatDateInput(item.dateValue)} required /></label> : <><label className="field"><span>Month</span><select name="month" defaultValue={item.month ?? ""} required><option value="">Choose month</option>{MONTHS.map((month, index) => <option value={index + 1} key={month}>{month}</option>)}</select></label><label className="field"><span>Day</span><input name="day" type="number" min={1} max={31} defaultValue={item.day ?? ""} inputMode="numeric" required /></label></>}<label className="field"><span>Loop · repeat this date</span><select name="recurrence" defaultValue={item.recurrence}><option value="NONE">Does not repeat</option><option value="MONTHLY">Monthly</option><option value="YEARLY">Yearly</option></select></label><label className="field"><span>Note</span><input name="label" defaultValue={item.label ?? ""} /></label><button className="button primary" type="submit">Save date</button></form>

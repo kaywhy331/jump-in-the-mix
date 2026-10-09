@@ -26,3 +26,14 @@ describe("display labels (FMT-01–FMT-03, D79)", () => {
     expect(["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"].map(channelName)).toEqual(["Text", "Email", "Call", "Voicemail", "WhatsApp"]);
   });
 });
+
+describe("status labels (FMT-03)", () => {
+  it("names statuses in words people use, never raw codes", async () => {
+    const { importStatusLabel, mixStatusLabel, recurrenceLabel, runStatusLabel } = await import("../src/lib/display-labels");
+    expect(["ACTIVE", "PAUSED", "DRAFT", "ARCHIVED"].map(mixStatusLabel)).toEqual(["On", "Paused", "Draft", "Archived"]);
+    expect(["QUEUED", "RUNNING", "COMPLETED", "PARTIAL", "FAILED", "CANCELED"].map(importStatusLabel)).toEqual(["Waiting to start", "Importing", "Completed", "Partly imported", "Failed", "Canceled"]);
+    expect(["ACTIVE", "PAUSED", "FINISHED", "STOPPED", "PENDING", "DONE", "SKIPPED", "HELD"].map(runStatusLabel)).toEqual(["Running", "Paused", "Finished", "Stopped", "Coming up", "Done", "Skipped", "On hold"]);
+    expect(["NONE", "MONTHLY", "YEARLY"].map(recurrenceLabel)).toEqual(["One time", "Every month", "Every year"]);
+    expect(mixStatusLabel("SOMETHING_NEW")).toBe("Something new");
+  });
+});

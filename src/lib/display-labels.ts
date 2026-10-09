@@ -12,6 +12,31 @@ export function timeOfDayLabel(minutes: number, locale = "en-US"): string {
   return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" }).format(new Date(Date.UTC(2000, 0, 1, Math.floor(safe / 60), safe % 60)));
 }
 
+function sentenceCase(value: string): string {
+  const words = value.replaceAll("_", " ").toLowerCase();
+  return words.charAt(0).toUpperCase() + words.slice(1);
+}
+
+/** A Mix's status as the Mixes filter names it: On, Paused, Draft, Archived (JITM-04 §2.4). */
+export function mixStatusLabel(status: string): string {
+  return ({ ACTIVE: "On", PAUSED: "Paused", DRAFT: "Draft", ARCHIVED: "Archived" } as Record<string, string>)[status] ?? sentenceCase(status);
+}
+
+/** A contact import's status in plain words. */
+export function importStatusLabel(status: string): string {
+  return ({ QUEUED: "Waiting to start", RUNNING: "Importing", COMPLETED: "Completed", PARTIAL: "Partly imported", FAILED: "Failed", CANCELED: "Canceled" } as Record<string, string>)[status] ?? sentenceCase(status);
+}
+
+/** A person's run through Journey, or one Beat of it, in plain words (JITM-05 §2.11). */
+export function runStatusLabel(status: string): string {
+  return ({ ACTIVE: "Running", PAUSED: "Paused", FINISHED: "Finished", STOPPED: "Stopped", CANCELED: "Stopped", PENDING: "Coming up", DONE: "Done", SKIPPED: "Skipped", HELD: "On hold" } as Record<string, string>)[status] ?? sentenceCase(status);
+}
+
+/** How often a saved date comes back: "One time", "Every month", "Every year". */
+export function recurrenceLabel(recurrence: string): string {
+  return ({ NONE: "One time", MONTHLY: "Every month", YEARLY: "Every year" } as Record<string, string>)[recurrence] ?? sentenceCase(recurrence);
+}
+
 /** A time zone in running copy, named by its city ("New York time"), never its IANA name (JITM-05 §2.19, D79). */
 export function zoneLabel(zone: string): string {
   if (!zone || zone === "UTC" || zone === "Etc/UTC") return "UTC";

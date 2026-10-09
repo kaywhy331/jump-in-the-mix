@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { Notice } from "@/components/Notice";
 import { useConfirmDialog } from "@/components/useConfirmDialog";
+import { importStatusLabel } from "@/lib/display-labels";
 import {
   buildImportRows,
   contactNameForImport,
@@ -485,7 +486,7 @@ export function ContactImportWizardV2({
 
       {stage === "RESULTS" && batch && (
         <section className="card import-stage" aria-live="polite">
-          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : pollError ? "Import status unavailable" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}.{!terminal(batch.status) && " You may close this page; the import will continue."}</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{batch.status.toLowerCase()}</span></div>
+          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : pollError ? "Import status unavailable" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}.{!terminal(batch.status) && " You may close this page; the import will continue."}</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{importStatusLabel(batch.status)}</span></div>
           {pollError && <Notice type="error">{pollError} {lastChecked && <span>Last checked: {batchDate(lastChecked)}.</span>} <button type="button" className="button" onClick={() => setPollVersion(value => value + 1)}>Retry status check</button></Notice>}
           <progress aria-label="Contact import completion" max={100} value={batch.progress} />
           <p><strong>{batch.processedRows.toLocaleString()} of {batch.totalRows.toLocaleString()}</strong> rows processed · {batch.progress}%</p>
@@ -501,7 +502,7 @@ export function ContactImportWizardV2({
       {recentBatches.length > 0 && (
         <section className="card import-stage">
           <div className="import-stage-heading"><div><h2>Recent imports</h2><p>Resume progress, review errors, or confirm completed batches.</p></div></div>
-          <div className="import-result-list">{recentBatches.map((item) => <button type="button" className="contact-method-row" key={item.id} onClick={() => { setBatch(item); setStage("RESULTS"); }}><span><strong>{item.sourceFileName || "Contact import"}</strong><small>{batchDate(item.createdAt)} · {item.processedRows}/{item.totalRows} rows</small></span><span className="status-pill">{item.status.toLowerCase()}</span></button>)}</div>
+          <div className="import-result-list">{recentBatches.map((item) => <button type="button" className="contact-method-row" key={item.id} onClick={() => { setBatch(item); setStage("RESULTS"); }}><span><strong>{item.sourceFileName || "Contact import"}</strong><small>{batchDate(item.createdAt)} · {item.processedRows}/{item.totalRows} rows</small></span><span className="status-pill">{importStatusLabel(item.status)}</span></button>)}</div>
         </section>
       )}
       {confirmDialog}

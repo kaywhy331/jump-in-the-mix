@@ -19,6 +19,7 @@ import { workflowEditorData } from "@/lib/mix-workflow";
 import { MarketplaceNotices, MarketplaceShare } from "@/components/MarketplaceShare";
 import { archiveShareEffect } from "@/lib/marketplace-service";
 import { contactStageChoices } from "@/lib/mix-stage";
+import { mixStatusLabel } from "@/lib/display-labels";
 
 
 export type MixWorkspaceSearchParams = { view?: string; activate?: string; error?: string; at?: string; sig?: string; created?: string; updated?: string; imported?: string };
@@ -77,7 +78,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
   const related = workflow.configuration.rules.filter(rule => rule.source.mixId === mix.id || rule.routes.some(route => route.target?.mixId === mix.id) || rule.join?.target.mixId === mix.id);
   return <div className="mix-edit-columns">
     <section id="selected-mix" className="mix-editor-workspace" aria-label="Selected Mix">
-      <header className="mix-selected-header"><div><h2>{mix.name}</h2><span className="status-pill">{mix.status.toLowerCase()}</span></div>
+      <header className="mix-selected-header"><div><h2>{mix.name}</h2><span className="status-pill">{mixStatusLabel(mix.status)}</span></div>
         <nav className="mix-view-tabs" aria-label="Mix view">{!impersonation && mix.source !== "ONE_TIME" && <MarketplaceShare kind="MIX" targetId={mix.id} targetName={mix.name} workspaceId={workspace.id} canEdit={workspace.ownerId === user.id} />}<Link className="button small" href={baseHref} aria-current={!editing ? "page" : undefined}><AppIcon name="eye" />Preview</Link>{!impersonation && <Link className="button small" href={`${baseHref}&view=edit`} aria-current={editing ? "page" : undefined}><AppIcon name="edit" />Edit</Link>}{!impersonation && mix.status === "ACTIVE" && mix.source !== "ONE_TIME" && <Link className="button small primary mix-start-action" href={`/journey?mix=${encodeURIComponent(mix.id)}&start=1`} aria-label={`Start ${mix.name} for someone`}><AppIcon name="play" />Start</Link>}</nav>
       </header>
       <MarketplaceNotices workspaceId={workspace.id} mixId={mix.id} reports={false} />
