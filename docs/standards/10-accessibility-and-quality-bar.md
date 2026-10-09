@@ -2,9 +2,9 @@
 id: JITM-10
 title: Accessibility and quality bar
 status: active
-version: 1.1.0
+version: 2.0.0
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-10-08
 applies_to: [ui, accessibility, performance, app, public-pages, staff, release-qualification]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
@@ -46,9 +46,9 @@ Neighboring topics have their own homes:
 
 ### Targets and text
 
-**2.1** Touch targets are at least 44×44 CSS px. At 900px and below, every control on customer screens meets this, with at least 8px between neighbors. Default buttons are 44px tall at every width. Compact 32–36px controls are allowed only on desktop, for secondary actions in dense lists and on staff screens. Staff screens follow JITM-07 §2.14: compact on desktop, 44px rows at 760px and below. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:117] [SHIPPED 9439fd6 src/styles/phone-icons.css:55-75] [SHIPPED 9439fd6 src/styles/design-system.css:12] [OWNER 2026-09-28 D9]
+**2.1** Touch targets MUST be at least 44×44 CSS px. At 900px and below, every control on every owner screen, Calendar and Journey included, meets this, with at least 8px between neighbors. Default buttons are 44px tall at every width. Compact 32–36px controls are allowed only on desktop, for secondary actions in dense lists and on staff screens. Staff screens follow JITM-07 §2.14: compact on desktop, 44px rows at 760px and below. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:117] [SHIPPED 9439fd6 src/styles/phone-icons.css:55-75] [SHIPPED 9439fd6 src/styles/design-system.css:12] [OWNER 2026-09-28 D9]
 
-**2.2** Meaningful text is at least 13px. Only three kinds of text may be smaller:
+**2.2** Meaningful text MUST be at least 13px on every owner screen, Calendar and Journey included. Only three kinds of text may be smaller:
 - phone bottom-navigation tab labels, at least 11px (shipped at 12px);
 - labels inside compact buttons and compact-rail labels, at least 12px;
 - decorative or duplicated text hidden from assistive technology, such as a count badge whose number is in its link's name.
@@ -58,6 +58,8 @@ Neighboring topics have their own homes:
 **2.3** Screens MUST work at 200% text size, which is distinct from browser zoom. Nothing clips, overlaps or loses its action. Text containers use minimum heights, not fixed heights. [SOURCE docs/design/DESIGN_GUIDELINES.md:64] [SOURCE docs/design/DESIGN_STRESS_REVIEW_2026-09-20.md:15] [SOURCE docs/audit-2026-09-24/design-a11y-responsive.md:194] [SHIPPED 9439fd6 e2e/sheet-interactions.spec.ts:292-302]
 
 **2.4** Pages MUST NOT scroll sideways at 320px in either theme. Only designated regions scroll sideways, such as the Journey map, date strips and staff tables, and each is keyboard reachable as a named, focusable region. [SHIPPED 9439fd6 e2e/relationship-vocabulary.spec.ts:91-97] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:229] [SOURCE docs/BETA_READINESS_AUDIT_2026-09-26.md:92]
+
+**2.21** An automated check MUST measure the floors of §2.1 and §2.2 on every owner route at 390px in both themes and fail on a new violation; inline links inside sentences are exempt from the 44px rule. [OWNER 2026-10-08 D82]
 
 ### Color and contrast
 
@@ -152,8 +154,9 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 
 - **Physical devices and assistive technology:** every row in the device matrix is NOT RUN, including VoiceOver, TalkBack, operating-system text at 200% and Firefox zoom (`docs/MANUAL_DEVICE_QUALIFICATION.md:73`; `docs/BETA_READINESS_AUDIT_2026-09-26.md:372`).
 - **Journey people rows:** since 2026-09-28, stage, status, reason and due time sit in a `title` tooltip (`src/components/WorkflowPeople.tsx:32`). Touch and keyboard users reach them only by selecting the person. Kevin decided the hover is not enough (§2.17, D26); making the details reachable by tap and keyboard is backlog B-05.
-- **Text floor coverage:** the floor test runs only on phone widths and on 13 routes (`e2e/visual-fitment.spec.ts:176-199`). Journey, Calendar and Marketplace are not covered. Journey still sets 11–12px labels (`src/components/WorkflowJourney.module.css:53-55,227-230`), and the "Recommended" tag inside a button is 11px (`src/styles/phone-icons.css:83`).
+- **Text floor coverage:** the floor test runs only on phone widths and on 13 routes (`e2e/visual-fitment.spec.ts:176-199`). Journey, Calendar and Marketplace are not covered, against §2.21 (D82). Journey still sets 11–12px labels (`src/components/WorkflowJourney.module.css:53-55,227-230`), and the "Recommended" tag inside a button is 11px (`src/styles/phone-icons.css:83`).
 - **Contrast:** the active Beat number puts white on `--violet-mark` (`src/components/WorkflowJourney.module.css:228`), 3.80:1 in dark by token computation. Disabled Journey connections draw at 65% opacity (`:4`), measured at 2.63:1 in light on 2026-09-24 (`docs/audit-2026-09-24/design-a11y-responsive.md:264`).
+- **Floors at f23db11 (UX audit 2026-10-08):** the Calendar agenda's times, Mix names and weekday labels are 12px (125 elements under 13px on the phone page; `src/styles/design-workspaces.css:340,345-346`; VIS-02); the rail's "Signed in as" and invitation hint, profile labels and Mix outline details are under 13px (ACC-01); phone controls such as "View upcoming follow-ups" (16px tall), "View journey" (24px) and appointment titles (20px) are under 44px (ACC-02); the staff phone shell has 72×17 header links and 9–12px text (`src/styles/admin-density.css:164,167,267`; ACC-07). All are against §2.1 and §2.2.
 - **Inline links** inherit the text color with no underline (`src/styles/base.css:63`), against §2.8 (open since 2026-09-26).
 - **Focus not obscured:** from 768 to 900px the sticky app header has no matching top scroll padding (`src/styles/auth.css:68`), and the contact import action bar sits above the phone scroll padding (`src/styles/contact-import.css:17`).
 - **Lighthouse** covers 6 of the 15 indexed public pages and no signed-in page; production's largest contentful paint measured 2.43–2.64 s against the 2.5 s budget on 2026-09-26 (`docs/BETA_READINESS_AUDIT_2026-09-26.md:320-323`).
@@ -162,3 +165,4 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.1.0 — 2026-09-28 — Base 61d4df4. §2.17 requires tap and keyboard access to hover content, with dismissal and persistence (D26).
+- 2.0.0 — 2026-10-08 — Base f23db11. §2.1 and §2.2 are MUST rules on every owner screen, Calendar and Journey included; new §2.21 requires an automated check of both floors (D82, the UX audit's answers). §6 adds the floor deviations the audit measured.

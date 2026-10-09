@@ -52,7 +52,7 @@ If words change too, also load `jitm-copy`. If behavior changes, also load `jitm
 - Breakpoints, rails, the phone bottom navigation with the central Quick Add, and page maximum widths are fixed in JITM-07 §2.
 - Confirmations use `ConfirmDialog` or `useConfirmDialog`: Cancel first, with initial focus on Cancel. Never add `window.confirm` (JITM-08 §2).
 - Sheets and popups follow the shared pattern in JITM-08 §2: one heading, a 44px close control, bounded to the viewport, a bottom sheet on phones, the scrim, the shared disclosure style.
-- Meaningful text is at least 13px and targets are at least 44×44px (exceptions: JITM-10 §2.1–§2.2). Focus is visible and never hidden behind persistent bars (JITM-10 §2).
+- Meaningful text MUST be at least 13px and targets at least 44×44px on every owner screen, Calendar and Journey included (exceptions: JITM-10 §2.1–§2.2); the automated floor check covers owner routes (JITM-10 §2.21). Focus is visible and never hidden behind persistent bars (JITM-10 §2).
 - Preserve the current UI structure unless the task fixes a specific workflow gap or Kevin asks for a redesign (JITM-01 §2).
 - Theme choice (System, Light or Dark) stays in the browser (JITM-06 §2).
 
