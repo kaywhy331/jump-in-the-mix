@@ -130,7 +130,7 @@ export async function assignSelectedContactsToActiveGroupAction(formData: FormDa
   });
   if (contacts.length !== contactIds.length) fail("One or more selected Contacts are unavailable.", session);
 
-  await prisma.$transaction(async (tx) => {
+  const added = await prisma.$transaction(async (tx) => {
     const tagged = new Set((await tx.contactGroupMembership.findMany({ where: { groupId, contactId: { in: contacts.map((contact) => contact.id) } }, select: { contactId: true } })).map((item) => item.contactId));
     await tx.contactGroupMembership.createMany({
       data: contacts.map((contact) => ({ contactId: contact.id, groupId })),
@@ -151,7 +151,9 @@ export async function assignSelectedContactsToActiveGroupAction(formData: FormDa
       }
     });
     await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: {} } });
+    return contacts.length - tagged.size;
   });
 
-  redirect(`/contacts?bulkAssigned=${contacts.length}`);
+  // The notice names the tag and how many people newly have it (TRU-07).
+  redirect(`/contacts?bulkAssigned=${added}&bulkTag=${encodeURIComponent(groupId)}`);
 }
