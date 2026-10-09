@@ -107,7 +107,21 @@ export function TodayMomentum() {
       tallest = Math.max(tallest, slot.getBoundingClientRect().height);
       slot.style.minHeight = tallest ? `${tallest}px` : "";
     });
+    // A phone review's sheet pads its scrolling by the height of its action bar, which stays at the bottom.
+    let bar: HTMLElement | null = null;
+    const barSizes = new ResizeObserver(() => {
+      const panel = bar?.closest<HTMLElement>(".sheet-panel");
+      if (bar && panel) panel.style.setProperty("--review-bar-height", `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+    });
+    const watchBar = () => {
+      const next = document.querySelector<HTMLElement>(".follow-up-review-sheet[open]:modal .review-action-bar");
+      if (next === bar) return;
+      if (bar) barSizes.unobserve(bar);
+      bar = next;
+      if (bar) barSizes.observe(bar);
+    };
     const sync = () => {
+      watchBar();
       if (opened && !(opened.isConnected && opened.open)) opened = null;
       // The review Today opened; on a phone, any open review, since each covers the floating stack. None while Today asks
       // what's next for someone: that question floats, and the Undos stay beside it.
@@ -154,7 +168,7 @@ export function TodayMomentum() {
     window.addEventListener("jitm:jump-state", onState);
     return () => {
       window.removeEventListener("jitm:jump-state", onState);
-      cancelAnimationFrame(frame); changes.disconnect(); sizes.disconnect();
+      cancelAnimationFrame(frame); changes.disconnect(); sizes.disconnect(); barSizes.disconnect();
       if (slot) slot.style.minHeight = "";
       setOpenReviewSlot(null);
     };

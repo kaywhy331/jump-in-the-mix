@@ -85,6 +85,16 @@ async function record(page: Page, button: Locator, id: string) {
   if (await decisions.isVisible()) await decisions.getByRole("button", { name: "Save outcome", exact: true }).click();
 }
 const markSent = (page: Page, review: Locator, name: string, id: string) => record(page, review.getByRole("button", { name: `Mark sent for ${name}`, exact: true }), id);
+/** Nothing covers the focused control: the point at its center hits it. */
+async function focusedIsUncovered(page: Page) {
+  return page.evaluate(() => {
+    const focused = document.activeElement as HTMLElement | null;
+    if (!focused || focused === document.body) return { name: "body", uncovered: true };
+    const box = focused.getBoundingClientRect();
+    const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
+    return { name: focused.getAttribute("aria-label") ?? focused.textContent?.trim().slice(0, 30) ?? focused.tagName, uncovered: Boolean(hit && (hit === focused || focused.contains(hit))) };
+  });
+}
 async function returnFromApp(page: Page, id: string, name: string) {
   // "Open text" closes the review and remembers the follow-up; the tray asks about it when the owner comes back.
   await page.evaluate(({ jumpId, contactName }) => {
@@ -219,6 +229,40 @@ test.describe("on a phone", () => {
     await page.getByRole("button", { name: `Review message for ${names[2]}`, exact: true }).click();
     await expect(confirmationOf(openReview(page), ids[0]).getByRole("button", { name: "Undo", exact: true })).toBeVisible();
     await expect(page.locator("#follow-up-confirmations [data-follow-up-undo]")).toHaveCount(0);
+  });
+
+  test("Tab never lands behind the action bar on a 320×700 phone with one or two confirmations", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 700 });
+    await page.goto("/jumps"); await ready(page);
+    await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+    await markSent(page, openReview(page), names[0], ids[0]);
+    for (const [name, confirmations] of [[names[1], 1], [names[2], 2]] as const) {
+      const review = openReview(page);
+      await expect(review.locator("[data-follow-up-undo]")).toHaveCount(confirmations);
+      await review.getByRole("textbox", { name: "Your message" }).focus();
+      expect(await focusedIsUncovered(page)).toMatchObject({ uncovered: true });
+      // Through the channel choice, the handoff and the outcomes: each control is in the clear when it takes focus. The
+      // pass stops at the last outcome; tabbing on would leave the page, and refocusing it runs Today's account check.
+      const reached: string[] = [];
+      for (let step = 0; step < 12 && reached.at(-1) !== "Skip Beat"; step++) {
+        await page.keyboard.press("Tab");
+        const focused = await focusedIsUncovered(page);
+        reached.push(focused.name);
+        expect(focused, `${focused.name} is covered`).toMatchObject({ uncovered: true });
+      }
+      expect(reached).toEqual(expect.arrayContaining(["Email", "Call", `Open text for ${name}`, `Mark sent for ${name}`, "Skip Beat"]));
+      if (confirmations === 1) await markSent(page, review, name, ids[1]);
+    }
+  });
+
+  test("on a screen 480px high or less the action bar scrolls with the review", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 240 });
+    await page.goto("/jumps"); await ready(page);
+    await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+    const review = openReview(page);
+    expect(await review.locator(".review-action-bar").evaluate(bar => getComputedStyle(bar).position)).toBe("static");
+    await review.getByRole("textbox", { name: "Your message" }).focus();
+    expect(await focusedIsUncovered(page)).toMatchObject({ uncovered: true });
   });
 
   test("an outcome recorded in the tray after returning from the app opens the next review", async ({ page }) => {
