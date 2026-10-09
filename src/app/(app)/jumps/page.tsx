@@ -444,12 +444,15 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       .catch(() => null)
     : null;
 
+  // Whether this view's Done grows by an outcome recorded here: the due view counts today's completed follow-ups;
+  // other views count the completed ones they list, which their status and priority filters may leave out.
+  const doneCounts = range === "due" ? { done: true, skipped: false } : { done: priority !== "overdue" && (status === "all" || status === "done"), skipped: priority !== "overdue" && (status === "all" || status === "skipped") };
   // What the header says with nothing due; the live summary says the same once the last due follow-up is done.
   const zeroLine = !workflowAttention ? "Your next steps could not be checked." : workflowAttention.total ? `${workflowAttention.total} item${workflowAttention.total === 1 ? " needs" : "s need"} your input.` : workflowAttention.preparing || preparation.state !== "ready" ? "Your follow-up list is awaiting preparation." : (upcomingCount + (workflowAttention.futureTotal ?? 0)) ? `${(upcomingCount + (workflowAttention.futureTotal ?? 0)).toLocaleString()} upcoming follow-up${upcomingCount === 1 ? "" : "s"}.` : activeFilterCount ? "No open follow-ups in this view." : "You’re caught up.";
 
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
-      <TodayLiveCounts readAt={now.toISOString()} doneCountsSkips={range !== "due"} zero={zeroLine} initial={{ overdue: overdueCount, today: attentionCount - overdueCount, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
+      <TodayLiveCounts readAt={now.toISOString()} doneCounts={doneCounts} zero={zeroLine} initial={{ overdue: overdueCount, today: attentionCount - overdueCount, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
       <TodayMomentum />
       <JumpReturnTray />
       <MixEndPrompt mixes={startableMixes} todayKey={logicalDateKey(logicalDateInTimezone(new Date(), timezone))} address={JSON.stringify(params)} viewOnly={Boolean(impersonation)} />

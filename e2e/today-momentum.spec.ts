@@ -293,6 +293,15 @@ test.describe("on a wider screen", () => {
     expect((await send.boundingBox())!.y).toBeCloseTo(before.y, 0);
   });
 
+  test("in a view that lists no completed follow-ups, Done stays as it is", async ({ page }) => {
+    await page.goto("/jumps?range=week&status=pending"); await ready(page);
+    await expect(doneCount(page)).toHaveText("0");
+    const docked = openReview(page);
+    await markSent(page, docked, names[1], ids[1]);
+    await expect(confirmationOf(docked, ids[1])).toBeVisible();
+    await expect(doneCount(page)).toHaveText("0");
+  });
+
   test("after the last due follow-up in the list, the first one left opens", async ({ page }) => {
     await page.goto("/jumps"); await ready(page);
     await page.getByRole("button", { name: `Review message for ${names[2]}`, exact: true }).click();

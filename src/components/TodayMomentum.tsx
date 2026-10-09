@@ -25,11 +25,11 @@ function sectionOf(jumpId: string): Section | null {
 
 /**
  * Today's counts change the moment an outcome is recorded here: the follow-up leaves its section for Done, and Undo
- * moves it back. Done counts a skip only where the server's does (`doneCountsSkips`). Each read from the server
- * (`readAt`) replaces these adjustments (D70, JITM-08 §2.36, TRU-06). `zero` is the header line the server would show
- * with nothing due.
+ * moves it back. Done grows only where this view's Done counts that outcome (`doneCounts`, from the server). Each read
+ * from the server (`readAt`) replaces these adjustments (D70, JITM-08 §2.36, TRU-06). `zero` is the header line the
+ * server would show with nothing due.
  */
-export function TodayLiveCounts({ initial, readAt, doneCountsSkips, zero, children }: { initial: Counts; readAt: string; doneCountsSkips: boolean; zero: string; children: ReactNode }) {
+export function TodayLiveCounts({ initial, readAt, doneCounts, zero, children }: { initial: Counts; readAt: string; doneCounts: { done: boolean; skipped: boolean }; zero: string; children: ReactNode }) {
   const key = `${readAt}:${initial.overdue}:${initial.today}:${initial.upcoming}:${initial.done}`;
   const [moved, setMoved] = useState<{ key: string; items: Map<string, Moved> }>({ key, items: new Map() });
   const items = useMemo(() => moved.key === key ? moved.items : new Map<string, Moved>(), [moved, key]);
@@ -59,10 +59,10 @@ export function TodayLiveCounts({ initial, readAt, doneCountsSkips, zero, childr
     const counts = { ...initial };
     for (const item of items.values()) {
       counts[item.section] = Math.max(0, counts[item.section] - 1);
-      if (!item.skipped || doneCountsSkips) counts.done += 1;
+      if (item.skipped ? doneCounts.skipped : doneCounts.done) counts.done += 1;
     }
     return { counts, zero };
-  }, [initial, items, doneCountsSkips, zero]);
+  }, [initial, items, doneCounts.done, doneCounts.skipped, zero]);
   return <CountsContext.Provider value={value}>{children}</CountsContext.Provider>;
 }
 
