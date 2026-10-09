@@ -123,9 +123,8 @@ export function TodayMomentum() {
     const sync = () => {
       watchBar();
       if (opened && !(opened.isConnected && opened.open)) opened = null;
-      // The review Today opened; on a phone, any open review, since each covers the floating stack. None while Today asks
-      // what's next for someone: that question floats, and the Undos stay beside it.
-      const host = document.querySelector("#follow-up-confirmations [data-mix-end]") ? null : opened ?? document.querySelector<HTMLDialogElement>(".follow-up-review-sheet[open]:modal");
+      // The review Today opened; on a phone, any open review, since each covers the floating stack.
+      const host = opened ?? document.querySelector<HTMLDialogElement>(".follow-up-review-sheet[open]:modal");
       const next = host?.querySelector<HTMLElement>("[data-sheet-momentum]") ?? null;
       if (next === slot) return;
       if (slot) { sizes.unobserve(slot); slot.style.minHeight = ""; }

@@ -451,5 +451,6 @@
   .follow-up-review-sheet .review-action-bar { position: sticky; bottom: 0; z-index: 1; padding-top: 8px; background: var(--raised); }
   .follow-up-review-sheet > .sheet-panel { scroll-padding-bottom: calc(var(--review-bar-height, 160px) + 16px); }
 }
-/* What's next for a person comes after the Undos still on screen, whatever order they arrived in (JITM-09 §2.77). */
-.follow-up-confirmations > .mix-end-slot { order: 1; }
+/* What's next for a person comes after the Undos still on screen, whatever order they arrived in (JITM-09 §2.77). The
+   slot has no box of its own, so the question itself is the stack's grid item. */
+.follow-up-confirmations > .mix-end-slot > .mix-end-question { order: 1; }

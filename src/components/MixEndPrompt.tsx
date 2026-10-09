@@ -59,7 +59,8 @@ export function MixEndPrompt({ mixes, todayKey, address, viewOnly = false }: { m
   const chosen = mixes.find(mix => mix.id === choice);
   // Closing it leaves the person as they are, and keyboard focus moves on rather than to the page (UX-02).
   const close = () => {
-    const next = document.querySelector<HTMLElement>("#follow-up-confirmations [data-follow-up-undo] button") ?? document.querySelector<HTMLElement>(".today-page-header h1");
+    // An Undo may float or sit inside the review Today opened.
+    const next = document.querySelector<HTMLElement>("[data-follow-up-undo] button") ?? document.querySelector<HTMLElement>(".today-page-header h1");
     setQuestion(null);
     requestAnimationFrame(() => next?.focus());
   };

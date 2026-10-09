@@ -85,6 +85,14 @@ async function record(page: Page, button: Locator, id: string) {
   if (await decisions.isVisible()) await decisions.getByRole("button", { name: "Save outcome", exact: true }).click();
 }
 const markSent = (page: Page, review: Locator, name: string, id: string) => record(page, review.getByRole("button", { name: `Mark sent for ${name}`, exact: true }), id);
+/** A person whose only Beat is due today in a one-Beat Mix, so recording it ends the Mix and Today asks what's next. */
+async function mixEndPerson(name: string, phone: string) {
+  const contact = await prisma.contact.create({ data: { workspaceId, displayName: name, phones: { create: { phone, normalized: phone, isPrimary: true } } } });
+  const id = `${suffix}-mix-end-${contact.id}`;
+  const scheduledAt = new Date(midnight.getTime() + 30_000);
+  await prisma.jump.create({ data: { id, workspaceId, contactId: contact.id, ...shortMix, scheduledAt, baseScheduledAt: scheduledAt, status: "PENDING", reason: "Check in", uniquenessKey: id, templateSnapshot: snapshot(scheduledAt), renderedSnapshot: { subject: null, body, script: null } } });
+  return { id, contactId: contact.id, remove: () => prisma.contact.deleteMany({ where: { id: contact.id } }) };
+}
 /** Nothing covers the focused control: the point at its center hits it. */
 async function focusedIsUncovered(page: Page) {
   return page.evaluate(() => {
@@ -265,6 +273,26 @@ test.describe("on a phone", () => {
     expect(await focusedIsUncovered(page)).toMatchObject({ uncovered: true });
   });
 
+  test("while Today asks what's next for someone, the next review still holds the new Undo", async ({ page }) => {
+    const max = await mixEndPerson("Max Mixend", "+15550103198");
+    try {
+      await page.goto("/jumps"); await ready(page);
+      await page.getByRole("button", { name: "Review message for Max Mixend", exact: true }).click();
+      await markSent(page, openReview(page), "Max Mixend", max.id);
+      const question = page.locator(`[data-mix-end="${max.contactId}"]`);
+      await expect(question).toBeVisible();
+      // The question waits for an answer while the owner carries on.
+      await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+      await markSent(page, openReview(page), names[0], ids[0]);
+      const next = openReview(page);
+      await expect(next.getByRole("button", { name: `Mark sent for ${names[1]}`, exact: true })).toBeVisible();
+      await expect(confirmationOf(next, ids[0]).getByRole("button", { name: "Undo", exact: true })).toBeVisible();
+      await expect(question).toBeAttached();
+    } finally {
+      await max.remove();
+    }
+  });
+
   test("an outcome recorded in the tray after returning from the app opens the next review", async ({ page }) => {
     await page.goto("/jumps"); await ready(page);
     const tray = await returnFromApp(page, ids[0], names[0]);
@@ -335,6 +363,29 @@ test.describe("on a wider screen", () => {
     await page.clock.runFor(10_500);
     await expect(confirmationOf(docked, ids[0])).toHaveCount(0);
     expect((await send.boundingBox())!.y).toBeCloseTo(before.y, 0);
+  });
+
+  test("the question about what's next sits below the Undos that float with it", async ({ page }) => {
+    const mo = await mixEndPerson("Mo Mixend", "+15550103197");
+    try {
+      await page.goto("/jumps"); await ready(page);
+      await page.getByRole("button", { name: "Review message for Mo Mixend", exact: true }).click();
+      await markSent(page, openReview(page), "Mo Mixend", mo.id);
+      await expect(page.locator(`[data-mix-end="${mo.contactId}"]`)).toBeVisible();
+      // A list action after the question: its confirmation floats, later in the stack's markup than the question.
+      const card = page.locator(`#jump-${ids[2]}`);
+      await card.getByRole("button", { name: /^More options for/ }).click();
+      await record(page, card.getByRole("button", { name: /^Mark done for/ }), ids[2]);
+      await expect(confirmationOf(page.locator("#follow-up-confirmations"), ids[2])).toBeVisible();
+      const order = await page.locator("#follow-up-confirmations").evaluate(stack => {
+        const question = stack.querySelector("[data-mix-end]")!.getBoundingClientRect();
+        return [...stack.querySelectorAll("[data-follow-up-undo]")].map(undo => undo.getBoundingClientRect().bottom <= question.top + 1);
+      });
+      expect(order.length).toBeGreaterThan(0);
+      expect(order.every(Boolean)).toBe(true);
+    } finally {
+      await mo.remove();
+    }
   });
 
   test("in a view that lists no completed follow-ups, Done stays as it is", async ({ page }) => {
