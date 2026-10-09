@@ -111,6 +111,9 @@ test("Today shows horizontal Beats from the selected occurrence and one continuo
 test("completion shows a floating confirmation and Undo restores the pending follow-up", async ({ page }) => {
   await page.setViewportSize({ width: 834, height: 1194 }); await page.goto("/jumps");
   await page.locator(".follow-up-review-sheet[open]").getByRole("button", { name: "Mark sent for Ava Zoom", exact: true }).click();
+  // A tap before the review has checked the Mix's next step asks to save once it has (existing).
+  const decisions = page.locator(".follow-up-review-sheet[open]").getByRole("group", { name: "Record journey outcome" });
+  if (await decisions.waitFor({ state: "visible", timeout: 750 }).then(() => true, () => false)) await decisions.getByRole("button", { name: "Save outcome", exact: true }).click();
   const confirmation = page.locator("#follow-up-confirmations [data-follow-up-undo]");
   await expect(confirmation).toBeVisible(); expect(await prisma.jump.findUnique({ where: { id: jumpId }, select: { status: true } })).toEqual({ status: "DONE" });
   await confirmation.getByRole("button", { name: "Undo", exact: true }).click();
