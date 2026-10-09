@@ -269,10 +269,28 @@ test("inline Mix Beat names and hidden options survive saving", async ({ page })
   expect(saved.stepVersion.variants.find(item => item.family === "CALL")?.script).toBe("Ask about the next renovation milestone.");
 });
 
-test("short-phone activation dialog keeps both decisions inside its scroll boundary", async ({ page }) => {
+test("saving wording in a Mix that is on asks nothing when the save starts no one (TRU-02)", async ({ page }) => {
   await prisma.mix.update({ where: { id: mixId }, data: { status: "ACTIVE" } });
+  await prisma.userPreference.update({ where: { userId }, data: { reviewMixActivation: true } });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/mixes/${mixId}/edit`);
+  const form = page.locator(".mix-editor-form");
+  await form.getByRole("group", { name: "Beat 1", exact: true }).getByLabel("Message", { exact: true }).fill("Hi {{First Name}}, how are the renovation plans going?");
+  await expect(form.getByText("You’ll review who gets this Mix before activating.")).toHaveCount(0);
+  await form.getByRole("button", { name: "Save Mix", exact: true }).click();
+  await expect(page).toHaveURL(/updated=manual/);
+  expect((await prisma.mix.findUniqueOrThrow({ where: { id: mixId } })).status).toBe("ACTIVE");
+  const saved = await prisma.mixStep.findFirstOrThrow({ where: { mixId, isActive: true }, include: { stepVersion: true }, orderBy: { sortOrder: "asc" } });
+  expect(saved.stepVersion.body).toBe("Hi {{First Name}}, how are the renovation plans going?");
+});
+
+test("short-phone activation dialog keeps both decisions inside its scroll boundary", async ({ page }) => {
+  // Turning a Mix on opens the review; a save on one already on that starts no one doesn't (TRU-02).
+  await prisma.mix.update({ where: { id: mixId }, data: { status: "DRAFT" } });
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto(`/mixes/${mixId}/edit`);
+  await page.locator(".mix-start-settings > summary").click();
+  await page.getByRole("combobox", { name: "After saving", exact: true }).selectOption("ACTIVE");
   await page.getByRole("button", { name: "Review and start", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Start this Mix?", exact: true });
   await expect(dialog).toBeVisible();

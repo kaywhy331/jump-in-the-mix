@@ -143,10 +143,6 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   if (!name) fail(path, "Give the Mix a name.", session);
   if (!allowedTriggers.includes(triggerMode)) fail(path, "Choose when this Mix should start.", session);
   if (!allowedStatuses.includes(status)) fail(path, "Choose Draft, Active, or Paused.", session);
-  if (status === "ACTIVE" && value(formData, "activationConfirmed", 4) !== "1") {
-    const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
-    if (preference?.reviewMixActivation !== false) fail(path, "Review who gets the Mix before turning it on.", session);
-  }
 
   if (triggerMode === "DATE_TRIGGERED") {
     const dateType = await prisma.dateType.findFirst({
@@ -250,10 +246,17 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   const hadEveryone = Boolean(existingMix?.audienceEveryone || activeAssignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:")));
   const widens = status === "ACTIVE" && ((assignAllContacts && !hadEveryone) || groupIds.some((groupId) => !activeAssignments.some((assignment) => assignment.groupId === groupId)));
   if ((turningOn ? assignAllContacts || groupIds.length > 0 : widens) && (stageId === undefined ? existingMix?.stageId : stageId) && value(formData, "activationConfirmed", 4) !== "1") fail(path, turningOn ? "Review who moves to the Mix’s stage before turning it on." : "Review who moves to the Mix’s stage before adding them.", session);
+  // With the review preference on, a save that starts people is reviewed first: turning the Mix on or back on, or adding
+  // Everyone or a tag to one that is on. A save that starts no one, such as a wording edit, saves directly (TRU-02).
+  if ((turningOn || resuming || widens) && value(formData, "activationConfirmed", 4) !== "1") {
+    const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
+    if (preference?.reviewMixActivation !== false) fail(path, turningOn || resuming ? "Review who gets the Mix before turning it on." : "Review who this save starts before saving.", session);
+  }
   // A mix that starts when the owner chooses needs no audience to be on: it is started from one
   // person's page or lined up with a visit from the calendar. Elapsed beats never count as scheduled
   // for an enrollment without an appointment, so the projection below counts calendar-day beats only.
-  if (status === "ACTIVE" && !afterMix && triggerMode !== "MANUAL_START" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the Mix.", session);
+  // A Mix already on keeps the people started one at a time, so only turning one on needs Everyone or a tag (TRU-02).
+  if (turningOn && !afterMix && triggerMode !== "MANUAL_START" && !assignAllContacts && !groupIds.length) fail(path, "Choose everyone or at least one tag before turning on the Mix.", session);
   const calendarStepCount = parsedTimings.filter((timing) => timing.anchor === "CALENDAR_DAY").length;
   if (triggerMode === "BROADCAST" && !assignAllContacts && !groupIds.length) fail(path, "Choose who gets the Mix.", session);
 

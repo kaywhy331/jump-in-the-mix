@@ -63,6 +63,21 @@ describe.skipIf(!local).sequential("persisted Mix activation policy", () => {
     await expect(activateMixAction(data)).rejects.toThrow(`redirect:/mixes/${mix.id}/edit?activate=1`);
     expect((await prisma.mix.findUniqueOrThrow({ where: { id: mix.id } })).status).toBe("PAUSED");
   });
+  it("saves a Mix that is already on without a review when the save starts no one (TRU-02)", async () => {
+    await prisma.userPreference.update({ where: { userId }, data: { reviewMixActivation: true } });
+    const dateType = await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: "Move-in", slug: `move-in-${randomUUID()}` } });
+    // A date-based Mix that is on, whose people were started one at a time, has no audience of its own.
+    const running = await prisma.mix.create({ data: { workspaceId, name: "Running date Mix", status: "ACTIVE", triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id } });
+    const edit = (fields: Record<string, string>) => { const data = form(); for (const [key, value] of Object.entries({ mixId: running.id, name: running.name, triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id, ...fields })) data.set(key, value); return data; };
+    await expect(saveMixAction(edit({ "inlineScript-0": "Ask how the move went." }))).rejects.toThrow(`redirect:/mixes/${running.id}/edit?updated=manual`);
+    // Adding a tag starts its members, so that save is still reviewed first.
+    const tag = await prisma.group.create({ data: { workspaceId, name: `Movers ${randomUUID()}` } });
+    const saved = await prisma.mix.findUniqueOrThrow({ where: { id: running.id } });
+    expect(await refusal(saveMixAction(edit({ groupIds: tag.id, mixUpdatedAt: saved.updatedAt.toISOString() })))).toBe("Review who this save starts before saving.");
+    // Turning a date-based Mix on still needs Everyone or a tag.
+    const draft = edit({ status: "ACTIVE", activationConfirmed: "1" }); draft.delete("mixId"); draft.set("name", "New date Mix");
+    expect(await refusal(saveMixAction(draft))).toBe("Choose everyone or at least one tag before turning on the Mix.");
+  });
   it("shows the Journey's own refusal when a completion trigger is saved against an older Journey", async () => {
     const source = await prisma.mix.findFirstOrThrow({ where: { workspaceId, status: "ACTIVE" } });
     const stale = form(); stale.set("name", "Saved against an old Journey"); stale.set("status", "DRAFT"); stale.set("triggerMode", "AFTER_MIX"); stale.set("completionSourceId", source.id); stale.set("workflowRevision", "0");
