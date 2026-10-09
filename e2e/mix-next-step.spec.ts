@@ -243,7 +243,7 @@ test("the New contacts setting preselects its Mix in Add a contact and Quick Add
   await choice.selectOption("");
   await expect(page.getByText("They’ll show as No Mix until you choose one.")).toBeVisible();
   await choice.selectOption(estimateMixId);
-  await page.getByRole("button", { name: "Queue 1 valid row", exact: true }).click();
+  await page.getByRole("button", { name: "Import 1 person", exact: true }).click();
   await expect(page.getByRole("heading", { name: /Import is running|Import results/ })).toBeVisible();
   const batch = await prisma.contactImportBatch.findFirstOrThrow({ where: { workspaceId }, orderBy: { createdAt: "desc" }, select: { payload: true } });
   expect((batch.payload as { mixId?: string }).mixId).toBe(estimateMixId);

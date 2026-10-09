@@ -348,7 +348,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.viewSaved && <Notice type="success">View saved.</Notice>}
       {params.defaultViewSaved && <Notice type="success">Default view saved.</Notice>}
       {params.viewDeleted && <Notice type="success">View deleted.</Notice>}
-      {importBatchId && <Notice type={importBatch ? "info" : "error"}>{importBatch ? `Showing Contacts touched by the selected ${importBatch.status.toLowerCase()} import.` : "That import batch is unavailable in your personal data."}</Notice>}
+      {importBatchId && <Notice type={importBatch ? "info" : "error"}>{importBatch ? "Showing the people from this import." : "That import batch is unavailable in your personal data."}</Notice>}
       <UrlErrorNotice params={params} viewer={session} />
       <p className="sr-only" role="status" aria-live="polite">{resultMessage}</p>
       <div className="contacts-workspace"><section className="contacts-directory" aria-label="Contact directory">

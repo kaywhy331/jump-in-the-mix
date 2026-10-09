@@ -136,7 +136,7 @@ test("import review counts the rows with no phone or email and asks before queue
   await expect(cellPhoneMapping).toHaveValue("field:phone");
 
   // More than half the rows lack a contact method, so Queue asks first; Go back queues nothing.
-  await page.getByRole("button", { name: "Queue 3 valid rows", exact: true }).click();
+  await page.getByRole("button", { name: "Import 3 people", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Most rows have no phone or email" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("2 of 3 rows have no phone or email");

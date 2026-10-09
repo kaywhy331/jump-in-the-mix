@@ -140,7 +140,7 @@ function defaultResolution(match: ImportMatch): ImportResolution {
 function actionLabel(action: ImportResolutionAction): string {
   if (action === "CREATE") return "Create new Contact";
   if (action === "MERGE") return "Merge without overwriting";
-  if (action === "REPLACE") return "Prefer imported values";
+  if (action === "REPLACE") return "Update from the file";
   return "Skip row";
 }
 
@@ -325,7 +325,7 @@ export function ContactImportWizardV2({
       const proceed = await confirm({
         title: "Most rows have no phone or email",
         description: `${contactMethodSummary}. Those people will be saved with names only, and Today cannot prepare a call or message for them. If the file has phone or email columns, go back and check the field mapping first.`,
-        confirmLabel: "Queue anyway",
+        confirmLabel: "Import anyway",
         cancelLabel: "Go back"
       });
       if (!proceed) return;
@@ -362,7 +362,7 @@ export function ContactImportWizardV2({
       setStage("RESULTS");
       void loadRecent();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The import could not be queued.");
+      setError(cause instanceof Error ? cause.message : "The import could not start.");
     } finally {
       setBusy(false);
     }
@@ -422,7 +422,7 @@ export function ContactImportWizardV2({
             <input ref={fileInputRef} type="file" accept=".csv,.vcf,.vcard,text/csv,text/vcard" onChange={(event) => void selectFile(event.target.files?.[0] ?? null)} disabled={busy} />
             <span className="import-drop-icon"><AppIcon name="import" /></span>
             <strong>{busy ? "Analyzing file…" : "Choose a CSV or VCF file"}</strong>
-            <small>Up to 5,000 rows and 10 MB. You may leave after the import is queued.</small>
+            <small>Up to 5,000 rows and 10 MB. You can leave once the import starts.</small>
           </label>
           <div className="import-privacy-note"><strong>Only your account can access the contacts you import.</strong><span>We check for matching email addresses and phone numbers. You decide what to do with possible duplicates.</span></div>
           <p className="import-phone-link"><Link className="inline-action" href="/contacts/from-phone">Adding people from your phone?</Link></p>
@@ -457,7 +457,7 @@ export function ContactImportWizardV2({
           <div className="import-summary-grid">
             <div><strong>{planned.create}</strong><span>Create</span></div>
             <div><strong>{planned.merge}</strong><span>Merge</span></div>
-            <div><strong>{planned.replace}</strong><span>Prefer imported</span></div>
+            <div><strong>{planned.replace}</strong><span>Update from file</span></div>
             <div><strong>{planned.skip}</strong><span>Skip / invalid</span></div>
           </div>
 
@@ -480,7 +480,7 @@ export function ContactImportWizardV2({
             {mixes.length > 0 && <div className="field"><label htmlFor="importMixChoice">Add the {planned.create.toLocaleString()} new {planned.create === 1 ? "person" : "people"} to a Mix</label><select id="importMixChoice" value={mixChoice} onChange={(event) => setMixChoice(event.target.value)} aria-describedby="importMixChoiceHint"><option value="">Don’t add them to a Mix</option>{mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select><small id="importMixChoiceHint">{[stageNote, mixChoice ? (stageNote ? (mixChoice === stageMixId ? "" : "The Mix you choose here starts too, on the day they’re imported.") : "It starts for each of them on the day they’re imported.") : stageNote ? "" : "They’ll show as No Mix until you choose one."].filter(Boolean).join(" ")}</small></div>}
             {everyoneMixes.length > 0 && <p className="muted-copy">{everyoneMixNames(everyoneMixes)} {everyoneMixes.length === 1 ? "is for everyone, so it starts" : "are for everyone, so they start"} for the new people too.</p>}
           </fieldset>}
-          <div className="import-stage-actions"><button className="button" type="button" onClick={reset}>Back</button><button className="button primary" type="button" disabled={busy || !validRows.length} onClick={() => void queueImport()}>{busy ? "Queueing…" : `Queue ${validRows.length} valid row${validRows.length === 1 ? "" : "s"}`}</button></div>
+          <div className="import-stage-actions"><button className="button" type="button" onClick={reset}>Back</button><button className="button primary" type="button" disabled={busy || !validRows.length} onClick={() => void queueImport()}>{busy ? "Starting the import…" : `Import ${validRows.length} ${validRows.length === 1 ? "person" : "people"}`}</button></div>
         </section>
       )}
 
