@@ -261,9 +261,12 @@ export function JumpWorkflowCard({
       await saveOutcome(jumpId, "REOPENED", ids.claim(key));
       ids.release(key);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The follow-up could not be reopened.");
-      // Back on the Undo, to try again.
-      if (undoHadFocus.current) requestAnimationFrame(() => { if (focusIsFree(confirmationRef.current)) confirmationRef.current?.querySelector("button")?.focus(); });
+      // Back on the Undo, to try again. It is enabled first: a disabled button can't take focus.
+      flushSync(() => {
+        setError(reason instanceof Error ? reason.message : "The follow-up could not be reopened.");
+        setUndoing(false);
+      });
+      if (undoHadFocus.current && focusIsFree(confirmationRef.current)) confirmationRef.current?.querySelector("button")?.focus();
       undoHadFocus.current = false;
       hideTimer.current = window.setTimeout(() => { focusAfterConfirmation(confirmationRef.current); setState("HIDDEN"); }, 10_000);
     } finally {
