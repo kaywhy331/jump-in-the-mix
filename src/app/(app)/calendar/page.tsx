@@ -20,7 +20,7 @@ import { ViewOnlySupportNotice } from "@/components/ViewOnlySupportNotice";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { describeBoundPlanOutlook } from "@/lib/step-timing";
 import { AppIcon } from "@/components/AppIcon";
-import { automaticEmailConfigured, automaticSmsConfigured } from "@/lib/automatic-delivery";
+import { sendsByItself } from "@/lib/automatic-delivery";
 export const metadata = { title: "Calendar" };
 
 export default async function CalendarPage({ searchParams }: { searchParams: Promise<{ returnTo?: string; new?: string; page?: string; days?: string; eventq?: string; savedEvent?: string; date?: string; contact?: string; edit?: string; q?: string; saved?: string; error?: string; at?: string; sig?: string; plan?: string; kept?: string; person?: string; ready?: string; awaitingOutcome?: string; awaitingCompletion?: string; lapsed?: string; held?: string; done?: string; event?: string; binding?: string }> }) {
@@ -72,16 +72,16 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     : query.event ? (await prisma.calendarEntry.findFirst({ where: { id: query.event.slice(0, 120), workspaceId: workspace.id }, select: { title: true } }))?.title ?? null : null;
   // Allowing a visit's follow-ups to send by themselves takes effect only while the account's automatic sending works (CAL-01).
   const automation = query.done === "delivery-on" ? await prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id }, select: { enabled: true, emailEnabled: true, smsEnabled: true } }) : null;
-  const sendsAutomatically = Boolean(automation?.enabled && ((automation.emailEnabled && automaticEmailConfigured()) || (automation.smsEnabled && automaticSmsConfigured())));
+  const sendingChannels = (["SMS", "EMAIL"] as const).filter(channel => sendsByItself(automation, channel)).map(channel => channel === "SMS" ? "texts" : "emails");
   const doneNotices: Record<string, (title: string) => string> = {
     happened: title => `Marked as happened: ${title}.`,
     "no-show": title => `Marked as missed: ${title}.`,
     cleared: title => `Visit outcome cleared: ${title}.`,
     held: title => `Follow-ups for ${title} are on hold.`,
     resumed: title => `Follow-ups for ${title} are back on.`,
-    "delivery-on": title => sendsAutomatically ? `The follow-ups for ${title} can now send by themselves.` : `The follow-ups for ${title} can send by themselves once automatic sending is on. For now they wait for you on Today.`,
+    "delivery-on": title => sendingChannels.length ? `${sendingChannels.join(" and ").replace(/^./, letter => letter.toUpperCase())} for ${title} can now send by themselves after your review window.` : `The follow-ups for ${title} can send by themselves once automatic sending is available and on. For now they wait for you on Today.`,
     "delivery-off": title => `The follow-ups for ${title} won’t send by themselves. They wait for you on Today.`,
-    canceled: title => `${title} canceled. Its follow-ups won’t come due.`
+    canceled: title => `${title} canceled. Any follow-ups lined up with it won’t come due.`
   };
   // A missing record shows no notice rather than a sentence about "this event" (CAL-02).
   const doneNotice = query.done && changedTitle && doneNotices[query.done] ? doneNotices[query.done](changedTitle) : null;

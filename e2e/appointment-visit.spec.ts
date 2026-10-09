@@ -82,7 +82,7 @@ test("saves a visit with its details and plan in one step, anchors the follow-up
   await expect(page.getByRole("status").filter({ hasText: "are back on" })).toHaveText("Follow-ups for Kitchen estimate are back on.");
   // Allowing automatic sending says it takes effect only once the account's automatic sending is on (CAL-01).
   await (await eventActions(page, "Kitchen estimate")).locator(".calendar-binding").getByRole("button", { name: "Allow automatic sending", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "send by themselves" })).toHaveText("The follow-ups for Kitchen estimate can send by themselves once automatic sending is on. For now they wait for you on Today.");
+  await expect(page.getByRole("status").filter({ hasText: "send by themselves" })).toHaveText("The follow-ups for Kitchen estimate can send by themselves once automatic sending is available and on. For now they wait for you on Today.");
   await (await eventActions(page, "Kitchen estimate")).locator(".calendar-binding").getByRole("button", { name: "Stop sending automatically", exact: true }).click();
   await expect(page.getByRole("status").filter({ hasText: "send by themselves" })).toHaveText("The follow-ups for Kitchen estimate won’t send by themselves. They wait for you on Today.");
   // A result for a record that isn't there shows no notice (CAL-02).
@@ -116,7 +116,7 @@ test("saves a visit with its details and plan in one step, anchors the follow-up
   await page.goto(`/calendar?date=${visitDate}`); await ready(page);
   await (await eventActions(page, "Spare walk-through")).getByRole("button", { name: "Cancel event…", exact: true }).click();
   await page.getByRole("dialog", { name: "Cancel Spare walk-through?" }).getByRole("button", { name: "Cancel event", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "canceled" })).toHaveText("Spare walk-through canceled. Its follow-ups won’t come due.");
+  await expect(page.getByRole("status").filter({ hasText: "canceled" })).toHaveText("Spare walk-through canceled. Any follow-ups lined up with it won’t come due.");
 });
 
 test("asks for one inline choice when the entered phone and email match different saved people, keeping everything typed", async ({ page }) => {
