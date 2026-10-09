@@ -468,6 +468,8 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect(await stageMovesForAudience(prisma, { workspaceId, stageId: client, all: true, groupIds: [], mixId: care.id })).toEqual({ moving: 1, fromOtherStages: 0, starting: 8 });
       // Everyone and a tag together: the tag's members from any stage, plus Everyone's.
       expect(await stageMovesForAudience(prisma, { workspaceId, stageId: client, all: true, groupIds: [tag.id], mixId: care.id })).toEqual({ moving: 3, fromOtherStages: 1, starting: 8 });
+      // With no stage, only how many people the save starts: the review of a save that adds people to a Mix that is on (TRU-02).
+      expect(await stageMovesForAudience(prisma, { workspaceId, stageId: "", all: false, groupIds: [tag.id], mixId: care.id })).toEqual({ moving: 0, fromOtherStages: 0, starting: 6 });
       await prisma.journeyPreference.update({ where: { workspaceId }, data: { enabled: false } });
       expect(await stageMovesForAudience(prisma, { workspaceId, stageId: client, all: true, groupIds: [], mixId: care.id })).toEqual({ moving: 0, fromOtherStages: 0, starting: 8 });
       expect(before).toBeTruthy();

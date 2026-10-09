@@ -246,11 +246,16 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   const hadEveryone = Boolean(existingMix?.audienceEveryone || activeAssignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:")));
   const widens = status === "ACTIVE" && ((assignAllContacts && !hadEveryone) || groupIds.some((groupId) => !activeAssignments.some((assignment) => assignment.groupId === groupId)));
   if ((turningOn ? assignAllContacts || groupIds.length > 0 : widens) && (stageId === undefined ? existingMix?.stageId : stageId) && value(formData, "activationConfirmed", 4) !== "1") fail(path, turningOn ? "Review who moves to the Mix’s stage before turning it on." : "Review who moves to the Mix’s stage before adding them.", session);
-  // With the review preference on, a save that starts people is reviewed first: turning the Mix on or back on, or adding
-  // Everyone or a tag to one that is on. A save that starts no one, such as a wording edit, saves directly (TRU-02).
-  if ((turningOn || resuming || widens) && value(formData, "activationConfirmed", 4) !== "1") {
+  // Changing when a Mix that is on starts reschedules everyone it covers: "When I start it" starts them all at once, and a
+  // new date or trigger moves their follow-ups (MIX-03).
+  const retriggers = status === "ACTIVE" && existingMix?.status === "ACTIVE" && !afterMix && (assignAllContacts || groupIds.length > 0)
+    && (existingMix.triggerMode !== triggerMode || (triggerMode === "DATE_TRIGGERED" && existingMix.dateTypeId !== dateTypeId));
+  // With the review preference on, a save that starts people is reviewed first: turning the Mix on or back on, adding
+  // Everyone or a tag to one that is on, or changing when it starts. A save that starts no one, such as a wording edit,
+  // saves directly (TRU-02).
+  if ((turningOn || resuming || widens || retriggers) && value(formData, "activationConfirmed", 4) !== "1") {
     const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
-    if (preference?.reviewMixActivation !== false) fail(path, turningOn || resuming ? "Review who gets the Mix before turning it on." : "Review who this save starts before saving.", session);
+    if (preference?.reviewMixActivation !== false) fail(path, turningOn || resuming ? "Review who gets the Mix before turning it on." : retriggers ? "Review who this change reschedules before saving." : "Review who this save starts before saving.", session);
   }
   // A mix that starts when the owner chooses needs no audience to be on: it is started from one
   // person's page or lined up with a visit from the calendar. Elapsed beats never count as scheduled

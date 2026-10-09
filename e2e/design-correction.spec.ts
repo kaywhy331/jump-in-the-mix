@@ -284,6 +284,54 @@ test("saving wording in a Mix that is on asks nothing when the save starts no on
   expect(saved.stepVersion.body).toBe("Hi {{First Name}}, how are the renovation plans going?");
 });
 
+test("with activate-on-save, adding a tag to a Mix that is on is a plain save that says it starts them (MIX-01)", async ({ page }) => {
+  await prisma.mix.update({ where: { id: mixId }, data: { status: "ACTIVE" } });
+  await prisma.userPreference.update({ where: { userId }, data: { reviewMixActivation: false } });
+  const tag = await prisma.group.create({ data: { workspaceId, name: "Renovation clients" } });
+  try {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/mixes/${mixId}/edit`);
+    await page.locator(".mix-start-settings > summary").click();
+    await page.getByRole("checkbox", { name: /Renovation clients/ }).check();
+    await expect(page.getByText("Saving starts this Mix for the people it adds, using your sending settings.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Review first", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Review and save", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Save Mix", exact: true }).click();
+    await expect(page).toHaveURL(/updated=manual/);
+    expect(await prisma.mixAssignment.count({ where: { mixId, groupId: tag.id, isActive: true } })).toBe(1);
+  } finally {
+    await prisma.mixAssignment.deleteMany({ where: { mixId, groupId: tag.id } });
+    await prisma.group.delete({ where: { id: tag.id } });
+    await prisma.userPreference.update({ where: { userId }, data: { reviewMixActivation: true } });
+  }
+});
+
+test("turning a paused Mix back on reviews what resuming does and needs no audience (MIX-02)", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const resume = async (id: string) => {
+    await page.goto(`/mixes/${id}/edit`);
+    await page.locator(".mix-start-settings > summary").click();
+    await page.getByRole("combobox", { name: "After saving", exact: true }).selectOption("ACTIVE");
+    await page.getByRole("button", { name: "Review and start", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Turn this Mix back on?", exact: true });
+    await expect(dialog).toContainText("Turning it back on brings back the follow-ups it held for the people in it.");
+    await expect(dialog).not.toContainText("No one is enrolled yet");
+    await expect(dialog).not.toContainText("Choose who gets this Mix.");
+    await dialog.getByRole("button", { name: "Turn it back on", exact: true }).click();
+    await expect(page).toHaveURL(/updated=manual/);
+    expect((await prisma.mix.findUniqueOrThrow({ where: { id } })).status).toBe("ACTIVE");
+  };
+  // A Mix started for one person at a time.
+  await prisma.mix.update({ where: { id: mixId }, data: { status: "PAUSED" } });
+  await resume(mixId);
+  // A date-based Mix whose people were started one at a time, with no audience of its own.
+  const dateType = await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: "Move-in", slug: `move-in-${randomUUID()}` } });
+  const template = await prisma.stepTemplate.create({ data: { workspaceId, name: "Moving day", channel: "SMS" } });
+  const version = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 1, body: "Happy moving day, {{First Name}}!" } });
+  const dated = await prisma.mix.create({ data: { workspaceId, name: "Moving day", status: "PAUSED", triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id, steps: { create: { stepVersionId: version.id, dayOffset: 0, sortOrder: 1 } } } });
+  await resume(dated.id);
+});
+
 test("short-phone activation dialog keeps both decisions inside its scroll boundary", async ({ page }) => {
   // Turning a Mix on opens the review; a save on one already on that starts no one doesn't (TRU-02).
   await prisma.mix.update({ where: { id: mixId }, data: { status: "DRAFT" } });
