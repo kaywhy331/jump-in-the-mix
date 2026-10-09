@@ -41,7 +41,7 @@ export function MegaMixSetup({ initialId, initialSetup, onboarding, active = tru
     </div>
     {review && <>
       <div className={styles.review}><h3>{initialSetup.preferences.reviewedAt ? "Your saved preferences" : "Your preferences"}</h3><JourneyPreferenceSummary value={setup} /><button type="button" className="button" onClick={() => { setReview(false); requestAnimationFrame(() => heading.current?.focus()); }}>Edit preferences</button></div>
-      {individual ? <><p>Next, choose individual Mixes from the library. You can preview and edit each one before adding it. These communication and spacing choices apply to new Mega-Mixes; individual Mixes keep the wording and delays you choose.</p><input type="hidden" name="reviewed" value="on" /><FormSubmitButton label="Choose individual Mixes" pendingLabel="Saving your preferences…" /></> : <>
+      {individual ? <><p>Next, choose individual Mixes from the library. You can preview and edit each one before adding it. These communication and spacing choices apply to new Mega-Mixes; individual Mixes keep the wording and delays you choose.</p><input type="hidden" name="reviewed" value="on" data-form-guard-ignore /><FormSubmitButton label="Choose individual Mixes" pendingLabel="Saving your preferences…" /></> : <>
         <details className="onboarding-step-card"><summary>Preview the {blueprint.name} journey</summary><MegaMixPreview blueprint={blueprint} showStages={!onboarding} /></details>
         <p>Your {blueprint.nodes.length} connected Mixes arrive with every message already written. Next, add your first customer. This step sends nothing.</p>
         {contactStages && !onboarding && <StageLabelsChoice key={blueprint.id} labels={blueprint.stages.map(stage => stage.name)} contactStages={contactStages} />}
@@ -55,13 +55,14 @@ export function MegaMixSetup({ initialId, initialSetup, onboarding, active = tru
 
 /**
  * Adding a Mega-Mix offers its stage labels, on by default (JITM-09 §2.79, P8). Labels the business already has are
- * reused; when the new ones don't fit under the stage limit the choice is off and says why.
+ * reused; when the new ones don't fit under the stage limit the choice is off and says why. The choice appears only on
+ * the review step, so its default is not a change the owner made (TRU-11).
  */
 function StageLabelsChoice({ labels, contactStages }: { labels: string[]; contactStages: ContactStagesState }) {
   const added = newStageLabels(contactStages.names, labels);
   const room = MAX_CONTACT_STAGES - contactStages.names.length;
   const fits = added.length <= room;
-  return <label className={`checkbox-card ${styles.stageLabels}`}><input type="checkbox" name="addStages" defaultChecked={fits} disabled={!fits} /><span>
+  return <label className={`checkbox-card ${styles.stageLabels}`}><input type="checkbox" name="addStages" defaultChecked={fits} disabled={!fits} data-form-guard-ignore /><span>
     <strong>Add its stage labels</strong>
     <small>{labels.join(", ")}. Starting one of these Mixes moves the person to its stage.{contactStages.on ? " Labels you already have are reused, and a retired one comes back; nothing is renamed or removed." : " This turns on Contact stages."}{contactStages.paused ? " Automatic transitions are paused, so no one moves until you turn them back on." : ""}</small>
     {!fits && <small>Contact stages has room for {Math.max(0, room)} more {room === 1 ? "label" : "labels"}, and this Mega-Mix adds {added.length}.</small>}
