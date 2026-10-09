@@ -101,11 +101,14 @@
 .review-feedback-form { display: grid; gap: 20px; }
 .review-feedback-form fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .review-feedback-form legend { margin-bottom: 10px; font-weight: 800; }
-.rating-options { display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 6px; }
+/* Stars read 1 to 5 from left to right, in DOM order, and fill from the left up to the chosen one (TRU-01). */
+.rating-options { display: flex; justify-content: flex-start; gap: 6px; }
 .rating-options label { position: relative; cursor: pointer; }
 .rating-options input { position: absolute; opacity: 0; }
 .rating-options span[aria-hidden] { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid var(--line); border-radius: 12px; color: var(--text-3); background: var(--raised, var(--raised)); font-size: 1.55rem; }
-.rating-options label:has(input:checked) span[aria-hidden], .rating-options label:has(input:checked) ~ label span[aria-hidden] { color: var(--status-warning-ink); border-color: var(--warning-border); background: var(--status-warning-bg); }
+.rating-options label:has(input:checked) span[aria-hidden], .rating-options label:has(~ label input:checked) span[aria-hidden] { color: var(--status-warning-ink); border-color: var(--warning-border); background: var(--status-warning-bg); }
+/* Browsers without :has() still light the chosen star. */
+.rating-options input:checked + span[aria-hidden] { color: var(--status-warning-ink); border-color: var(--warning-border); background: var(--status-warning-bg); }
 .rating-options input:focus-visible + span { outline: 3px solid var(--focus, var(--violet-mark)); outline-offset: 2px; }
 .review-thanks { display: grid; gap: 14px; }
 .review-next-actions { display: flex; flex-wrap: wrap; gap: 9px; }
