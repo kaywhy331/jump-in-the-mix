@@ -273,6 +273,37 @@ test.describe("on a phone", () => {
     expect(await focusedIsUncovered(page)).toMatchObject({ uncovered: true });
   });
 
+  test("a slow Undo doesn't pull focus out of the field the owner moved to", async ({ page }) => {
+    await page.route(`**/api/jumps/${ids[0]}/outcome`, async route => {
+      if (route.request().method() === "POST" && route.request().postDataJSON()?.outcome === "REOPENED") await new Promise(resolve => setTimeout(resolve, 1_500));
+      await route.continue();
+    });
+    await page.goto("/jumps"); await ready(page);
+    await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+    await markSent(page, openReview(page), names[0], ids[0]);
+    const review = openReview(page);
+    await confirmationOf(review, ids[0]).getByRole("button", { name: "Undo", exact: true }).click();
+    const message = review.getByRole("textbox", { name: "Your message" });
+    await message.focus();
+    await expect.poll(() => status(ids[0])).toBe("PENDING");
+    await expect(confirmationOf(review, ids[0])).toHaveCount(0);
+    await expect(message).toBeFocused();
+  });
+
+  test("when the last review finishes with nothing left to open, its confirmations float", async ({ page }) => {
+    await page.goto("/jumps"); await ready(page);
+    await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+    await markSent(page, openReview(page), names[0], ids[0]);
+    await expect(openReview(page).getByRole("button", { name: `Mark sent for ${names[1]}`, exact: true })).toBeVisible();
+    await markSent(page, openReview(page), names[1], ids[1]);
+    await expect(openReview(page).getByRole("button", { name: `Mark sent for ${names[2]}`, exact: true })).toBeVisible();
+    await markSent(page, openReview(page), names[2], ids[2]);
+    await expect(openReview(page)).toHaveCount(0);
+    const floating = page.locator("#follow-up-confirmations [data-follow-up-undo]");
+    await expect(floating).toHaveCount(3);
+    await expect(floating.getByRole("button", { name: "Undo", exact: true })).toHaveCount(3);
+  });
+
   test("while Today asks what's next for someone, the next review still holds the new Undo", async ({ page }) => {
     const max = await mixEndPerson("Max Mixend", "+15550103198");
     try {
