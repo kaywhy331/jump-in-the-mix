@@ -6,9 +6,9 @@ import { setOpenReviewSlot } from "@/components/useConfirmationTarget";
 
 type Section = "overdue" | "today" | "upcoming";
 type Counts = Record<Section | "done", number>;
-type Moved = { section: Section; skipped: boolean };
+type Moved = { section: Section; overdue: boolean; skipped: boolean };
 
-const CountsContext = createContext<{ counts: Counts; zero: string } | null>(null);
+const CountsContext = createContext<{ counts: Counts; overdue: number; zero: string } | null>(null);
 const DUE_CARDS = '[data-today-section="overdue"] [data-jump-workflow], [data-today-section="today"] [data-jump-workflow]';
 // The card's own Review button; the review's "open your app" link records a handoff and is never clicked.
 const REVIEW_TRIGGER = ".sheet-trigger > [data-review-trigger]";
@@ -23,14 +23,20 @@ function sectionOf(jumpId: string): Section | null {
   return section === "overdue" || section === "today" || section === "upcoming" ? section : null;
 }
 
+/** Whether a follow-up is overdue, also on a card under Today beside the person's follow-up due today (D71). */
+function isOverdue(jumpId: string): boolean {
+  return cardOf(jumpId)?.querySelector("[data-today-due]")?.getAttribute("data-today-due") === "overdue";
+}
+
 /**
  * Today's counts change the moment an outcome is recorded here: the follow-up leaves its section for Done, and Undo
  * moves it back. Done grows only where this view's Done counts that outcome (`doneCounts`, from the server). Each read
  * from the server (`readAt`) replaces these adjustments (D70, JITM-08 §2.36, TRU-06). `zero` is the header line the
- * server would show with nothing due.
+ * server would show with nothing due. The sections count the follow-ups they show; `overdue`, for the header, counts
+ * every overdue one, including one on a person's card under Today (D71).
  */
-export function TodayLiveCounts({ initial, readAt, doneCounts, zero, children }: { initial: Counts; readAt: string; doneCounts: { done: boolean; skipped: boolean }; zero: string; children: ReactNode }) {
-  const key = `${readAt}:${initial.overdue}:${initial.today}:${initial.upcoming}:${initial.done}`;
+export function TodayLiveCounts({ initial, overdue, readAt, doneCounts, zero, children }: { initial: Counts; overdue: number; readAt: string; doneCounts: { done: boolean; skipped: boolean }; zero: string; children: ReactNode }) {
+  const key = `${readAt}:${initial.overdue}:${initial.today}:${initial.upcoming}:${initial.done}:${overdue}`;
   const [moved, setMoved] = useState<{ key: string; items: Map<string, Moved> }>({ key, items: new Map() });
   const items = useMemo(() => moved.key === key ? moved.items : new Map<string, Moved>(), [moved, key]);
   useEffect(() => {
@@ -42,7 +48,8 @@ export function TodayLiveCounts({ initial, readAt, doneCounts, zero, children }:
         // The outcome event arrives before React removes the card, so its section is still readable.
         const section = sectionOf(jumpId);
         if (!section) return;
-        setMoved(current => ({ key, items: new Map(current.key === key ? current.items : []).set(jumpId, { section, skipped: detail.status === "SKIPPED" }) }));
+        const item = { section, overdue: isOverdue(jumpId), skipped: detail.status === "SKIPPED" };
+        setMoved(current => ({ key, items: new Map(current.key === key ? current.items : []).set(jumpId, item) }));
       } else if (detail.status === "PENDING") {
         setMoved(current => {
           if (current.key !== key || !current.items.has(jumpId)) return current;
@@ -57,12 +64,14 @@ export function TodayLiveCounts({ initial, readAt, doneCounts, zero, children }:
   }, [key]);
   const value = useMemo(() => {
     const counts = { ...initial };
+    let overdueLeft = overdue;
     for (const item of items.values()) {
       counts[item.section] = Math.max(0, counts[item.section] - 1);
+      if (item.overdue) overdueLeft = Math.max(0, overdueLeft - 1);
       if (item.skipped ? doneCounts.skipped : doneCounts.done) counts.done += 1;
     }
-    return { counts, zero };
-  }, [initial, items, doneCounts.done, doneCounts.skipped, zero]);
+    return { counts, overdue: overdueLeft, zero };
+  }, [initial, overdue, items, doneCounts.done, doneCounts.skipped, zero]);
   return <CountsContext.Provider value={value}>{children}</CountsContext.Provider>;
 }
 
@@ -82,10 +91,10 @@ export function LiveSection({ name, children, ...props }: { name: "overdue" | "t
 export function LiveAttentionSummary() {
   const live = useContext(CountsContext);
   if (!live) return null;
-  const { counts, zero } = live;
+  const { counts, overdue, zero } = live;
   const attention = counts.overdue + counts.today;
   if (!attention) return <>{zero}</>;
-  return <>{`${attention.toLocaleString("en-US")} follow-up${attention === 1 ? " needs" : "s need"} your attention${counts.overdue ? ` · ${counts.overdue.toLocaleString("en-US")} overdue` : ""}.`}</>;
+  return <>{`${attention.toLocaleString("en-US")} follow-up${attention === 1 ? " needs" : "s need"} your attention${overdue ? ` · ${overdue.toLocaleString("en-US")} overdue` : ""}.`}</>;
 }
 
 /**
@@ -214,7 +223,10 @@ export function TodayMomentum() {
       if (!jumpId || (detail.status !== "DONE" && detail.status !== "SKIPPED") || detail.mixEnd || !detail.origin) return;
       const card = cardOf(jumpId);
       if (!card?.closest('[data-today-section="overdue"], [data-today-section="today"]')) return;
-      const due = [...document.querySelectorAll<HTMLElement>(DUE_CARDS)].filter(item => item !== card && item.querySelector(REVIEW_TRIGGER));
+      // The person's earlier follow-up on the same card is one the owner passed over by recording this one (D71).
+      const person = card.closest("[data-person-group]");
+      const passedOver = (item: Element) => Boolean(person?.contains(item) && item.compareDocumentPosition(card) & Node.DOCUMENT_POSITION_FOLLOWING);
+      const due = [...document.querySelectorAll<HTMLElement>(DUE_CARDS)].filter(item => item !== card && item.querySelector(REVIEW_TRIGGER) && !passedOver(item));
       const next = due.find(item => card.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING) ?? due[0];
       const nextId = next?.getAttribute("data-jump-workflow");
       if (!nextId) return;

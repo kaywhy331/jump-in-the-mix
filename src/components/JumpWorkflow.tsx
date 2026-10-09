@@ -13,6 +13,7 @@ import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { addDays, dateKeyOf } from "@/lib/when-picker";
 import type { MixEndQuestion } from "@/lib/mix-end-question";
 import { useConfirmationTarget } from "@/components/useConfirmationTarget";
+import { setFollowUpDue } from "@/components/useFollowUpDue";
 export type { OpenedJumpDetail } from "@/lib/opened-jump-state";
 
 type Outcome =
@@ -215,6 +216,9 @@ export function JumpWorkflowCard({
   const hideTimer = useRef<number | null>(null);
   const latestRevision = useRef(revision), outcomeRevision = useRef(revision);
   useLayoutEffect(() => { latestRevision.current = revision; }, [revision]);
+  // The person's other card and reviews name this follow-up only while it's still due (D71).
+  useEffect(() => { setFollowUpDue(jumpId, state === "ACTIVE"); }, [jumpId, state]);
+  useEffect(() => () => setFollowUpDue(jumpId, null), [jumpId]);
   // On Today the confirmation shows inside the open review, so its Undo stays beside the owner's work (D70).
   const target = useConfirmationTarget(jumpId);
   const confirmationRef = useRef<HTMLDivElement>(null);
