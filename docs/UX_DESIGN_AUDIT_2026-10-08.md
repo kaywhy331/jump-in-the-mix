@@ -207,7 +207,7 @@ Verdicts: **Optimal** · **Good, fix details** · **Needs rework**. Phone is wei
 | Onboarding | Needs rework | 4,435px; required inputs at the bottom; 9 reasons give 4 starters; raw tokens; 24-hour times | LEN-01, VOI-03 |
 | The invitation recipients receive | Needs rework (copy) | Greets by email address; "people in my circle" | VOI-02 |
 | Hosted lead form | Good, fix details | Consent checkbox sits alone on its line; "we" | ACC-05, VOI-01 |
-| Private review page | Needs rework | Reversed stars (BLOCKER); "we" | TRU-01, VOI-01 |
+| Private review page | Needs rework | Reversed stars (BLOCKER); "we". The TRU-01 hotfix review (PR #137) also found three pre-existing defects for the VOI-01 change: at 200% text the star symbol spills out of its box over the hint line; at 320px the row runs about 19px into the card's padding; the star targets are 6px apart, under JITM-10 §2.1's 8px | TRU-01, VOI-01 |
 
 ### Staff console
 
@@ -531,7 +531,9 @@ Commands from `docs/standards-audit-2026-09-28/DRIFT_BASELINE.md`, run read-only
 
 ## 11. Questions for Kevin
 
-**Answered 2026-10-08.** Kevin chose the recommended option for every question (all A): "I will go off you recommendations. please go ahead and implement". The answers are recorded as owner decisions D69–D86 through WF-08 in a separate pull request, and the product changes follow as their own tasks.
+**Answered 2026-10-08.** Kevin chose the recommended option for every question (all A): "I will go off you recommendations. please go ahead and implement".
+
+**TRU-01 after the audit:** fixed in PR #137, live since 2026-10-09 as `prod-2026-10-09-db8f2d1`. The approved read-only check found one review request and no stored ratings, so no rating was affected (`docs/REVIEW_STARS_RELEASE_2026-10-09.md`, PR #138). The answers are recorded as owner decisions D69–D86 through WF-08 in a separate pull request, and the product changes follow as their own tasks.
 
 Answer with a letter each.
 
