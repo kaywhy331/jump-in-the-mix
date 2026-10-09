@@ -150,6 +150,9 @@ test("timezone selection shows the current value, searches by keyboard and retur
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(viewport); await page.goto("/account/preferences"); await ready(page);
     const trigger = page.getByRole("button", { name: "Change personal timezone", exact: true });
+    // A closed picker renders no city rows, so it does no zone-name work, and the server's page carries none (DT-09).
+    await expect(page.locator(".timezone-city")).toHaveCount(0);
+    expect(await (await page.request.get("/account/preferences")).text()).not.toMatch(/class="timezone-city(?: selected)?"/);
     await trigger.click();
     const popup = page.getByRole("dialog", { name: "Choose a timezone", exact: true });
     const search = popup.getByRole("searchbox", { name: "Search timezones", exact: true });
@@ -168,10 +171,12 @@ test("timezone selection shows the current value, searches by keyboard and retur
     for (const theme of ["light", "dark"] as const) { await setTheme(page, theme); await audit(page); }
     await page.keyboard.press("Tab"); await page.keyboard.press("Enter");
     await expect(popup).not.toBeVisible(); await expect(trigger).toBeFocused();
+    await expect(page.locator(".timezone-city")).toHaveCount(0);
     await expect(page.locator('input[name="timezone"]')).toHaveValue("Europe/London");
     await trigger.click(); await expect(search).toHaveValue("");
     await expect(popup.locator(".timezone-city").first()).toContainText("London");
     await closeSheet(page); await expect(trigger).toBeFocused();
+    await expect(page.locator(".timezone-city")).toHaveCount(0);
   }
 });
 
