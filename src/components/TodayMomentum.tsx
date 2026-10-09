@@ -110,45 +110,53 @@ export function TodayMomentum() {
       slot.style.minHeight = tallest ? `${tallest}px` : "";
     });
     // A phone review's sheet pads its scrolling by the height of its action bar, which stays at the bottom. When the header
-    // and the bar would take more than half the sheet, or the room between them can't hold the message field, as with
-    // large text or on a short screen, the bar scrolls with the review instead, so no field is caught between the two
-    // (JITM-07 §2.26, LAY-06).
-    let bar: HTMLElement | null = null, panel: HTMLElement | null = null, field: HTMLElement | null = null, resting = 0;
+    // and the bar would take more than half the sheet, or the room between them can't hold the message, as with large text
+    // or on a short screen, the bar scrolls with the review instead, so no field is caught between the two (JITM-07 §2.26,
+    // LAY-06). Sticking changes no sizes (the bar keeps its padding), so the choice can't feed back on itself (LAY-08).
+    let bar: HTMLElement | null = null, panel: HTMLElement | null = null, field: HTMLElement | null = null;
+    // Each bar's height with no outcome choices open, kept while the review is closed and reopened (LAY-09).
+    const restingHeights = new WeakMap<HTMLElement, number>();
     const barSizes = new ResizeObserver(() => {
       if (!bar || !panel) return;
       const height = Math.ceil(bar.getBoundingClientRect().height);
       const header = panel.querySelector(".sheet-header")?.getBoundingClientRect().height ?? 0;
       panel.style.setProperty("--review-bar-height", `${height}px`);
       panel.style.setProperty("--review-header-height", `${Math.ceil(header)}px`);
-      // Outcome choices that open inside the bar are where the owner is working, so they never unstick it: the bar's height
-      // from before they opened decides (LAY-08). Sticking changes no sizes (the bar's padding stays), so it can't feed back.
-      if (!bar.querySelector("[data-outcome-choices]")) resting = height;
-      const room = panel.clientHeight - header - resting;
-      panel.toggleAttribute("data-review-bar-flows", header + resting > panel.clientHeight / 2 || room < (field?.getBoundingClientRect().height ?? 0) + 24);
+      // Opening the outcome choices doesn't alone unstick a bar that fits: the half rule uses its height from before they
+      // opened. The room rule uses the bar as it is, so choices that would leave the message no room make the bar scroll
+      // with the review, and they're brought into view (LAY-09).
+      const choices = bar.querySelector<HTMLElement>("[data-outcome-choices]");
+      if (!choices) restingHeights.set(bar, height);
+      const resting = restingHeights.get(bar) ?? height;
+      const flows = header + resting > panel.clientHeight / 2 || panel.clientHeight - header - height < (field?.getBoundingClientRect().height ?? 0) + 24;
+      const started = flows && !panel.hasAttribute("data-review-bar-flows");
+      panel.toggleAttribute("data-review-bar-flows", flows);
+      if (choices && started) requestAnimationFrame(() => choices.lastElementChild?.scrollIntoView({ block: "nearest" }));
     });
-    // A browser reveals only a focused text field's caret, so the rest of the field can stay under the stuck bar or below
-    // the sheet's edge. Bring the whole field into view above the bar, while its top stays below the header (JITM-10
-    // §2.11, LAY-06).
+    // A browser reveals only a focused text field's caret, so the rest of the field, and the focus ring its bubble draws,
+    // can stay under the stuck bar or below the sheet's edge. Bring the whole ring into view above the bar, while its top
+    // stays below the header (JITM-10 §2.11, LAY-06, A11Y-05). Rings sit 6px outside their box.
     const onFocus = (event: FocusEvent) => {
       const target = event.target;
       // A dialog over the review, such as "Discard your edits?", sits in its own layer and is left alone (A11Y-04).
       if (!(target instanceof HTMLElement) || !bar || !panel?.contains(target) || bar.contains(target) || target.closest("dialog") !== panel.closest("dialog")) return;
       requestAnimationFrame(() => {
         if (!bar || !panel || document.activeElement !== target) return;
-        const box = target.getBoundingClientRect();
+        const box = (target.closest<HTMLElement>(".speech-bubble--compose") ?? target).getBoundingClientRect();
         const header = panel.querySelector(".sheet-header")?.getBoundingClientRect().bottom ?? 0;
         const limit = getComputedStyle(bar).position === "sticky" ? bar.getBoundingClientRect().top : panel.getBoundingClientRect().bottom;
-        const overlap = box.bottom + 8 - limit;
-        if (overlap > 0) panel.scrollBy({ top: Math.min(overlap, Math.max(0, box.top - header - 8)), behavior: "instant" });
+        const overlap = box.bottom + 6 + 8 - limit;
+        if (overlap > 0) panel.scrollBy({ top: Math.min(overlap, Math.max(0, box.top - 6 - header - 8)), behavior: "instant" });
       });
     };
     document.addEventListener("focusin", onFocus);
     const watchBar = () => {
       const next = document.querySelector<HTMLElement>(".follow-up-review-sheet[open]:modal .review-action-bar");
-      const nextField = next?.closest(".sheet-panel")?.querySelector<HTMLElement>("textarea") ?? null;
+      // The message's bubble is what the owner sees, and it draws the field's focus ring.
+      const message = next?.closest(".sheet-panel")?.querySelector<HTMLElement>("textarea") ?? null;
+      const nextField = message?.closest<HTMLElement>(".speech-bubble--compose") ?? message;
       if (next === bar && nextField === field) return;
       for (const element of [bar, panel, field]) if (element) barSizes.unobserve(element);
-      if (next !== bar) resting = 0;
       bar = next; panel = next?.closest<HTMLElement>(".sheet-panel") ?? null; field = nextField;
       for (const element of [bar, panel, field]) if (element) barSizes.observe(element);
     };

@@ -94,8 +94,9 @@ async function mixEndPerson(name: string, phone: string) {
   return { id, contactId: contact.id, remove: () => prisma.contact.deleteMany({ where: { id: contact.id } }) };
 }
 /**
- * Nothing covers the focused control: the point at its center hits it, and its whole box with its 3px focus outline is
- * inside the sheet and clear of the sheet's stuck header and action bar, unless it is inside one of them.
+ * Nothing covers the focused control: the point at its center hits it, and its focus ring, 6px outside the box it's drawn
+ * around (the message's bubble, for the message), is inside the sheet and clear of the sheet's stuck header and action
+ * bar, unless the control is inside one of them.
  */
 async function focusedIsUncovered(page: Page) {
   return page.evaluate(() => {
@@ -109,9 +110,10 @@ async function focusedIsUncovered(page: Page) {
     };
     const header = stuck(".sheet-header"), bar = stuck(".review-action-bar");
     const sheet = focused.closest(".sheet-panel")?.getBoundingClientRect();
-    const clear = (!header || box.top - 3 >= header.bottom) && (!bar || box.bottom + 3 <= bar.top) && (!sheet || box.bottom + 3 <= sheet.bottom);
+    const ring = (focused.closest(".speech-bubble--compose") ?? focused).getBoundingClientRect();
+    const clear = (!header || ring.top - 6 >= header.bottom) && (!bar || ring.bottom + 6 <= bar.top) && (!sheet || ring.bottom + 6 <= sheet.bottom);
     const name = focused.getAttribute("aria-label") ?? focused.textContent?.trim().slice(0, 30) ?? focused.tagName;
-    return { name, uncovered: Boolean(hit && (hit === focused || focused.contains(hit))) && clear, at: [Math.round(box.top), Math.round(box.bottom), header ? Math.round(header.bottom) : null, bar ? Math.round(bar.top) : null] };
+    return { name, uncovered: Boolean(hit && (hit === focused || focused.contains(hit))) && clear, at: [Math.round(ring.top - 6), Math.round(ring.bottom + 6), header ? Math.round(header.bottom) : null, bar ? Math.round(bar.top) : null] };
   });
 }
 /** Today moves a focused field clear of the stuck bar a frame after it takes focus, so this waits a few frames for it. */
@@ -312,6 +314,25 @@ test.describe("on a phone", () => {
       await expectUncovered(page);
     });
   }
+
+  test("at 200% text on a 375×667 phone, outcome choices too tall for a stuck bar make it scroll with the review, choices in view", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    // The Mix's next step is checked slowly, so "Mark sent" opens the outcome choices first (the existing fallback).
+    await page.route(url => url.pathname === "/api/mix-workflow", async route => { await new Promise(resolve => setTimeout(resolve, 4_000)); await route.continue(); });
+    await page.goto("/jumps"); await ready(page);
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+    await markSent(page, openReview(page), names[0], ids[0]);
+    const next = openReview(page);
+    await expect(confirmationOf(next, ids[0])).toBeVisible();
+    const panel = next.locator(".sheet-panel");
+    await expect(panel).not.toHaveAttribute("data-review-bar-flows", "");
+    await next.getByRole("button", { name: `Mark sent for ${names[1]}`, exact: true }).click();
+    await expect(next.getByRole("group", { name: "Record journey outcome" })).toBeVisible();
+    await expect(panel).toHaveAttribute("data-review-bar-flows", "");
+    await expect(next.getByRole("button", { name: "Save outcome", exact: true })).toBeInViewport();
+    await untouched(ids[1]);
+  });
 
   test("a slow Undo doesn't pull focus out of the field the owner moved to", async ({ page }) => {
     await page.route(`**/api/jumps/${ids[0]}/outcome`, async route => {
