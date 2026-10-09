@@ -1,18 +1,17 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from "react";
-import { createPortal } from "react-dom";
 import type { JumpStateDetail } from "@/components/JumpWorkflow";
+import { setOpenReviewSlot } from "@/components/useConfirmationTarget";
 
 type Section = "overdue" | "today" | "upcoming";
 type Counts = Record<Section | "done", number>;
 type Moved = { section: Section; skipped: boolean };
-type JumpState = { jumpId?: string; status?: string; mixEnd?: unknown; origin?: string };
 
 const CountsContext = createContext<{ counts: Counts; zero: string } | null>(null);
 const DUE_CARDS = '[data-today-section="overdue"] [data-jump-workflow], [data-today-section="today"] [data-jump-workflow]';
-// The card's Review button, never the review's own "open your app" link, which shares the class.
-const REVIEW_TRIGGER = ".sheet-trigger > .jump-channel-action";
+// The card's own Review button; the review's "open your app" link records a handoff and is never clicked.
+const REVIEW_TRIGGER = ".sheet-trigger > [data-review-trigger]";
 
 function cardOf(jumpId: string): Element | null {
   return document.querySelector(`[data-jump-workflow="${CSS.escape(jumpId)}"]`);
@@ -91,65 +90,70 @@ export function LiveAttentionSummary() {
 
 /**
  * After an outcome recorded in a review, or in the tray after the owner returns from their app, the next due follow-up's
- * review opens by itself, on phones and desktop. A quick action from the list leaves the list as it is. On a phone that
- * review covers the confirmation, so its Undo comes into the review for the same 10 seconds. Opening a review never
- * sends, records or skips anything (D70, JITM-08 §2.36). When the outcome finished a Mix, Today asks what's next for
- * that person first.
+ * review opens by itself, on phones and desktop, and confirmations with their Undo show inside it while it stays open
+ * (useConfirmationTarget). A quick action from the list leaves the list as it is. Nothing opens while the owner is busy
+ * elsewhere: another review, sheet or dialog is open, they are typing, or Today shows a notice they need to read.
+ * Opening a review never sends, records or skips anything (D70, JITM-08 §2.36). When the outcome finished a Mix, Today
+ * asks what's next for that person instead.
  */
 export function TodayMomentum() {
-  const [banner, setBanner] = useState<{ jumpId: string; name?: string; skipped: boolean; slot: Element; until: number; restoring?: boolean; error?: string } | null>(null);
   useEffect(() => {
-    let frame = 0;
+    let frame = 0, opened: HTMLDialogElement | null = null, slot: HTMLElement | null = null, tallest = 0;
+    // The slot keeps the tallest height it has had while its review stays open, so a confirmation leaving never moves
+    // the review's buttons under the owner's finger.
+    const sizes = new ResizeObserver(() => {
+      if (!slot) return;
+      tallest = Math.max(tallest, slot.getBoundingClientRect().height);
+      slot.style.minHeight = tallest ? `${tallest}px` : "";
+    });
+    const sync = () => {
+      if (opened && !(opened.isConnected && opened.open)) opened = null;
+      const next = opened?.querySelector<HTMLElement>("[data-sheet-momentum]") ?? null;
+      if (next === slot) return;
+      if (slot) { sizes.unobserve(slot); slot.style.minHeight = ""; }
+      slot = next; tallest = 0;
+      if (slot) sizes.observe(slot);
+      setOpenReviewSlot(slot);
+    };
+    const changes = new MutationObserver(sync);
+    changes.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] });
     const onState = (event: Event) => {
-      const detail = (event as CustomEvent<JumpState>).detail;
+      const detail = (event as CustomEvent<JumpStateDetail>).detail;
       const jumpId = detail?.jumpId;
-      if (!jumpId) return;
-      if (detail.status === "PENDING") { setBanner(current => current?.jumpId === jumpId ? null : current); return; }
-      if ((detail.status !== "DONE" && detail.status !== "SKIPPED") || detail.mixEnd || !detail.origin) return;
+      if (!jumpId || (detail.status !== "DONE" && detail.status !== "SKIPPED") || detail.mixEnd || !detail.origin) return;
       const card = cardOf(jumpId);
       if (!card?.closest('[data-today-section="overdue"], [data-today-section="today"]')) return;
       const due = [...document.querySelectorAll<HTMLElement>(DUE_CARDS)].filter(item => item !== card && item.querySelector(REVIEW_TRIGGER));
       const next = due.find(item => card.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING) ?? due[0];
       const nextId = next?.getAttribute("data-jump-workflow");
       if (!nextId) return;
-      const name = card.querySelector(".jump-card-heading h3")?.textContent?.trim() || undefined;
-      const skipped = detail.status === "SKIPPED";
-      // The card's own Undo lasts 10 seconds from the outcome (JumpWorkflowCard); the copy here ends with it.
-      const until = Date.now() + 10_000;
       cancelAnimationFrame(frame);
+      // Two frames later the finished card's review has closed and the tray has moved on, so anything still open, or
+      // still asking, is the owner's.
       frame = requestAnimationFrame(() => {
-        cardOf(nextId)?.querySelector<HTMLElement>(REVIEW_TRIGGER)?.click();
-        let tries = 0;
-        const findReview = () => {
-          const dialog = cardOf(nextId)?.querySelector<HTMLDialogElement>(".follow-up-review-sheet[open]");
-          if (!dialog) { if (++tries < 20) frame = requestAnimationFrame(findReview); return; }
-          const slot = dialog.matches(":modal") ? dialog.querySelector("[data-sheet-momentum]") : null;
-          setBanner(slot ? { jumpId, name, skipped, slot, until } : null);
-        };
-        frame = requestAnimationFrame(findReview);
+        frame = requestAnimationFrame(() => {
+          const focused = document.activeElement;
+          if (document.querySelector("dialog[open], [data-today-notice]")) return;
+          if (focused instanceof HTMLElement && focused.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
+          cardOf(nextId)?.querySelector<HTMLElement>(REVIEW_TRIGGER)?.click();
+          // The review mounts on its first opening, a render after the click.
+          let tries = 0;
+          const find = () => {
+            opened = cardOf(nextId)?.querySelector<HTMLDialogElement>(".follow-up-review-sheet[open]") ?? null;
+            if (opened) sync();
+            else if (++tries < 20) frame = requestAnimationFrame(find);
+          };
+          find();
+        });
       });
     };
-    const onUndoFailed = (event: Event) => {
-      const detail = (event as CustomEvent<{ jumpId?: string; error?: string }>).detail;
-      setBanner(current => current && current.jumpId === detail?.jumpId ? { ...current, restoring: false, error: detail.error, until: Date.now() + 10_000 } : current);
-    };
     window.addEventListener("jitm:jump-state", onState);
-    window.addEventListener("jitm:undo-failed", onUndoFailed);
-    return () => { window.removeEventListener("jitm:jump-state", onState); window.removeEventListener("jitm:undo-failed", onUndoFailed); cancelAnimationFrame(frame); };
+    return () => {
+      window.removeEventListener("jitm:jump-state", onState);
+      cancelAnimationFrame(frame); changes.disconnect(); sizes.disconnect();
+      if (slot) slot.style.minHeight = "";
+      setOpenReviewSlot(null);
+    };
   }, []);
-  useEffect(() => {
-    if (!banner) return;
-    const timer = window.setTimeout(() => setBanner(null), Math.max(0, banner.until - Date.now()));
-    return () => window.clearTimeout(timer);
-  }, [banner]);
-  if (!banner || !banner.slot.isConnected) return null;
-  const undo = () => {
-    setBanner({ ...banner, restoring: true, error: undefined });
-    window.dispatchEvent(new CustomEvent("jitm:undo-request", { detail: { jumpId: banner.jumpId } }));
-  };
-  return createPortal(<div className="review-momentum">
-    {/* The same words as the card's own confirmation (JumpWorkflowCard). */}
-    <span><strong>{banner.skipped ? "Follow-up skipped" : "Follow-up completed"}</strong><small>{banner.name ? `${banner.name} · you can undo this for a moment` : "You can undo this for a moment"}</small>{banner.error && <small className="review-momentum-error" role="alert">{banner.error}</small>}</span>
-    <button type="button" className="button small" onClick={undo} disabled={banner.restoring}>{banner.restoring ? "Restoring…" : "Undo"}</button>
-  </div>, banner.slot);
+  return null;
 }

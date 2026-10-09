@@ -12,6 +12,7 @@ import { WhenPicker } from "@/components/WhenPicker";
 import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { addDays, dateKeyOf } from "@/lib/when-picker";
 import type { MixEndQuestion } from "@/lib/mix-end-question";
+import { useConfirmationTarget } from "@/components/useConfirmationTarget";
 export type { OpenedJumpDetail } from "@/lib/opened-jump-state";
 
 type Outcome =
@@ -139,6 +140,12 @@ function useOutcomeRequestIds(): OutcomeRequestIds {
   }), []);
 }
 
+/** When a confirmation leaves with focus on its Undo, focus stays in the open review, or else goes to Today's heading. */
+function focusAfterConfirmation(confirmation: HTMLElement | null, hadFocus = false): void {
+  if (!hadFocus && !confirmation?.contains(document.activeElement)) return;
+  (document.querySelector<HTMLElement>(".follow-up-review-sheet[open] .sheet-header h2") ?? document.querySelector<HTMLElement>(".today-page-header h1"))?.focus({ preventScroll: true });
+}
+
 function formatNextFollowUp(value: string): string {
   return new Date(value).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
 }
@@ -199,6 +206,11 @@ export function JumpWorkflowCard({
   const hideTimer = useRef<number | null>(null);
   const latestRevision = useRef(revision), outcomeRevision = useRef(revision);
   useLayoutEffect(() => { latestRevision.current = revision; }, [revision]);
+  // On Today the confirmation shows inside the open review, so its Undo stays beside the owner's work (D70).
+  const target = useConfirmationTarget(jumpId);
+  const confirmationRef = useRef<HTMLDivElement>(null);
+  // A pressed Undo is disabled while it saves, which drops its focus; remember where the owner was.
+  const undoHadFocus = useRef(false);
   useEffect(() => {
     // A fresh server read may show completion, or a later reopening by someone
     // else. Accept it after Undo without remounting untouched form controls.
@@ -211,6 +223,8 @@ export function JumpWorkflowCard({
       if (!detail || detail.jumpId !== jumpId) return;
       if (hideTimer.current) window.clearTimeout(hideTimer.current);
       if (detail.status === "PENDING") {
+        focusAfterConfirmation(confirmationRef.current, undoHadFocus.current);
+        undoHadFocus.current = false;
         setNotice("");
         setState("ACTIVE");
         return;
@@ -219,7 +233,7 @@ export function JumpWorkflowCard({
       setNotice(detail.notice ?? "");
       setNextFollowUpAt(detail.nextFollowUpAt ?? null);
       setState(detail.status);
-      hideTimer.current = window.setTimeout(() => setState("HIDDEN"), 10_000);
+      hideTimer.current = window.setTimeout(() => { focusAfterConfirmation(confirmationRef.current); setState("HIDDEN"); }, 10_000);
     };
     window.addEventListener("jitm:jump-state", onState);
     return () => {
@@ -229,6 +243,7 @@ export function JumpWorkflowCard({
   }, [jumpId]);
 
   const undo = async () => {
+    undoHadFocus.current = Boolean(confirmationRef.current?.contains(document.activeElement));
     if (hideTimer.current) window.clearTimeout(hideTimer.current);
     setUndoing(true);
     setError("");
@@ -237,32 +252,20 @@ export function JumpWorkflowCard({
       await saveOutcome(jumpId, "REOPENED", ids.claim(key));
       ids.release(key);
     } catch (reason) {
-      const message = reason instanceof Error ? reason.message : "The follow-up could not be reopened.";
-      setError(message);
-      // On a phone the next review may cover this card; Today shows the error there too (D70).
-      window.dispatchEvent(new CustomEvent("jitm:undo-failed", { detail: { jumpId, error: message } }));
-      hideTimer.current = window.setTimeout(() => setState("HIDDEN"), 10_000);
+      setError(reason instanceof Error ? reason.message : "The follow-up could not be reopened.");
+      // Back on the Undo, to try again.
+      if (undoHadFocus.current) requestAnimationFrame(() => confirmationRef.current?.querySelector("button")?.focus());
+      undoHadFocus.current = false;
+      hideTimer.current = window.setTimeout(() => { focusAfterConfirmation(confirmationRef.current); setState("HIDDEN"); }, 10_000);
     } finally {
       setUndoing(false);
     }
   };
 
-  // Today's next review can carry this Undo on a phone, where the review covers the confirmation (D70).
-  const latestUndo = useRef(undo); latestUndo.current = undo;
-  const latestState = useRef(state); latestState.current = state;
-  useEffect(() => {
-    const onUndoRequest = (event: Event) => {
-      const detail = (event as CustomEvent<{ jumpId?: string }>).detail;
-      if (detail?.jumpId === jumpId && (latestState.current === "DONE" || latestState.current === "SKIPPED")) void latestUndo.current();
-    };
-    window.addEventListener("jitm:undo-request", onUndoRequest);
-    return () => window.removeEventListener("jitm:undo-request", onUndoRequest);
-  }, [jumpId]);
-
   if (state === "HIDDEN") return null;
   if (state !== "ACTIVE") {
     const confirmation = (
-      <div className={styles.cardWrapper} data-jump-workflow={jumpId} data-follow-up-undo="true">
+      <div ref={confirmationRef} className={styles.cardWrapper} data-jump-workflow={jumpId} data-follow-up-undo="true">
         <div className={styles.completedPlaceholder} role="status">
           <span>
             <strong>{state === "SKIPPED" ? "Follow-up skipped" : "Follow-up completed"}</strong>
@@ -275,7 +278,6 @@ export function JumpWorkflowCard({
         {error && <p className={styles.error} role="alert">{error}</p>}
       </div>
     );
-    const target = typeof document !== "undefined" ? document.getElementById("follow-up-confirmations") : null;
     return target ? createPortal(confirmation, target) : confirmation;
   }
   return <div className={styles.cardWrapper} data-jump-workflow={jumpId}>{children}</div>;
@@ -491,10 +493,10 @@ export function JumpReturnTray() {
   if (!visible || !session) {
     if (session) return <aside className={styles.returnTray} aria-label="Pending follow-up outcome"><span>Outcome not recorded for {session.contactName}.</span><button className="button small" type="button" onClick={() => setVisible(true)}>Record outcome</button></aside>;
     if (!notice) return null;
-    return <aside className={styles.returnTray} aria-label="Follow-up outcome notice"><p role="status">{notice}</p><button className="button small" type="button" onClick={() => setNotice("")}>Dismiss</button></aside>;
+    return <aside className={styles.returnTray} aria-label="Follow-up outcome notice" data-today-notice><p role="status">{notice}</p><button className="button small" type="button" onClick={() => setNotice("")}>Dismiss</button></aside>;
   }
   return (
-    <aside className={styles.returnTray} aria-label={`Finish follow-up with ${session.contactName}`}>
+    <aside className={styles.returnTray} aria-label={`Finish follow-up with ${session.contactName}`} data-today-notice>
       {notice && <p role="status">{notice}</p>}
       <div className={styles.trayHeading}>
         <div>

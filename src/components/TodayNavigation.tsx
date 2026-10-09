@@ -99,7 +99,7 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     else { focusNextTodayPage = true; router.push(href); }
   }}>
     <div id="follow-up-confirmations" className="follow-up-confirmations" aria-label="Recent follow-up results" />
-    {updateState && updateState !== "undo" && <aside className="notice info" aria-label="Today updates">
+    {updateState && updateState !== "undo" && <aside className="notice info" aria-label="Today updates" data-today-notice={updateState === "refreshing" ? undefined : true}>
       <p role="status">{updateState === "draft" ? "There are updates for this list. Finish or discard your message edits to show them."
         : updateState === "offline" ? "Your progress is saved. Reconnect to update this list."
         : updateState === "retry" ? "Your progress is saved. We couldn’t update this list. Try again when you’re ready."

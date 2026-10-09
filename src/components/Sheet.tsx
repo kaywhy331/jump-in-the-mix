@@ -124,8 +124,8 @@ export function Sheet({
             </div>
             <button className="icon-button" type="button" onClick={close} aria-label={`Close ${accessibleTitle ?? title}`}><AppIcon name="close" /></button>
           </header>
-          {/* Today puts the previous follow-up's Undo here when it opens this review by itself on a phone (D70). */}
-          {docked && <div className="sheet-momentum" data-sheet-momentum role="status" />}
+          {/* Today shows follow-up confirmations here, each with its Undo, while this review is open (D70). */}
+          {docked && <div className="sheet-momentum" data-sheet-momentum />}
           <div className="sheet-body">{children}</div>
         </div>
       </dialog>}
