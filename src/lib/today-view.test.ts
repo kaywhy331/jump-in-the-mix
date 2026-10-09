@@ -106,8 +106,9 @@ describe("doneGrowth", () => {
     expect(doneGrowth(view, { ...page, pending: 45, pendingOnPage: 15 })).toEqual({ done: true, skipped: true });
   });
 
-  it("keeps it on a Previous page, which lists pending follow-ups only", () => {
+  it("keeps it on any Previous page, read back from a pending or a completed follow-up", () => {
     expect(doneGrowth(view, { ...page, pending: 45, pendingOnPage: 15, previous: true })).toEqual({ done: false, skipped: false });
+    expect(doneGrowth(view, { ...page, pending: 12, pendingOnPage: 12, listedCompleted: 12, previous: true })).toEqual({ done: false, skipped: false });
   });
 
   it("follows the status filter, and doesn't grow when only overdue follow-ups are listed", () => {

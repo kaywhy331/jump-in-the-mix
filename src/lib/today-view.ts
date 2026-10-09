@@ -62,11 +62,12 @@ export function doneSummaryCount(range: string, listedCompleted: number, complet
  * TRU-06). The due view counts today's completed follow-ups, never skipped ones. Other views count what the page lists,
  * which their status and priority filters may leave out. A first or later page lists its pending follow-ups, then fills
  * up with completed ones, so the next read lists one more completed follow-up when the page already lists some, when
- * every pending one in the view fits on a page, or when the page's own pending ones leave room. A Previous page, read
- * back from a pending follow-up, lists pending ones only (CNT-05, CNT-06).
+ * every pending one in the view fits on a page, or when the page's own pending ones leave room. A Previous page is read
+ * back from its cursor, so whether the next read lists the new completed follow-up depends on where it sorts: Done holds
+ * there until that read (CNT-05, CNT-06, CNT-07).
  */
 export function doneGrowth(view: { range: string; status: string; priority: string }, page: { pending: number; pendingOnPage: number; listedCompleted: number; size: number; previous: boolean }): { done: boolean; skipped: boolean } {
   if (view.range === "due") return { done: true, skipped: false };
-  const lists = view.priority !== "overdue" && (page.listedCompleted > 0 || page.pending <= page.size || (!page.previous && page.pendingOnPage < page.size));
+  const lists = view.priority !== "overdue" && !page.previous && (page.listedCompleted > 0 || page.pending <= page.size || page.pendingOnPage < page.size);
   return { done: lists && (view.status === "all" || view.status === "done"), skipped: lists && (view.status === "all" || view.status === "skipped") };
 }
