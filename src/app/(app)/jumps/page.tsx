@@ -459,7 +459,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {params.applied && <Notice type="success">Mix changes saved.</Notice>}
       {params.mixStopped && <Notice type="success">Mix stopped.</Notice>}
       {params.mixStopError && <Notice type="error">Mix could not be stopped.</Notice>}
-      {params.snoozed && <Notice type="success">{Number.isNaN(Date.parse(params.snoozed)) ? "Follow-up snoozed." : `Snoozed until ${formatDateTime(params.snoozed, displayPreferences)}.`}</Notice>}
+      {params.snoozed && <Notice type="success">{/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(params.snoozed) && !Number.isNaN(Date.parse(params.snoozed)) ? `Snoozed until ${formatDateTime(params.snoozed, displayPreferences)}.` : "Follow-up snoozed."}</Notice>}
       {params.contactSaved === "1" && <Notice type="success">Contact saved. This follow-up now uses the new details.</Notice>}
       {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
       {params.listReset && <Notice type="info">This part of the list changed. You’re back at the first follow-ups.</Notice>}
