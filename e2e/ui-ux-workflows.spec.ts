@@ -112,6 +112,7 @@ test("rating stars read 1 to 5 from left to right and fill up to the tapped star
   await page.goto(`/review/${token}`);
   const stars = page.locator(".rating-options label");
   await expect(stars).toHaveCount(5);
+  await stars.first().scrollIntoViewIfNeeded();
   // Picking a star by its accessible name passes even when the stars are drawn backwards, so this checks what a
   // customer sees: one row, 1 on the left, 5 on the right, and a tap by position records that position's value.
   const boxes = await stars.evaluateAll(labels => labels.map(label => {
@@ -126,6 +127,15 @@ test("rating stars read 1 to 5 from left to right and fill up to the tapped star
   const marks = page.locator(".rating-options span[aria-hidden]");
   const emptyBackground = await marks.first().evaluate(mark => getComputedStyle(mark).backgroundColor);
   const filled = () => marks.evaluateAll((items, empty) => items.map(item => getComputedStyle(item).backgroundColor !== empty), emptyBackground);
+  expect(await filled()).toEqual([false, false, false, false, false]);
+  // Tab enters the group at star 1, and the arrow keys move the way the row reads.
+  for (let press = 0; press < 20 && !(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name === "rating")); press++) await page.keyboard.press("Tab");
+  await expect(page.locator(".rating-options input[value='1']")).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator(".rating-options input[value='2']")).toBeFocused();
+  await expect(page.getByText("Selected 2 out of 5")).toBeVisible();
+  await expect.poll(filled).toEqual([true, true, false, false, false]);
+  expect(await marks.nth(1).evaluate(mark => getComputedStyle(mark).outlineStyle)).toBe("solid");
   await page.mouse.click(boxes[4].x, boxes[4].y);
   await expect(page.getByText("Selected 5 out of 5")).toBeVisible();
   await expect.poll(filled).toEqual([true, true, true, true, true]);
