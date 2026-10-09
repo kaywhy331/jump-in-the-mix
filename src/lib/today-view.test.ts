@@ -86,26 +86,34 @@ describe("doneSummaryCount", () => {
 
 describe("doneGrowth", () => {
   const view = { range: "week", status: "all", priority: "all" };
-  const size = 30;
+  const page = { pending: 0, pendingOnPage: 0, listedCompleted: 0, size: 30, previous: false };
 
   it("grows the due view's Done with completed outcomes, never skipped ones", () => {
-    expect(doneGrowth({ ...view, range: "due" }, { pending: 45, listedCompleted: 0, size })).toEqual({ done: true, skipped: false });
+    expect(doneGrowth({ ...view, range: "due" }, { ...page, pending: 45, pendingOnPage: 30 })).toEqual({ done: true, skipped: false });
   });
 
   it("grows a list's Done while every pending follow-up fits on the page", () => {
-    expect(doneGrowth(view, { pending: 29, listedCompleted: 0, size })).toEqual({ done: true, skipped: true });
-    expect(doneGrowth(view, { pending: 30, listedCompleted: 0, size })).toEqual({ done: true, skipped: true });
-    expect(doneGrowth(view, { pending: 31, listedCompleted: 0, size })).toEqual({ done: false, skipped: false });
+    expect(doneGrowth(view, { ...page, pending: 29, pendingOnPage: 29 })).toEqual({ done: true, skipped: true });
+    expect(doneGrowth(view, { ...page, pending: 30, pendingOnPage: 30 })).toEqual({ done: true, skipped: true });
+    expect(doneGrowth(view, { ...page, pending: 31, pendingOnPage: 30 })).toEqual({ done: false, skipped: false });
   });
 
   it("grows it on a later page that already lists completed follow-ups", () => {
-    expect(doneGrowth(view, { pending: 45, listedCompleted: 12, size })).toEqual({ done: true, skipped: true });
+    expect(doneGrowth(view, { ...page, pending: 45, pendingOnPage: 15, listedCompleted: 12 })).toEqual({ done: true, skipped: true });
+  });
+
+  it("grows it on a later page whose pending follow-ups leave room, before any completed one is listed", () => {
+    expect(doneGrowth(view, { ...page, pending: 45, pendingOnPage: 15 })).toEqual({ done: true, skipped: true });
+  });
+
+  it("keeps it on a Previous page, which lists pending follow-ups only", () => {
+    expect(doneGrowth(view, { ...page, pending: 45, pendingOnPage: 15, previous: true })).toEqual({ done: false, skipped: false });
   });
 
   it("follows the status filter, and doesn't grow when only overdue follow-ups are listed", () => {
-    expect(doneGrowth({ ...view, status: "pending" }, { pending: 3, listedCompleted: 0, size })).toEqual({ done: false, skipped: false });
-    expect(doneGrowth({ ...view, status: "done" }, { pending: 0, listedCompleted: 4, size })).toEqual({ done: true, skipped: false });
-    expect(doneGrowth({ ...view, status: "skipped" }, { pending: 0, listedCompleted: 4, size })).toEqual({ done: false, skipped: true });
-    expect(doneGrowth({ ...view, priority: "overdue" }, { pending: 3, listedCompleted: 0, size })).toEqual({ done: false, skipped: false });
+    expect(doneGrowth({ ...view, status: "pending" }, { ...page, pending: 3, pendingOnPage: 3 })).toEqual({ done: false, skipped: false });
+    expect(doneGrowth({ ...view, status: "done" }, { ...page, listedCompleted: 4 })).toEqual({ done: true, skipped: false });
+    expect(doneGrowth({ ...view, status: "skipped" }, { ...page, listedCompleted: 4 })).toEqual({ done: false, skipped: true });
+    expect(doneGrowth({ ...view, priority: "overdue" }, { ...page, pending: 3, pendingOnPage: 3 })).toEqual({ done: false, skipped: false });
   });
 });

@@ -445,7 +445,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     : null;
 
   // Whether this view's Done grows by an outcome recorded here (CNT-03, CNT-05).
-  const doneCounts = doneGrowth({ range, status, priority }, { pending: pendingCount, listedCompleted: completed.length, size: TODAY_PAGE_SIZE });
+  const doneCounts = doneGrowth({ range, status, priority }, { pending: pendingCount, pendingOnPage: pending.length, listedCompleted: completed.length, size: TODAY_PAGE_SIZE, previous: currentCursor?.direction === "before" });
   // What the header says with nothing due; the live summary says the same once the last due follow-up is done.
   const upcomingTotal = upcomingCount + (workflowAttention?.futureTotal ?? 0);
   const zeroLine = !workflowAttention ? "Your next steps could not be checked." : workflowAttention.total ? `${workflowAttention.total} item${workflowAttention.total === 1 ? " needs" : "s need"} your input.` : workflowAttention.preparing || preparation.state !== "ready" ? "Your follow-up list is awaiting preparation." : upcomingTotal ? `${upcomingTotal.toLocaleString()} upcoming follow-up${upcomingTotal === 1 ? "" : "s"}.` : activeFilterCount ? "No open follow-ups in this view." : "You’re caught up.";
