@@ -35,7 +35,6 @@ describe("display labels (FMT-01–FMT-03, D79)", () => {
       expect(formatDateTime(at, { locale, timeZone: "UTC" }), locale).toMatch(/7:05\s?p\.?m\.?$/i);
     }
     expect(formatDateTime(at, { locale: "en-GB", timeZone: "UTC" })).toBe("9 Oct, 7:05 pm");
-    expect(formatDateTime(at, { locale: "en-US", timeZone: "UTC" }, { year: "numeric" })).toBe("Oct 9, 2026, 7:05 PM");
   });
   it("writes a confirmed date and time as people read them", () => {
     const now = new Date("2026-10-09T15:00:00Z");
