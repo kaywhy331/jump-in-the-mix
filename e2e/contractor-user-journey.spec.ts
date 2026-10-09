@@ -112,6 +112,8 @@ test("a requested callback stays future, becomes one daily action, and can be co
   await expect.poll(async () => workflowState((await prisma.mixWorkflowInstance.findUniqueOrThrow({ where: { id } })).state).commitments?.length).toBe(1);
   expect((await (await page.request.get(`/api/mix-workflow?contactId=${person.id}`)).json()).analytics.summary).toMatchObject({ waiting: 1, stopped: 0, current: 1 });
   await page.goto("/jumps"); await expect(page.getByText("Customer requested a callback", { exact: false })).toBeVisible();
+  // The check-back names its zone by city, never by its IANA name (DT-06).
+  await expect(page.locator(".contact-method-row").filter({ hasText: "Customer requested a callback" })).toContainText(/\((?:UTC|[A-Z][A-Za-z .'-]+ time)\)/);
   await expect(page.locator("#needs-your-input")).toBeHidden();
   const saved = await prisma.mixWorkflowInstance.findUniqueOrThrow({ where: { id } }), state = workflowState(saved.state); state.commitments![0].dueAt = new Date(Date.now() - 60000).toISOString();
   await prisma.mixWorkflowInstance.update({ where: { id }, data: { state: JSON.parse(JSON.stringify(state)) } });

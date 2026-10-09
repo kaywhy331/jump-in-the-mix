@@ -53,15 +53,20 @@ export function zoneLabel(zone: string): string {
   const city = zone.includes("/") ? zone.split("/").at(-1)?.replaceAll("_", " ") : null;
   if (city) return `${city} time`;
   // Zones with no city, such as "EST5EDT", go by their generic name ("Eastern Time").
+  return zoneGenericName(zone);
+}
+
+/** A zone's everyday name as of now ("Eastern Time"), shown beside its city in the picker; the IANA name if unknown. */
+export function zoneGenericName(zone: string, at = new Date()): string {
   try {
-    return new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longGeneric" }).formatToParts(new Date(0)).find(part => part.type === "timeZoneName")?.value ?? zone;
+    return new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longGeneric" }).formatToParts(at).find(part => part.type === "timeZoneName")?.value ?? zone;
   } catch {
     return zone;
   }
 }
 const UTC_ZONES = new Set(["UTC", "Etc/UTC", "UCT", "Etc/UCT", "Universal", "Etc/Universal", "Zulu", "Etc/Zulu", "GMT", "Etc/GMT", "GMT0", "Etc/GMT0", "GMT+0", "Etc/GMT+0", "GMT-0", "Etc/GMT-0", "Greenwich", "Etc/Greenwich"]);
 // Islands whose zone is named without the word, so "Christmas time" would mislead.
-const ISLAND_ZONES: Record<string, string> = { "Indian/Christmas": "Christmas Island", "Pacific/Easter": "Easter Island", "Pacific/Wake": "Wake Island" };
+const ISLAND_ZONES: Record<string, string> = { "Indian/Christmas": "Christmas Island", "Pacific/Easter": "Easter Island", "Pacific/Norfolk": "Norfolk Island", "Pacific/Wake": "Wake Island" };
 
 /**
  * A date ("2026-10-09") and time ("14:00") as the owner entered them, in their own zone: "Fri, Oct 9 at 2:00 PM", with

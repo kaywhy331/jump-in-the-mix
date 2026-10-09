@@ -3,6 +3,7 @@
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { isValidTimezone } from "@/lib/mix-broadcast";
+import { zoneGenericName } from "@/lib/display-labels";
 
 /**
  * A browser that cannot tell where the device is reports "UTC" or "Etc/Unknown"; only a real,
@@ -90,7 +91,7 @@ export function TimezonePicker({
         <div className="sheet-body">
           <button className="button" type="button" onClick={detect}>Use device timezone</button>
           <label className="field"><span>Search timezones</span><input ref={searchRef} type="search" value={query} onChange={(event) => setQuery(event.target.value)} placeholder="Chicago, London, Tokyo…" autoComplete="off" /></label>
-          <div className="timezone-city-list">{visibleZones.map((zone) => <button className={zone === value ? "timezone-city selected" : "timezone-city"} type="button" aria-pressed={zone === value} key={zone} onClick={() => { setValue(zone); dialogRef.current?.close(); }}><strong>{cityLabel(zone)}{zone === value && <span className="timezone-selected-label">Selected</span>}</strong><small>{zone}</small></button>)}</div>
+          <div className="timezone-city-list">{visibleZones.map((zone) => <button className={zone === value ? "timezone-city selected" : "timezone-city"} type="button" aria-pressed={zone === value} key={zone} onClick={() => { setValue(zone); dialogRef.current?.close(); }}><strong>{cityLabel(zone)}{zone === value && <span className="timezone-selected-label">Selected</span>}</strong><small>{zoneGenericName(zone)}</small></button>)}</div>
           {!visibleZones.length && <p role="status">No matching timezone. Try a nearby major city or region.</p>}
         </div>
       </div>

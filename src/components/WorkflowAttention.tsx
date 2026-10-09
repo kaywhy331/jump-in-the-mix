@@ -1,5 +1,6 @@
 import { TodayLink } from "@/components/TodayNavigation";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
+import { zoneLabel } from "@/lib/display-labels";
 import type { WorkflowAttention as Attention } from "@/lib/workflow-attention";
 
 export function WorkflowAttention({ attention }: { attention: Attention | null }) {
@@ -18,5 +19,5 @@ export function WorkflowAttention({ attention }: { attention: Attention | null }
 
 export function UpcomingWorkflowCommitments({ attention, displayPreferences }: { attention: Attention | null; displayPreferences: DisplayFormatPreferences }) {
   if (!attention?.future?.length) return null;
-  return <div>{attention.future.map(item => <div className="contact-method-row" key={item.id}><span><strong>{item.contactName}</strong><br />{item.label} · {item.reason}<br />{formatDateTime(item.dueAt, { ...displayPreferences, timeZone: item.timezone })} ({item.timezone})</span><TodayLink className="button small" href={item.href}>Review work</TodayLink></div>)}{(attention.futureTotal ?? 0) > attention.future.length && <nav className="pagination-bar" aria-label="Upcoming callback pages">{(attention.futureOffset ?? 0) > 0 && <TodayLink className="button small" href={`/jumps?callbackPage=${(attention.futureOffset ?? 0) / 30 - 1}`}>Previous callbacks</TodayLink>}{(attention.futureOffset ?? 0) + attention.future.length < (attention.futureTotal ?? 0) && <TodayLink className="button small" href={`/jumps?callbackPage=${(attention.futureOffset ?? 0) / 30 + 1}`}>Next callbacks</TodayLink>}</nav>}</div>;
+  return <div>{attention.future.map(item => <div className="contact-method-row" key={item.id}><span><strong>{item.contactName}</strong><br />{item.label} · {item.reason}<br />{formatDateTime(item.dueAt, { ...displayPreferences, timeZone: item.timezone })} ({zoneLabel(item.timezone)})</span><TodayLink className="button small" href={item.href}>Review work</TodayLink></div>)}{(attention.futureTotal ?? 0) > attention.future.length && <nav className="pagination-bar" aria-label="Upcoming callback pages">{(attention.futureOffset ?? 0) > 0 && <TodayLink className="button small" href={`/jumps?callbackPage=${(attention.futureOffset ?? 0) / 30 - 1}`}>Previous callbacks</TodayLink>}{(attention.futureOffset ?? 0) + attention.future.length < (attention.futureTotal ?? 0) && <TodayLink className="button small" href={`/jumps?callbackPage=${(attention.futureOffset ?? 0) / 30 + 1}`}>Next callbacks</TodayLink>}</nav>}</div>;
 }

@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelName, channelWord, localDateTimeLabel, timeOfDayLabel, zoneLabel } from "../src/lib/display-labels";
+import { channelName, channelWord, localDateTimeLabel, timeOfDayLabel, zoneGenericName, zoneLabel } from "../src/lib/display-labels";
 import { formatDateTime, formatTime } from "../src/lib/format";
 
 describe("display labels (FMT-01–FMT-03, D79)", () => {
@@ -17,6 +17,11 @@ describe("display labels (FMT-01–FMT-03, D79)", () => {
     expect(zoneLabel("Etc/GMT-10")).toBe("UTC+10");
     expect(zoneLabel("Indian/Christmas")).toBe("Christmas Island time");
     expect(zoneLabel("EST5EDT")).toBe("Eastern Time");
+    expect(zoneLabel("Pacific/Norfolk")).toBe("Norfolk Island time");
+    // Named as of the given day, not 1970: Lisbon's zone has been Western European Time since 1996.
+    expect(zoneLabel("WET")).toMatch(/^Western European/);
+    expect(zoneGenericName("America/Chicago", new Date("2026-10-09T12:00:00Z"))).toBe("Central Time");
+    expect(zoneGenericName("Not/AZone")).toBe("Not/AZone");
   });
   it("writes times on the 12-hour clock in every display locale", () => {
     expect(timeOfDayLabel(14 * 60)).toBe("2:00 PM");

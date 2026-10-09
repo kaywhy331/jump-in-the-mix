@@ -155,7 +155,9 @@ test("timezone selection shows the current value, searches by keyboard and retur
     const search = popup.getByRole("searchbox", { name: "Search timezones", exact: true });
     await expect(search).toBeFocused();
     await expect(popup.locator(".timezone-city").first()).toHaveAttribute("aria-pressed", "true");
-    await expect(popup.getByRole("button", { name: /Tokyo.*Asia\/Tokyo/ })).toBeAttached();
+    // Each city shows its zone's everyday name, never the raw zone id (DT-06).
+    await expect(popup.getByRole("button", { name: /Tokyo.*Japan Standard Time/ })).toBeAttached();
+    await expect(popup.getByText("Asia/Tokyo", { exact: true })).toHaveCount(0);
     await search.fill("no matching timezone");
     await expect(popup.getByRole("status")).toContainText("Try a nearby major city");
     await search.fill("London");
