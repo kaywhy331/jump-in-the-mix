@@ -113,15 +113,16 @@ export function TodayMomentum() {
     // and the bar would take more than half the sheet, or the room between them can't hold the message field, as with
     // large text or on a short screen, the bar scrolls with the review instead, so no field is caught between the two
     // (JITM-07 §2.26, LAY-06).
-    let bar: HTMLElement | null = null, panel: HTMLElement | null = null, field: HTMLElement | null = null;
+    let bar: HTMLElement | null = null, panel: HTMLElement | null = null, field: HTMLElement | null = null, resting = 0;
     const barSizes = new ResizeObserver(() => {
       if (!bar || !panel) return;
       const height = Math.ceil(bar.getBoundingClientRect().height);
       const header = panel.querySelector(".sheet-header")?.getBoundingClientRect().height ?? 0;
       panel.style.setProperty("--review-bar-height", `${height}px`);
       panel.style.setProperty("--review-header-height", `${Math.ceil(header)}px`);
-      // Outcome choices that open inside the bar are where the owner is working, so they never unstick it.
-      const resting = height - (bar.querySelector("[data-outcome-choices]")?.getBoundingClientRect().height ?? 0);
+      // Outcome choices that open inside the bar are where the owner is working, so they never unstick it: the bar's height
+      // from before they opened decides (LAY-08). Sticking changes no sizes (the bar's padding stays), so it can't feed back.
+      if (!bar.querySelector("[data-outcome-choices]")) resting = height;
       const room = panel.clientHeight - header - resting;
       panel.toggleAttribute("data-review-bar-flows", header + resting > panel.clientHeight / 2 || room < (field?.getBoundingClientRect().height ?? 0) + 24);
     });
@@ -130,7 +131,8 @@ export function TodayMomentum() {
     // §2.11, LAY-06).
     const onFocus = (event: FocusEvent) => {
       const target = event.target;
-      if (!(target instanceof HTMLElement) || !bar || !panel?.contains(target) || bar.contains(target)) return;
+      // A dialog over the review, such as "Discard your edits?", sits in its own layer and is left alone (A11Y-04).
+      if (!(target instanceof HTMLElement) || !bar || !panel?.contains(target) || bar.contains(target) || target.closest("dialog") !== panel.closest("dialog")) return;
       requestAnimationFrame(() => {
         if (!bar || !panel || document.activeElement !== target) return;
         const box = target.getBoundingClientRect();
@@ -146,6 +148,7 @@ export function TodayMomentum() {
       const nextField = next?.closest(".sheet-panel")?.querySelector<HTMLElement>("textarea") ?? null;
       if (next === bar && nextField === field) return;
       for (const element of [bar, panel, field]) if (element) barSizes.unobserve(element);
+      if (next !== bar) resting = 0;
       bar = next; panel = next?.closest<HTMLElement>(".sheet-panel") ?? null; field = nextField;
       for (const element of [bar, panel, field]) if (element) barSizes.observe(element);
     };
