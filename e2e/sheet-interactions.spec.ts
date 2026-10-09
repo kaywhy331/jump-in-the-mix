@@ -158,6 +158,10 @@ test("timezone selection shows the current value, searches by keyboard and retur
     // Each city shows its zone's everyday name, never the raw zone id (DT-06).
     await expect(popup.getByRole("button", { name: /Tokyo.*Japan Standard Time/ })).toBeAttached();
     await expect(popup.getByText("Asia/Tokyo", { exact: true })).toHaveCount(0);
+    await expect(popup.locator(".timezone-city").filter({ hasText: "Coordinated Universal Time" })).not.toContainText("GMT");
+    // The everyday name is searchable too (DT-10).
+    await search.fill("Pacific Time");
+    await expect(popup.getByRole("button", { name: /^Los Angeles/ })).toBeAttached();
     await search.fill("no matching timezone");
     await expect(popup.getByRole("status")).toContainText("Try a nearby major city");
     await search.fill("London");
