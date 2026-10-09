@@ -99,10 +99,11 @@ export function LiveAttentionSummary() {
 export function TodayMomentum() {
   useEffect(() => {
     let frame = 0, opened: HTMLDialogElement | null = null, slot: HTMLElement | null = null, tallest = 0;
-    // The slot keeps the tallest height it has had while its review stays open, so a confirmation leaving never moves
-    // the review's buttons under the owner's finger.
+    // In a docked review the slot keeps the tallest height it has had while the review stays open, so a confirmation
+    // leaving never moves the review's buttons up under the owner's pointer. A phone's sheet is anchored at the bottom,
+    // where its handoff and outcomes stay, so nothing is reserved there.
     const sizes = new ResizeObserver(() => {
-      if (!slot) return;
+      if (!slot || slot.closest("dialog:modal")) return;
       tallest = Math.max(tallest, slot.getBoundingClientRect().height);
       slot.style.minHeight = tallest ? `${tallest}px` : "";
     });

@@ -159,20 +159,37 @@ test.describe("on a phone", () => {
     await expect.poll(() => status(ids[0])).toBe("PENDING");
   });
 
-  test("the confirmation leaves with the card's own Undo window, and the review's buttons stay put", async ({ page }) => {
+  test("the confirmation leaves with the card's own Undo window", async ({ page }) => {
     await page.clock.install();
     await page.goto("/jumps"); await ready(page);
     await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
     await markSent(page, openReview(page), names[0], ids[0]);
     const next = openReview(page);
-    const send = next.getByRole("button", { name: `Mark sent for ${names[1]}`, exact: true });
     await expect(confirmationOf(next, ids[0])).toBeVisible();
-    const before = (await send.boundingBox())!;
     await page.clock.runFor(10_500);
     await expect(confirmationOf(next, ids[0])).toHaveCount(0);
-    expect((await send.boundingBox())!.y).toBeCloseTo(before.y, 0);
+    await expect(next.getByRole("button", { name: `Mark sent for ${names[1]}`, exact: true })).toBeInViewport();
     expect(await status(ids[0])).toBe("DONE");
   });
+
+  for (const viewport of [{ width: 320, height: 700 }, { width: 375, height: 667 }]) {
+    test(`on a ${viewport.width}×${viewport.height} phone the handoff and outcomes stay on screen beside one or two confirmations`, async ({ page }) => {
+      await page.setViewportSize(viewport);
+      await page.goto("/jumps"); await ready(page);
+      await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+      await markSent(page, openReview(page), names[0], ids[0]);
+      for (const [name, confirmations] of [[names[1], 1], [names[2], 2]] as const) {
+        const review = openReview(page);
+        await expect(review.locator("[data-follow-up-undo]")).toHaveCount(confirmations);
+        // JITM-08 §2.3: the handoff and the outcomes show together, without scrolling.
+        await expect(review.getByRole("link", { name: `Open text for ${name}`, exact: true })).toBeInViewport();
+        await expect(review.getByRole("button", { name: `Mark sent for ${name}`, exact: true })).toBeInViewport();
+        await expect(review.getByRole("button", { name: "Skip Beat", exact: true })).toBeInViewport();
+        await expect(review.locator("[data-follow-up-undo]").first().getByRole("button", { name: "Undo", exact: true })).toBeInViewport();
+        if (confirmations === 1) await markSent(page, review, name, ids[1]);
+      }
+    });
+  }
 
   test("an outcome recorded in the tray after returning from the app opens the next review", async ({ page }) => {
     await page.goto("/jumps"); await ready(page);
@@ -227,6 +244,19 @@ test.describe("on a wider screen", () => {
     await expect(doneCount(page)).toHaveText("0");
     await expect(page.locator('[data-today-section="overdue"]')).toBeVisible();
     await expect(sectionCount(page, "overdue")).toHaveText("1");
+  });
+
+  test("the docked review's buttons stay put when a confirmation leaves", async ({ page }) => {
+    await page.clock.install();
+    await page.goto("/jumps"); await ready(page);
+    const docked = openReview(page);
+    await markSent(page, docked, names[0], ids[0]);
+    const send = docked.getByRole("button", { name: `Mark sent for ${names[1]}`, exact: true });
+    await expect(confirmationOf(docked, ids[0])).toBeVisible();
+    const before = (await send.boundingBox())!;
+    await page.clock.runFor(10_500);
+    await expect(confirmationOf(docked, ids[0])).toHaveCount(0);
+    expect((await send.boundingBox())!.y).toBeCloseTo(before.y, 0);
   });
 
   test("after the last due follow-up in the list, the first one left opens", async ({ page }) => {
