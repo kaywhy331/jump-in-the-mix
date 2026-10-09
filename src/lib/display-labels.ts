@@ -83,6 +83,12 @@ export function localDateTimeLabel(date: string, time: string, locale = "en-US",
   return timeText ? `${dayText} at ${timeText}` : dayText;
 }
 
+/** An instant written as `localDateTimeLabel` writes a date and time, in `timeZone` ("Thu, Oct 15 at 2:00 PM"). */
+export function zonedDateTimeLabel(at: Date, timeZone: string, locale = "en-US", now = new Date()): string {
+  const parts = Object.fromEntries(new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "2-digit", day: "2-digit", hour: "2-digit", minute: "2-digit", hourCycle: "h23" }).formatToParts(at).map(part => [part.type, part.value]));
+  return localDateTimeLabel(`${parts.year}-${parts.month}-${parts.day}`, `${parts.hour}:${parts.minute}`, locale, now, timeZone);
+}
+
 // Holds that lift bring their follow-up back, so a held follow-up still shown here is still held: those read in the present.
 const ENDED_REASONS: Record<string, string> = {
   done: "You marked it done.",

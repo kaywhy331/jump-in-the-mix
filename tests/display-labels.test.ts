@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelName, channelWord, localDateTimeLabel, timeOfDayLabel, zoneGenericName, zoneLabel } from "../src/lib/display-labels";
+import { channelName, channelWord, localDateTimeLabel, timeOfDayLabel, zoneGenericName, zoneLabel, zonedDateTimeLabel } from "../src/lib/display-labels";
 import { formatDateTime, formatTime } from "../src/lib/format";
 
 describe("display labels (FMT-01–FMT-03, D79)", () => {
@@ -48,6 +48,9 @@ describe("display labels (FMT-01–FMT-03, D79)", () => {
     const eve = new Date("2027-01-01T03:00:00Z");
     expect(localDateTimeLabel("2026-12-31", "21:00", "en-US", eve, "America/New_York")).toBe("Thu, Dec 31 at 9:00 PM");
     expect(localDateTimeLabel("2026-12-31", "21:00", "en-US", eve, "UTC")).toBe("Thu, Dec 31, 2026 at 9:00 PM");
+    // An instant reads the same way in its zone, as a Mix's planned start does under Starts and in its Beats.
+    expect(zonedDateTimeLabel(new Date("2026-10-15T18:00:00Z"), "America/New_York", "en-US", now)).toBe("Thu, Oct 15 at 2:00 PM");
+    expect(zonedDateTimeLabel(new Date("2027-01-01T03:00:00Z"), "America/New_York", "en-US", eve)).toBe("Thu, Dec 31 at 10:00 PM");
   });
   it("uses one name per channel", () => {
     expect(["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"].map(channelName)).toEqual(["Text", "Email", "Call", "Voicemail", "WhatsApp"]);

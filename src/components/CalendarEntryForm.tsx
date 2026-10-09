@@ -69,7 +69,7 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
   const end = values.duration === "custom" ? splitLocal(values.customEnd) : addMinutesToLocal(values.date, values.time, values.duration);
   const startsAt = `${values.date}T${values.time}`;
   const endsAt = values.duration === "custom" ? values.customEnd : `${end!.date}T${end!.time}`;
-  const endSummary = end ? `Ends ${end.date === values.date ? "" : `${formatDateTrigger(end.date)} at `}${formatTimeLabel(end.time)}` : "Choose when it ends";
+  const endSummary = end ? `Ends ${end.date === values.date ? "" : `${formatDateTrigger(end.date, undefined, locale)} at `}${formatTimeLabel(end.time, locale)}` : "Choose when it ends";
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const data = new FormData(event.currentTarget); startTransition(() => action(data)); };
   // React resets a form submitted through its action prop once the action settles, which blanks
