@@ -1,6 +1,7 @@
 import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
 import type { Channel, MixTriggerMode } from "@/generated/prisma/client";
 import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/placeholders";
+import { channelName } from "@/lib/display-labels";
 
 export const MIX_TEMPLATE_CATEGORIES = [
   "Relationships",
@@ -118,11 +119,9 @@ export function normalizeSharedMixTriggerMode(value: unknown): MixTriggerMode {
   return "MANUAL_START";
 }
 
+/** One name per channel, the same everywhere: Text, Email, Call, Voicemail, WhatsApp (MIX-20, STF-15). */
 export function sharedMixChannelLabel(channel: Channel): string {
-  if (channel === "PHONE_CALL") return "Phone Call";
-  if (channel === "VOICEMAIL") return "Voicemail Script";
-  if (channel === "WHATSAPP") return "WhatsApp";
-  return channel === "EMAIL" ? "Email" : "SMS";
+  return channelName(channel);
 }
 
 export function normalizeSharedMixSteps(value: unknown): SharedMixStep[] {

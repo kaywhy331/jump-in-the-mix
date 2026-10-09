@@ -275,7 +275,7 @@ export function ContactsBulkWorkspace({
             {contactIdsInputs(selectedIds)}
             <input type="hidden" name="applyMode" value="manual" />
             <input type="hidden" name="manualName" value="One-time message" />
-            <label className="field"><span>How</span><select name="manualChannel" value={messageChannel} onChange={(event) => setMessageChannel(event.target.value)}><option value="SMS">Text</option><option value="EMAIL">Email</option><option value="PHONE_CALL">Phone call</option><option value="WHATSAPP">WhatsApp</option></select></label>
+            <label className="field"><span>How</span><select name="manualChannel" value={messageChannel} onChange={(event) => setMessageChannel(event.target.value)}><option value="SMS">Text</option><option value="EMAIL">Email</option><option value="PHONE_CALL">Call</option><option value="WHATSAPP">WhatsApp</option></select></label>
             {messageChannel === "EMAIL" && <label className="field"><span>Subject</span><input name="manualSubject" placeholder="A quick note" required /></label>}
             {["SMS", "EMAIL", "WHATSAPP"].includes(messageChannel) ? <label className="field"><span>Message</span><textarea name="manualBody" placeholder="Hi {{First Name}}, …" required /></label> : <label className="field"><span>Call notes</span><textarea name="manualScript" required /></label>}
             <label className="field"><span>When</span><select name="sendWhen" value={sendWhen} onChange={(event) => setSendWhen(event.target.value)}><option value="now">Now</option><option value="tomorrow">Tomorrow</option><option value="date">Choose a date</option></select></label>
