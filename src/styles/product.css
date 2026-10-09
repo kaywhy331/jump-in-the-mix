@@ -107,6 +107,8 @@
 .rating-options input { position: absolute; opacity: 0; }
 .rating-options span[aria-hidden] { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid var(--line); border-radius: 12px; color: var(--text-3); background: var(--raised, var(--raised)); font-size: 1.55rem; }
 .rating-options label:has(input:checked) span[aria-hidden], .rating-options label:has(~ label input:checked) span[aria-hidden] { color: var(--status-warning-ink); border-color: var(--warning-border); background: var(--status-warning-bg); }
+/* Browsers without :has() still light the chosen star. */
+.rating-options input:checked + span[aria-hidden] { color: var(--status-warning-ink); border-color: var(--warning-border); background: var(--status-warning-bg); }
 .rating-options input:focus-visible + span { outline: 3px solid var(--focus, var(--violet-mark)); outline-offset: 2px; }
 .review-thanks { display: grid; gap: 14px; }
 .review-next-actions { display: flex; flex-wrap: wrap; gap: 9px; }
