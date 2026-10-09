@@ -109,18 +109,45 @@ export function TodayMomentum() {
       tallest = Math.max(tallest, slot.getBoundingClientRect().height);
       slot.style.minHeight = tallest ? `${tallest}px` : "";
     });
-    // A phone review's sheet pads its scrolling by the height of its action bar, which stays at the bottom.
-    let bar: HTMLElement | null = null;
+    // A phone review's sheet pads its scrolling by the height of its action bar, which stays at the bottom. When the header
+    // and the bar would take more than half the sheet, or the room between them can't hold the message field, as with
+    // large text or on a short screen, the bar scrolls with the review instead, so no field is caught between the two
+    // (JITM-07 §2.26, LAY-06).
+    let bar: HTMLElement | null = null, panel: HTMLElement | null = null, field: HTMLElement | null = null;
     const barSizes = new ResizeObserver(() => {
-      const panel = bar?.closest<HTMLElement>(".sheet-panel");
-      if (bar && panel) panel.style.setProperty("--review-bar-height", `${Math.ceil(bar.getBoundingClientRect().height)}px`);
+      if (!bar || !panel) return;
+      const height = Math.ceil(bar.getBoundingClientRect().height);
+      const header = panel.querySelector(".sheet-header")?.getBoundingClientRect().height ?? 0;
+      panel.style.setProperty("--review-bar-height", `${height}px`);
+      panel.style.setProperty("--review-header-height", `${Math.ceil(header)}px`);
+      // Outcome choices that open inside the bar are where the owner is working, so they never unstick it.
+      const resting = height - (bar.querySelector("[data-outcome-choices]")?.getBoundingClientRect().height ?? 0);
+      const room = panel.clientHeight - header - resting;
+      panel.toggleAttribute("data-review-bar-flows", header + resting > panel.clientHeight / 2 || room < (field?.getBoundingClientRect().height ?? 0) + 24);
     });
+    // A browser reveals only a focused text field's caret, so the rest of the field can stay under the stuck bar or below
+    // the sheet's edge. Bring the whole field into view above the bar, while its top stays below the header (JITM-10
+    // §2.11, LAY-06).
+    const onFocus = (event: FocusEvent) => {
+      const target = event.target;
+      if (!(target instanceof HTMLElement) || !bar || !panel?.contains(target) || bar.contains(target)) return;
+      requestAnimationFrame(() => {
+        if (!bar || !panel || document.activeElement !== target) return;
+        const box = target.getBoundingClientRect();
+        const header = panel.querySelector(".sheet-header")?.getBoundingClientRect().bottom ?? 0;
+        const limit = getComputedStyle(bar).position === "sticky" ? bar.getBoundingClientRect().top : panel.getBoundingClientRect().bottom;
+        const overlap = box.bottom + 8 - limit;
+        if (overlap > 0) panel.scrollBy({ top: Math.min(overlap, Math.max(0, box.top - header - 8)), behavior: "instant" });
+      });
+    };
+    document.addEventListener("focusin", onFocus);
     const watchBar = () => {
       const next = document.querySelector<HTMLElement>(".follow-up-review-sheet[open]:modal .review-action-bar");
-      if (next === bar) return;
-      if (bar) barSizes.unobserve(bar);
-      bar = next;
-      if (bar) barSizes.observe(bar);
+      const nextField = next?.closest(".sheet-panel")?.querySelector<HTMLElement>("textarea") ?? null;
+      if (next === bar && nextField === field) return;
+      for (const element of [bar, panel, field]) if (element) barSizes.unobserve(element);
+      bar = next; panel = next?.closest<HTMLElement>(".sheet-panel") ?? null; field = nextField;
+      for (const element of [bar, panel, field]) if (element) barSizes.observe(element);
     };
     const sync = () => {
       watchBar();
@@ -169,6 +196,7 @@ export function TodayMomentum() {
     window.addEventListener("jitm:jump-state", onState);
     return () => {
       window.removeEventListener("jitm:jump-state", onState);
+      document.removeEventListener("focusin", onFocus);
       cancelAnimationFrame(frame); changes.disconnect(); sizes.disconnect(); barSizes.disconnect();
       if (slot) slot.style.minHeight = "";
       setOpenReviewSlot(null);

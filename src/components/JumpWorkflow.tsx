@@ -352,7 +352,7 @@ export function JumpOutcomeButton({
   return (
     <span ref={root}>
       <button className={className} type="button" aria-label={ariaLabel} onClick={() => void submit()} disabled={saving || disabled}>{saving ? "Saving…" : children}</button>
-      {showDecisions && <span role="group" aria-label="Record journey outcome"><WorkflowChoicesStatus {...workflow} /><WorkflowOutcomeFields choices={choices} values={decisions} onChange={setDecisions} /><button className="button primary" type="button" disabled={saving || workflow.status !== "ready"} onClick={() => void submit()}>Save outcome</button>{workflow.status !== "ready" && <button className="button" type="button" disabled={saving} onClick={() => void submit(true)}>Record follow-up only</button>}<button className="button" type="button" onClick={() => setShowDecisions(false)}>Cancel</button></span>}
+      {showDecisions && <span role="group" aria-label="Record journey outcome" data-outcome-choices><WorkflowChoicesStatus {...workflow} /><WorkflowOutcomeFields choices={choices} values={decisions} onChange={setDecisions} /><button className="button primary" type="button" disabled={saving || workflow.status !== "ready"} onClick={() => void submit()}>Save outcome</button>{workflow.status !== "ready" && <button className="button" type="button" disabled={saving} onClick={() => void submit(true)}>Record follow-up only</button>}<button className="button" type="button" onClick={() => setShowDecisions(false)}>Cancel</button></span>}
       {notice && <small className="muted-copy" role="status">{notice}</small>}
       {error && <small className={styles.error} role="alert">{error}</small>}
       {confirmDialog}
