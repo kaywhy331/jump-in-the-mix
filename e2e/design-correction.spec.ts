@@ -308,6 +308,10 @@ test("expanded Journey stage actions stay reachable on a narrow phone", async ({
   // Only visible actions count; "Retire stage" confirms in the app dialog, whose buttons stay hidden until asked.
   const actions = stage.locator(":scope > form > .form-actions button:visible");
   await expect(actions).toHaveCount(4);
+  // A stage with people in it can't be retired, so Retire is disabled and says what to do first (TRU-12).
+  const retire = stage.getByRole("button", { name: "Retire empty stage…", exact: true });
+  await expect(retire).toBeDisabled();
+  await expect(retire).toHaveAccessibleDescription("Move the 2 people in this stage to another stage first.");
   for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: theme });
     for (const action of await actions.all()) {
