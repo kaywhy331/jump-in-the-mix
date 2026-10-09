@@ -2,7 +2,7 @@ import Link from "next/link";
 import { workflowContinuation } from "@/lib/workflow-continuation";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
 import { randomUUID } from "node:crypto";
 import { requireWorkspace } from "@/lib/auth";
@@ -64,7 +64,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   // The save reports the bound plan beat by beat; the confirmation says only what that gives the owner now.
   const count = (raw?: string) => { const parsed = Number(raw ?? ""); return Number.isInteger(parsed) && parsed > 0 && parsed <= 50 ? parsed : 0; };
   const planNotice = query.plan ? describeBoundPlanOutlook({ ready: count(query.ready), awaitingOutcome: count(query.awaitingOutcome), awaitingCompletion: count(query.awaitingCompletion), lapsed: count(query.lapsed), held: count(query.held) }) : "";
-  const timeLabel = (value: Date) => new Intl.DateTimeFormat(displayPreferences.locale, { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(value);
+  const timeLabel = (value: Date) => formatTime(value, { locale: displayPreferences.locale, timeZone: timezone });
   const format = (value: Date) => formatDateTime(value, displayPreferences);
   // Confirmations name the event and what happened to it (TRU-07): the one just saved, or the one another action changed.
   const savedEntry = query.saved && query.savedEvent ? await prisma.calendarEntry.findFirst({ where: { id: query.savedEvent.slice(0, 120), workspaceId: workspace.id }, select: { title: true, startsAt: true } }) : null;

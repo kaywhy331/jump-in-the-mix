@@ -13,7 +13,7 @@ import { WorkflowPathActions, type WorkflowPathSelection } from "@/components/Wo
 import type { WorkflowPathRemoval } from "@/lib/mix-workflow-rule-save";
 import { WorkflowRuleEditor } from "@/components/WorkflowRuleEditor";
 import { saveWorkflowChange, WorkflowInstanceCard } from "@/components/WorkflowProgress";
-import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
+import { formatDateTime, formatTime, type DisplayFormatPreferences } from "@/lib/format";
 import { WorkflowGraphEdges } from "@/components/WorkflowGraphEdges";
 import { connectionDirection, layoutWorkflowConnections } from "@/lib/workflow-connection-layout";
 import { layoutWorkflow } from "@/lib/mix-workflow-layout";
@@ -239,7 +239,7 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
           return <section key={direction} data-direction={direction}><h4>{direction === "incoming" ? "Into this Mix" : "From this Mix"} <span>{related.length}</span></h4>{related.length ? <ul>{related.map(path => <li key={path.id}><button type="button" disabled={Boolean(editing)} onClick={() => selectPath({ id: path.id, rule: path.rule, removal: path.removal })}><strong>{path.label}</strong><span>{connectionDirection(path, selected) === "return" ? "Returns to this Mix" : data.mixes.find(mix => mix.id === (direction === "incoming" ? path.source : path.destination))?.name}{!path.rule.enabled ? " · off" : ""}</span></button></li>)}</ul> : <p>{direction === "incoming" ? "No incoming connections. Start people here when they are ready." : "No outgoing connections."}</p>}</section>;
         })}</div>
       </section>}
-      <div className={styles.footer}><span>Updated {new Intl.DateTimeFormat(displayPreferences.locale, { hour: "numeric", minute: "2-digit", timeZone: displayPreferences.timeZone }).format(new Date(data.updatedAt))}{editing ? " · refresh waits while editing" : ""}</span><span>{data.analytics.summary.current} people with ongoing work</span></div>
+      <div className={styles.footer}><span>Updated {formatTime(data.updatedAt, displayPreferences)}{editing ? " · refresh waits while editing" : ""}</span><span>{data.analytics.summary.current} people with ongoing work</span></div>
       {pane !== "details" && feedback}
     </section>
     <aside id="journey-details-pane" ref={sidebarRef} className={styles.sidebar} aria-label="Journey details">

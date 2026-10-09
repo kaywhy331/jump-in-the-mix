@@ -139,7 +139,7 @@ export function formatDateTrigger(key: DateKey, today?: DateKey | null, locale: 
 export function formatTimeLabel(time: TimeKey, locale: string = DEFAULT_WHEN_LOCALE): string {
   if (!TIME_KEY.test(time)) return "Choose a time";
   const [hours, minutes] = time.split(":").map(Number);
-  return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 1, hours, minutes)));
+  return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" }).format(new Date(Date.UTC(2026, 0, 1, hours, minutes)));
 }
 
 export function formatDurationLabel(minutes: number): string {

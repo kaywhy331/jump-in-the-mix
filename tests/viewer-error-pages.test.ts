@@ -19,6 +19,7 @@ vi.mock("@/lib/auth", () => ({
 vi.mock("@/lib/prisma", () => ({
   prisma: {
     automationPreference: { findUnique: async () => ({ enabled: false, emailEnabled: true, smsEnabled: false, reviewWindowMinutes: 30 }) },
+    userPreference: { findUnique: async () => null },
     dateType: { findMany: async () => [] }
   }
 }));

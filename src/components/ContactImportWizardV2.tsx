@@ -150,7 +150,7 @@ function terminal(status: ImportBatch["status"]): boolean {
 
 function batchDate(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).format(date);
 }
 
 /** Up to three Mix names, then how many more, so a long list never hides that it was cut. */

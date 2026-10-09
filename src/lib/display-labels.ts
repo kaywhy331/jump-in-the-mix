@@ -39,22 +39,36 @@ export function recurrenceLabel(recurrence: string): string {
 
 /** A time zone in running copy, named by its city ("New York time"), never its IANA name (JITM-05 §2.19, D79). */
 export function zoneLabel(zone: string): string {
-  if (!zone || zone === "UTC" || zone === "Etc/UTC") return "UTC";
-  const city = zone.split("/").at(-1)?.replaceAll("_", " ");
-  return city ? `${city} time` : zone;
+  if (!zone || UTC_ZONES.has(zone)) return "UTC";
+  // "Etc/GMT+5" is five hours behind UTC: the sign is the reverse of what it reads.
+  const offset = /^Etc\/GMT([+-])(\d{1,2})$/.exec(zone);
+  if (offset) return `UTC${offset[1] === "+" ? "-" : "+"}${Number(offset[2])}`;
+  if (ISLAND_ZONES[zone]) return `${ISLAND_ZONES[zone]} time`;
+  const city = zone.includes("/") ? zone.split("/").at(-1)?.replaceAll("_", " ") : null;
+  if (city) return `${city} time`;
+  // Zones with no city, such as "EST5EDT", go by their generic name ("Eastern Time").
+  try {
+    return new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longGeneric" }).formatToParts(new Date(0)).find(part => part.type === "timeZoneName")?.value ?? zone;
+  } catch {
+    return zone;
+  }
 }
+const UTC_ZONES = new Set(["UTC", "Etc/UTC", "UCT", "Etc/UCT", "Universal", "Etc/Universal", "Zulu", "Etc/Zulu", "GMT", "Etc/GMT", "GMT0", "Etc/GMT0", "GMT+0", "Etc/GMT+0", "GMT-0", "Etc/GMT-0", "Greenwich", "Etc/Greenwich"]);
+// Islands whose zone is named without the word, so "Christmas time" would mislead.
+const ISLAND_ZONES: Record<string, string> = { "Indian/Christmas": "Christmas Island", "Pacific/Easter": "Easter Island", "Pacific/Wake": "Wake Island" };
 
 /**
  * A date ("2026-10-09") and time ("14:00") as the owner entered them, in their own zone: "Fri, Oct 9 at 2:00 PM", with
- * the year only when it isn't this year. Either part may be missing; nothing is shown for neither.
+ * the year only when it isn't this year in `timeZone`. Either part may be missing; nothing is shown for neither.
  */
-export function localDateTimeLabel(date: string, time: string, locale = "en-US", now = new Date()): string {
+export function localDateTimeLabel(date: string, time: string, locale = "en-US", now = new Date(), timeZone = "UTC"): string {
   const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date ?? "");
   const clock = /^(\d{2}):(\d{2})$/.exec(time ?? "");
   const timeText = clock ? timeOfDayLabel(Number(clock[1]) * 60 + Number(clock[2]), locale) : "";
   if (!day) return timeText;
   const year = Number(day[1]);
-  const dayText = new Intl.DateTimeFormat(locale, { weekday: "short", month: "short", day: "numeric", ...(year !== now.getFullYear() ? { year: "numeric" } : {}), timeZone: "UTC" }).format(new Date(Date.UTC(year, Number(day[2]) - 1, Number(day[3]), 12)));
+  const thisYear = Number(new Intl.DateTimeFormat("en-US", { year: "numeric", timeZone }).format(now));
+  const dayText = new Intl.DateTimeFormat(locale, { weekday: "short", month: "short", day: "numeric", ...(year !== thisYear ? { year: "numeric" } : {}), timeZone: "UTC" }).format(new Date(Date.UTC(year, Number(day[2]) - 1, Number(day[3]), 12)));
   return timeText ? `${dayText} at ${timeText}` : dayText;
 }
 

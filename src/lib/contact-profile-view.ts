@@ -1,4 +1,4 @@
-import { formatDate, type DisplayFormatPreferences } from "@/lib/format";
+import { formatDate, formatTime, type DisplayFormatPreferences } from "@/lib/format";
 import { addLogicalDays, logicalDateInTimezone, logicalDateKey } from "@/lib/jump-schedule";
 
 export function contactDueLabel(date: Date, now: Date, preferences: DisplayFormatPreferences): string {
@@ -6,7 +6,7 @@ export function contactDueLabel(date: Date, now: Date, preferences: DisplayForma
   const today = logicalDateInTimezone(now, preferences.timeZone);
   const days = Math.round((Date.UTC(due.year, due.month - 1, due.day) - Date.UTC(today.year, today.month - 1, today.day)) / 86_400_000);
   if (days < 0) return `${-days} ${days === -1 ? "day" : "days"} late`;
-  const time = new Intl.DateTimeFormat(preferences.locale, { hour: "numeric", minute: "2-digit", timeZone: preferences.timeZone }).format(date);
+  const time = formatTime(date, preferences);
   if (days === 0) return `${date < now ? "Earlier today" : "Today"}, ${time}`;
   if (days === 1) return `Tomorrow, ${time}`;
   return formatDate(date, preferences, { year: undefined });

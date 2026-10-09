@@ -17,12 +17,14 @@ export function formatDate(
   }).format(new Date(value));
 }
 
-export function formatDateTime(value: Date | string, preferences: DisplayFormatPreferences): string {
+/** A date and time on the 12-hour clock in the reader's timezone (e.g. "Oct 9, 2:00 PM"; D79). */
+export function formatDateTime(value: Date | string, preferences: DisplayFormatPreferences, options: Intl.DateTimeFormatOptions = {}): string {
   return new Intl.DateTimeFormat(preferences.locale, {
     month: "short",
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    ...options,
     hour12: true,
     timeZone: preferences.timeZone
   }).format(new Date(value));

@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { channelName, localDateTimeLabel, timeOfDayLabel, zoneLabel } from "../src/lib/display-labels";
+import { formatDateTime, formatTime } from "../src/lib/format";
 
 describe("display labels (FMT-01–FMT-03, D79)", () => {
   it("names a time zone by its city, never by its IANA name", () => {
@@ -9,10 +10,27 @@ describe("display labels (FMT-01–FMT-03, D79)", () => {
     expect(zoneLabel("UTC")).toBe("UTC");
     expect(zoneLabel("")).toBe("UTC");
   });
+  it("names zones without a plain city truthfully (DT-03)", () => {
+    expect(["Etc/UTC", "UCT", "Etc/Universal", "Zulu", "GMT", "Etc/Greenwich", "Etc/GMT0"].map(zoneLabel)).toEqual(Array(7).fill("UTC"));
+    // Etc/GMT+5 is five hours behind UTC.
+    expect(zoneLabel("Etc/GMT+5")).toBe("UTC-5");
+    expect(zoneLabel("Etc/GMT-10")).toBe("UTC+10");
+    expect(zoneLabel("Indian/Christmas")).toBe("Christmas Island time");
+    expect(zoneLabel("EST5EDT")).toBe("Eastern Time");
+  });
   it("writes times on the 12-hour clock in every display locale", () => {
     expect(timeOfDayLabel(14 * 60)).toBe("2:00 PM");
     expect(timeOfDayLabel(0)).toBe("12:00 AM");
     expect(timeOfDayLabel(14 * 60, "en-GB")).toMatch(/^2:00\s?pm$/i);
+  });
+  it("keeps one clock per account in the shared formatters, whatever the locale (DT-01, TST-02)", () => {
+    const at = new Date("2026-10-09T19:05:00Z");
+    for (const locale of ["en-US", "en-GB", "en-AU", "en-CA"]) {
+      expect(formatTime(at, { locale, timeZone: "UTC" }), locale).toMatch(/^7:05\s?p\.?m\.?$/i);
+      expect(formatDateTime(at, { locale, timeZone: "UTC" }), locale).toMatch(/7:05\s?p\.?m\.?$/i);
+    }
+    expect(formatDateTime(at, { locale: "en-GB", timeZone: "UTC" })).toBe("9 Oct, 7:05 pm");
+    expect(formatDateTime(at, { locale: "en-US", timeZone: "UTC" }, { year: "numeric" })).toBe("Oct 9, 2026, 7:05 PM");
   });
   it("writes a confirmed date and time as people read them", () => {
     const now = new Date("2026-10-09T15:00:00Z");
@@ -21,6 +39,10 @@ describe("display labels (FMT-01–FMT-03, D79)", () => {
     expect(localDateTimeLabel("2026-10-09", "", "en-US", now)).toBe("Fri, Oct 9");
     expect(localDateTimeLabel("", "14:00", "en-US", now)).toBe("2:00 PM");
     expect(localDateTimeLabel("", "", "en-US", now)).toBe("");
+    // The year is the account's: on New Year's Eve in New York, January 1 UTC is still last year there.
+    const eve = new Date("2027-01-01T03:00:00Z");
+    expect(localDateTimeLabel("2026-12-31", "21:00", "en-US", eve, "America/New_York")).toBe("Thu, Dec 31 at 9:00 PM");
+    expect(localDateTimeLabel("2026-12-31", "21:00", "en-US", eve, "UTC")).toBe("Thu, Dec 31, 2026 at 9:00 PM");
   });
   it("uses one name per channel", () => {
     expect(["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"].map(channelName)).toEqual(["Text", "Email", "Call", "Voicemail", "WhatsApp"]);

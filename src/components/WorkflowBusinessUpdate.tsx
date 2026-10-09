@@ -66,7 +66,7 @@ export function WorkflowBusinessUpdateForm({ instance, displayPreferences, onUpd
     {notice && <p role="status">{notice}</p>}
     {error && !review && <p className="notice error" role="alert">{error}</p>}
     <ReviewDialog open={Boolean(review)} onClose={() => { if (!busy) setReview(null); }} title="Save this update?" description={review ? `${review.preview.contactName} · ${review.preview.label} · ${review.preview.mixName}` : "Review the effect on this work."}>
-      {review && <div className="form-stack"><p>{review.input.kind === "OUTCOME" ? review.input.outcome : `${review.input.source === "CUSTOMER" ? "Customer requested" : "You chose"}: ${formatDateTime(review.input.dueAt!, { ...displayPreferences, timeZone: review.input.timezone! })} (${review.input.timezone})`}</p>
+      {review && <div className="form-stack"><p>{review.input.kind === "OUTCOME" ? review.input.outcome : `${review.input.source === "CUSTOMER" ? "Customer requested" : "You chose"}: ${formatDateTime(review.input.dueAt!, { ...displayPreferences, timeZone: review.input.timezone! })} (${zoneLabel(review.input.timezone!)})`}</p>
         <p><strong>{review.preview.ends.length} pending follow-up{review.preview.ends.length === 1 ? " ends" : "s end"}.</strong> Review the reminders below before saving.</p>
         {Boolean(review.preview.ends.length) && <ul>{review.preview.ends.map((name, index) => <li key={index}>{name}</li>)}</ul>}
         <p>{review.preview.keepsCompleted} completed or skipped actions stay in history. {review.preview.independentPending} other pending follow-ups in this work stay as they are. Separate work for this person is unaffected.</p>
