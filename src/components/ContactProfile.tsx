@@ -168,7 +168,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
     {noMixChoice}
   </Sheet> : null;
   const journeyTrack = <>
-    <div className="contact-section-heading"><h2>Journey</h2>{touchpoint}</div>
+    <div className="contact-section-heading"><h2>Stage</h2>{touchpoint}</div>
     {contact.journey ? <div className="contact-journey-track" role="region" tabIndex={0} aria-label="Recorded stage history and possible next stages">
       <ol className="contact-stage-history">{moves.map((move, index) => <li key={move.id} className={index === moves.length - 1 ? "is-current" : "is-complete"} aria-current={index === moves.length - 1 ? "step" : undefined}><strong>{stageNames.get(move.resultingStageId!) ?? "Previous stage"}</strong><time dateTime={move.occurredAt.toISOString()}>{shortDate(move.occurredAt)}</time><i aria-hidden="true" /></li>)}</ol>
       <div className="contact-journey-today"><i aria-hidden="true" /><span>Today</span></div>
@@ -211,7 +211,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
         </div>
         <span className="person-initials profile-avatar" aria-hidden="true">{initials}</span>
         <div className="profile-identity">{heading}
-          <div className="contact-identity-chips"><Sheet key={contact.journey?.version ?? 0} trigger={<button type="button" className="contact-stage-chip" aria-label={`Change journey stage: ${contact.journey?.stage.name ?? "No stage"}`}>{contact.journey?.stage.name ?? "No stage"}<AppIcon name="chevronDown" /></button>} title={`Journey stage for ${contact.displayName}`}><ContactJourneyPanel workspaceId={workspace.id} contactId={contact.id} expanded returnToDirectory={embedded} /></Sheet>
+          <div className="contact-identity-chips"><Sheet key={contact.journey?.version ?? 0} trigger={<button type="button" className="contact-stage-chip" aria-label={`Change stage: ${contact.journey?.stage.name ?? "No stage"}`}>{contact.journey?.stage.name ?? "No stage"}<AppIcon name="chevronDown" /></button>} title={`Stage for ${contact.displayName}`}><ContactJourneyPanel workspaceId={workspace.id} contactId={contact.id} expanded returnToDirectory={embedded} /></Sheet>
           {mixChip}</div>
         </div>
         <nav className="contact-profile-quick-actions" aria-label={`Contact ${contact.displayName}`}>

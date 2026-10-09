@@ -330,7 +330,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="page contacts-page">
-      {params.stateUpdated && <Notice type="success">Journey stage updated.</Notice>}
+      {params.stateUpdated && <Notice type="success">Stage updated.</Notice>}
       {params.created && <Notice type="success">Contact added.</Notice>}
       {params.archived && <Notice type="success"><span className="notice-with-action">Contact archived.{params.archivedContact && <form action={restoreContactAction}><input type="hidden" name="contactId" value={params.archivedContact} /><input type="hidden" name="returnTo" value="/contacts" /><FormSubmitButton label="Undo" pendingLabel="Restoring…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {params.restored && <Notice type="success">Contact restored.</Notice>}

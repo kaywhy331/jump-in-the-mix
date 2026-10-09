@@ -88,7 +88,7 @@ for (const width of [390, 1280]) test(`a Mix's stage moves the person who starts
   await page.getByRole("button", { name: "Start a follow-up", exact: true }).first().click();
   await page.getByRole("dialog").getByRole("combobox", { name: "Choose a Mix", exact: true }).selectOption(mix.id);
   await page.getByRole("dialog").getByRole("button", { name: "Start Mix", exact: true }).click();
-  await expect(page.getByRole("button", { name: "Change journey stage: Prospect", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Change stage: Prospect", exact: true })).toBeVisible();
   // Robin was added without a stage event, so they join the first stage on the way, as the worker's pass would (STG-02).
   await expect(page.getByText("Lead → Prospect, set by the Mix “Qualify the lead”.").first()).toBeVisible();
   await capture(page, `profile-stage-${width}`);
