@@ -465,3 +465,8 @@
 @media (forced-colors: active) and (max-width: 767px) and (min-height: 481px) {
   .follow-up-review-sheet > .sheet-panel:not([data-review-bar-flows]) .review-action-bar { padding-top: 7px; border-top: 1px solid CanvasText; box-shadow: none; }
 }
+/* A row says what the follow-up is about on one line: its reason, then its Mix (TDY-02). A completed row's time
+   editor opens in that line, so completed rows still wrap. The review gives the reason under the Mix name. */
+.today-page .jump-task-card:not(.jump-task-complete) .jump-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-page .jump-meta > span + span::before { content: " · "; }
+.review-reason { margin: 2px 0 0; color: var(--text-2); font-size: .8125rem; }
