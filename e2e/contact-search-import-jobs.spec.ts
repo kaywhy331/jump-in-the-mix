@@ -98,6 +98,10 @@ test("queued imports remain visible after navigation and expose their terminal o
     await expect(terminalState).toBeVisible();
     if ((await terminalState.textContent()) !== "Canceled") {
       await expect(currentImport.getByRole("link", { name: "View imported Contacts" })).toBeVisible();
+    } else {
+      // A canceled import offers its people only if it saved some (TRU-06).
+      const canceled = await prisma.contactImportBatch.findUniqueOrThrow({ where: { workspaceId_importId: { workspaceId: "demo_workspace", importId } } });
+      await expect(currentImport.getByRole("link", { name: "View imported Contacts" })).toHaveCount(canceled.createdCount + canceled.mergedCount + canceled.replacedCount > 0 ? 1 : 0);
     }
   } else {
     await expect(currentImport.getByText(/^(?:Completed|Partly imported)$/)).toBeVisible();

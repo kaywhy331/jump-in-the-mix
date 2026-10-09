@@ -107,13 +107,20 @@ test("a requested callback stays future, becomes one daily action, and can be co
   await page.getByText("Record an update or choose a callback date", { exact: true }).click();
   await page.getByRole("combobox", { name: "What happened?", exact: true }).selectOption("CUSTOMER");
   const future = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16); await page.getByLabel("Check-back date and time", { exact: true }).fill(future);
+  // A callback in New York, so Today has a city zone to name (DT-06).
+  await page.getByRole("button", { name: "Change timezone", exact: true }).click();
+  const zones = page.getByRole("dialog", { name: "Choose a timezone", exact: true });
+  await zones.getByRole("searchbox", { name: "Search timezones", exact: true }).fill("New York");
+  await zones.getByRole("button", { name: /^New York/ }).click();
   await page.getByRole("button", { name: "Review this update", exact: true }).click();
   await page.getByRole("button", { name: "Save update", exact: true }).click();
   await expect.poll(async () => workflowState((await prisma.mixWorkflowInstance.findUniqueOrThrow({ where: { id } })).state).commitments?.length).toBe(1);
   expect((await (await page.request.get(`/api/mix-workflow?contactId=${person.id}`)).json()).analytics.summary).toMatchObject({ waiting: 1, stopped: 0, current: 1 });
   await page.goto("/jumps"); await expect(page.getByText("Customer requested a callback", { exact: false })).toBeVisible();
   // The check-back names its zone by city, never by its IANA name (DT-06).
-  await expect(page.locator(".contact-method-row").filter({ hasText: "Customer requested a callback" })).toContainText(/\((?:UTC|[A-Z][A-Za-z .'-]+ time)\)/);
+  const callback = page.locator(".contact-method-row").filter({ hasText: "Customer requested a callback" });
+  await expect(callback).toContainText("(New York time)");
+  await expect(callback).not.toContainText("America/");
   await expect(page.locator("#needs-your-input")).toBeHidden();
   const saved = await prisma.mixWorkflowInstance.findUniqueOrThrow({ where: { id } }), state = workflowState(saved.state); state.commitments![0].dueAt = new Date(Date.now() - 60000).toISOString();
   await prisma.mixWorkflowInstance.update({ where: { id }, data: { state: JSON.parse(JSON.stringify(state)) } });
