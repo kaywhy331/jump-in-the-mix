@@ -263,9 +263,11 @@
 }
 
 .follow-up-confirmations { position: fixed; z-index: 150; bottom: 24px; left: 50%; transform: translateX(-50%); width: min(540px, calc(100vw - 32px)); display: grid; gap: 10px; pointer-events: none; }
-/* The question sits in a box-less slot (MixEndPrompt), so its card takes the same raised surface as the other cards (LAY-04). */
-.follow-up-confirmations > :not(.mix-end-slot), .mix-end-slot > * { pointer-events: auto; background: var(--raised); color: var(--text); border-radius: 20px; box-shadow: var(--shadow); }
-.follow-up-confirmations:empty { display: none; }
+/* The confirmations sit in a box-less list and the question in a box-less slot after it (MixEndPrompt), so each card takes
+   the same raised surface and the stack's spacing (LAY-04, A11Y-03). */
+.follow-up-undos { display: contents; }
+.follow-up-undos > *, .mix-end-slot > * { pointer-events: auto; background: var(--raised); color: var(--text); border-radius: 20px; box-shadow: var(--shadow); }
+.follow-up-confirmations:not(:has(> .follow-up-undos > *, > .mix-end-slot)) { display: none; }
 @media (max-width: 900px) { .follow-up-confirmations { bottom: calc(96px + env(safe-area-inset-bottom)); } }
 /* The end-of-Mix question (JITM-09 §2.77) waits in the same stack until the owner answers or closes it, after the timed
    confirmations so their Undo stays in view (LAY-02; MixEndPrompt places it). With enlarged text its actions take their own row, and the stack
@@ -451,6 +453,3 @@
   .follow-up-review-sheet .review-action-bar { position: sticky; bottom: 0; z-index: 1; padding-top: 8px; background: var(--raised); }
   .follow-up-review-sheet > .sheet-panel { scroll-padding-bottom: calc(var(--review-bar-height, 160px) + 16px); }
 }
-/* What's next for a person comes after the Undos still on screen, whatever order they arrived in (JITM-09 §2.77). The
-   slot has no box of its own, so the question itself is the stack's grid item. */
-.follow-up-confirmations > .mix-end-slot > .mix-end-question { order: 1; }

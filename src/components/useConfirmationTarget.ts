@@ -27,5 +27,5 @@ export function useConfirmationTarget(jumpId: string): Element | null {
   const slot = useSyncExternalStore(subscribe, () => openSlot, () => null);
   if (typeof document === "undefined") return null;
   if (slot?.isConnected && !slot.closest(`[data-jump-workflow="${CSS.escape(jumpId)}"]`)) return slot;
-  return document.getElementById("follow-up-confirmations");
+  return document.getElementById("follow-up-undos");
 }
