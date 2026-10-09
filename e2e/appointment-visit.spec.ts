@@ -73,22 +73,50 @@ test("saves a visit with its details and plan in one step, anchors the follow-up
   await page.goto(`/calendar?date=${visitDate}`); await ready(page);
   await (await eventActions(page, "Kitchen estimate")).locator(".calendar-binding").getByRole("button", { name: "Hold follow-ups", exact: true }).click();
   await expect(page.locator(".calendar-binding")).toContainText("on hold");
+  // Each Calendar action confirms what it did to which event (TRU-07).
+  await expect(page.getByRole("status").filter({ hasText: "are on hold" })).toHaveText("Follow-ups for Kitchen estimate are on hold.");
   await reconcileJumps({ workspaceId, mixId: planId });
   expect(await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).toMatchObject({ status: "CANCELED", completionMethod: APPOINTMENT_HOLD_METHODS.held });
   await (await eventActions(page, "Kitchen estimate")).locator(".calendar-binding").getByRole("button", { name: "Resume follow-ups", exact: true }).click();
   await expect(page.locator(".calendar-binding")).not.toContainText("on hold");
+  await expect(page.getByRole("status").filter({ hasText: "are back on" })).toHaveText("Follow-ups for Kitchen estimate are back on.");
+  // Allowing automatic sending says it takes effect only once the account's automatic sending is on (CAL-01).
+  await (await eventActions(page, "Kitchen estimate")).locator(".calendar-binding").getByRole("button", { name: "Allow automatic sending", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "send by themselves" })).toHaveText("The follow-ups for Kitchen estimate can send by themselves once automatic sending is on. For now they wait for you on Today.");
+  await (await eventActions(page, "Kitchen estimate")).locator(".calendar-binding").getByRole("button", { name: "Stop sending automatically", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "send by themselves" })).toHaveText("The follow-ups for Kitchen estimate won’t send by themselves. They wait for you on Today.");
+  // A result for a record that isn't there shows no notice (CAL-02).
+  await page.goto(`/calendar?date=${visitDate}&done=held&binding=not-a-binding`); await ready(page);
+  await expect(page.getByRole("status").filter({ hasText: "are on hold" })).toHaveCount(0);
   await reconcileJumps({ workspaceId, mixId: planId });
   expect((await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).status).toBe("PENDING");
 
   // Recording a missed visit holds this visit's follow-ups; clearing it brings them back.
   await (await eventActions(page, "Kitchen estimate")).locator(".calendar-outcome").getByRole("button", { name: "No-show", exact: true }).click();
   await expect(page.locator(".calendar-outcome")).toContainText("Visit missed");
+  await expect(page.getByRole("status").filter({ hasText: "Marked as missed" })).toHaveText("Marked as missed: Kitchen estimate.");
   await reconcileJumps({ workspaceId, mixId: planId });
   expect(await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).toMatchObject({ status: "CANCELED", completionMethod: APPOINTMENT_HOLD_METHODS.noShow });
   await (await eventActions(page, "Kitchen estimate")).locator(".calendar-outcome").getByRole("button", { name: "Clear outcome", exact: true }).click();
   await expect(page.locator(".calendar-outcome")).toContainText("Outcome not recorded");
+  await expect(page.getByRole("status").filter({ hasText: "outcome cleared" })).toHaveText("Visit outcome cleared: Kitchen estimate.");
   await reconcileJumps({ workspaceId, mixId: planId });
   expect((await prisma.jump.findUniqueOrThrow({ where: { id: reminder.id } })).status).toBe("PENDING");
+
+  // Canceling an event that changed in the meantime cancels nothing and says so; canceling the current one names it
+  // (CAL-02). A separate event keeps the visit above for the next test.
+  const spareStart = new Date(`${visitDate}T20:00:00Z`);
+  const spare = await prisma.calendarEntry.create({ data: { workspaceId, title: "Spare walk-through", kind: "MEETING", startsAt: spareStart, endsAt: new Date(spareStart.getTime() + 1_800_000), timezone: "UTC" } });
+  await page.goto(`/calendar?date=${visitDate}`); await ready(page);
+  await (await eventActions(page, "Spare walk-through")).getByRole("button", { name: "Cancel event…", exact: true }).click();
+  await prisma.calendarEntry.update({ where: { id: spare.id }, data: { version: { increment: 1 } } });
+  await page.getByRole("dialog", { name: "Cancel Spare walk-through?" }).getByRole("button", { name: "Cancel event", exact: true }).click();
+  await expect(page.getByText("This event changed. Refresh the calendar before canceling it.")).toBeVisible();
+  expect((await prisma.calendarEntry.findUniqueOrThrow({ where: { id: spare.id } })).canceledAt).toBeNull();
+  await page.goto(`/calendar?date=${visitDate}`); await ready(page);
+  await (await eventActions(page, "Spare walk-through")).getByRole("button", { name: "Cancel event…", exact: true }).click();
+  await page.getByRole("dialog", { name: "Cancel Spare walk-through?" }).getByRole("button", { name: "Cancel event", exact: true }).click();
+  await expect(page.getByRole("status").filter({ hasText: "canceled" })).toHaveText("Spare walk-through canceled. Its follow-ups won’t come due.");
 });
 
 test("asks for one inline choice when the entered phone and email match different saved people, keeping everything typed", async ({ page }) => {
