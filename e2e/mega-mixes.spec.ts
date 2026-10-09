@@ -50,7 +50,7 @@ test("browse a whole journey, install it once, open its actual map and editable 
   await page.goto("/templates/journeys?journey=contractor");
   await expect(page.getByRole("heading", { name: "Already in your Journey" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add Contractor Mega-Mix" })).toHaveCount(0);
-  await page.getByRole("complementary", { name: "Mega-Mix setup" }).getByRole("link", { name: "Estimate follow-up active" }).click();
+  await page.getByRole("complementary", { name: "Mega-Mix setup" }).getByRole("link", { name: "Estimate follow-up On" }).click();
   await expect(page.getByRole("heading", { name: "Estimate follow-up", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Start for someone", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Start for someone", exact: true }).click();

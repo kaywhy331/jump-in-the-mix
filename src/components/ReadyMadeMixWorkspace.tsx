@@ -8,6 +8,7 @@ import { planGoalLabel } from "@/lib/business-taxonomy";
 import { salesPlanById } from "@/lib/sales-plan-library";
 import { approachLabel } from "@/lib/sales-approaches";
 import { normalizeSharedMixSteps, sharedMixContentIssue, sharedMixChannelLabel } from "@/lib/shared-mix";
+import { mixStatusLabel } from "@/lib/display-labels";
 
 type Props = {
   template: SharedMix;
@@ -47,7 +48,7 @@ export function ReadyMadeMixWorkspace({ template, metadata, copies, canUse }: Pr
         {template.framework && <><dt>Approach</dt><dd>{template.framework === "Ready-made" ? "Everyday follow-up" : approachLabel(template.framework)}</dd></>}
       </dl></section>
       {plan && <section><h3><AppIcon name="people" />Best for</h3><p>{plan.audience}</p><PlanApproachGuide plan={plan} /></section>}
-      {copies.length > 0 && <section><h3><AppIcon name="check" />In My Mixes</h3><ul>{copies.map(mix => <li key={mix.id}><Link href={`/mixes?mix=${mix.id}`}><strong>{mix.name}</strong><small>{mix.status.toLowerCase()}</small></Link></li>)}</ul></section>}
+      {copies.length > 0 && <section><h3><AppIcon name="check" />In My Mixes</h3><ul>{copies.map(mix => <li key={mix.id}><Link href={`/mixes?mix=${mix.id}`}><strong>{mix.name}</strong><small>{mixStatusLabel(mix.status)}</small></Link></li>)}</ul></section>}
     </aside>
   </div>;
 }

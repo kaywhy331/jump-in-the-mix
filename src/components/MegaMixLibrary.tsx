@@ -9,6 +9,7 @@ import { workflowStartPath } from "@/lib/workflow-continuation";
 import type { JourneySetupValues } from "@/lib/journey-preferences";
 import { tailorMegaMix } from "@/lib/journey-preferences";
 import styles from "./MegaMix.module.css";
+import { mixStatusLabel } from "@/lib/display-labels";
 
 export type InstalledMegaMix = { blueprintId: string; version: number; mixes: Array<{ id: string; name: string; status: string }> };
 export function MegaMixLibrary({ selectedId, installed, added, canEdit, initialSetup, contactStages }: { selectedId: string; installed: InstalledMegaMix[]; added: boolean; canEdit: boolean; initialSetup: JourneySetupValues; contactStages: ContactStagesState }) {
@@ -30,7 +31,7 @@ export function MegaMixLibrary({ selectedId, installed, added, canEdit, initialS
         {canEdit && entryMix && <Link className="button primary" href={`/contacts/new?${new URLSearchParams({ returnTo: workflowStartPath(entryMix.id) })}`}><AppIcon name="userPlus" />Add your first customer</Link>}
         <Link className={canEdit && entryMix ? "button" : "button primary"} href="/journey"><AppIcon name="journey" />Open my Journey</Link>
         <h3>Start where the person is</h3><p>{entryMix ? `New customers start at ${entryMix.name}. Already working with someone? Start the Mix that matches where they are.` : "Review a Mix below or start it for someone."} Its connected paths carry that person forward as you record decisions.</p>
-        <ul className={styles.installed}>{installation.mixes.map(mix => <li key={mix.id}><Link href={`/mixes?mix=${mix.id}`}><strong>{mix.name}</strong><small>{mix.status.toLowerCase()}</small></Link>{canEdit && mix.status === "ACTIVE" && <Link className="button small" href={`/journey?mix=${mix.id}&start=1`} aria-label={`Start ${mix.name} for someone`}><AppIcon name="play" />Start</Link>}</li>)}</ul>
+        <ul className={styles.installed}>{installation.mixes.map(mix => <li key={mix.id}><Link href={`/mixes?mix=${mix.id}`}><strong>{mix.name}</strong><small>{mixStatusLabel(mix.status)}</small></Link>{canEdit && mix.status === "ACTIVE" && <Link className="button small" href={`/journey?mix=${mix.id}&start=1`} aria-label={`Start ${mix.name} for someone`}><AppIcon name="play" />Start</Link>}</li>)}</ul>
         {installation.mixes.length < blueprint.nodes.length && <p>Some included Mixes have been removed. Adding this Mega-Mix again preserves those changes; it does not recreate them.</p>}
         <p className={styles.boundary}>The preview shows the supplied starting point. Your Journey shows your current, editable setup.</p>
       </> : <><h2>Make it yours</h2>{canEdit ? <MegaMixSetup key={blueprint.id} initialId={blueprint.id} initialSetup={setup} onSetupChange={setSetup} contactStages={contactStages} /> : <p>Administrator support sessions are view-only.</p>}</>}

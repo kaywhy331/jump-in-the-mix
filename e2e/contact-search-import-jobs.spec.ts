@@ -96,11 +96,11 @@ test("queued imports remain visible after navigation and expose their terminal o
     await cancel.click();
     const terminalState = currentImport.getByText(/^(?:Canceled|Completed|Partly imported)$/);
     await expect(terminalState).toBeVisible();
-    if ((await terminalState.textContent()) !== "canceled") {
+    if ((await terminalState.textContent()) !== "Canceled") {
       await expect(currentImport.getByRole("link", { name: "View imported Contacts" })).toBeVisible();
     }
   } else {
-    await expect(currentImport.getByText(/completed|partial/, { exact: true })).toBeVisible();
+    await expect(currentImport.getByText(/^(?:Completed|Partly imported)$/)).toBeVisible();
     await expect(currentImport.getByRole("link", { name: "View imported Contacts" })).toBeVisible();
   }
 

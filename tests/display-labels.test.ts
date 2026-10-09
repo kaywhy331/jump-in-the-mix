@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { channelName, localDateTimeLabel, timeOfDayLabel, zoneLabel } from "../src/lib/display-labels";
+import { channelName, channelWord, localDateTimeLabel, timeOfDayLabel, zoneLabel } from "../src/lib/display-labels";
 import { formatDateTime, formatTime } from "../src/lib/format";
 
 describe("display labels (FMT-01–FMT-03, D79)", () => {
@@ -46,6 +46,8 @@ describe("display labels (FMT-01–FMT-03, D79)", () => {
   });
   it("uses one name per channel", () => {
     expect(["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"].map(channelName)).toEqual(["Text", "Email", "Call", "Voicemail", "WhatsApp"]);
+    // Inside a sentence only the product name keeps its capitals (VOC-02).
+    expect(["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"].map(channel => channelWord(channelName(channel)))).toEqual(["text", "email", "call", "voicemail", "WhatsApp"]);
   });
 });
 
@@ -53,9 +55,12 @@ describe("status labels (FMT-03)", () => {
   it("names statuses in words people use, never raw codes", async () => {
     const { importStatusLabel, mixStatusLabel, recurrenceLabel, runStatusLabel } = await import("../src/lib/display-labels");
     expect(["ACTIVE", "PAUSED", "DRAFT", "ARCHIVED"].map(mixStatusLabel)).toEqual(["On", "Paused", "Draft", "Archived"]);
-    expect(["QUEUED", "RUNNING", "COMPLETED", "PARTIAL", "FAILED", "CANCELED"].map(importStatusLabel)).toEqual(["Waiting to start", "Importing", "Completed", "Partly imported", "Failed", "Canceled"]);
-    expect(["ACTIVE", "PAUSED", "FINISHED", "STOPPED", "PENDING", "DONE", "SKIPPED", "HELD"].map(runStatusLabel)).toEqual(["Running", "Paused", "Finished", "Stopped", "Coming up", "Done", "Skipped", "On hold"]);
-    expect(["NONE", "MONTHLY", "YEARLY"].map(recurrenceLabel)).toEqual(["One time", "Every month", "Every year"]);
+    expect(["QUEUED", "RUNNING", "COMPLETED", "PARTIAL", "FAILED", "CANCELED"].map(status => importStatusLabel(status))).toEqual(["Waiting to start", "Importing", "Completed", "Partly imported", "Failed", "Canceled"]);
+    // A finished import with failed rows that saved no one isn't "partly" imported (TRU-02).
+    expect(importStatusLabel("PARTIAL", 0)).toBe("Not imported");
+    expect(importStatusLabel("PARTIAL", 2)).toBe("Partly imported");
+    expect(["ACTIVE", "PAUSED", "FINISHED", "STOPPED", "PENDING", "DONE", "SKIPPED", "HELD"].map(status => runStatusLabel(status))).toEqual(["Running", "Paused", "Finished", "Stopped", "Not done yet", "Done", "Skipped", "On hold"]);
+    expect(["NONE", "MONTHLY", "YEARLY"].map(recurrence => recurrenceLabel(recurrence))).toEqual(["Doesn’t repeat", "Every month", "Every year"]);
     expect(mixStatusLabel("SOMETHING_NEW")).toBe("Something new");
   });
 });

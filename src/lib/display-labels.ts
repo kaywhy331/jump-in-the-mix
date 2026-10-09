@@ -6,6 +6,11 @@ export function channelName(channel: string): string {
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
+/** A channel's name inside a sentence: "text", "email", "call", "voicemail", but "WhatsApp", a product name. */
+export function channelWord(name: string): string {
+  return name === "WhatsApp" ? name : name.toLowerCase();
+}
+
 /** A send time stored as minutes after midnight, on the 12-hour clock (e.g. "10:00 AM"; JITM-05 §2.19, D79). */
 export function timeOfDayLabel(minutes: number, locale = "en-US"): string {
   const safe = Math.min(Math.max(Math.trunc(minutes), 0), 24 * 60 - 1);
@@ -22,19 +27,20 @@ export function mixStatusLabel(status: string): string {
   return ({ ACTIVE: "On", PAUSED: "Paused", DRAFT: "Draft", ARCHIVED: "Archived" } as Record<string, string>)[status] ?? sentenceCase(status);
 }
 
-/** A contact import's status in plain words. */
-export function importStatusLabel(status: string): string {
+/** A contact import's status in plain words. A finished import that saved no one says so, though only some rows failed. */
+export function importStatusLabel(status: string, imported?: number): string {
+  if (status === "PARTIAL" && imported === 0) return "Not imported";
   return ({ QUEUED: "Waiting to start", RUNNING: "Importing", COMPLETED: "Completed", PARTIAL: "Partly imported", FAILED: "Failed", CANCELED: "Canceled" } as Record<string, string>)[status] ?? sentenceCase(status);
 }
 
-/** A person's run through Journey, or one Beat of it, in plain words (JITM-05 §2.11). */
+/** A person's run through Journey, or one Beat of it, in plain words (JITM-05 §2.11). A pending Beat may already be due. */
 export function runStatusLabel(status: string): string {
-  return ({ ACTIVE: "Running", PAUSED: "Paused", FINISHED: "Finished", STOPPED: "Stopped", CANCELED: "Stopped", PENDING: "Coming up", DONE: "Done", SKIPPED: "Skipped", HELD: "On hold" } as Record<string, string>)[status] ?? sentenceCase(status);
+  return ({ ACTIVE: "Running", PAUSED: "Paused", FINISHED: "Finished", STOPPED: "Stopped", CANCELED: "Stopped", PENDING: "Not done yet", DONE: "Done", SKIPPED: "Skipped", HELD: "On hold" } as Record<string, string>)[status] ?? sentenceCase(status);
 }
 
-/** How often a saved date comes back: "One time", "Every month", "Every year". */
+/** How often a saved date comes back: "Doesn't repeat", "Every month", "Every year", in summaries and choices alike. */
 export function recurrenceLabel(recurrence: string): string {
-  return ({ NONE: "One time", MONTHLY: "Every month", YEARLY: "Every year" } as Record<string, string>)[recurrence] ?? sentenceCase(recurrence);
+  return ({ NONE: "Doesn’t repeat", MONTHLY: "Every month", YEARLY: "Every year" } as Record<string, string>)[recurrence] ?? sentenceCase(recurrence);
 }
 
 /** A time zone in running copy, named by its city ("New York time"), never its IANA name (JITM-05 §2.19, D79). */

@@ -32,7 +32,7 @@ import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { projectDraftSource, type DraftValues } from "@/lib/draft-segments";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
-import { channelName, followUpEndedReason, zoneLabel } from "@/lib/display-labels";
+import { channelName, channelWord, followUpEndedReason, zoneLabel } from "@/lib/display-labels";
 import { readJumpDrafts } from "@/lib/jump-drafts";
 import { buildJumpReplacementValues } from "@/lib/jump-render";
 import { detachedChanges, preparationFamilyForChannel, type PreparationFamily } from "@/lib/preparation-family";
@@ -336,7 +336,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     // card fell back to an alternative without anyone choosing it.
     const chosen = Boolean(alternative && followUp.selectedFamily === active?.family);
     const heldNote = !heldByChoice || !active ? null : chosen
-      ? `Because you chose ${choiceOption(active.family, active.channel).label.toLowerCase()} instead of the Mix’s ${channelName(planChannel).toLowerCase()}, this one waits for you and won’t send automatically.`
+      ? `Because you chose ${channelWord(choiceOption(active.family, active.channel).label)} instead of the Mix’s ${channelWord(channelName(planChannel))}, this one waits for you and won’t send automatically.`
       : `The Mix’s ${channelName(planChannel).toLowerCase()} needs ${planChannel === "EMAIL" ? "an email address" : "a phone number"} this person doesn’t have, so this one waits for you and won’t send automatically.`;
     const choice = isPending && active ? <FollowUpChannelChoice
       jumpId={followUp.id}

@@ -5,7 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { Notice } from "@/components/Notice";
 import { useConfirmDialog } from "@/components/useConfirmDialog";
-import { importStatusLabel } from "@/lib/display-labels";
+import { importStatusLabel, recurrenceLabel } from "@/lib/display-labels";
 import {
   buildImportRows,
   contactNameForImport,
@@ -121,14 +121,14 @@ function mappingOptionsForHeader(header: string, dateTypes: ImportDateTypeOption
     for (const recurrence of ["NONE", "MONTHLY", "YEARLY"] as const) {
       options.push({
         value: encodeMappingTarget({ kind: "DATE", dateTypeId: type.id, dateTypeName: null, recurrence }),
-        label: `Saved date · ${type.name} · ${recurrence === "NONE" ? "one time" : recurrence.toLowerCase()}`
+        label: `Saved date · ${type.name} · ${recurrenceLabel(recurrence)}`
       });
     }
   }
   const inferredName = header.replace(/[_-]+/g, " ").replace(/\b(date|dt)\b/gi, "").replace(/\s+/g, " ").trim() || "Imported Date";
   for (const recurrence of ["NONE", "MONTHLY", "YEARLY"] as const) {
     const target: ImportMappingTarget = { kind: "DATE", dateTypeId: null, dateTypeName: inferredName, recurrence };
-    options.push({ value: encodeMappingTarget(target), label: `New saved date type · ${inferredName} · ${recurrence === "NONE" ? "one time" : recurrence.toLowerCase()}` });
+    options.push({ value: encodeMappingTarget(target), label: `New saved date type · ${inferredName} · ${recurrenceLabel(recurrence)}` });
   }
   return options;
 }
@@ -486,7 +486,7 @@ export function ContactImportWizardV2({
 
       {stage === "RESULTS" && batch && (
         <section className="card import-stage" aria-live="polite">
-          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : pollError ? "Import status unavailable" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}.{!terminal(batch.status) && " You may close this page; the import will continue."}</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{importStatusLabel(batch.status)}</span></div>
+          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : pollError ? "Import status unavailable" : batch.status === "QUEUED" ? "Import is waiting to start" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}.{!terminal(batch.status) && " You may close this page; the import will continue."}</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{importStatusLabel(batch.status, batch.createdCount + batch.mergedCount + batch.replacedCount)}</span></div>
           {pollError && <Notice type="error">{pollError} {lastChecked && <span>Last checked: {batchDate(lastChecked)}.</span>} <button type="button" className="button" onClick={() => setPollVersion(value => value + 1)}>Retry status check</button></Notice>}
           <progress aria-label="Contact import completion" max={100} value={batch.progress} />
           <p><strong>{batch.processedRows.toLocaleString()} of {batch.totalRows.toLocaleString()}</strong> rows processed · {batch.progress}%</p>
@@ -502,7 +502,7 @@ export function ContactImportWizardV2({
       {recentBatches.length > 0 && (
         <section className="card import-stage">
           <div className="import-stage-heading"><div><h2>Recent imports</h2><p>Resume progress, review errors, or confirm completed batches.</p></div></div>
-          <div className="import-result-list">{recentBatches.map((item) => <button type="button" className="contact-method-row" key={item.id} onClick={() => { setBatch(item); setStage("RESULTS"); }}><span><strong>{item.sourceFileName || "Contact import"}</strong><small>{batchDate(item.createdAt)} · {item.processedRows}/{item.totalRows} rows</small></span><span className="status-pill">{importStatusLabel(item.status)}</span></button>)}</div>
+          <div className="import-result-list">{recentBatches.map((item) => <button type="button" className="contact-method-row" key={item.id} onClick={() => { setBatch(item); setStage("RESULTS"); }}><span><strong>{item.sourceFileName || "Contact import"}</strong><small>{batchDate(item.createdAt)} · {item.processedRows}/{item.totalRows} rows</small></span><span className="status-pill">{importStatusLabel(item.status, item.createdCount + item.mergedCount + item.replacedCount)}</span></button>)}</div>
         </section>
       )}
       {confirmDialog}
