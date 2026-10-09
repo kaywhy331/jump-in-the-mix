@@ -326,11 +326,19 @@ test.describe("on a phone", () => {
     const next = openReview(page);
     await expect(confirmationOf(next, ids[0])).toBeVisible();
     const panel = next.locator(".sheet-panel");
-    await expect(panel).not.toHaveAttribute("data-review-bar-flows", "");
-    await next.getByRole("button", { name: `Mark sent for ${names[1]}`, exact: true }).click();
+    // Today has measured this review's bar, and it sticks before the tap.
+    await expect.poll(() => panel.evaluate(element => (element as HTMLElement).style.getPropertyValue("--review-bar-height"))).not.toBe("");
+    expect(await next.locator(".review-action-bar").evaluate(bar => getComputedStyle(bar).position)).toBe("sticky");
+    const tapped = next.getByRole("button", { name: `Mark sent for ${names[1]}`, exact: true });
+    await tapped.click();
     await expect(next.getByRole("group", { name: "Record journey outcome" })).toBeVisible();
     await expect(panel).toHaveAttribute("data-review-bar-flows", "");
-    await expect(next.getByRole("button", { name: "Save outcome", exact: true })).toBeInViewport();
+    // The tapped "Mark sent" keeps focus, clear of the header, and "Save outcome" is on screen below the header (A11Y-06).
+    await expect(tapped).toBeFocused();
+    await expectUncovered(page);
+    const save = next.getByRole("button", { name: "Save outcome", exact: true });
+    await expect(save).toBeInViewport();
+    expect(await save.evaluate(button => button.getBoundingClientRect().top >= button.closest(".sheet-panel")!.querySelector(".sheet-header")!.getBoundingClientRect().bottom)).toBe(true);
     await untouched(ids[1]);
   });
 
