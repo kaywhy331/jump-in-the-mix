@@ -10,6 +10,7 @@ import { Notice } from "@/components/Notice";
 import { RequiredFieldsNote } from "@/components/RequiredFieldsNote";
 import { WhenPicker, type WhenAvailability } from "@/components/WhenPicker";
 import { addMinutesToLocal, formatDateTrigger, formatDurationLabel, formatTimeLabel, minutesOf, splitLocal } from "@/lib/when-picker";
+import { zoneLabel } from "@/lib/display-labels";
 
 const DURATIONS = [15, 30, 45, 60, 90, 120] as const;
 type Duration = (typeof DURATIONS)[number] | "custom";
@@ -101,7 +102,7 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
     {values.kind === "MEETING" && plans.length > 0 && !entry && <label className="field full"><span>Follow-up Mix for this visit (optional)</span><select name="planId" value={values.planId} onChange={event => update("planId", event.target.value)}><option value="">No Mix</option>{plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select><small>Its reminders and check-ins line up with this appointment and move with it. Nothing is sent automatically unless you turn that on for this visit.</small></label>}
     {values.kind === "MEETING" && plans.length === 0 && !entry && <p className="muted-copy field full">No Mix is ready to line up with a visit yet. <Link href="/mixes/new?custom=1" className="inline-action">Create a Mix</Link> with the cue “When I start it for someone” and start it; no one needs to be enrolled first.</p>}
     <label className="field full calendar-form-row calendar-with"><span>Contact (optional)</span><select name="contactId" value={values.contactId} onChange={event => update("contactId", event.target.value)}><option value="">No contact</option>{contactOptions.map(contact => <option value={contact.id} key={contact.id}>{contact.displayName}</option>)}</select></label>
-    <div className="field full calendar-form-row calendar-timezone"><TimezonePicker defaultValue={values.timezone} onChange={zone => update("timezone", zone)} label="Event timezone" /><small>Event times are entered in {values.timezone}. Changing the zone keeps the entered clock time.</small></div>
+    <div className="field full calendar-form-row calendar-timezone"><TimezonePicker defaultValue={values.timezone} onChange={zone => update("timezone", zone)} label="Event timezone" /><small>Times are {zoneLabel(values.timezone)}. Changing the time zone keeps the clock times you entered.</small></div>
     <label className="field full calendar-form-row"><span>Where (optional)</span><input name="location" maxLength={200} value={values.location} onChange={event => update("location", event.target.value)} placeholder="Address or place, for reminders" /></label>
     <details className="field full calendar-extra-details" open={Boolean(entry?.link || entry?.details)}><summary>More event details</summary><div className="form-grid">
     <label className="field full"><span>Link to join or find it (optional)</span><input name="link" type="url" inputMode="url" maxLength={500} value={values.link} onChange={event => update("link", event.target.value)} placeholder="https://" /></label>

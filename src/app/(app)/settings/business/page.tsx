@@ -13,6 +13,7 @@ import { RepeatableProfileRecords } from "@/components/RepeatableProfileRecords"
 import { requireWorkspace } from "@/lib/auth";
 import { updateWorkspaceProfileFormAction } from "@/lib/workspace-profile-actions";
 import { BackLink } from "@/components/BackLink";
+import { zoneLabel } from "@/lib/display-labels";
 
 export const metadata: Metadata = { title: "My business" };
 
@@ -40,7 +41,7 @@ export default async function BusinessSettingsPage({ searchParams }: { searchPar
     <UrlErrorNotice params={params} viewer={session} />
     {viewOnly && <ViewOnlySupportNotice />}
     <BackLink href="/settings" label="Settings" /><header className="page-header"><div><h1>My business</h1><p>These details make every prepared message sound complete and personal.</p></div></header>
-    <section className="notice info"><p>Timezone: {display.timeZone} · {sending?.enabled ? "Automatic sending enabled" : "You review and send"}.</p><Link href="/account/preferences">Timezone and scheduling</Link> · <Link href="/settings/sending">Sending defaults</Link></section>
+    <section className="notice info"><p>Times are {zoneLabel(display.timeZone)} · {sending?.enabled ? "Automatic sending enabled" : "You review and send"}.</p><Link href="/account/preferences">Timezone and scheduling</Link> · <Link href="/settings/sending">Sending defaults</Link></section>
     <ActionForm protect={!viewOnly} action={updateWorkspaceProfileFormAction} className="form-stack settings-profile-layout">
       <input type="hidden" name="settingsSection" value="business" />
       <section className="card">

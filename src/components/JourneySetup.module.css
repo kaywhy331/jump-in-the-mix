@@ -7,7 +7,7 @@
 .summary{margin:0;display:grid;gap:12px}
 .summary>div{display:grid;grid-template-columns:minmax(100px,1fr) minmax(0,3fr);gap:12px}
 .summary dt{font-size:13px;color:var(--text-2)}
-.summary dd{margin:0;font-size:14px;overflow-wrap:anywhere}
+.summary dd{margin:0;font-size:14px;overflow-wrap:break-word}
 .review{border:1px solid var(--border);border-radius:16px;padding:18px;background:var(--surface)}
 .review h3{margin-top:0}
 .review button{margin-top:16px}

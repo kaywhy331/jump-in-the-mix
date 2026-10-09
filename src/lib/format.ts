@@ -23,13 +23,14 @@ export function formatDateTime(value: Date | string, preferences: DisplayFormatP
     day: "numeric",
     hour: "numeric",
     minute: "2-digit",
+    hour12: true,
     timeZone: preferences.timeZone
   }).format(new Date(value));
 }
 
-/** A time of day in the reader's locale and timezone (e.g. "10:00 AM"). */
+/** A time of day on the 12-hour clock in the reader's timezone (e.g. "10:00 AM"; D79). */
 export function formatTime(value: Date | string, preferences: DisplayFormatPreferences): string {
-  return new Intl.DateTimeFormat(preferences.locale, { hour: "numeric", minute: "2-digit", timeZone: preferences.timeZone }).format(new Date(value));
+  return new Intl.DateTimeFormat(preferences.locale, { hour: "numeric", minute: "2-digit", hour12: true, timeZone: preferences.timeZone }).format(new Date(value));
 }
 
 export function initials(name: string): string {

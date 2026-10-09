@@ -1,15 +1,36 @@
-/** Customer-facing channel names ("Text", "Phone call"), never raw enum values. */
+/** Customer-facing channel names ("Text", "Call"), never raw enum values (JITM-04 §2.3). */
 export function channelName(channel: string): string {
-  const names: Record<string, string> = { SMS: "Text", EMAIL: "Email", PHONE_CALL: "Phone call", VOICEMAIL: "Voicemail", WHATSAPP: "WhatsApp" };
+  const names: Record<string, string> = { SMS: "Text", EMAIL: "Email", PHONE_CALL: "Call", VOICEMAIL: "Voicemail", WHATSAPP: "WhatsApp" };
   if (names[channel]) return names[channel];
   const words = channel.replaceAll("_", " ").toLowerCase();
   return words.charAt(0).toUpperCase() + words.slice(1);
 }
 
-/** A send time stored as minutes after midnight, in the reader's clock style (e.g. "10:00 AM"). */
+/** A send time stored as minutes after midnight, on the 12-hour clock (e.g. "10:00 AM"; JITM-05 §2.19, D79). */
 export function timeOfDayLabel(minutes: number, locale = "en-US"): string {
   const safe = Math.min(Math.max(Math.trunc(minutes), 0), 24 * 60 - 1);
-  return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", timeZone: "UTC" }).format(new Date(Date.UTC(2000, 0, 1, Math.floor(safe / 60), safe % 60)));
+  return new Intl.DateTimeFormat(locale, { hour: "numeric", minute: "2-digit", hour12: true, timeZone: "UTC" }).format(new Date(Date.UTC(2000, 0, 1, Math.floor(safe / 60), safe % 60)));
+}
+
+/** A time zone in running copy, named by its city ("New York time"), never its IANA name (JITM-05 §2.19, D79). */
+export function zoneLabel(zone: string): string {
+  if (!zone || zone === "UTC" || zone === "Etc/UTC") return "UTC";
+  const city = zone.split("/").at(-1)?.replaceAll("_", " ");
+  return city ? `${city} time` : zone;
+}
+
+/**
+ * A date ("2026-10-09") and time ("14:00") as the owner entered them, in their own zone: "Fri, Oct 9 at 2:00 PM", with
+ * the year only when it isn't this year. Either part may be missing; nothing is shown for neither.
+ */
+export function localDateTimeLabel(date: string, time: string, locale = "en-US", now = new Date()): string {
+  const day = /^(\d{4})-(\d{2})-(\d{2})$/.exec(date ?? "");
+  const clock = /^(\d{2}):(\d{2})$/.exec(time ?? "");
+  const timeText = clock ? timeOfDayLabel(Number(clock[1]) * 60 + Number(clock[2]), locale) : "";
+  if (!day) return timeText;
+  const year = Number(day[1]);
+  const dayText = new Intl.DateTimeFormat(locale, { weekday: "short", month: "short", day: "numeric", ...(year !== now.getFullYear() ? { year: "numeric" } : {}), timeZone: "UTC" }).format(new Date(Date.UTC(year, Number(day[2]) - 1, Number(day[3]), 12)));
+  return timeText ? `${dayText} at ${timeText}` : dayText;
 }
 
 // Holds that lift bring their follow-up back, so a held follow-up still shown here is still held: those read in the present.

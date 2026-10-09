@@ -9,6 +9,7 @@ import type { WorkflowInstanceView } from "@/lib/mix-workflow-view";
 import type { WorkflowBusinessUpdate } from "@/lib/mix-workflow-types";
 import type { BusinessUpdatePreview } from "@/lib/workflow-business-preview";
 import styles from "@/components/WorkflowJourney.module.css";
+import { zoneLabel } from "@/lib/display-labels";
 
 export function WorkflowBusinessUpdateForm({ instance, displayPreferences, onUpdate }: { instance: WorkflowInstanceView; displayPreferences: DisplayFormatPreferences; onUpdate: () => void }) {
   const runs = instance.updateRuns ?? [];
@@ -51,7 +52,7 @@ export function WorkflowBusinessUpdateForm({ instance, displayPreferences, onUpd
   if (instance.state.pendingBusinessUpdate) return <p className="notice" role="status">Your update is saved. An earlier message is already being processed. Further automatic messages from this work are on hold until its result is known; progress will then apply your update.</p>;
   const latest = [...(instance.state.updates ?? [])].reverse().find(record => record.kind !== "UNDO" && !record.reversedAt);
   return <>
-    {instance.state.commitments?.filter(item => item.status === "OPEN").map(item => <p key={item.id} className="notice">{item.source === "CUSTOMER" ? "Customer requested a callback" : "You chose to check again"}: <strong>{formatDateTime(item.dueAt, { ...displayPreferences, timeZone: item.timezone })}</strong> ({item.timezone}). Review this work at that time; no customer acceptance has been assumed.</p>)}
+    {instance.state.commitments?.filter(item => item.status === "OPEN").map(item => <p key={item.id} className="notice">{item.source === "CUSTOMER" ? "Customer requested a callback" : "You chose to check again"}: <strong>{formatDateTime(item.dueAt, { ...displayPreferences, timeZone: item.timezone })}</strong> ({zoneLabel(item.timezone)}). Review this work at that time; no customer acceptance has been assumed.</p>)}
     <details><summary>Record an update or choose a callback date</summary>
       <form className={styles.decision} onSubmit={event => { event.preventDefault(); void reviewUpdate(); }}>
         <label className="field"><span>Which work changed?</span><select value={runId} onChange={event => { setRunId(event.target.value); setChoice(""); }} disabled={busy}>{runs.map(run => <option key={run.id} value={run.id}>{run.name} · {formatDateTime(instance.state.runs.find(item => item.id === run.id)!.startedAt, displayPreferences)}</option>)}</select></label>
