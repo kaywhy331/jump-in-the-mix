@@ -44,7 +44,9 @@ export async function appointmentOutcomeAction(data: FormData) {
   const result = await recordAppointmentOutcome({ workspaceId: workspace.id, actorUserId: user.id, entryId: value(data, "id"), version: Number(value(data, "version")), outcome });
   const next = new URLSearchParams({ date: value(data, "date") });
   if (!result.ok) redirect(withViewerError(`/calendar?${next}`, result.message, session));
-  next.set("saved", "1");
+  // The confirmation names the visit and what was recorded (TRU-07).
+  next.set("done", outcome === "COMPLETED" ? "happened" : outcome === "NO_SHOW" ? "no-show" : "cleared");
+  next.set("event", value(data, "id"));
   redirect(`/calendar?${next}`);
 }
 
@@ -52,14 +54,14 @@ export async function appointmentOutcomeAction(data: FormData) {
 export async function appointmentBindingHoldAction(data: FormData) {
   const { workspace } = await context();
   await setAppointmentBindingHold({ workspaceId: workspace.id, bindingId: value(data, "bindingId"), held: value(data, "held") === "1" });
-  redirect(`/calendar?date=${encodeURIComponent(value(data, "date"))}&saved=1`);
+  redirect(`/calendar?${new URLSearchParams({ date: value(data, "date"), done: value(data, "held") === "1" ? "held" : "resumed", binding: value(data, "bindingId") })}`);
 }
 
 /** Automatic sending for one visit's follow-ups stays off until the owner turns it on here. */
 export async function appointmentBindingDeliveryAction(data: FormData) {
   const { workspace } = await context();
   await setAppointmentBindingDelivery({ workspaceId: workspace.id, bindingId: value(data, "bindingId"), automaticDelivery: value(data, "automaticDelivery") === "1" });
-  redirect(`/calendar?date=${encodeURIComponent(value(data, "date"))}&saved=1`);
+  redirect(`/calendar?${new URLSearchParams({ date: value(data, "date"), done: value(data, "automaticDelivery") === "1" ? "delivery-on" : "delivery-off", binding: value(data, "bindingId") })}`);
 }
 
 export async function cancelCalendarAction(data: FormData) {
@@ -73,7 +75,9 @@ export async function cancelCalendarAction(data: FormData) {
     await queueBoundReconciliation(tx, workspace.id, entry.id);
     if (entry.contactId) await tx.contactActivity.create({ data: { workspaceId: workspace.id, contactId: entry.contactId, actorUserId: user.id, kind: "SYSTEM", visibility: "WORKSPACE", summary: `Canceled calendar event: ${entry.title}. The customer’s stage was kept.`, metadata: { calendarEntryId: entry.id } } });
   });
-  redirect("/calendar?saved=1");
+  // Back to the canceled event's day, with a notice that names it (TRU-07).
+  const date = value(data, "date");
+  redirect(`/calendar?${new URLSearchParams({ ...(/^\d{4}-\d{2}-\d{2}$/.test(date) ? { date } : {}), done: "canceled", event: value(data, "id") })}`);
 }
 
 /** A calendar connection request this action refuses; its message is shown on the calendar as written. */

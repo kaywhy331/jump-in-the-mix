@@ -111,7 +111,7 @@ describe("calendar", () => {
     expect(refused.startsWith("/calendar?date=2026-09-25&error=")).toBe(true);
     expect(shown(refused).text).toBe("This visit changed. Refresh the calendar before recording it.");
     mocks.recordOutcome.mockResolvedValue({ ok: true });
-    expect(await redirected(appointmentOutcomeAction(form({ id: "entry-1", version: "2", outcome: "COMPLETED", date: "2026-09-25" })))).toBe("/calendar?date=2026-09-25&saved=1");
+    expect(await redirected(appointmentOutcomeAction(form({ id: "entry-1", version: "2", outcome: "COMPLETED", date: "2026-09-25" })))).toBe("/calendar?date=2026-09-25&done=happened&event=entry-1");
   });
 });
 
