@@ -211,7 +211,12 @@ test("reviewing a ready-made Mega-Mix setup with no edits warns of no unsaved ch
   await prisma.journeyPreference.create({ data: { workspaceId } });
   await prisma.journeyStage.create({ data: { workspaceId, name: "Lead", position: 0 } });
   await page.goto("/templates/journeys?journey=contractor");
-  await page.getByRole("button", { name: "Review my setup", exact: true }).click();
+  // On a phone the setup is a pane of its own, opened from the preview.
+  const review = page.getByRole("button", { name: "Review my setup", exact: true });
+  const setUp = page.getByRole("button", { name: "Set up this journey", exact: true });
+  await expect(review.or(setUp).first()).toBeVisible();
+  if (!await review.isVisible()) await setUp.click();
+  await review.click();
   await expect(page.getByRole("checkbox", { name: /Add its stage labels/ })).toBeChecked();
   await expect(page.getByText("Unsaved changes. Save before leaving this page.", { exact: true })).toHaveCount(0);
   await page.getByRole("button", { name: "Edit preferences", exact: true }).click();
