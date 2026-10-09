@@ -301,7 +301,8 @@ test("each lead connection can choose its own Mix for new people", async ({ page
     await expect(select).toHaveValue("");
     await expect(select.locator("option").first()).toHaveText("Follow your New contacts setting (No Mix)");
     await select.selectOption({ label: "Add them to Stay in touch" });
-    await Promise.all([page.waitForURL(/saved=1/), setup.getByRole("button", { name: "Save for this connection", exact: true }).click()]);
+    await Promise.all([page.waitForURL(/saved=placement/), setup.getByRole("button", { name: "Save for this connection", exact: true }).click()]);
+    await expect(page.getByText("Saved where new people from this connection go.", { exact: true })).toBeVisible();
     expect(await prisma.intakeConnection.findUnique({ where: { id: connection.id }, select: { newContactPlacement: true, newContactMixId: true } })).toEqual({ newContactPlacement: "MIX", newContactMixId: nurtureMixId });
   } finally {
     await prisma.intakeConnection.delete({ where: { id: connection.id } });
