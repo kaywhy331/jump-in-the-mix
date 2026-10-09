@@ -50,9 +50,11 @@ describe.sequential("the snooze command", () => {
   afterAll(() => fixture.cleanup());
 
   it("snoozes an overdue follow-up until tomorrow and the worker leaves it there", async () => {
-    expect(await snooze({ jumpId: overdue, preset: "tomorrow", returnTo: "/jumps" })).toBe("/jumps?snoozed=1");
+    const destination = await snooze({ jumpId: overdue, preset: "tomorrow", returnTo: "/jumps" });
     const after = await prisma.jump.findUniqueOrThrow({ where: { id: overdue } });
     expect(after.snoozedUntil).not.toBeNull();
+    // The confirmation names the time it now waits until (TRU-05).
+    expect(new URL(destination, "https://jumpinthemix.com").searchParams.get("snoozed")).toBe(after.snoozedUntil?.toISOString());
     expect(after.scheduledAt.toISOString()).toBe(after.snoozedUntil?.toISOString());
     expect(after.scheduledAt.getTime()).toBeGreaterThan(now.getTime());
 
@@ -64,8 +66,9 @@ describe.sequential("the snooze command", () => {
 
   it("can move an already snoozed follow-up later again", async () => {
     const before = await prisma.jump.findUniqueOrThrow({ where: { id: overdue } });
-    expect(await snooze({ jumpId: overdue, preset: "next-week", returnTo: "/jumps" })).toBe("/jumps?snoozed=1");
+    const destination = await snooze({ jumpId: overdue, preset: "next-week", returnTo: "/jumps" });
     const after = await prisma.jump.findUniqueOrThrow({ where: { id: overdue } });
+    expect(new URL(destination, "https://jumpinthemix.com").searchParams.get("snoozed")).toBe(after.snoozedUntil?.toISOString());
     expect(after.scheduledAt.getTime()).toBeGreaterThan(before.scheduledAt.getTime());
     expect(after.snoozedUntil?.toISOString()).toBe(after.scheduledAt.toISOString());
   });

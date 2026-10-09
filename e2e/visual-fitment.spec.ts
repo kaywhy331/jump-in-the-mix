@@ -396,7 +396,7 @@ test("Jump overflow provides first-class snooze presets", async ({ page }, testI
     await more.click();
     const sheet = page.getByRole("dialog", { name: /^Follow up with / });
     // The sheet also carries the inline date picker, whose quick chip is named "Tomorrow" too.
-    await sheet.locator(".sheet-actions").getByRole("button", { name: "Tomorrow", exact: true }).click();
-    await expect(page.getByText("Follow-up snoozed.")).toBeVisible();
+    await sheet.locator(".sheet-actions").getByRole("button", { name: /^Tomorrow · \d{1,2}:\d{2}/ }).click();
+    await expect(page.getByText(/^Snoozed until .+\d{1,2}:\d{2}/)).toBeVisible();
   } finally { await removePendingJumpFixture(jumpId); }
 });

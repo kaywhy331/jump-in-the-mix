@@ -31,7 +31,7 @@ import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { projectDraftSource, type DraftValues } from "@/lib/draft-segments";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 import { followUpEndedReason } from "@/lib/display-labels";
 import { readJumpDrafts } from "@/lib/jump-drafts";
 import { buildJumpReplacementValues } from "@/lib/jump-render";
@@ -44,7 +44,7 @@ import { prisma } from "@/lib/prisma";
 import { planLimits, recentPlanLimitSkips } from "@/lib/plan-limits";
 import { readPreparationStatus } from "@/lib/preparation";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
-import { snoozeChoices } from "@/lib/snooze-schedule";
+import { snoozeChoices, type SnoozePreset } from "@/lib/snooze-schedule";
 import { followUpPhone, parseTodayCursor, readTodayPage } from "@/lib/today-list";
 import { calendarDaysOverdue, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
 import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
@@ -254,6 +254,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   // A problem reading the rule falls back to the fixed wording, never a wrong time or a missing page.
   const sendingRule = await readSendingRule().catch(() => null);
   // Only offer snooze times after the follow-up is due, so nothing offered is refused.
+  // Each snooze choice says when it lands: the time today or tomorrow, the day and time further out (TRU-05).
+  const snoozeLabel = (preset: SnoozePreset, label: string, at: Date) => `${label} · ${preset === "later-today" || preset === "tomorrow" ? formatTime(at, displayPreferences) : formatDateTime(at, displayPreferences)}`;
   const choicesFor = (followUp: { baseScheduledAt: Date | null; scheduledAt: Date }) => snoozeChoices({
     now,
     timezone,
@@ -359,7 +361,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         ? `Today · ${formatDateTime(followUp.scheduledAt, displayPreferences)}`
         : formatDateTime(followUp.scheduledAt, displayPreferences);
     const snoozeToDay = <form action={snoozeJumpAction} className="form-stack"><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value="custom" /><input type="hidden" name="returnTo" value={returnTo} /><div className="field"><span className="field-label">Choose a day</span><WhenField label="Choose a day" variant="inline" dateName="customDate" defaultDate={choicesFor(followUp).defaultDate} minDate={choicesFor(followUp).minDate} quickSelect={false} /></div><small className="muted-copy">Uses your default follow-up time in {timezone}.</small><button className="button" type="submit">Snooze to this day</button></form>;
-    const outcomeActions = <div className="review-outcome-actions"><JumpOutcomeButton jumpId={followUp.id} outcome="COMPLETED" className="button small" ariaLabel={`${directCall ? "Mark done" : "Mark sent"} for ${followUp.contact.displayName}`}><AppIcon name="check" />{directCall ? "Mark done" : "Mark sent"}</JumpOutcomeButton><Sheet trigger={<button className="button small" type="button" aria-label="Snooze"><AppIcon name="snooze" />Snooze</button>} title="Snooze follow-up"><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input name="jumpId" type="hidden" value={followUp.id} /><input name="preset" type="hidden" value={preset} /><input name="returnTo" type="hidden" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div>{snoozeToDay}</Sheet><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button small" ariaLabel="Skip Beat"><AppIcon name="skip" />Skip Beat</JumpOutcomeButton></div>;
+    const outcomeActions = <div className="review-outcome-actions"><JumpOutcomeButton jumpId={followUp.id} outcome="COMPLETED" className="button small" ariaLabel={`${directCall ? "Mark done" : "Mark sent"} for ${followUp.contact.displayName}`}><AppIcon name="check" />{directCall ? "Mark done" : "Mark sent"}</JumpOutcomeButton><Sheet trigger={<button className="button small" type="button" aria-label="Snooze"><AppIcon name="snooze" />Snooze</button>} title="Snooze follow-up"><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label, at]) => <form action={snoozeJumpAction} key={preset}><input name="jumpId" type="hidden" value={followUp.id} /><input name="preset" type="hidden" value={preset} /><input name="returnTo" type="hidden" value={returnTo} /><button className="button" type="submit">{snoozeLabel(preset, label, at)}</button></form>)}</div>{snoozeToDay}</Sheet><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button small" ariaLabel="Skip Beat"><AppIcon name="skip" />Skip Beat</JumpOutcomeButton></div>;
     const deliveryStatus = failed && failure ? <>
       <div className="notice warning compact" data-delivery-failed={failure.kind}><p>{failure.text}</p><p>Tried {formatDateTime(failed.updatedAt, displayPreferences)}.</p></div>
       <p className="review-delivery-status" data-delivery-status="manual">Manual · you send</p>
@@ -414,7 +416,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
                 description="Move it to a better day, skip it, or stop this Mix."
               >
                 <div className="sheet-section"><h3>Already finished?</h3><JumpOutcomeButton jumpId={followUp.id} outcome="COMPLETED" className="button" ariaLabel={`Mark done for ${followUp.contact.displayName}`}><AppIcon name="check" /><span>Mark done</span></JumpOutcomeButton></div>
-                <div className="sheet-section"><h3><AppIcon name="snooze" className="sheet-heading-icon" />Snooze</h3><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value={preset} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div></div>
+                <div className="sheet-section"><h3><AppIcon name="snooze" className="sheet-heading-icon" />Snooze</h3><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label, at]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value={preset} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button" type="submit">{snoozeLabel(preset, label, at)}</button></form>)}</div></div>
                 {snoozeToDay}
                 <div className="sheet-danger-zone"><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button" ariaLabel="Skip Beat"><AppIcon name="skip" /><span>Skip Beat</span></JumpOutcomeButton>{followUp.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop Mix…" title={`Stop ${followUp.mix.name} for ${followUp.contact.displayName}?`} description="Future follow-ups from this Mix will be removed. Completed history stays available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={followUp.mixId} /><input type="hidden" name="contactId" value={followUp.contactId} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button danger" type="submit">Stop Mix</button></form></ConfirmDialog>}</div>
                 {recentEvents.length > 0 && <details className="workflow-options"><summary>Recent activity</summary><div className="jump-action-history">{recentEvents.map(event => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt, displayPreferences)}</span>)}</div></details>}
@@ -457,7 +459,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {params.applied && <Notice type="success">Mix changes saved.</Notice>}
       {params.mixStopped && <Notice type="success">Mix stopped.</Notice>}
       {params.mixStopError && <Notice type="error">Mix could not be stopped.</Notice>}
-      {params.snoozed && <Notice type="success">Follow-up snoozed.</Notice>}
+      {params.snoozed && <Notice type="success">{Number.isNaN(Date.parse(params.snoozed)) ? "Follow-up snoozed." : `Snoozed until ${formatDateTime(params.snoozed, displayPreferences)}.`}</Notice>}
       {params.contactSaved === "1" && <Notice type="success">Contact saved. This follow-up now uses the new details.</Notice>}
       {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
       {params.listReset && <Notice type="info">This part of the list changed. You’re back at the first follow-ups.</Notice>}

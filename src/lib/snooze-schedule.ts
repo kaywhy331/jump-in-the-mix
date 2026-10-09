@@ -177,7 +177,8 @@ export const SNOOZE_PRESET_LABELS: Array<[SnoozePreset, string]> = [
   ["next-week", "Next week"]
 ];
 
-export type SnoozeChoices = { presets: Array<[SnoozePreset, string]>; minDate: string; defaultDate: string };
+/** Each preset with its label and the time it would snooze to now. */
+export type SnoozeChoices = { presets: Array<[SnoozePreset, string, Date]>; minDate: string; defaultDate: string };
 
 /**
  * The presets and custom-day bounds a card may offer: only times after the follow-up's base
@@ -191,21 +192,24 @@ export function snoozeChoices(input: {
   quietHoursStart?: number;
   quietHoursEnd?: number;
 }): SnoozeChoices {
-  const presets = SNOOZE_PRESET_LABELS.filter(([preset]) => {
+  const today = localDateAndMinutes(input.now, input.timezone).date;
+  const presets = SNOOZE_PRESET_LABELS.flatMap(([preset, label]): Array<[SnoozePreset, string, Date]> => {
     try {
-      return calculateSnoozeAt({
+      const at = calculateSnoozeAt({
         now: input.now,
         timezone: input.timezone,
         preset,
         preferredMinutes: input.preferredMinutes,
         quietHoursStart: input.quietHoursStart,
         quietHoursEnd: input.quietHoursEnd
-      }) > input.floor;
+      });
+      // Late in the day "Later today" lands tomorrow, after quiet time, so it isn't offered then: Tomorrow covers it (TRU-05).
+      if (at <= input.floor || (preset === "later-today" && !sameLogicalDate(localDateAndMinutes(at, input.timezone).date, today))) return [];
+      return [[preset, label, at]];
     } catch {
-      return false;
+      return [];
     }
   });
-  const today = localDateAndMinutes(input.now, input.timezone).date;
   const floorDay = localDateAndMinutes(input.floor, input.timezone).date;
   const minDay = logicalDateKey(floorDay) > logicalDateKey(today) ? floorDay : today;
   const tomorrow = addLogicalDays(today, 1);

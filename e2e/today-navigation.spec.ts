@@ -126,8 +126,8 @@ test("filters reset the page and snooze/stop actions preserve the current filter
   await visit(page, "/jumps?range=all&status=pending&channel=SMS"); await next(page, smsIds[30]);
   const cursor = new URL(page.url()).searchParams.get("after"); expect(cursor).toBeTruthy();
   await page.getByRole("button", { name: "More options for Queue person 031", exact: true }).click();
-  await page.getByRole("dialog", { name: "Follow up with Queue person 031", exact: true }).getByRole("button", { name: "Tomorrow", exact: true }).click();
-  await expect(page).toHaveURL(/snoozed=1/); expect(new URL(page.url()).searchParams.get("after")).toBe(cursor);
+  await page.getByRole("dialog", { name: "Follow up with Queue person 031", exact: true }).getByRole("button", { name: /^Tomorrow · \d{1,2}:\d{2}/ }).click();
+  await expect(page).toHaveURL(/snoozed=\d{4}-/); expect(new URL(page.url()).searchParams.get("after")).toBe(cursor);
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[31]}`);
   await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
   await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).getByRole("button", { name: "Stop Mix…", exact: true }).click();
