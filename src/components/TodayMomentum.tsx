@@ -103,7 +103,9 @@ export function TodayMomentum() {
     // leaving never moves the review's buttons up under the owner's pointer. A phone's sheet is anchored at the bottom,
     // where its handoff and outcomes stay, so nothing is reserved there.
     const sizes = new ResizeObserver(() => {
-      if (!slot || slot.closest("dialog:modal")) return;
+      if (!slot) return;
+      // A docked review that becomes a phone sheet (a narrower window, a rotated phone) drops what it reserved.
+      if (slot.closest("dialog:modal")) { tallest = 0; slot.style.minHeight = ""; return; }
       tallest = Math.max(tallest, slot.getBoundingClientRect().height);
       slot.style.minHeight = tallest ? `${tallest}px` : "";
     });
