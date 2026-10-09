@@ -43,7 +43,7 @@ export default function FollowUpRemindersPage() {
       <h2 id="cta-title">Try a follow-up reminder</h2>
       <p>The demo shows one fictional contact with three Beats: a text today, an email tomorrow and a call next week. Edit a draft, preview it, and record what happened. In the product, each Beat lands on your Today list on its date.</p>
       <Link className="button primary" href="/#sample">Try a follow-up reminder</Link>
-      <small>A fictional contact and editable drafts. The demo doesn’t send anything or open another app.</small>
+      <small>A fictional contact and editable drafts. The demo sends nothing itself. If you open a draft in your own text, email or phone app, the recipient is a non-working example and you decide whether to send or call.</small>
     </section>
     <nav className="public-article-related" aria-labelledby="related-title">
       <h2 id="related-title">Related</h2>
