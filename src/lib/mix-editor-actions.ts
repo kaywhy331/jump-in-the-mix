@@ -248,7 +248,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   if ((turningOn ? assignAllContacts || groupIds.length > 0 : widens) && (stageId === undefined ? existingMix?.stageId : stageId) && value(formData, "activationConfirmed", 4) !== "1") fail(path, turningOn ? "Review who moves to the Mix’s stage before turning it on." : "Review who moves to the Mix’s stage before adding them.", session);
   // Changing when a Mix that is on starts reschedules everyone it covers: "When I start it" starts them all at once, and a
   // new date or trigger moves their follow-ups (MIX-03).
-  const retriggers = status === "ACTIVE" && existingMix?.status === "ACTIVE" && !afterMix && (assignAllContacts || groupIds.length > 0)
+  const retriggers = status === "ACTIVE" && (existingMix?.status === "ACTIVE" || existingMix?.status === "PAUSED") && !afterMix && (assignAllContacts || groupIds.length > 0)
     && (existingMix.triggerMode !== triggerMode || (triggerMode === "DATE_TRIGGERED" && existingMix.dateTypeId !== dateTypeId));
   // With the review preference on, a save that starts people is reviewed first: turning the Mix on or back on, adding
   // Everyone or a tag to one that is on, or changing when it starts. A save that starts no one, such as a wording edit,

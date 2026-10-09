@@ -312,7 +312,7 @@ test("turning a paused Mix back on reviews what resuming does and needs no audie
     await page.goto(`/mixes/${id}/edit`);
     await page.locator(".mix-start-settings > summary").click();
     await page.getByRole("combobox", { name: "After saving", exact: true }).selectOption("ACTIVE");
-    await page.getByRole("button", { name: "Review and start", exact: true }).click();
+    await page.getByRole("button", { name: "Review and turn on", exact: true }).click();
     const dialog = page.getByRole("dialog", { name: "Turn this Mix back on?", exact: true });
     await expect(dialog).toContainText("Turning it back on brings back the follow-ups it held for the people in it.");
     await expect(dialog).not.toContainText("No one is enrolled yet");
@@ -330,6 +330,23 @@ test("turning a paused Mix back on reviews what resuming does and needs no audie
   const version = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 1, body: "Happy moving day, {{First Name}}!" } });
   const dated = await prisma.mix.create({ data: { workspaceId, name: "Moving day", status: "PAUSED", triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id, steps: { create: { stepVersionId: version.id, dayOffset: 0, sortOrder: 1 } } } });
   await resume(dated.id);
+});
+
+test("a Mix whose date type was turned off says so and reviews the change of date (MIX-05)", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await prisma.userPreference.update({ where: { userId }, data: { reviewMixActivation: true } });
+  const off = await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: "Lease renewal", slug: `lease-${randomUUID()}`, isActive: false } });
+  const tag = await prisma.group.create({ data: { workspaceId, name: `Tenants ${randomUUID()}` } });
+  const template = await prisma.stepTemplate.create({ data: { workspaceId, name: "Renewal reminder", channel: "SMS" } });
+  const version = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 1, body: "Your lease renews soon, {{First Name}}." } });
+  const leases = await prisma.mix.create({ data: { workspaceId, name: "Lease reminders", status: "ACTIVE", triggerMode: "DATE_TRIGGERED", dateTypeId: off.id, steps: { create: { stepVersionId: version.id, dayOffset: 0, sortOrder: 1 } } } });
+  await prisma.mixAssignment.create({ data: { workspaceId, mixId: leases.id, groupId: tag.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${leases.id}:group:${tag.id}` } });
+  await page.goto(`/mixes/${leases.id}/edit`);
+  await page.locator(".mix-start-settings > summary").click();
+  await expect(page.getByText("The date this Mix used is turned off. Choose another date, or turn it back on in Date types.", { exact: true })).toBeVisible();
+  // The form will save another date, so the save is a reschedule and is reviewed, as the server requires.
+  await page.getByRole("button", { name: "Review and save", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Save these changes?", exact: true })).toContainText("Changing when this Mix starts reschedules everyone it covers.");
 });
 
 test("short-phone activation dialog keeps both decisions inside its scroll boundary", async ({ page }) => {
