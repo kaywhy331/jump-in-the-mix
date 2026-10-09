@@ -62,6 +62,9 @@ export type JumpStateDetail = {
   /** The follow-up this outcome scheduled, named in the confirmation instead of the plan's next step. */
   nextFollowUpAt?: string | null;
   mixEnd?: MixEndQuestion | null;
+  /** Where the owner recorded it: in a review, or in the tray after returning from their app. Today opens the next
+   * review only after those, not after a quick action from the list (D70). */
+  origin?: "review" | "tray";
 };
 
 type SaveResult =
@@ -158,7 +161,8 @@ async function saveOutcome(
   outcome: Outcome,
   requestId: string,
   details: OutcomeDetails = {},
-  attempt?: OutcomeAttempt
+  attempt?: OutcomeAttempt,
+  origin?: JumpStateDetail["origin"]
 ): Promise<SaveResult> {
   const response = await fetch(`/api/jumps/${encodeURIComponent(jumpId)}/outcome`, {
     method: "POST",
@@ -169,7 +173,7 @@ async function saveOutcome(
   if (response.status === 409 && FINISHING_OUTCOMES.has(outcome) && (payload.status === "DONE" || payload.status === "SKIPPED")) return { recorded: false, status: payload.status };
   if (!response.ok) throw new Error(payload.error || "The follow-up outcome could not be saved.");
   const stored = payload as OutcomeResponse;
-  dispatchJumpState({ jumpId, status: stored.status, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null, mixEnd: stored.mixEnd ?? null });
+  dispatchJumpState({ jumpId, status: stored.status, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null, mixEnd: stored.mixEnd ?? null, origin });
   return { recorded: true, response: stored };
 }
 
@@ -233,12 +237,27 @@ export function JumpWorkflowCard({
       await saveOutcome(jumpId, "REOPENED", ids.claim(key));
       ids.release(key);
     } catch (reason) {
-      setError(reason instanceof Error ? reason.message : "The follow-up could not be reopened.");
+      const message = reason instanceof Error ? reason.message : "The follow-up could not be reopened.";
+      setError(message);
+      // On a phone the next review may cover this card; Today shows the error there too (D70).
+      window.dispatchEvent(new CustomEvent("jitm:undo-failed", { detail: { jumpId, error: message } }));
       hideTimer.current = window.setTimeout(() => setState("HIDDEN"), 10_000);
     } finally {
       setUndoing(false);
     }
   };
+
+  // Today's next review can carry this Undo on a phone, where the review covers the confirmation (D70).
+  const latestUndo = useRef(undo); latestUndo.current = undo;
+  const latestState = useRef(state); latestState.current = state;
+  useEffect(() => {
+    const onUndoRequest = (event: Event) => {
+      const detail = (event as CustomEvent<{ jumpId?: string }>).detail;
+      if (detail?.jumpId === jumpId && (latestState.current === "DONE" || latestState.current === "SKIPPED")) void latestUndo.current();
+    };
+    window.addEventListener("jitm:undo-request", onUndoRequest);
+    return () => window.removeEventListener("jitm:undo-request", onUndoRequest);
+  }, [jumpId]);
 
   if (state === "HIDDEN") return null;
   if (state !== "ACTIVE") {
@@ -288,6 +307,7 @@ export function JumpOutcomeButton({
   const [decisions, setDecisions] = useState<Record<string, string>>({});
   const [showDecisions, setShowDecisions] = useState(false);
   const [confirm, confirmDialog] = useConfirmDialog();
+  const root = useRef<HTMLSpanElement>(null);
 
   const submit = async (completionOnly = false) => {
     if (!completionOnly && (choices.length || workflow.status !== "ready") && !showDecisions) { setShowDecisions(true); return; }
@@ -298,7 +318,7 @@ export function JumpOutcomeButton({
     const details: OutcomeDetails = { workflowDecisions: Object.entries(completionOnly ? {} : decisions).filter(([, outcome]) => outcome).map(([ruleId, outcome]) => ({ ruleId, outcome })) };
     const key = outcomeRequestKey(jumpId, outcome, details);
     try {
-      const result = await saveOutcome(jumpId, outcome, ids.claim(key), details);
+      const result = await saveOutcome(jumpId, outcome, ids.claim(key), details, undefined, root.current?.closest(".follow-up-review-sheet") ? "review" : undefined);
       ids.release(key);
       setShowDecisions(false);
       if (!result.recorded) {
@@ -316,7 +336,7 @@ export function JumpOutcomeButton({
   };
 
   return (
-    <span>
+    <span ref={root}>
       <button className={className} type="button" aria-label={ariaLabel} onClick={() => void submit()} disabled={saving || disabled}>{saving ? "Saving…" : children}</button>
       {showDecisions && <span role="group" aria-label="Record journey outcome"><WorkflowChoicesStatus {...workflow} /><WorkflowOutcomeFields choices={choices} values={decisions} onChange={setDecisions} /><button className="button primary" type="button" disabled={saving || workflow.status !== "ready"} onClick={() => void submit()}>Save outcome</button>{workflow.status !== "ready" && <button className="button" type="button" disabled={saving} onClick={() => void submit(true)}>Record follow-up only</button>}<button className="button" type="button" onClick={() => setShowDecisions(false)}>Cancel</button></span>}
       {notice && <small className="muted-copy" role="status">{notice}</small>}
@@ -446,7 +466,7 @@ export function JumpReturnTray() {
         nextTime: wantsNext ? nextTime : undefined
       } : {}), workflowDecisions: Object.entries(workflowDecisions).filter(([, outcome]) => outcome).map(([ruleId, outcome]) => ({ ruleId, outcome })) };
       const key = outcomeRequestKey(session.jumpId, selected, payload, session.attemptId);
-      const result = await saveOutcome(session.jumpId, selected, ids.claim(key), payload, attempt);
+      const result = await saveOutcome(session.jumpId, selected, ids.claim(key), payload, attempt, "tray");
       ids.release(key);
       if (!result.recorded) {
         // Finished already under another request, so this handoff is over. Whatever was typed here did

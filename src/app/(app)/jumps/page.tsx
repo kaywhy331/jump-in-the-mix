@@ -45,7 +45,7 @@ import { planLimits, recentPlanLimitSkips } from "@/lib/plan-limits";
 import { readPreparationStatus } from "@/lib/preparation";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
 import { snoozeChoices, type SnoozePreset } from "@/lib/snooze-schedule";
-import { LiveAttentionSummary, LiveCount, LiveSection, TodayLiveCounts } from "@/components/TodayMomentum";
+import { LiveAttentionSummary, LiveCount, LiveSection, TodayLiveCounts, TodayMomentum } from "@/components/TodayMomentum";
 import { followUpPhone, parseTodayCursor, readTodayPage } from "@/lib/today-list";
 import { calendarDaysOverdue, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
 import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
@@ -447,6 +447,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <TodayLiveCounts readAt={now.toISOString()} initial={{ overdue: overdueCount, today: attentionCount - overdueCount, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
+      <TodayMomentum />
       <JumpReturnTray />
       <MixEndPrompt mixes={startableMixes} todayKey={logicalDateKey(logicalDateInTimezone(new Date(), timezone))} address={JSON.stringify(params)} viewOnly={Boolean(impersonation)} />
       {params.setupLater && <Notice type="success">Your setup answers are saved. <Link href="/onboarding">Return to setup</Link> whenever you’re ready.</Notice>}

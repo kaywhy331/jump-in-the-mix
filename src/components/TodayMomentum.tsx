@@ -1,12 +1,16 @@
 "use client";
 
 import { createContext, useContext, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from "react";
+import { createPortal } from "react-dom";
 
 type Section = "overdue" | "today" | "upcoming";
 type Counts = Record<Section | "done", number>;
-type JumpState = { jumpId?: string; status?: string; mixEnd?: unknown };
+type JumpState = { jumpId?: string; status?: string; mixEnd?: unknown; origin?: string };
 
 const CountsContext = createContext<Counts | null>(null);
+const DUE_CARDS = '[data-today-section="overdue"] [data-jump-workflow], [data-today-section="today"] [data-jump-workflow]';
+// The card's Review button, never the review's own "open your app" link, which shares the class.
+const REVIEW_TRIGGER = ".sheet-trigger > .jump-channel-action";
 
 function cardOf(jumpId: string): Element | null {
   return document.querySelector(`[data-jump-workflow="${CSS.escape(jumpId)}"]`);
@@ -75,4 +79,69 @@ export function LiveAttentionSummary() {
   const attention = counts.overdue + counts.today;
   if (!attention) return <>Nothing else needs your attention right now.</>;
   return <>{`${attention.toLocaleString("en-US")} follow-up${attention === 1 ? " needs" : "s need"} your attention${counts.overdue ? ` · ${counts.overdue.toLocaleString("en-US")} overdue` : ""}.`}</>;
+}
+
+/**
+ * After an outcome recorded in a review, or in the tray after the owner returns from their app, the next due follow-up's
+ * review opens by itself, on phones and desktop. A quick action from the list leaves the list as it is. On a phone that
+ * review covers the confirmation, so its Undo comes into the review for the same 10 seconds. Opening a review never
+ * sends, records or skips anything (D70, JITM-08 §2.36). When the outcome finished a Mix, Today asks what's next for
+ * that person first.
+ */
+export function TodayMomentum() {
+  const [banner, setBanner] = useState<{ jumpId: string; name?: string; skipped: boolean; slot: Element; until: number; restoring?: boolean; error?: string } | null>(null);
+  useEffect(() => {
+    let frame = 0;
+    const onState = (event: Event) => {
+      const detail = (event as CustomEvent<JumpState>).detail;
+      const jumpId = detail?.jumpId;
+      if (!jumpId) return;
+      if (detail.status === "PENDING") { setBanner(current => current?.jumpId === jumpId ? null : current); return; }
+      if ((detail.status !== "DONE" && detail.status !== "SKIPPED") || detail.mixEnd || !detail.origin) return;
+      const card = cardOf(jumpId);
+      if (!card?.closest('[data-today-section="overdue"], [data-today-section="today"]')) return;
+      const due = [...document.querySelectorAll<HTMLElement>(DUE_CARDS)].filter(item => item !== card && item.querySelector(REVIEW_TRIGGER));
+      const next = due.find(item => card.compareDocumentPosition(item) & Node.DOCUMENT_POSITION_FOLLOWING) ?? due[0];
+      const nextId = next?.getAttribute("data-jump-workflow");
+      if (!nextId) return;
+      const name = card.querySelector(".jump-card-heading h3")?.textContent?.trim() || undefined;
+      const skipped = detail.status === "SKIPPED";
+      // The card's own Undo lasts 10 seconds from the outcome (JumpWorkflowCard); the copy here ends with it.
+      const until = Date.now() + 10_000;
+      cancelAnimationFrame(frame);
+      frame = requestAnimationFrame(() => {
+        cardOf(nextId)?.querySelector<HTMLElement>(REVIEW_TRIGGER)?.click();
+        let tries = 0;
+        const findReview = () => {
+          const dialog = cardOf(nextId)?.querySelector<HTMLDialogElement>(".follow-up-review-sheet[open]");
+          if (!dialog) { if (++tries < 20) frame = requestAnimationFrame(findReview); return; }
+          const slot = dialog.matches(":modal") ? dialog.querySelector("[data-sheet-momentum]") : null;
+          setBanner(slot ? { jumpId, name, skipped, slot, until } : null);
+        };
+        frame = requestAnimationFrame(findReview);
+      });
+    };
+    const onUndoFailed = (event: Event) => {
+      const detail = (event as CustomEvent<{ jumpId?: string; error?: string }>).detail;
+      setBanner(current => current && current.jumpId === detail?.jumpId ? { ...current, restoring: false, error: detail.error, until: Date.now() + 10_000 } : current);
+    };
+    window.addEventListener("jitm:jump-state", onState);
+    window.addEventListener("jitm:undo-failed", onUndoFailed);
+    return () => { window.removeEventListener("jitm:jump-state", onState); window.removeEventListener("jitm:undo-failed", onUndoFailed); cancelAnimationFrame(frame); };
+  }, []);
+  useEffect(() => {
+    if (!banner) return;
+    const timer = window.setTimeout(() => setBanner(null), Math.max(0, banner.until - Date.now()));
+    return () => window.clearTimeout(timer);
+  }, [banner]);
+  if (!banner || !banner.slot.isConnected) return null;
+  const undo = () => {
+    setBanner({ ...banner, restoring: true, error: undefined });
+    window.dispatchEvent(new CustomEvent("jitm:undo-request", { detail: { jumpId: banner.jumpId } }));
+  };
+  return createPortal(<div className="review-momentum">
+    {/* The same words as the card's own confirmation (JumpWorkflowCard). */}
+    <span><strong>{banner.skipped ? "Follow-up skipped" : "Follow-up completed"}</strong><small>{banner.name ? `${banner.name} · you can undo this for a moment` : "You can undo this for a moment"}</small>{banner.error && <small className="review-momentum-error" role="alert">{banner.error}</small>}</span>
+    <button type="button" className="button small" onClick={undo} disabled={banner.restoring}>{banner.restoring ? "Restoring…" : "Undo"}</button>
+  </div>, banner.slot);
 }
