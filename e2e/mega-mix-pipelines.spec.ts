@@ -222,4 +222,7 @@ test("reviewing a ready-made Mega-Mix setup with no edits warns of no unsaved ch
   await page.getByRole("button", { name: "Edit preferences", exact: true }).click();
   await page.getByRole("button", { name: "Review my setup", exact: true }).click();
   await expect(page.getByText("Unsaved changes. Save before leaving this page.", { exact: true })).toHaveCount(0);
+  // Declining the stage labels is the owner's own change, so leaving would lose it (FRM-01).
+  await page.getByRole("checkbox", { name: /Add its stage labels/ }).uncheck();
+  await expect(page.getByText("Unsaved changes. Save before leaving this page.", { exact: true })).toBeVisible();
 });
