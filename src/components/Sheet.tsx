@@ -48,7 +48,9 @@ export function Sheet({
   };
 
   useEffect(() => {
-    if (desktopInitiallyOpen && wide()) setMounted(true);
+    // The first follow-up's review opens docked on wide screens, unless another review is already there: one remounted by
+    // Undo leaves the review Today opened in place.
+    if (desktopInitiallyOpen && wide() && !document.querySelector(".follow-up-review-sheet[open]")) setMounted(true);
     if (!docked) return;
     const media = window.matchMedia(DOCKED_REVIEW_MEDIA);
     const adapt = () => {

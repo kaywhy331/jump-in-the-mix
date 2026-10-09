@@ -91,7 +91,7 @@ export function LiveAttentionSummary() {
 /**
  * After an outcome recorded in a review, or in the tray after the owner returns from their app, the next due follow-up's
  * review opens by itself, on phones and desktop, and confirmations with their Undo show inside it while it stays open
- * (useConfirmationTarget). A quick action from the list leaves the list as it is. Nothing opens while the owner is busy
+ * (useConfirmationTarget); on a phone they show inside any open review. A quick action from the list leaves the list as it is. Nothing opens while the owner is busy
  * elsewhere: another review, sheet or dialog is open, they are typing, or Today shows a notice they need to read.
  * Opening a review never sends, records or skips anything (D70, JITM-08 §2.36). When the outcome finished a Mix, Today
  * asks what's next for that person instead.
@@ -109,7 +109,10 @@ export function TodayMomentum() {
     });
     const sync = () => {
       if (opened && !(opened.isConnected && opened.open)) opened = null;
-      const next = opened?.querySelector<HTMLElement>("[data-sheet-momentum]") ?? null;
+      // The review Today opened; on a phone, any open review, since each covers the floating stack. None while Today asks
+      // what's next for someone: that question floats, and the Undos stay beside it.
+      const host = document.querySelector("#follow-up-confirmations [data-mix-end]") ? null : opened ?? document.querySelector<HTMLDialogElement>(".follow-up-review-sheet[open]:modal");
+      const next = host?.querySelector<HTMLElement>("[data-sheet-momentum]") ?? null;
       if (next === slot) return;
       if (slot) { sizes.unobserve(slot); slot.style.minHeight = ""; }
       slot = next; tallest = 0;

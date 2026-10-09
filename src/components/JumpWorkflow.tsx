@@ -140,9 +140,18 @@ function useOutcomeRequestIds(): OutcomeRequestIds {
   }), []);
 }
 
-/** When a confirmation leaves with focus on its Undo, focus stays in the open review, or else goes to Today's heading. */
+/** Focus is nowhere the owner put it: on the page itself, or still inside the confirmation. */
+function focusIsFree(confirmation: HTMLElement | null): boolean {
+  const focused = document.activeElement;
+  return !focused || focused === document.body || Boolean(confirmation?.contains(focused));
+}
+
+/**
+ * When a confirmation leaves with focus on its Undo, focus stays in the open review, or else goes to Today's heading.
+ * If the owner has moved on, into a field for example, focus stays there.
+ */
 function focusAfterConfirmation(confirmation: HTMLElement | null, hadFocus = false): void {
-  if (!hadFocus && !confirmation?.contains(document.activeElement)) return;
+  if (!(hadFocus || confirmation?.contains(document.activeElement)) || !focusIsFree(confirmation)) return;
   (document.querySelector<HTMLElement>(".follow-up-review-sheet[open] .sheet-header h2") ?? document.querySelector<HTMLElement>(".today-page-header h1"))?.focus({ preventScroll: true });
 }
 
@@ -254,7 +263,7 @@ export function JumpWorkflowCard({
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The follow-up could not be reopened.");
       // Back on the Undo, to try again.
-      if (undoHadFocus.current) requestAnimationFrame(() => confirmationRef.current?.querySelector("button")?.focus());
+      if (undoHadFocus.current) requestAnimationFrame(() => { if (focusIsFree(confirmationRef.current)) confirmationRef.current?.querySelector("button")?.focus(); });
       undoHadFocus.current = false;
       hideTimer.current = window.setTimeout(() => { focusAfterConfirmation(confirmationRef.current); setState("HIDDEN"); }, 10_000);
     } finally {

@@ -11,6 +11,7 @@ test.setTimeout(120_000);
 let workspaceId: string, userId: string, shortMix: { mixId: string; mixStepId: string; stepVersionId: string };
 let midnight: Date;
 const ids: string[] = [];
+let laterId = "";
 const names = ["Olive Overdue", "Tara Today", "Tobias Today"];
 const token = randomUUID();
 const suffix = randomUUID();
@@ -36,12 +37,18 @@ test.beforeAll(async () => {
     // One overdue follow-up, then two due today, in that order.
     const scheduledAt = index === 0 ? new Date(midnight.getTime() - 86_400_000) : new Date(midnight.getTime() + index * 60_000);
     await prisma.jump.create({ data: { id, workspaceId, contactId: contact.id, mixId: mix.id, mixStepId: first.id, stepVersionId: version.id, scheduledAt, baseScheduledAt: scheduledAt, status: "PENDING", reason: "Check in", uniquenessKey: id, templateSnapshot: snapshot(scheduledAt), renderedSnapshot: { subject: null, body, script: null } } });
+    if (index === 0) {
+      // Olive's next Beat, later this week, which her confirmation names.
+      const later = new Date(midnight.getTime() + 6 * 86_400_000); laterId = `${suffix}-momentum-later`;
+      const second = mix.steps.find(step => step.sortOrder === 2)!;
+      await prisma.jump.create({ data: { id: laterId, workspaceId, contactId: contact.id, mixId: mix.id, mixStepId: second.id, stepVersionId: version.id, scheduledAt: later, baseScheduledAt: later, status: "PENDING", reason: "Second check in", uniquenessKey: laterId, templateSnapshot: snapshot(later), renderedSnapshot: { subject: null, body, script: null } } });
+    }
   }
 });
 test.beforeEach(async ({ context }) => {
   // The fixture's "today" is the UTC day it was made on.
   test.skip(new Date().toISOString().slice(0, 10) !== midnight.toISOString().slice(0, 10) || Date.now() > midnight.getTime() + 86_400_000 - 10 * 60_000, "Too close to midnight UTC.");
-  await prisma.jump.updateMany({ where: { id: { in: ids } }, data: { status: "PENDING", completedAt: null, completionMethod: null } });
+  await prisma.jump.updateMany({ where: { id: { in: [...ids, laterId] } }, data: { status: "PENDING", completedAt: null, completionMethod: null } });
   await context.addCookies([{ name: process.env.AUTH_COOKIE_NAME ?? "jitm_session", value: token, url: process.env.APP_URL!, httpOnly: true, secure: true, sameSite: "Strict" }]);
 });
 test.afterAll(async () => {
@@ -109,6 +116,7 @@ test.describe("on a phone", () => {
     const confirmation = confirmationOf(next, ids[0]);
     await expect(confirmation).toContainText("Follow-up completed");
     await expect(confirmation).toContainText(`${names[0]} · you can undo this for a moment`);
+    await expect(confirmation).toContainText(/Next (?:follow-up|scheduled):/);
     await expect(page.locator("#follow-up-confirmations [data-follow-up-undo]")).toHaveCount(0);
     await undoBesideWords(confirmation);
     await confirmation.getByRole("button", { name: "Undo", exact: true }).click();
@@ -191,6 +199,28 @@ test.describe("on a phone", () => {
     });
   }
 
+  test("closing the review Today opened puts its confirmation back in the floating stack, Undo and all", async ({ page }) => {
+    await page.goto("/jumps"); await ready(page);
+    await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+    await markSent(page, openReview(page), names[0], ids[0]);
+    await expect(confirmationOf(openReview(page), ids[0])).toBeVisible();
+    await openReview(page).getByRole("button", { name: `Close Follow up with ${names[1]}`, exact: true }).click();
+    const floating = confirmationOf(page.locator("#follow-up-confirmations"), ids[0]);
+    await floating.getByRole("button", { name: "Undo", exact: true }).click();
+    await expect.poll(() => status(ids[0])).toBe("PENDING");
+  });
+
+  test("a review opened by hand holds the confirmations its sheet would cover", async ({ page }) => {
+    await page.goto("/jumps"); await ready(page);
+    const card = page.locator(`#jump-${ids[0]}`);
+    await card.getByRole("button", { name: /^More options for/ }).click();
+    await record(page, card.getByRole("button", { name: /^Mark done for/ }), ids[0]);
+    await expect(confirmationOf(page.locator("#follow-up-confirmations"), ids[0])).toBeVisible();
+    await page.getByRole("button", { name: `Review message for ${names[2]}`, exact: true }).click();
+    await expect(confirmationOf(openReview(page), ids[0]).getByRole("button", { name: "Undo", exact: true })).toBeVisible();
+    await expect(page.locator("#follow-up-confirmations [data-follow-up-undo]")).toHaveCount(0);
+  });
+
   test("an outcome recorded in the tray after returning from the app opens the next review", async ({ page }) => {
     await page.goto("/jumps"); await ready(page);
     const tray = await returnFromApp(page, ids[0], names[0]);
@@ -244,6 +274,10 @@ test.describe("on a wider screen", () => {
     await expect(doneCount(page)).toHaveText("0");
     await expect(page.locator('[data-today-section="overdue"]')).toBeVisible();
     await expect(sectionCount(page, "overdue")).toHaveText("1");
+    // Olive's own review, docked when the page opened, doesn't take the pane back; focus stays on the opened review.
+    await expect(docked).toHaveCount(1);
+    await expect(docked.getByRole("button", { name: `Mark sent for ${names[1]}`, exact: true })).toBeVisible();
+    await expect(docked.locator(".sheet-header h2")).toBeFocused();
   });
 
   test("the docked review's buttons stay put when a confirmation leaves", async ({ page }) => {

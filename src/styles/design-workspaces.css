@@ -447,3 +447,5 @@
 /* On a phone the review's handoff and outcomes stay on screen while a confirmation above them, or a long message, makes
    the sheet scroll (JITM-08 §2.3). */
 @media (max-width: 767px) { .follow-up-review-sheet .review-action-bar { position: sticky; bottom: 0; z-index: 1; padding-top: 8px; background: var(--raised); } }
+/* What's next for a person comes after the Undos still on screen, whatever order they arrived in (JITM-09 §2.77). */
+.follow-up-confirmations > .mix-end-slot { order: 1; }
