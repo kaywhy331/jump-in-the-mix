@@ -93,15 +93,39 @@ async function mixEndPerson(name: string, phone: string) {
   await prisma.jump.create({ data: { id, workspaceId, contactId: contact.id, ...shortMix, scheduledAt, baseScheduledAt: scheduledAt, status: "PENDING", reason: "Check in", uniquenessKey: id, templateSnapshot: snapshot(scheduledAt), renderedSnapshot: { subject: null, body, script: null } } });
   return { id, contactId: contact.id, remove: () => prisma.contact.deleteMany({ where: { id: contact.id } }) };
 }
-/** Nothing covers the focused control: the point at its center hits it. */
+/**
+ * Nothing covers the focused control: the point at its center hits it, and its whole box with its 3px focus outline is
+ * inside the sheet and clear of the sheet's stuck header and action bar, unless it is inside one of them.
+ */
 async function focusedIsUncovered(page: Page) {
   return page.evaluate(() => {
     const focused = document.activeElement as HTMLElement | null;
     if (!focused || focused === document.body) return { name: "body", uncovered: true };
     const box = focused.getBoundingClientRect();
     const hit = document.elementFromPoint(box.left + box.width / 2, box.top + box.height / 2);
-    return { name: focused.getAttribute("aria-label") ?? focused.textContent?.trim().slice(0, 30) ?? focused.tagName, uncovered: Boolean(hit && (hit === focused || focused.contains(hit))) };
+    const stuck = (selector: string) => {
+      const element = focused.closest(".sheet-panel")?.querySelector(selector);
+      return element && !element.contains(focused) && getComputedStyle(element).position === "sticky" ? element.getBoundingClientRect() : null;
+    };
+    const header = stuck(".sheet-header"), bar = stuck(".review-action-bar");
+    const sheet = focused.closest(".sheet-panel")?.getBoundingClientRect();
+    const clear = (!header || box.top - 3 >= header.bottom) && (!bar || box.bottom + 3 <= bar.top) && (!sheet || box.bottom + 3 <= sheet.bottom);
+    const name = focused.getAttribute("aria-label") ?? focused.textContent?.trim().slice(0, 30) ?? focused.tagName;
+    return { name, uncovered: Boolean(hit && (hit === focused || focused.contains(hit))) && clear, at: [Math.round(box.top), Math.round(box.bottom), header ? Math.round(header.bottom) : null, bar ? Math.round(bar.top) : null] };
   });
+}
+/** Today moves a focused field clear of the stuck bar a frame after it takes focus, so this waits a few frames for it. */
+async function settledFocus(page: Page) {
+  let focused = await focusedIsUncovered(page);
+  for (let attempt = 0; attempt < 10 && !focused.uncovered; attempt++) {
+    await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+    focused = await focusedIsUncovered(page);
+  }
+  return focused;
+}
+async function expectUncovered(page: Page) {
+  const focused = await settledFocus(page);
+  expect(focused, `${focused.name} is covered (top, bottom, header bottom, bar top): ${JSON.stringify(focused.at)}`).toMatchObject({ uncovered: true });
 }
 async function returnFromApp(page: Page, id: string, name: string) {
   // "Open text" closes the review and remembers the follow-up; the tray asks about it when the owner comes back.
@@ -248,15 +272,15 @@ test.describe("on a phone", () => {
       const review = openReview(page);
       await expect(review.locator("[data-follow-up-undo]")).toHaveCount(confirmations);
       await review.getByRole("textbox", { name: "Your message" }).focus();
-      expect(await focusedIsUncovered(page)).toMatchObject({ uncovered: true });
+      await expectUncovered(page);
       // Through the channel choice, the handoff and the outcomes: each control is in the clear when it takes focus. The
       // pass stops at the last outcome; tabbing on would leave the page, and refocusing it runs Today's account check.
       const reached: string[] = [];
       for (let step = 0; step < 12 && reached.at(-1) !== "Skip Beat"; step++) {
         await page.keyboard.press("Tab");
-        const focused = await focusedIsUncovered(page);
+        const focused = await settledFocus(page);
         reached.push(focused.name);
-        expect(focused, `${focused.name} is covered`).toMatchObject({ uncovered: true });
+        expect(focused, `${focused.name} is covered: ${JSON.stringify(focused.at)}`).toMatchObject({ uncovered: true });
       }
       expect(reached).toEqual(expect.arrayContaining(["Email", "Call", `Open text for ${name}`, `Mark sent for ${name}`, "Skip Beat"]));
       if (confirmations === 1) await markSent(page, review, name, ids[1]);
@@ -270,8 +294,24 @@ test.describe("on a phone", () => {
     const review = openReview(page);
     expect(await review.locator(".review-action-bar").evaluate(bar => getComputedStyle(bar).position)).toBe("static");
     await review.getByRole("textbox", { name: "Your message" }).focus();
-    expect(await focusedIsUncovered(page)).toMatchObject({ uncovered: true });
+    await expectUncovered(page);
   });
+
+  for (const [width, height] of [[320, 700], [320, 568]] as const) {
+    test(`at 200% text on a ${width}×${height} phone the bar scrolls with the review, so the message field is never caught under it`, async ({ page }) => {
+      await page.setViewportSize({ width, height });
+      await page.goto("/jumps"); await ready(page);
+      await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+      await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+      await markSent(page, openReview(page), names[0], ids[0]);
+      const review = openReview(page);
+      await expect(confirmationOf(review, ids[0])).toBeVisible();
+      await expect(review.locator(".sheet-panel")).toHaveAttribute("data-review-bar-flows", "");
+      expect(await review.locator(".review-action-bar").evaluate(bar => getComputedStyle(bar).position)).toBe("static");
+      await review.getByRole("textbox", { name: "Your message" }).focus();
+      await expectUncovered(page);
+    });
+  }
 
   test("a slow Undo doesn't pull focus out of the field the owner moved to", async ({ page }) => {
     await page.route(`**/api/jumps/${ids[0]}/outcome`, async route => {
@@ -290,13 +330,38 @@ test.describe("on a phone", () => {
     await expect(message).toBeFocused();
   });
 
-  test("when the last review finishes with nothing left to open, its confirmations float", async ({ page }) => {
+  test("a failed Undo leaves focus in the field the owner moved to", async ({ page }) => {
+    await page.route(`**/api/jumps/${ids[0]}/outcome`, async route => {
+      if (route.request().method() === "POST" && route.request().postDataJSON()?.outcome === "REOPENED") {
+        await new Promise(resolve => setTimeout(resolve, 1_500));
+        await route.fulfill({ status: 500, contentType: "application/json", body: JSON.stringify({ error: "The follow-up could not be reopened." }) });
+        return;
+      }
+      await route.continue();
+    });
     await page.goto("/jumps"); await ready(page);
     await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
     await markSent(page, openReview(page), names[0], ids[0]);
+    const review = openReview(page);
+    const confirmation = confirmationOf(review, ids[0]);
+    await confirmation.getByRole("button", { name: "Undo", exact: true }).click();
+    const message = review.getByRole("textbox", { name: "Your message" });
+    await message.focus();
+    await expect(confirmation.getByRole("alert")).toHaveText("The follow-up could not be reopened.");
+    await expect(message).toBeFocused();
+    expect(await status(ids[0])).toBe("DONE");
+  });
+
+  test("when the last review finishes with nothing left to open, its confirmations float", async ({ page }) => {
+    await page.goto("/jumps"); await ready(page);
+    // Each confirmation has its own 10-second window, so the three outcomes and the checks run inside the first one's.
+    await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+    await markSent(page, openReview(page), names[0], ids[0]);
     await expect(openReview(page).getByRole("button", { name: `Mark sent for ${names[1]}`, exact: true })).toBeVisible();
+    await expect(openReview(page).locator("[data-follow-up-undo]")).toHaveCount(1);
     await markSent(page, openReview(page), names[1], ids[1]);
     await expect(openReview(page).getByRole("button", { name: `Mark sent for ${names[2]}`, exact: true })).toBeVisible();
+    await expect(openReview(page).locator("[data-follow-up-undo]")).toHaveCount(2);
     await markSent(page, openReview(page), names[2], ids[2]);
     await expect(openReview(page)).toHaveCount(0);
     const floating = page.locator("#follow-up-confirmations [data-follow-up-undo]");
@@ -403,17 +468,23 @@ test.describe("on a wider screen", () => {
       await page.getByRole("button", { name: "Review message for Mo Mixend", exact: true }).click();
       await markSent(page, openReview(page), "Mo Mixend", mo.id);
       await expect(page.locator(`[data-mix-end="${mo.contactId}"]`)).toBeVisible();
-      // A list action after the question: its confirmation floats, later in the stack's markup than the question.
+      // A list action after the question: its confirmation floats above the question, on screen and in the markup.
       const card = page.locator(`#jump-${ids[2]}`);
       await card.getByRole("button", { name: /^More options for/ }).click();
       await record(page, card.getByRole("button", { name: /^Mark done for/ }), ids[2]);
       await expect(confirmationOf(page.locator("#follow-up-confirmations"), ids[2])).toBeVisible();
       const order = await page.locator("#follow-up-confirmations").evaluate(stack => {
-        const question = stack.querySelector("[data-mix-end]")!.getBoundingClientRect();
-        return [...stack.querySelectorAll("[data-follow-up-undo]")].map(undo => undo.getBoundingClientRect().bottom <= question.top + 1);
+        const question = stack.querySelector("[data-mix-end]")!;
+        const top = question.getBoundingClientRect().top;
+        return [...stack.querySelectorAll("[data-follow-up-undo]")].map(undo => undo.getBoundingClientRect().bottom <= top + 1 && Boolean(undo.compareDocumentPosition(question) & Node.DOCUMENT_POSITION_FOLLOWING));
       });
       expect(order.length).toBeGreaterThan(0);
       expect(order.every(Boolean)).toBe(true);
+      // Closing the question from the keyboard puts focus on an Undo still showing.
+      await page.getByRole("button", { name: "Not now: leave Mo Mixend as they are", exact: true }).focus();
+      await page.keyboard.press("Enter");
+      await expect(page.locator(`[data-mix-end="${mo.contactId}"]`)).toHaveCount(0);
+      await expect(page.locator("#follow-up-confirmations [data-follow-up-undo] button:focus")).toHaveCount(1);
     } finally {
       await mo.remove();
     }
