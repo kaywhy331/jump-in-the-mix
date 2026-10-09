@@ -87,7 +87,7 @@ test("Today shows horizontal Beats from the selected occurrence and one continuo
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto(`/jumps?jump=${jumpId}&range=all`);
     const panel = page.locator(".follow-up-review-sheet[open]");
-    const beats = panel.getByRole("list", { name: "Pending Beats in this Mix occurrence" }).getByRole("link");
+    const beats = panel.getByRole("list", { name: "Follow-up dates in this Mix" }).getByRole("link");
     await expect(beats).toHaveCount(2);
     await expect(beats.nth(1)).toHaveAttribute("href", new RegExp(`jump=${ids[0]}`));
     for (const width of [1920, 834, 390]) {
@@ -275,7 +275,7 @@ test("saving wording in a Mix that is on asks nothing when the save starts no on
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/mixes/${mixId}/edit`);
   const form = page.locator(".mix-editor-form");
-  await form.getByRole("group", { name: "Beat 1", exact: true }).getByLabel("Message", { exact: true }).fill("Hi {{First Name}}, how are the renovation plans going?");
+  await form.getByRole("group", { name: "Beat 1", exact: true }).getByRole("textbox", { name: "Message", exact: true }).fill("Hi {{First Name}}, how are the renovation plans going?");
   await expect(form.getByText("You’ll review who gets this Mix before activating.")).toHaveCount(0);
   await form.getByRole("button", { name: "Save Mix", exact: true }).click();
   await expect(page).toHaveURL(/updated=manual/);
