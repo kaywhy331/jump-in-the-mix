@@ -17,13 +17,19 @@ export function setFollowUpDue(jumpId: string, value: boolean | null): void {
   for (const listener of listeners) listener();
 }
 
-function subscribe(listener: () => void): () => void {
+/** Whether a follow-up is still due here; one with no card on the page counts as due. */
+export function isFollowUpDue(jumpId: string): boolean {
+  return due.get(jumpId) !== false;
+}
+
+/** Calls `listener` after each change; returns the function that stops it. */
+export function subscribeFollowUpDue(listener: () => void): () => void {
   listeners.add(listener);
   return () => { listeners.delete(listener); };
 }
 
 /** Whether a follow-up is still due here, read when the component renders; one with no card on the page counts as due. */
 export function useFollowUpDue(): (jumpId: string) => boolean {
-  useSyncExternalStore(subscribe, () => version, () => 0);
-  return jumpId => due.get(jumpId) !== false;
+  useSyncExternalStore(subscribeFollowUpDue, () => version, () => 0);
+  return isFollowUpDue;
 }
