@@ -79,10 +79,11 @@ export function OnboardingForm({ userName, industry, timezone, today, locale, sc
   const oneView = setupMode === "person";
   useEffect(() => { if (noting) noteRef.current?.focus(); }, [noting]);
   useEffect(() => { if (signing) signatureRef.current?.focus(); }, [signing]);
-  // The signature shows where it's used, in the preview, and opens for editing there.
+  // The signature shows where it's used, in the preview, and opens for editing there. Its value is sent from one hidden
+  // field outside the preview, so a preview that's updating or unavailable never drops it.
   const signatureControl = signing
-    ? <label className="field onboarding-signature"><span>Sign texts as <small>optional</small></span><input ref={signatureRef} name="smsSignature" maxLength={160} enterKeyHint="next" value={signature} onChange={event => setSignature(event.target.value)} /></label>
-    : <p className="onboarding-signature">Texts are signed “{signature.trim() || userName}”. <button type="button" className="text-button" onClick={() => setSigning(true)} aria-label="Change how you sign texts">Change</button><input type="hidden" name="smsSignature" value={signature} /></p>;
+    ? <label className="field onboarding-signature"><span>Sign texts as <small>optional</small></span><input ref={signatureRef} maxLength={160} enterKeyHint="next" value={signature} onChange={event => setSignature(event.target.value)} /></label>
+    : <p className="onboarding-signature">Texts are signed “{signature.trim() || userName}”. <button type="button" className="text-button" onClick={() => setSigning(true)} aria-label="Change how you sign texts">Change</button></p>;
   return <>
     <h1 ref={heading} tabIndex={-1}>{oneView ? "Set up your first follow-up" : "Set up a whole pipeline"}</h1>
     {oneView && <p className="onboarding-intro">Add one person and see their first follow-up before anything is sent.</p>}
@@ -98,6 +99,7 @@ export function OnboardingForm({ userName, industry, timezone, today, locale, sc
       <button type="submit" hidden aria-hidden="true" tabIndex={-1} onClick={event => event.preventDefault()} />
       <RequiredFieldsNote />
       <input type="hidden" name="useCase" value="business" />
+      <input type="hidden" name="smsSignature" value={signature} />
       <fieldset className="onboarding-step-card">
         <legend>Who to follow up with</legend>
         {contacts.length > 0 && <label className="field"><span>Choose a saved person</span><select name="contactId" value={contactId} onChange={event => setContactId(event.target.value)}><option value="">Add someone new</option>{contacts.map(contact => <option key={contact.id} value={contact.id}>{contact.displayName}</option>)}</select></label>}

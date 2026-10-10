@@ -47,7 +47,9 @@ export function StarterPreview({ reason, businessType, scenarioId, details, firs
   }, [key, planKey, retry]);
   const preview = loaded?.planKey === planKey ? loaded.preview : undefined;
   const dated = loaded?.key === key;
-  useEffect(() => { onAvailable(Boolean(preview)); }, [preview, onAvailable]);
+  // Start waits until the preview shows this date's times: not while they update, and not after a refresh fails.
+  const available = Boolean(preview) && dated && failed !== key;
+  useEffect(() => { onAvailable(available); }, [available, onAvailable]);
   const [first, ...later] = preview?.steps ?? [];
   const person = details.firstName.trim();
   return <section className="onboarding-preview" aria-label="Preview of the first follow-up">
@@ -55,12 +57,13 @@ export function StarterPreview({ reason, businessType, scenarioId, details, firs
     {failed === key ? <p id="starter-preview-status" role="alert">The preview is unavailable. <button type="button" className="text-button" onClick={() => { setFailed(""); setRetry(value => value + 1); }}>Retry preview</button></p> : !preview || !first ? <p id="starter-preview-status" role="status">Preparing the preview…</p> : <>
       <h3>{preview.title}</h3>
       <p className="onboarding-preview-when">{CHANNEL_LABEL[first.channel] ?? "Call"}<When at={dated ? first.at : null} timezone={timezone} locale={locale} /></p>
+      {!dated && <p id="starter-preview-status" className="onboarding-preview-note" role="status">Updating the dates…</p>}
       {first.subject && <p className="onboarding-preview-subject">Subject: <Message source={first.subject} details={details} /></p>}
       <p className="speech-bubble onboarding-preview-message"><Message source={first.body ?? first.script ?? ""} details={details} /></p>
       {children}
       {later.length > 0 && <ol className="onboarding-preview-later" aria-label="Then">{later.map((step, index) => <li key={index}>Then {CHANNEL_LABEL[step.channel]?.toLowerCase() ?? "call"}: <strong>{step.name}</strong><When at={dated ? step.at : null} timezone={timezone} locale={locale} /></li>)}</ol>}
       <p className="onboarding-preview-note">{onboardingPreviewValues(details).standIns.size ? "Highlighted words fill in when you add those details. " : ""}You review each message in Today before you send it.</p>
     </>}
-    <input type="hidden" name="starterPreviewAvailable" value={preview ? "1" : "0"} data-form-guard-ignore />
+    <input type="hidden" name="starterPreviewAvailable" value={available ? "1" : "0"} data-form-guard-ignore />
   </section>;
 }

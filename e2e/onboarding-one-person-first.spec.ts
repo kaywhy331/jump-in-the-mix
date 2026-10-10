@@ -167,6 +167,28 @@ test("a saved person is previewed with their stored names, as the message will u
   await expect(page.getByRole("button", { name: "Start the follow-up", exact: true })).toBeVisible();
 });
 
+test("a failed refresh of the dates disables Start until the preview is back, and the edited signature is the one saved", async ({ page }) => {
+  await account(page);
+  await page.goto("/onboarding");
+  const start = page.getByRole("button", { name: /^Start .*follow-up$/ });
+  await expect(start).toBeEnabled();
+  await page.getByRole("button", { name: "Change how you sign texts", exact: true }).click();
+  await page.getByLabel("Sign texts as").fill("Sam at Lee Plumbing");
+  // The next request for the preview fails (STA-01).
+  await page.route("**/api/onboarding/preview**", route => route.fulfill({ status: 503, contentType: "application/json", body: "{}" }));
+  await page.getByLabel("Follow up on", { exact: true }).fill(new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10));
+  await expect(page.getByRole("alert").filter({ hasText: "The preview is unavailable." })).toBeVisible();
+  await expect(start).toBeDisabled();
+  await expect(start).toHaveAttribute("aria-describedby", "starter-preview-status");
+  await page.unroute("**/api/onboarding/preview**");
+  await page.getByRole("button", { name: "Retry preview", exact: true }).click();
+  await expect(start).toBeEnabled();
+  await page.getByLabel("Name", { exact: true }).fill("Riley Example");
+  await Promise.all([page.waitForURL(/\/jumps\?.*welcome=1/), page.getByRole("button", { name: "Start Riley’s follow-up", exact: true }).click()]);
+  const profile = await prisma.workspaceProfile.findFirstOrThrow({ where: { workspace: { ownerId: users.at(-1)! } } });
+  expect(profile.smsSignature).toBe("Sam at Lee Plumbing");
+});
+
 test("Enter in a field moves to the next one and never starts the follow-up", async ({ page }) => {
   await account(page);
   await page.goto("/onboarding");
