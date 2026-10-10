@@ -13,6 +13,7 @@ import { sameContactSequence } from "@/lib/contact-profile-view";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { AppIcon } from "@/components/AppIcon";
 import { AutoSubmitForm } from "@/components/AutoSubmitForm";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -53,6 +54,8 @@ import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice
 import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
 import { sendsByItself } from "@/lib/automatic-delivery";
 import { hasRecordedOutcome, invitationsLeft } from "@/lib/invitation-allowance";
+import { INVITATION_PROMPT_COOKIE, invitationPromptDismissed } from "@/lib/invitation-labels";
+import { browserScope } from "@/lib/browser-scope";
 import { phoneRegionOrDefault } from "@/lib/phone-number";
 import { matchedMegaMix, megaMixById } from "@/lib/mega-mixes";
 import { storedMarketingScenario } from "@/lib/marketing-scenarios";
@@ -138,9 +141,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
   const { session, workspace, user, impersonation } = await requireWorkspace();
   const invitations = impersonation ? null : await invitationsLeft(user.id, workspace.id);
+  // Today's invitation prompt waits for the owner's first recorded outcome, and isn't rendered once dismissed (JITM-09 §2.9, D72).
+  const promptDismissed = invitationPromptDismissed((await cookies()).get(INVITATION_PROMPT_COOKIE)?.value, browserScope(session));
   const [outcomeRecorded, invitationsToSend] = await Promise.all([
-    // Today's invitation prompt waits for the owner's first recorded outcome (JITM-09 §2.9, D72).
-    invitations ? hasRecordedOutcome(workspace.id) : false,
+    invitations && !promptDismissed ? hasRecordedOutcome(workspace.id) : false,
     // Prepared personal invitations wait here until the owner sends them from their own email or text app.
     impersonation ? [] : prisma.jump.findMany({ where: { workspaceId: workspace.id, status: "PENDING", accessInvite: { is: { inviterUserId: user.id, acceptedAt: null, revokedAt: null } } }, select: { id: true, contact: { select: { displayName: true } }, accessInvite: { select: { recipientEmail: true, recipientPhone: true } } }, orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], take: 3 })
   ]);

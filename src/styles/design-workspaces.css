@@ -281,8 +281,8 @@
 .mix-end-question small { margin-top: 2px; font-size: .8125rem; color: var(--text-2); }
 .mix-end-question-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
 .mix-end-question-actions .button { min-height: 44px; }
-.mix-end-question-actions .icon-button { width: 44px; min-width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); }
-.mix-end-question-actions .icon-button svg { width: 18px; height: 18px; }
+.mix-end-question-actions .icon-button, .invite-strip .icon-button { width: 44px; min-width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); }
+.mix-end-question-actions .icon-button svg, .invite-strip .icon-button svg { width: 18px; height: 18px; }
 
 .mix-desktop-editor { display: none; min-width: 0; }
 .mix-mobile-tabs { margin-bottom: 16px; }
@@ -415,7 +415,7 @@
 
 /* Keep the phone and portrait-tablet Journey ahead of secondary settings. */
 
-/* Personal invitations: a standing prompt in the sidebar and the phone header while any are left. */
+/* Personal invitations, while any are left (JITM-09 §2.9, D72): the sidebar callout, the More row and one compact Today prompt. */
 .invite-callout { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 44px; padding: 12px; border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent); border-radius: 14px; background: var(--brand-soft); color: var(--brand-dark); text-decoration: none; }
 .invite-callout:hover { border-color: var(--brand); }
 .invite-callout:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
@@ -430,15 +430,15 @@
   .invite-callout > span:not(.invite-count) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .invite-callout .invite-count { display: inline-grid; position: absolute; top: 4px; right: 8px; min-width: 18px; height: 18px; padding: 0 5px; font-size: .6875rem; }
 }
-/* Today's one compact invitation prompt, below the due sections (D72). */
-.invite-strip { display: flex; align-items: center; gap: 12px; margin-block: 16px; padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent); border-radius: 14px; background: var(--brand-soft); color: var(--text); }
-.invite-strip > svg { flex: 0 0 22px; width: 22px; height: 22px; color: var(--brand-dark); }
-.invite-strip p { flex: 1; margin: 0; font-size: .875rem; }
-.invite-strip p span { color: var(--text-2); }
-.invite-strip .button { flex-shrink: 0; }
-.invite-strip-dismiss { flex: 0 0 44px; width: 44px; height: 44px; margin: -8px -8px -8px 0; border-color: transparent; background: transparent; color: var(--text-2); }
-.invite-strip-dismiss:hover { background: color-mix(in srgb, var(--brand) 12%, transparent); }
-@media (max-width: 430px) { .invite-strip { flex-wrap: wrap; } .invite-strip p { flex-basis: calc(100% - 34px - 56px); } .invite-strip-dismiss { order: 1; } .invite-strip .button { order: 2; margin-left: 34px; } }
+/* Today's prompt: the More row's words in one 44px link, which wraps inside itself in a narrow column, and the Mix-end
+   prompt's Dismiss. */
+.invite-strip { display: flex; align-items: center; gap: 8px; margin-block: 16px; padding-inline: 14px 4px; border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent); border-radius: 14px; background: var(--brand-soft); }
+.invite-strip > a { display: flex; flex: 1 1 auto; align-items: center; gap: 10px; min-width: 0; min-height: 44px; padding-block: 4px; font-size: .875rem; color: var(--text-2); }
+.invite-strip > a > svg { flex: 0 0 18px; width: 18px; height: 18px; color: var(--brand-dark); }
+.invite-strip > a > span { min-width: 0; overflow-wrap: break-word; }
+.invite-strip > a > span > span { display: inline-block; max-width: 100%; }
+.invite-strip > a strong { font-weight: 600; color: var(--violet-text); }
+.invite-strip > a:hover strong { text-decoration: underline; }
 .more-page .invite-hub-card { border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); }
 /* Follow-up confirmations inside the open review, each with its Undo (D70). The review sits inside the card's
    .jump-primary-action, whose buttons fill the width, so the Undo keeps its own size beside its words. */
