@@ -72,3 +72,12 @@ test("on a phone Journey opens in its list view, with people counts, and the map
   await expect(page.getByRole("button", { name: "Reset zoom to 100%", exact: true })).toHaveText("100%");
   await expect.poll(() => firstMixInView(page)).toBe("in view");
 });
+
+test("\"Needs attention\" is shown in the danger colour only above 0", async ({ page }) => {
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.goto("/journey", { waitUntil: "networkidle" });
+  const strip = page.getByLabel("People by workflow status");
+  const colour = (status: string) => strip.locator(status ? `button[data-status="${status}"] strong` : "button:not([data-status]) strong").evaluate(element => getComputedStyle(element).color);
+  await expect(strip.locator('button[data-status="attention"] strong')).toHaveText("0");
+  expect(await colour("attention")).toBe(await colour(""));
+});

@@ -46,7 +46,7 @@
 @keyframes countStripFade{0%{--scroll-fade-start:0px;--scroll-fade-end:28px}12%,88%{--scroll-fade-start:28px;--scroll-fade-end:28px}100%{--scroll-fade-start:28px;--scroll-fade-end:0px}}
 .countStrip button{flex:1;min-width:90px;min-height:64px;border:1px solid transparent;border-radius:10px;background:transparent;text-align:left;padding:8px 10px;color:var(--text);font:inherit;cursor:pointer}
 .countStrip strong{display:block;font-size:24px;line-height:1.1;font-variant-numeric:tabular-nums}.countStrip span{display:block;margin-top:6px;font-size:12px;white-space:nowrap;color:var(--text-3)}
-.countStrip button[aria-pressed=true]{background:var(--violet-wash);border-color:var(--violet-mark)}.countStrip button[data-status=attention] strong{color:var(--danger)}
+.countStrip button[aria-pressed=true]{background:var(--violet-wash);border-color:var(--violet-mark)}.countStrip button[data-status=attention]:not([data-count="0"]) strong{color:var(--danger)}
 .countStrip button:focus-visible,.nodePopulation button:focus-visible{outline:2px solid var(--violet-mark);outline-offset:-2px}
 .canvasControls{gap:8px;padding-top:10px;padding-bottom:10px}.canvasControls button{min-width:44px;min-height:40px}.canvasControls>button:nth-child(2){min-width:60px}
 .mapHelp{margin-left:auto;position:relative;font-size:12px}.mapHelp summary{cursor:pointer;padding:10px}.mapHelp[open]{width:100%;margin:0}.mapHelp p{color:var(--text-3);line-height:1.5;margin:8px 0}
