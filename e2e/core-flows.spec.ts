@@ -159,7 +159,7 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
   // Detected from the device, with no manual pick: the visible picker and its hidden field both say Denver.
   await expect(page.locator(".timezone-current:visible strong")).toHaveText("Denver");
   await expect(page.locator("#timezone")).toHaveValue("America/Denver");
-  // Exact, because the reason select's label text also contains "Follow up on a quote".
+  // Exact, so only the date's own label matches.
   const followUpInput = page.getByLabel("Follow up on", { exact: true });
   // The default date is today in Denver, not the UTC day.
   await expect(followUpInput).toHaveValue(dateInputInTimezone(new Date(), "America/Denver"));

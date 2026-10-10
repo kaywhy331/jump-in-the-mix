@@ -107,26 +107,6 @@ test("no Mega-Mix is suggested when the account already has one", async ({ page 
   await expect(page.getByRole("link", { name: /Mega-Mix/ })).toHaveCount(0);
 });
 
-test("the one-person form fits about two phone screens, and its controls stay whole at 320px and 200% text", async ({ page }) => {
-  await account(page);
-  await page.setViewportSize({ width: 390, height: 844 });
-  await page.goto("/onboarding");
-  await expect(page.getByRole("button", { name: "Start the follow-up", exact: true })).toBeEnabled();
-  // D73: the person's name on the first screen, and the whole form, its start button included, in about two.
-  const layout = await page.evaluate(() => ({ name: document.querySelector("#contactName")!.getBoundingClientRect().top + scrollY, height: document.documentElement.scrollHeight }));
-  expect(layout.name).toBeLessThan(844 - 120);
-  expect(layout.height).toBeLessThanOrEqual(2_050);
-  await page.setViewportSize({ width: 320, height: 844 });
-  await page.addStyleTag({ content: "html { font-size: 200% !important }" });
-  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
-  // The pipeline choices keep their radios whole beside long text.
-  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
-  const whole = await page.locator(".first-win-onboarding .checkbox-card > input:visible").evaluateAll(inputs => inputs.map(input => { const box = input.getBoundingClientRect(); return box.width >= box.height; }));
-  expect(whole.length).toBeGreaterThanOrEqual(2);
-  expect(whole).not.toContain(false);
-  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
-});
-
 test("the preview dates each Beat by the saved rules, as the started follow-up has them", async ({ page }) => {
   await account(page);
   const workspace = await prisma.workspace.findFirstOrThrow({ where: { ownerId: users.at(-1)! } });
@@ -135,7 +115,7 @@ test("the preview dates each Beat by the saved rules, as the started follow-up h
   const day = new Date(Date.now() + 2 * 86_400_000);
   while (day.getUTCDay() !== 6) day.setUTCDate(day.getUTCDate() + 1);
   await page.goto("/onboarding");
-  await page.getByLabel("Follow up on").fill(day.toISOString().slice(0, 10));
+  await page.getByLabel("Follow up on", { exact: true }).fill(day.toISOString().slice(0, 10));
   const preview = page.getByRole("region", { name: "Preview of the first follow-up" });
   await expect(preview.locator(".onboarding-preview-when")).toHaveText(/^Text · Mon, \w{3} \d{1,2} · 11:00\sAM$/);
   const shown = [await preview.locator(".onboarding-preview-when").innerText(), ...await preview.locator(".onboarding-preview-later li").allInnerTexts()];
@@ -170,6 +150,23 @@ test("a starter Mix the owner already has under that name is what the preview sh
   expect(JSON.stringify(jump.renderedSnapshot)).toContain("Hi Riley, it’s Sam. Any questions about the quote?");
 });
 
+test("a saved person is previewed with their stored names, as the message will use them", async ({ page }) => {
+  await account(page);
+  const workspace = await prisma.workspace.findFirstOrThrow({ where: { ownerId: users.at(-1)! } });
+  // An import row named by its company has no first name, and a title stays out of the greeting.
+  await prisma.contact.createMany({ data: [{ workspaceId: workspace.id, displayName: "Acme Supply" }, { workspaceId: workspace.id, displayName: "Dr. Jane Smith", firstName: "Jane", lastName: "Smith" }] });
+  await page.goto("/onboarding");
+  const preview = page.getByRole("region", { name: "Preview of the first follow-up" });
+  await page.getByLabel("Choose a saved person").selectOption({ label: "Dr. Jane Smith" });
+  await expect(preview.getByRole("heading", { level: 2 })).toHaveText("Jane’s first follow-up");
+  await expect(preview.locator(".onboarding-preview-message")).toContainText("Hi Jane,");
+  await expect(page.getByRole("button", { name: "Start Jane’s follow-up", exact: true })).toBeVisible();
+  await page.getByLabel("Choose a saved person").selectOption({ label: "Acme Supply" });
+  await expect(preview.getByRole("heading", { level: 2 })).toHaveText("Their first follow-up");
+  await expect(preview.locator(".onboarding-preview-message mark").first()).toHaveText("there");
+  await expect(page.getByRole("button", { name: "Start the follow-up", exact: true })).toBeVisible();
+});
+
 test("Enter in a field moves to the next one and never starts the follow-up", async ({ page }) => {
   await account(page);
   await page.goto("/onboarding");
@@ -178,10 +175,11 @@ test("Enter in a field moves to the next one and never starts the follow-up", as
   await name.fill("Riley Example");
   await name.press("Enter");
   await expect(page.getByLabel("Mobile phone")).toBeFocused();
-  await page.getByLabel("Business name").fill("Lee Plumbing");
-  await page.getByLabel("Business name").press("Enter");
+  const business = page.getByRole("textbox", { name: "Business name optional", exact: true });
+  await business.fill("Lee Plumbing");
+  await business.press("Enter");
   await expect(page.getByLabel("What’s it about?")).toBeFocused();
-  await page.getByLabel("Follow up on").press("Enter");
+  await page.getByLabel("Follow up on", { exact: true }).press("Enter");
   await page.waitForLoadState("networkidle");
   expect(new URL(page.url()).pathname).toBe("/onboarding");
   const workspace = await prisma.workspace.findFirstOrThrow({ where: { ownerId: users.at(-1)! } });
@@ -220,11 +218,36 @@ test("setup's text buttons are 44px targets, 8px or more apart, on phones", asyn
     expect(apart(skip, pipeline), `${width}: Skip and the pipeline link`).toBeGreaterThanOrEqual(8);
     await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
     expect(Math.round((await box("Start with one person and one follow-up instead")).height)).toBeGreaterThanOrEqual(44);
+    expect(Math.round((await box("Save answers and finish later")).height)).toBeGreaterThanOrEqual(44);
   }
 });
 
 test.describe("on a device whose timezone differs from the account's", () => {
   test.use({ timezoneId: "America/Chicago" });
+
+  test("the one-person form fits about two phone screens, and its controls stay whole at 320px and 200% text", async ({ page }) => {
+    await account(page);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await page.goto("/onboarding");
+    await expect(page.getByRole("button", { name: "Start the follow-up", exact: true })).toBeEnabled();
+    // D73: the person's name on the first screen; the start button within about 2.3 phone screens and the whole page,
+    // Skip and the pipeline link included, within 2.5. A new account starts in UTC, so the form also shows the device's
+    // timezone note, as here.
+    const layout = await page.evaluate(() => ({ name: document.querySelector("#contactName")!.getBoundingClientRect().top + scrollY, start: [...document.querySelectorAll("button")].find(button => button.textContent === "Start the follow-up")!.getBoundingClientRect().bottom + scrollY, height: document.documentElement.scrollHeight }));
+    expect(layout.name).toBeLessThan(844 - 120);
+    expect(layout.start).toBeLessThanOrEqual(1_950);
+    expect(layout.height).toBeLessThanOrEqual(2_100);
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.addStyleTag({ content: "html { font-size: 200% !important }" });
+    // Against the layout's width: on the phone project innerWidth grows to fit wider content.
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)).toBe(false);
+    // The pipeline choices keep their radios whole beside long text.
+    await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
+    const whole = await page.locator(".first-win-onboarding .checkbox-card > input:visible").evaluateAll(inputs => inputs.map(input => { const box = input.getBoundingClientRect(); return box.width >= box.height; }));
+    expect(whole.length).toBeGreaterThanOrEqual(2);
+    expect(whole).not.toContain(false);
+    expect(await page.evaluate(() => document.documentElement.scrollWidth > document.documentElement.clientWidth + 1)).toBe(false);
+  });
 
   test("an untouched form reports no unsaved changes and leaves without asking", async ({ page }) => {
     await account(page);
