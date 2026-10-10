@@ -18,8 +18,9 @@ import { MegaMixSetup } from "@/components/MegaMixSetup";
 import { suggestedMegaMix } from "@/lib/mega-mixes";
 import type { JourneySetupValues } from "@/lib/journey-preferences";
 import { marketingScenario } from "@/lib/marketing-scenarios";
+import { splitContactName } from "@/lib/quick-add-capture";
 
-type ContactOption = { id: string; displayName: string };
+type ContactOption = { id: string; displayName: string; firstName: string | null; lastName: string | null };
 export function OnboardingForm({ userName, industry, timezone, today, locale, scenarioId, contacts, initialSetup, company, smsSignature }: { userName: string; industry: string | null; timezone: string; today: string; locale: string; scenarioId?: string; contacts: ContactOption[]; initialSetup: JourneySetupValues; company?: string; smsSignature?: string }) {
   const router = useRouter();
   // One person and one follow-up is the start, on about two phone screens: the person first, then the follow-up and
@@ -49,8 +50,9 @@ export function OnboardingForm({ userName, industry, timezone, today, locale, sc
   const reasons = onboardingReasons(["business"], businessType, scenario ? scenario.id : null);
   const [choice, setChoice] = useState(scenario ? "suggested" : reasons[0] ?? "");
   const selected = choice === "suggested" && scenario || reasons.includes(choice) ? choice : reasons[0] ?? "";
-  const person = (contactId ? contacts.find(contact => contact.id === contactId)?.displayName ?? "" : personName).trim();
-  const firstName = person.split(/\s+/)[0];
+  // A saved person is previewed with their stored names, as the renderer reads them; a typed name splits as it's saved.
+  const saved = contactId ? contacts.find(contact => contact.id === contactId) : undefined;
+  const { firstName, lastName } = saved ? { firstName: saved.firstName ?? "", lastName: saved.lastName ?? "" } : splitContactName(personName);
   const choices = [...(scenario ? [{ value: "suggested", label: `${scenario.starterTitle}, from the example you tried` }] : []), ...reasons.map(reason => ({ value: reason, label: reason }))];
   const [noting, setNoting] = useState(false);
   const [signing, setSigning] = useState(false);
@@ -105,7 +107,7 @@ export function OnboardingForm({ userName, industry, timezone, today, locale, sc
           <div className="field onboarding-timezone"><TimezonePicker defaultValue={timezone} onChange={setSelectedTimezone} confirmDetection={timezone === "UTC"} label="Your timezone" /></div>
         </div>
       </fieldset>
-      <StarterPreview reason={selected === "suggested" ? scenario?.reason ?? reasons[0] : selected} businessType={businessType} scenarioId={selected === "suggested" ? scenario?.id : undefined} details={{ personName: person, company: businessName, smsSignature: signature, ownerName: userName }} firstDate={followUpDate} locale={locale} onAvailable={onPreviewAvailable}>{signatureControl}</StarterPreview>
+      <StarterPreview reason={selected === "suggested" ? scenario?.reason ?? reasons[0] : selected} businessType={businessType} scenarioId={selected === "suggested" ? scenario?.id : undefined} details={{ firstName, lastName, company: businessName, smsSignature: signature, ownerName: userName }} firstDate={followUpDate} timezone={selectedTimezone} locale={locale} onAvailable={onPreviewAvailable}>{signatureControl}</StarterPreview>
       <FormSubmitButton label={firstName ? `Start ${firstName}’s follow-up` : "Start the follow-up"} pendingLabel="Starting the follow-up…" disabled={!previewReady} describedBy={previewReady ? undefined : "starter-preview-status"} />
       <div className="skip-setup-form onboarding-alternatives"><button className="text-button" type="submit" formAction={skipOnboardingAction} formNoValidate>Skip for now</button><button type="button" className="text-button" onClick={() => setSetupMode("journey")}>Set up a whole pipeline instead</button></div>
     </ActionForm></div>

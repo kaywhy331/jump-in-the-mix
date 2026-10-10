@@ -2,6 +2,8 @@ import { createHash, randomBytes, randomUUID } from "node:crypto";
 import { test, expect, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
 import { MARKETING_SCENARIO_VERSION } from "../src/lib/marketing-scenarios";
+import { formatDate, formatTime } from "../src/lib/format";
+import { starterPlanForReason } from "../src/lib/journey-starts";
 import { axeInPage } from "./axe-in-page";
 
 // Onboarding starts with one person and one follow-up, on about two phone screens (D73); once that follow-up is ready,
@@ -123,6 +125,49 @@ test("the one-person form fits about two phone screens, and its controls stay wh
   expect(whole.length).toBeGreaterThanOrEqual(2);
   expect(whole).not.toContain(false);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
+});
+
+test("the preview dates each Beat by the saved rules, as the started follow-up has them", async ({ page }) => {
+  await account(page);
+  const workspace = await prisma.workspace.findFirstOrThrow({ where: { ownerId: users.at(-1)! } });
+  // Weekends move to Monday, and quiet hours last until 11:00 (PRV-01).
+  await prisma.workspacePreference.create({ data: { workspaceId: workspace.id, weekendScheduling: "NEXT_MONDAY", quietHoursEnd: 11 * 60 } });
+  const day = new Date(Date.now() + 2 * 86_400_000);
+  while (day.getUTCDay() !== 6) day.setUTCDate(day.getUTCDate() + 1);
+  await page.goto("/onboarding");
+  await page.getByLabel("Follow up on").fill(day.toISOString().slice(0, 10));
+  const preview = page.getByRole("region", { name: "Preview of the first follow-up" });
+  await expect(preview.locator(".onboarding-preview-when")).toHaveText(/^Text · Mon, \w{3} \d{1,2} · 11:00\sAM$/);
+  const shown = [await preview.locator(".onboarding-preview-when").innerText(), ...await preview.locator(".onboarding-preview-later li").allInnerTexts()];
+  await page.getByLabel("Name", { exact: true }).fill("Riley Example");
+  await page.getByLabel("Mobile phone").fill("+1 (555) 010-0142");
+  await Promise.all([page.waitForURL(/\/jumps\?.*welcome=1/), page.getByRole("button", { name: "Start Riley’s follow-up" }).click()]);
+  const [jumpDate, jumps] = await Promise.all([prisma.jumpDate.findFirstOrThrow({ where: { workspaceId: workspace.id } }), prisma.jump.findMany({ where: { workspaceId: workspace.id }, orderBy: { scheduledAt: "asc" } })]);
+  const preferences = { locale: "en-US", timeZone: jumpDate.timezone };
+  const plain = (text: string) => text.replace(/\s+/g, " ");
+  expect(shown.map(text => plain(text.split(" · ").slice(-2).join(" · ")))).toEqual(jumps.map(jump => plain(`${formatDate(jump.scheduledAt, preferences, { weekday: "short", year: undefined })} · ${formatTime(jump.scheduledAt, preferences)}`)));
+});
+
+test("a starter Mix the owner already has under that name is what the preview shows and the follow-up uses", async ({ page }) => {
+  await account(page);
+  const workspace = await prisma.workspace.findFirstOrThrow({ where: { ownerId: users.at(-1)! } });
+  const plan = starterPlanForReason("Home services", "Follow up about an estimate or quote")!;
+  const followUp = await prisma.dateType.findFirstOrThrow({ where: { scopeKey: "system", slug: "follow-up" } });
+  // An earlier setup made this starter and the owner edited it; setup reuses it (ensureStarterMix).
+  const template = await prisma.stepTemplate.create({ data: { workspaceId: workspace.id, name: `${plan.title} — Quote check-in`, channel: "SMS" } });
+  const version = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 1, body: "Hi {{First Name}}, it’s Sam. Any questions about the quote?" } });
+  await prisma.mix.create({ data: { workspaceId: workspace.id, name: plan.title, source: "STARTER", status: "ACTIVE", triggerMode: "DATE_TRIGGERED", dateTypeId: followUp.id, steps: { create: [{ stepVersionId: version.id, dayOffset: 0, sendTimeMinutes: 600, sortOrder: 1 }] } } });
+  await page.goto("/onboarding");
+  const preview = page.getByRole("region", { name: "Preview of the first follow-up" });
+  await expect(preview.getByRole("heading", { name: plan.title, exact: true })).toBeVisible();
+  await expect(preview.locator(".onboarding-preview-message")).toHaveText("Hi there, it’s Sam. Any questions about the quote?");
+  await expect(preview.locator(".onboarding-preview-later")).toHaveCount(0);
+  await page.getByLabel("Name", { exact: true }).fill("Riley Example");
+  await page.getByLabel("Mobile phone").fill("+1 (555) 010-0142");
+  await expect(preview.locator(".onboarding-preview-message")).toHaveText("Hi Riley, it’s Sam. Any questions about the quote?");
+  await Promise.all([page.waitForURL(/\/jumps\?.*welcome=1/), page.getByRole("button", { name: "Start Riley’s follow-up" }).click()]);
+  const jump = await prisma.jump.findFirstOrThrow({ where: { workspaceId: workspace.id } });
+  expect(JSON.stringify(jump.renderedSnapshot)).toContain("Hi Riley, it’s Sam. Any questions about the quote?");
 });
 
 test.describe("on a device whose timezone differs from the account's", () => {

@@ -105,6 +105,7 @@
 .onboarding-signature { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
 .onboarding-preview-later { margin: 4px 0 0; padding: 0; list-style: none; color: var(--text-2); font-size: .875rem; }
 .onboarding-preview-later strong { color: var(--text); font-weight: 600; }
+.onboarding-preview-time { white-space: nowrap; }
 
 .password-control { display: flex; gap: 8px; align-items: center; }
 .password-control input { min-width: 0; flex: 1; }

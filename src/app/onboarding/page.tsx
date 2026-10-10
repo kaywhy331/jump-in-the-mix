@@ -29,7 +29,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       </section>
     </main>
   );
-  const [{ timeZone: timezone, locale }, marketingPreference, contacts, scheduling] = await Promise.all([displayPreferencesForUser(user.id), prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId: workspace.id } }), prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true, displayName: true }, orderBy: { createdAt: "desc" }, take: 100 }), prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })]);
+  const [{ timeZone: timezone, locale }, marketingPreference, contacts, scheduling] = await Promise.all([displayPreferencesForUser(user.id), prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId: workspace.id } }), prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true, displayName: true, firstName: true, lastName: true }, orderBy: { createdAt: "desc" }, take: 100 }), prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })]);
   const today = dateInputInTimezone(new Date(), timezone);
   const scenario = storedMarketingScenario(marketingPreference?.scenario, marketingPreference?.version);
   return (
