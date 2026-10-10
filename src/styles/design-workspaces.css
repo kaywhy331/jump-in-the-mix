@@ -433,12 +433,15 @@
   .invite-callout > span:not(.invite-count) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .invite-callout .invite-count { display: inline-grid; position: absolute; top: 4px; right: 8px; min-width: 18px; height: 18px; padding: 0 5px; font-size: .6875rem; }
 }
-.invite-strip { display: flex; align-items: center; gap: 12px; margin-block: 0 16px; padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent); border-radius: 14px; background: var(--brand-soft); color: var(--text); }
+/* Today's one compact invitation prompt, below the due sections (D72). */
+.invite-strip { display: flex; align-items: center; gap: 12px; margin-block: 16px; padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent); border-radius: 14px; background: var(--brand-soft); color: var(--text); }
 .invite-strip > svg { flex: 0 0 22px; width: 22px; height: 22px; color: var(--brand-dark); }
 .invite-strip p { flex: 1; margin: 0; font-size: .875rem; }
 .invite-strip p span { color: var(--text-2); }
 .invite-strip .button { flex-shrink: 0; }
-@media (max-width: 430px) { .invite-strip { flex-wrap: wrap; } .invite-strip p { flex-basis: calc(100% - 34px); } .invite-strip .button { margin-left: 34px; } }
+.invite-strip-dismiss { flex: 0 0 44px; width: 44px; height: 44px; margin: -8px -8px -8px 0; border-color: transparent; background: transparent; color: var(--text-2); }
+.invite-strip-dismiss:hover { background: color-mix(in srgb, var(--brand) 12%, transparent); }
+@media (max-width: 430px) { .invite-strip { flex-wrap: wrap; } .invite-strip p { flex-basis: calc(100% - 34px - 56px); } .invite-strip-dismiss { order: 1; } .invite-strip .button { order: 2; margin-left: 34px; } }
 .more-page .invite-hub-card { border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); }
 .mobile-nav .nav-badge { position: absolute; top: 6px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; font-size: .6875rem; }
 /* Follow-up confirmations inside the open review, each with its Undo (D70). The review sits inside the card's

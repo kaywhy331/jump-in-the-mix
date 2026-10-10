@@ -1,6 +1,7 @@
 import { WorkflowAttention, UpcomingWorkflowCommitments } from "@/components/WorkflowAttention";
 import { readWorkflowAttention } from "@/lib/workflow-attention";
 import { QuietDaySuggestions } from "@/components/QuietDaySuggestions";
+import { InvitationPrompt } from "@/components/InvitationPrompt";
 import { readQuietDays } from "@/lib/quiet-days";
 import { contactMixCounts, noMixTodayLine } from "@/lib/contact-mix-status";
 import { noMixNeededNotice } from "@/lib/contact-mix-status-labels";
@@ -51,7 +52,7 @@ import { followUpPhone, parseTodayCursor, readTodayPage, TODAY_PAGE_SIZE } from 
 import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice, groupDueFollowUps } from "@/lib/today-view";
 import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
 import { sendsByItself } from "@/lib/automatic-delivery";
-import { INVITATIONS_PATH, invitationsLeft } from "@/lib/invitation-allowance";
+import { invitationsLeft } from "@/lib/invitation-allowance";
 import { phoneRegionOrDefault } from "@/lib/phone-number";
 import { matchedMegaMix, megaMixById } from "@/lib/mega-mixes";
 import { storedMarketingScenario } from "@/lib/marketing-scenarios";
@@ -137,6 +138,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
   const { session, workspace, user, impersonation } = await requireWorkspace();
   const invitations = impersonation ? null : await invitationsLeft(user.id, workspace.id);
+  // Today's invitation prompt waits for the owner's first recorded outcome (JITM-09 §2.9, D72).
+  const outcomeRecorded = invitations ? Boolean(await prisma.jump.findFirst({ where: { workspaceId: workspace.id, completionMethod: { startsWith: "outcome:" } }, select: { id: true } })) : false;
   // Prepared personal invitations wait here until the owner sends them from their own email or text app.
   const invitationsToSend = impersonation ? [] : await prisma.jump.findMany({ where: { workspaceId: workspace.id, status: "PENDING", accessInvite: { is: { inviterUserId: user.id, acceptedAt: null, revokedAt: null } } }, select: { id: true, contact: { select: { displayName: true } }, accessInvite: { select: { recipientEmail: true, recipientPhone: true } } }, orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], take: 3 });
   const displayPreferences = await displayPreferencesForUser(user.id);
@@ -545,13 +548,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           return <li key={item.id}><span className="invite-person"><strong>{name}</strong><small>{address}</small></span><Link className="button small primary" href={`/jumps?jump=${item.id}&range=all#jump-${item.id}`} aria-label={`Review and send the invitation to ${name}`}>Review and send</Link></li>;
         })}</ul>
       </section>}
-      {invitations && <section className="invite-strip" aria-label="Personal invitations"><AppIcon name="gift" /><p><strong>You have {invitations} invitation{invitations === 1 ? "" : "s"} to share.</strong></p><Link className="button small primary" href={INVITATIONS_PATH}>Invite people</Link></section>}
 
       {planLimitNotice && <div className="notice warning compact" data-plan-limit-skipped={planLimitNotice.skipped}><p>{planLimitNotice.skipped === 1 ? "1 person wasn’t" : `${planLimitNotice.skipped.toLocaleString("en-US")} people weren’t`} added to a Mix this week. Your {planLimitNotice.plan.name} plan has room for {planLimitNotice.plan.people.toLocaleString("en-US")} people with follow-ups on.</p><p>Once there’s room, resume the Mix from their contact page. <Link href="/account/billing">See plans</Link></p></div>}
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
       {overdueGroups.length > 0 && <LiveSection name="overdue" aria-labelledby="overdue-follow-ups"><div className="section-label urgent"><h2 id="overdue-follow-ups">Overdue</h2><span><LiveCount name="overdue" /></span></div><div className="jump-list">{overdueGroups.map(renderGroup)}</div></LiveSection>}
       {todayGroups.length > 0 && <LiveSection name="today" aria-labelledby="today-follow-ups"><div className="section-label"><h2 id="today-follow-ups">Today</h2><span><LiveCount name="today" /></span></div><div className="jump-list">{todayGroups.map(renderGroup)}</div></LiveSection>}
       <WorkflowAttention attention={workflowAttention} />
+      {invitations && outcomeRecorded && <InvitationPrompt remaining={invitations} />}
       <QuietDaySuggestions locale={displayPreferences.locale} initial={quietDays} canResolve={!impersonation} compact />
       {noMixCount > 0 && <p className="today-no-mix-line"><AppIcon name="people" /><span>{noMixTodayLine(noMixCount)}</span><Link href="/contacts?mix=no-mix">Review</Link></p>}
       <details className="today-queue-group" data-today-section="upcoming" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Next 7 days" : "Upcoming"} <span><LiveCount name="upcoming" /></span></summary><UpcomingWorkflowCommitments attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(followUp => renderCard(followUp))}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
