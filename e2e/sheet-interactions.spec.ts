@@ -99,7 +99,7 @@ test("the contact message shortcut opens automatically and keeps an unscheduled 
   for (const width of [320, 390, 768, 900, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     const actions = page.getByRole("complementary", { name: "Actions for selected contacts" });
-    for (const name of ["Clear", "Select this page", "Tags", "Message", "Export CSV", "Archive 1…"]) {
+    for (const name of ["Clear", "Select this page", "Add to a Mix", "Tags", "Message", "Export CSV", "Archive 1…"]) {
       const action = actions.getByRole("button", { name, exact: true });
       await expect(action).toBeVisible();
       expect(await action.evaluate(element => {
