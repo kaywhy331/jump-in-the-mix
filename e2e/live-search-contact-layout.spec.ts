@@ -85,9 +85,9 @@ test("Contact details use a fixed phone-first layout", async ({ page }, testInfo
   await signIn(page);
   await page.goto("/contacts/demo_contact_sarah");
 
-  // One fixed order: the journey, the history and the notes to remember, with contact details beside them.
+  // One fixed order: the stage, the history and the notes to remember, with contact details beside them.
   const primary = page.locator(".contact-detail-primary");
-  await expect(primary.getByRole("heading", { name: "Journey", exact: true })).toBeVisible();
+  await expect(primary.getByRole("heading", { name: "Stage", exact: true })).toBeVisible();
   await expect(primary.getByRole("heading", { name: "History", exact: true })).toBeVisible();
   await expect(primary.getByText("Notes to remember", { exact: true })).toBeVisible();
   await expect(page.locator(".contact-profile-details").getByRole("heading", { name: "Details", exact: true })).toBeVisible();
