@@ -79,14 +79,14 @@ test("one person's follow-ups due today share one card under Today, led by the e
   await expect(also.locator(".jump-also-due-row")).toHaveText("Also due: Call at 12:02 AM");
   await expect(also.getByRole("heading", { name: "Gwen Group" })).toBeHidden();
   await expect(also.locator(".jump-person-avatar")).toBeHidden();
-  await expect(lead.getByRole("button", { name: "Review message for Gwen Group, 1 day overdue", exact: true })).toBeVisible();
-  await expect(also.getByRole("button", { name: "Review call for Gwen Group at 12:02 AM", exact: true })).toBeVisible();
+  await expect(lead.getByRole("button", { name: "Review message for Gwen Group: Text, 1 day overdue", exact: true })).toBeVisible();
+  await expect(also.getByRole("button", { name: "Review call for Gwen Group: Call at 12:02 AM", exact: true })).toBeVisible();
   await expect(lead.getByRole("button", { name: "Skip this text for Gwen Group", exact: true })).toBeVisible();
   await expect(also.getByRole("button", { name: /^Skip this/ })).toBeHidden();
   // Each control names its own follow-up, so no two on the card share a name (JITM-10 §2.14).
   expect(await group.locator("button:visible").evaluateAll(buttons => buttons.map(button => button.getAttribute("aria-label")))).toEqual([
-    "Skip this text for Gwen Group", "Review message for Gwen Group, 1 day overdue", "More options for Gwen Group, 1 day overdue",
-    "Review call for Gwen Group at 12:02 AM", "More options for Gwen Group at 12:02 AM"
+    "Skip this text for Gwen Group", "Review message for Gwen Group: Text, 1 day overdue", "More options for Gwen Group: Text, 1 day overdue",
+    "Review call for Gwen Group: Call at 12:02 AM", "More options for Gwen Group: Call at 12:02 AM"
   ]);
   // Sections count what they show; the header counts every overdue follow-up, Gwen's text included.
   await expect(sectionCount(page, "overdue")).toHaveText("1");
@@ -125,7 +125,7 @@ test.describe("on a phone", () => {
 
   test("each review names the other follow-up, and recording the earlier one opens the later one's review", async ({ page }) => {
     await page.goto("/jumps"); await ready(page);
-    await card(page, id.gwenText).getByRole("button", { name: "Review message for Gwen Group, 1 day overdue", exact: true }).click();
+    await card(page, id.gwenText).getByRole("button", { name: "Review message for Gwen Group: Text, 1 day overdue", exact: true }).click();
     await expect(openReview(page).locator(".review-also-due")).toHaveText("Also due: Call at 12:02 AM.");
     await record(page, openReview(page).getByRole("button", { name: "Mark sent for Gwen Group", exact: true }), id.gwenText);
     // The call's own review opens next (D70), and with the text recorded it names nothing else.
@@ -139,7 +139,7 @@ test.describe("on a phone", () => {
   test("recording the later one first never opens the earlier one next", async ({ page }) => {
     await prisma.jump.updateMany({ where: { id: { in: [id.oscar, id.pat, id.una] } }, data: { status: "DONE", completedAt: new Date(), completionMethod: "manual" } });
     await page.goto("/jumps"); await ready(page);
-    await card(page, id.gwenCall).getByRole("button", { name: "Review call for Gwen Group at 12:02 AM", exact: true }).click();
+    await card(page, id.gwenCall).getByRole("button", { name: "Review call for Gwen Group: Call at 12:02 AM", exact: true }).click();
     await expect(openReview(page).locator(".review-also-due")).toHaveText("Also due: Text, 1 day overdue.");
     await record(page, openReview(page).getByRole("button", { name: "Mark done for Gwen Group", exact: true }), id.gwenCall);
     // Gwen's text was passed over by recording the call; it leads her card again, with its review closed.
@@ -180,7 +180,7 @@ test("a row says the reason, then the Mix, on one line; a one-time follow-up nev
   expect(await metaParts(card(page, id.una))).toEqual(["Bring the paint samples"]);
   await expect(page.getByText("One-time follow-ups")).toHaveCount(0);
   // The review gives the reason under the Mix name; a one-time follow-up's review leads with its reason.
-  await lead.getByRole("button", { name: "Review message for Gwen Group, 1 day overdue", exact: true }).click();
+  await lead.getByRole("button", { name: "Review message for Gwen Group: Text, 1 day overdue", exact: true }).click();
   await expect(openReview(page).locator(".review-mix-name")).toHaveText("Estimate follow-up");
   await expect(openReview(page).locator(".review-reason")).toHaveText("Referral follow-up");
   await page.keyboard.press("Escape");

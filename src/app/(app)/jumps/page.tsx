@@ -418,8 +418,10 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const reason = followUp.reason?.trim() || null;
     const mixShown = followUp.mix.source !== "ONE_TIME" && (!reason || reason.toLowerCase() !== followUp.mix.name.trim().toLowerCase());
     const otherIds = others.map(other => other.id);
-    // On a person's shared card, each follow-up's Review and options name it by when it's due (JITM-10 §2.14).
-    const dueWhen = otherIds.length === 0 ? "" : followUp.scheduledAt < startToday ? `, ${dueLabel}` : ` at ${formatTime(followUp.scheduledAt, { locale: displayPreferences.locale, timeZone: timezone })}`;
+    // On a person's shared card, each follow-up's Review and options name it as its "Also due" row does, with its reason
+    // when another of the person's follow-ups would read the same (JITM-10 §2.14).
+    const ownLabel = otherIds.length ? alsoDueLabel(followUp) : "";
+    const dueWhen = ownLabel ? `: ${ownLabel}${reason && others.some(other => alsoDueLabel(other) === ownLabel) ? ` (${reason})` : ""}` : "";
     return (
       <JumpWorkflowCard nextScheduledLabel={nextScheduled ? formatDateTime(nextScheduled.scheduledAt, displayPreferences) : undefined} jumpId={followUp.id} contactName={followUp.contact.displayName} revision={followUp.updatedAt.toISOString()} key={followUp.id}>
         <article id={`jump-${followUp.id}`} className={`jump-card jump-task-card ${isNext ? "next-follow-up" : ""} ${isPending ? "" : "jump-task-complete"}`} data-today-due={isPending && followUp.scheduledAt < endToday ? followUp.scheduledAt < startToday ? "overdue" : "today" : undefined}>
