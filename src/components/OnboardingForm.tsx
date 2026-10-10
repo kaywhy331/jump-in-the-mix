@@ -7,7 +7,7 @@ import { ActionForm } from "@/components/ActionForm";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { RequiredFieldsNote } from "@/components/RequiredFieldsNote";
 import { StarterPreview } from "@/components/StarterPreview";
-import { useCallback, useEffect, useRef, useState } from "react";
+import { useCallback, useEffect, useRef, useState, type KeyboardEvent, type ReactNode } from "react";
 import type { FormResult } from "@/lib/form-errors";
 import { LocalDateInput } from "@/components/LocalDateInput";
 import { TimezonePicker } from "@/components/TimezonePicker";
@@ -21,7 +21,17 @@ import { marketingScenario } from "@/lib/marketing-scenarios";
 import { splitContactName } from "@/lib/quick-add-capture";
 
 type ContactOption = { id: string; displayName: string; firstName: string | null; lastName: string | null };
-export function OnboardingForm({ userName, industry, timezone, today, locale, scenarioId, contacts, initialSetup, company, smsSignature }: { userName: string; industry: string | null; timezone: string; today: string; locale: string; scenarioId?: string; contacts: ContactOption[]; initialSetup: JourneySetupValues; company?: string; smsSignature?: string }) {
+
+/** Enter in a field moves to the next one: only Start starts the follow-up (JITM-09 §2.11). */
+function nextFieldOnEnter(event: KeyboardEvent<HTMLElement>) {
+  const field = event.target;
+  if (event.key !== "Enter" || event.defaultPrevented || event.nativeEvent.isComposing || !(field instanceof HTMLInputElement) || ["checkbox", "radio", "button", "submit", "reset", "file"].includes(field.type)) return;
+  event.preventDefault();
+  const fields = [...event.currentTarget.querySelectorAll<HTMLElement>("input:not([type=hidden]), select, textarea, button")].filter(element => !element.matches(":disabled") && element.getClientRects().length);
+  fields[fields.indexOf(field) + 1]?.focus();
+}
+
+export function OnboardingForm({ userName, industry, timezone, today, locale, scenarioId, contacts, initialSetup, company, smsSignature, notices }: { userName: string; industry: string | null; timezone: string; today: string; locale: string; scenarioId?: string; contacts: ContactOption[]; initialSetup: JourneySetupValues; company?: string; smsSignature?: string; notices?: ReactNode }) {
   const router = useRouter();
   // One person and one follow-up is the start, on about two phone screens: the person first, then the follow-up and
   // its preview (JITM-09 §2.20, D73). A complete Mega-Mix or individual Mixes are a link away.
@@ -32,6 +42,15 @@ export function OnboardingForm({ userName, industry, timezone, today, locale, sc
     return completeOnboardingFormAction(previous, data);
   };
   const [setupMode, setSetupMode] = useState<"person" | "journey" | "individual">(initialSetup.preferences.draftSetupMode ?? "person");
+  // Each view has its own heading. Switching views brings it into view and focuses it (JITM-10 §2.12); choosing between
+  // the pipeline's two options doesn't.
+  const heading = useRef<HTMLHeadingElement>(null), switched = useRef(false);
+  const switchTo = (mode: "person" | "journey") => { switched.current = true; setSetupMode(mode); };
+  useEffect(() => {
+    if (!switched.current) return;
+    switched.current = false;
+    heading.current?.scrollIntoView({ block: "start" }); heading.current?.focus({ preventScroll: true });
+  }, [setupMode]);
   const [businessType, setBusinessType] = useState(industry ?? "Home services");
   const [selectedTimezone, setSelectedTimezone] = useState(timezone);
   useEffect(() => { const refresh = () => router.refresh(); window.addEventListener("focus", refresh); return () => window.removeEventListener("focus", refresh); }, [router]);
@@ -57,28 +76,35 @@ export function OnboardingForm({ userName, industry, timezone, today, locale, sc
   const [noting, setNoting] = useState(false);
   const [signing, setSigning] = useState(false);
   const noteRef = useRef<HTMLTextAreaElement>(null), signatureRef = useRef<HTMLInputElement>(null);
+  const oneView = setupMode === "person";
   useEffect(() => { if (noting) noteRef.current?.focus(); }, [noting]);
   useEffect(() => { if (signing) signatureRef.current?.focus(); }, [signing]);
   // The signature shows where it's used, in the preview, and opens for editing there.
   const signatureControl = signing
-    ? <label className="field onboarding-signature"><span>Sign texts as</span><input ref={signatureRef} name="smsSignature" maxLength={160} value={signature} onChange={event => setSignature(event.target.value)} /></label>
+    ? <label className="field onboarding-signature"><span>Sign texts as <small>optional</small></span><input ref={signatureRef} name="smsSignature" maxLength={160} enterKeyHint="next" value={signature} onChange={event => setSignature(event.target.value)} /></label>
     : <p className="onboarding-signature">Texts are signed “{signature.trim() || userName}”. <button type="button" className="text-button" onClick={() => setSigning(true)} aria-label="Change how you sign texts">Change</button><input type="hidden" name="smsSignature" value={signature} /></p>;
   return <>
-    <div hidden={setupMode === "person"}>
-      <fieldset className="onboarding-step-card"><legend>Set up a whole pipeline</legend><div className="form-stack"><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "journey"} onChange={() => setSetupMode("journey")} /><span><strong>A complete Mega-Mix</strong><small>Your whole pipeline on day one: every follow-up from first inquiry to repeat work, written and connected. Just tweak the wording to sound like you.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "individual"} onChange={() => setSetupMode("individual")} /><span><strong>Choose individual Mixes</strong><small>Build your journey one Mix at a time. Preview and customize each one.</small></span></label></div></fieldset>
-      <MegaMixSetup initialId={initialSetup.preferences.draftBlueprintId || suggestedMegaMix(industry, scenarioId)} initialSetup={initialSetup} onboarding={{ userName, company, smsSignature }} individual={setupMode === "individual"} active={setupMode !== "person"} />
-      <button type="button" className="text-button" onClick={() => setSetupMode("person")}>Start with one person and one follow-up instead</button>
+    <h1 ref={heading} tabIndex={-1}>{oneView ? "Set up your first follow-up" : "Set up a whole pipeline"}</h1>
+    {oneView && <p className="onboarding-intro">Add one person and see their first follow-up before anything is sent.</p>}
+    {notices}
+    <div hidden={oneView} className="onboarding-pipeline">
+      <button type="button" className="text-button onboarding-way-back" onClick={() => switchTo("person")}>Start with one person and one follow-up instead</button>
+      <fieldset className="onboarding-step-card"><legend className="sr-only">Set up a whole pipeline</legend><div className="form-stack"><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "journey"} onChange={() => setSetupMode("journey")} /><span><strong>A complete Mega-Mix</strong><small>Your whole pipeline on day one: every follow-up from first inquiry to repeat work, written and connected. Just tweak the wording to sound like you.</small></span></label><label className="checkbox-card"><input type="radio" name="setupMode" checked={setupMode === "individual"} onChange={() => setSetupMode("individual")} /><span><strong>Choose individual Mixes</strong><small>Build your journey one Mix at a time. Preview and customize each one.</small></span></label></div></fieldset>
+      <MegaMixSetup initialId={initialSetup.preferences.draftBlueprintId || suggestedMegaMix(industry, scenarioId)} initialSetup={initialSetup} onboarding={{ userName, company, smsSignature }} individual={setupMode === "individual"} active={!oneView} />
     </div>
-    <div hidden={setupMode !== "person"}><ActionForm action={prepareFirstFollowUp} className="form-stack onboarding-one-person" protect={setupMode === "person"}>
+    <div hidden={!oneView} onKeyDown={nextFieldOnEnter}><ActionForm action={prepareFirstFollowUp} className="form-stack onboarding-one-person" protect={oneView}>
+      {/* The first submit button is the form's default for Enter. This hidden one cancels its own click, so Enter never
+          starts the follow-up from a field, even one the handler above doesn't move from. */}
+      <button type="submit" hidden aria-hidden="true" tabIndex={-1} onClick={event => event.preventDefault()} />
       <RequiredFieldsNote />
       <input type="hidden" name="useCase" value="business" />
       <fieldset className="onboarding-step-card">
         <legend>Who to follow up with</legend>
         {contacts.length > 0 && <label className="field"><span>Choose a saved person</span><select name="contactId" value={contactId} onChange={event => setContactId(event.target.value)}><option value="">Add someone new</option>{contacts.map(contact => <option key={contact.id} value={contact.id}>{contact.displayName}</option>)}</select></label>}
         {!contactId && <div className="form-grid onboarding-pair">
-          <div className="field full"><label htmlFor="contactName">Name</label><input id="contactName" name="contactName" autoComplete="name" placeholder="Jordan Lee" required value={personName} onChange={event => setPersonName(event.target.value)} /></div>
-          <div className="field"><label htmlFor="contactPhone">Mobile phone <small>optional</small></label><input id="contactPhone" name="contactPhone" inputMode="tel" autoComplete="tel" placeholder="(555) 555-0123" aria-describedby="contact-methods-help" /></div>
-          <div className="field"><label htmlFor="contactEmail">Email <small>optional</small></label><input id="contactEmail" name="contactEmail" type="email" inputMode="email" autoComplete="email" aria-describedby="contact-methods-help" /></div>
+          <div className="field full"><label htmlFor="contactName">Name</label><input id="contactName" name="contactName" autoComplete="name" placeholder="Jordan Lee" required enterKeyHint="next" value={personName} onChange={event => setPersonName(event.target.value)} /></div>
+          <div className="field"><label htmlFor="contactPhone">Mobile phone <small>optional</small></label><input id="contactPhone" name="contactPhone" inputMode="tel" autoComplete="tel" placeholder="(555) 555-0123" enterKeyHint="next" aria-describedby="contact-methods-help" /></div>
+          <div className="field"><label htmlFor="contactEmail">Email <small>optional</small></label><input id="contactEmail" name="contactEmail" type="email" inputMode="email" autoComplete="email" enterKeyHint="next" aria-describedby="contact-methods-help" /></div>
           <small id="contact-methods-help">A text needs a mobile number. You can add it later.</small>
         </div>}
         <details className="onboarding-import">
@@ -92,24 +118,26 @@ export function OnboardingForm({ userName, industry, timezone, today, locale, sc
       </fieldset>
       <fieldset className="onboarding-step-card">
         <legend>Your business</legend>
-        <div className="form-grid onboarding-pair onboarding-pair-wide">
+        <div className="form-grid onboarding-pair">
           <label className="field"><span>Type of business</span><select name="businessType" value={businessType} onChange={event => setBusinessType(event.target.value)}>{[...new Set([...BUSINESS_TYPES, ...(industry ? [industry] : [])])].map(type => <option key={type}>{type}</option>)}</select></label>
-          <label className="field"><span>Business name <small>optional</small></span><input name="businessName" autoComplete="organization" placeholder="Lee Plumbing" maxLength={200} value={businessName} onChange={event => setBusinessName(event.target.value)} /></label>
+          <label className="field"><span>Business name <small>optional</small></span><input name="businessName" autoComplete="organization" placeholder="Lee Plumbing" maxLength={200} enterKeyHint="next" value={businessName} onChange={event => setBusinessName(event.target.value)} /></label>
         </div>
       </fieldset>
       <fieldset className="onboarding-step-card">
         <legend>The follow-up</legend>
         <input type="hidden" name="starterChoice" value={selected === "suggested" ? "suggested" : "choose"} />
         <label className="field"><span>What’s it about?</span><select name="reason" value={selected} onChange={event => setChoice(event.target.value)} required>{choices.map(item => <option key={item.value} value={item.value}>{item.label}</option>)}</select></label>
-        {noting ? <label className="field"><span>What should you remember? <small>optional</small></span><textarea ref={noteRef} name="privateContext" maxLength={1000} rows={2} placeholder="What did you discuss, and what timing or promise matters?" /></label> : <button type="button" className="text-button onboarding-note-toggle" onClick={() => setNoting(true)}>Add a private note</button>}
-        <div className="form-grid onboarding-pair onboarding-pair-wide">
+        {/* The note's field is always in the form, so opening it doesn't count as a change (JITM-08 §2.30). */}
+        <label className="field" hidden={!noting}><span>What should you remember? <small>optional</small></span><textarea ref={noteRef} name="privateContext" maxLength={1000} rows={2} placeholder="What did you discuss, and what timing or promise matters?" /></label>
+        {!noting && <button type="button" className="text-button onboarding-note-toggle" onClick={() => setNoting(true)}>Add a private note</button>}
+        <div className="form-grid onboarding-pair">
           <div className="field"><label htmlFor="followUpDate">Follow up on</label><LocalDateInput id="followUpDate" name="followUpDate" initialValue={today} timezone={selectedTimezone} onValueChange={setFollowUpDate} /></div>
           <div className="field onboarding-timezone"><TimezonePicker defaultValue={timezone} onChange={setSelectedTimezone} confirmDetection={timezone === "UTC"} label="Your timezone" /></div>
         </div>
       </fieldset>
       <StarterPreview reason={selected === "suggested" ? scenario?.reason ?? reasons[0] : selected} businessType={businessType} scenarioId={selected === "suggested" ? scenario?.id : undefined} details={{ firstName, lastName, company: businessName, smsSignature: signature, ownerName: userName }} firstDate={followUpDate} timezone={selectedTimezone} locale={locale} onAvailable={onPreviewAvailable}>{signatureControl}</StarterPreview>
       <FormSubmitButton label={firstName ? `Start ${firstName}’s follow-up` : "Start the follow-up"} pendingLabel="Starting the follow-up…" disabled={!previewReady} describedBy={previewReady ? undefined : "starter-preview-status"} />
-      <div className="skip-setup-form onboarding-alternatives"><button className="text-button" type="submit" formAction={skipOnboardingAction} formNoValidate>Skip for now</button><button type="button" className="text-button" onClick={() => setSetupMode("journey")}>Set up a whole pipeline instead</button></div>
+      <div className="skip-setup-form onboarding-alternatives"><button className="text-button" type="submit" formAction={skipOnboardingAction} formNoValidate>Skip for now</button><button type="button" className="text-button" onClick={() => switchTo("journey")}>Set up a whole pipeline instead</button></div>
     </ActionForm></div>
   </>;
 }

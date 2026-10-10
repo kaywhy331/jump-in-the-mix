@@ -80,23 +80,28 @@
 .first-win-onboarding .checkbox-card { align-items: flex-start; }
 /* Long option text wraps (above) instead of squeezing the radio or checkbox into a sliver. */
 .first-win-onboarding .checkbox-card > input { flex: none; }
-/* The one-person start on about two phone screens (D73): pairs of short fields side by side from 360px, compact
-   reasons, the note and the import behind a tap, the signature in the preview, and the pipeline as one link. */
+/* The one-person start on about two phone screens (D73): pairs of short fields side by side above JITM-07's 600px
+   boundary, compact reasons, the note and the import behind a tap, the signature in the preview, and the pipeline as
+   one link. */
 .onboarding-one-person .onboarding-step-card { display: grid; gap: 12px; }
 .onboarding-one-person .form-grid > small { grid-column: 1 / -1; color: var(--text-2); }
 .onboarding-one-person .form-grid.onboarding-pair { align-items: end; }
 .onboarding-one-person .form-grid.onboarding-pair > .field.full { grid-column: 1 / -1; }
-@media (min-width: 360px) { .onboarding-one-person .form-grid.onboarding-pair:not(.onboarding-pair-wide) { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
-@media (min-width: 480px) { .onboarding-one-person .form-grid.onboarding-pair-wide { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
+@media (min-width: 601px) { .onboarding-one-person .form-grid.onboarding-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .first-win-onboarding h1 { font-size: 1.75rem; } .onboarding-one-person .onboarding-step-card { gap: 10px; padding: 12px; } .onboarding-one-person.form-stack { gap: 12px; } }
 /* The timezone on one line: its label, the city and Change. */
 .first-win-onboarding .onboarding-timezone .timezone-current { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 48px; padding-block: 2px; }
 .onboarding-timezone .timezone-current > span { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; min-width: 0; }
-.onboarding-note-toggle, .onboarding-alternatives .text-button, .onboarding-signature .text-button { min-height: 44px; }
+/* Every text button here is a 44px target (JITM-10 §2.1), and "optional" stays at 13px (§2.2). */
+.first-win-onboarding .text-button { min-height: 44px; }
+.onboarding-one-person .field label small, .onboarding-one-person label.field > span small { font-size: .8125rem; }
+.onboarding-way-back { margin-bottom: 8px; }
+/* "Save answers and finish later" is 44px tall too, so its note wraps below it rather than beside a tall line. */
+.first-win-onboarding .skip-setup-form > span { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
 .onboarding-note-toggle { justify-self: start; }
 .onboarding-import > summary { display: flex; align-items: center; min-height: 44px; color: var(--violet-text); font-weight: 700; cursor: pointer; }
 .onboarding-import[open] > summary { margin-bottom: 8px; }
-.onboarding-alternatives { display: flex; flex-wrap: wrap; justify-content: center; gap: 0 16px; margin: 0; }
+.onboarding-alternatives { display: flex; flex-wrap: wrap; justify-content: center; gap: 8px 16px; margin: 0; }
 .onboarding-preview h2 { margin: 0; font-size: 1.125rem; }
 .onboarding-preview h3 { margin: 4px 0 0; font-size: 1rem; }
 .onboarding-preview-when, .onboarding-preview-subject, .onboarding-preview-note, .onboarding-signature { margin: 0; color: var(--text-2); font-size: .875rem; }

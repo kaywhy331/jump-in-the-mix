@@ -170,6 +170,59 @@ test("a starter Mix the owner already has under that name is what the preview sh
   expect(JSON.stringify(jump.renderedSnapshot)).toContain("Hi Riley, it’s Sam. Any questions about the quote?");
 });
 
+test("Enter in a field moves to the next one and never starts the follow-up", async ({ page }) => {
+  await account(page);
+  await page.goto("/onboarding");
+  await expect(page.getByRole("button", { name: "Start the follow-up", exact: true })).toBeEnabled();
+  const name = page.getByLabel("Name", { exact: true });
+  await name.fill("Riley Example");
+  await name.press("Enter");
+  await expect(page.getByLabel("Mobile phone")).toBeFocused();
+  await page.getByLabel("Business name").fill("Lee Plumbing");
+  await page.getByLabel("Business name").press("Enter");
+  await expect(page.getByLabel("What’s it about?")).toBeFocused();
+  await page.getByLabel("Follow up on").press("Enter");
+  await page.waitForLoadState("networkidle");
+  expect(new URL(page.url()).pathname).toBe("/onboarding");
+  const workspace = await prisma.workspace.findFirstOrThrow({ where: { ownerId: users.at(-1)! } });
+  expect(await prisma.mixAssignment.count({ where: { workspaceId: workspace.id } })).toBe(0);
+});
+
+test("switching to the pipeline and back focuses each view's heading in view, with the way back at the top", async ({ page }) => {
+  await account(page);
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/onboarding");
+  await expect(page.getByRole("button", { name: "Start the follow-up", exact: true })).toBeEnabled();
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
+  const pipeline = page.getByRole("heading", { level: 1, name: "Set up a whole pipeline", exact: true });
+  await expect(pipeline).toBeFocused();
+  await expect(pipeline).toBeInViewport();
+  const back = page.getByRole("button", { name: "Start with one person and one follow-up instead", exact: true });
+  await expect(back).toBeInViewport();
+  await back.click();
+  const onePerson = page.getByRole("heading", { level: 1, name: "Set up your first follow-up", exact: true });
+  await expect(onePerson).toBeFocused();
+  await expect(onePerson).toBeInViewport();
+});
+
+test("setup's text buttons are 44px targets, 8px or more apart, on phones", async ({ page }) => {
+  await account(page);
+  // The preview's error state shows Retry.
+  await page.route("**/api/onboarding/preview**", route => route.fulfill({ status: 503, contentType: "application/json", body: "{}" }));
+  const box = async (name: string) => (await page.getByRole("button", { name, exact: true }).boundingBox())!;
+  const apart = (a: { x: number; y: number; width: number; height: number }, b: typeof a) => Math.max(b.x - a.x - a.width, a.x - b.x - b.width, b.y - a.y - a.height, a.y - b.y - b.height);
+  for (const width of [320, 390]) {
+    await page.setViewportSize({ width, height: 844 });
+    await page.goto("/onboarding");
+    await expect(page.getByRole("button", { name: "Retry preview", exact: true })).toBeVisible();
+    const [retry, skip, pipeline] = [await box("Retry preview"), await box("Skip for now"), await box("Set up a whole pipeline instead")];
+    expect([width, retry.height, skip.height, pipeline.height].map(Math.round)).toEqual([width, 44, 44, 44]);
+    expect(apart(skip, pipeline), `${width}: Skip and the pipeline link`).toBeGreaterThanOrEqual(8);
+    await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
+    expect(Math.round((await box("Start with one person and one follow-up instead")).height)).toBeGreaterThanOrEqual(44);
+  }
+});
+
 test.describe("on a device whose timezone differs from the account's", () => {
   test.use({ timezoneId: "America/Chicago" });
 

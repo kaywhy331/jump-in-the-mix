@@ -36,12 +36,12 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
     <main className="onboarding-shell">
       <div className="onboarding-top"><Logo /><span className="setup-step">Setup</span></div>
       <section className="onboarding-card first-win-onboarding">
-        <h1>Set up your first follow-up</h1>
-        <p className="onboarding-intro">Add one person and see their first follow-up before anything is sent.</p>
-        {scenario && <p className="onboarding-intro">You tried the {scenario.label.toLowerCase()} example. We’ll use it to suggest a starting point.</p>}
-        {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
-        <UrlErrorNotice params={params} viewer={session} />
-        <OnboardingForm initialSetup={initialJourneySetup(scheduling, timezone)} company={workspace.profile?.company ?? undefined} smsSignature={workspace.profile?.smsSignature ?? undefined} userName={user.name} industry={workspace.profile?.industry ?? scenario?.businessType ?? null} contacts={contacts} timezone={timezone} today={today} locale={locale} scenarioId={scenario?.id} />
+        {/* The form writes each view's heading; these notices follow it. */}
+        <OnboardingForm initialSetup={initialJourneySetup(scheduling, timezone)} company={workspace.profile?.company ?? undefined} smsSignature={workspace.profile?.smsSignature ?? undefined} userName={user.name} industry={workspace.profile?.industry ?? scenario?.businessType ?? null} contacts={contacts} timezone={timezone} today={today} locale={locale} scenarioId={scenario?.id} notices={<>
+          {scenario && <p className="onboarding-intro">You tried the {scenario.label.toLowerCase()} example. We’ll use it to suggest a starting point.</p>}
+          {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
+          <UrlErrorNotice params={params} viewer={session} />
+        </>} />
       </section>
     </main>
   );
