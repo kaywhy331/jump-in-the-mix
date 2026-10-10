@@ -104,8 +104,15 @@ test("after it, one compact prompt sits between Today's due work and what follow
     const focused = document.activeElement as HTMLElement, due = document.querySelector('[data-today-section="today"]')!, box = focused.getBoundingClientRect();
     return { heading: focused.tagName === "H1", afterDue: Boolean(due.compareDocumentPosition(focused) & Node.DOCUMENT_POSITION_FOLLOWING) && !due.contains(focused), onScreen: box.top >= 0 && box.bottom <= innerHeight };
   })).toEqual({ heading: false, afterDue: true, onScreen: true });
+  // The server sets the dismissal cookie, so Safari keeps it as long as any other (it caps script-written ones at 7 days).
+  await expect.poll(async () => (await context.cookies()).find(cookie => cookie.name === "jitm_invitation_prompt")?.httpOnly).toBe(true);
   // Dismissed, it isn't in the page the server sends, so it can't show before the page's scripts run.
   expect(await promptInServerPage(browser, context)).toBe(false);
+  // Nor does browser Back bring it back.
+  await page.locator(".today-no-mix-line a").click(); await page.waitForURL(/\/contacts/);
+  await page.goBack(); await page.waitForURL(/\/jumps/); await ready(page);
+  await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
+  await expect(prompt(page)).toHaveCount(0);
   await page.reload(); await ready(page);
   await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
   await expect(prompt(page)).toHaveCount(0);
@@ -115,7 +122,7 @@ test("the prompt stays compact and inside Today's column from 320 to 1440px", as
   test.skip(testInfo.project.name !== "desktop-chromium", "Widths are set directly.");
   await recorded(true);
   const problems: string[] = [];
-  for (const width of [320, 390, 768, 834, 900, 901, 1200, 1280, 1440]) {
+  for (const width of [320, 390, 767, 768, 834, 900, 901, 1200, 1280, 1440]) {
     // Load each width afresh: from 768px Today docks the first review, which fills a phone screen if the window shrinks.
     await page.setViewportSize({ width, height: 900 });
     await page.goto("/jumps"); await ready(page); await expect(prompt(page)).toBeVisible();

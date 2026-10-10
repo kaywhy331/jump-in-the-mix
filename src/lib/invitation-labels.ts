@@ -8,8 +8,8 @@ export function invitationsLeftLabel(count: number): string {
 
 /**
  * Today's invitation prompt stays dismissed through a cookie that lists, by browser scope (a non-authorizing hash, never
- * an account id), the accounts that dismissed it in this browser. The server reads it, so a dismissed prompt is never
- * rendered and can't show before the page's scripts run (JITM-09 §2.9, D72).
+ * an account id), the accounts that dismissed it in this browser. The server sets and reads it, so a dismissed prompt
+ * is never rendered and can't show before the page's scripts run (JITM-09 §2.9, D72; invitation-prompt-actions.ts).
  */
 export const INVITATION_PROMPT_COOKIE = "jitm_invitation_prompt";
 
