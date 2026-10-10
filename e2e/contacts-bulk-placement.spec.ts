@@ -102,7 +102,8 @@ async function barReading(page: Page) {
     const buttons = [...element.querySelectorAll<HTMLElement>(".bulk-actions > :not(dialog)")].map(item => item.matches("button") ? item : item.querySelector<HTMLElement>("button")!).filter(Boolean);
     const boxes = buttons.map(button => button.getBoundingClientRect());
     const gaps = boxes.slice(1).map((box, index) => Math.abs(box.top - boxes[index].top) < 1 ? box.left - boxes[index].right : 99);
-    const misfit = buttons.filter(button => { const label = button.querySelector<HTMLElement>(".bulk-action-label"); return !label || !label.getBoundingClientRect().width || label.scrollWidth > button.clientWidth + 0.5; }).map(button => button.getAttribute("aria-label"));
+    const misfit = [...buttons.filter(button => { const label = button.querySelector<HTMLElement>(".bulk-action-label"); return !label || !label.getBoundingClientRect().width || label.scrollWidth > button.clientWidth + 0.5; }).map(button => button.getAttribute("aria-label")),
+      ...[...element.querySelectorAll<HTMLElement>(".bulk-selection-count .text-button")].filter(button => button.scrollWidth > button.clientWidth + 0.5).map(button => button.textContent)];
     const reach = Math.max(...[...element.querySelectorAll<HTMLElement>("button, strong")].filter(item => item.getClientRects().length).map(item => item.getBoundingClientRect().right)) - document.documentElement.clientWidth;
     const slack = element.querySelector(".bulk-actions")!.getBoundingClientRect().height - (Math.max(...boxes.map(box => box.bottom)) - Math.min(...boxes.map(box => box.top)));
     return { first: buttons[0]?.getAttribute("aria-label"), primary: buttons[0]?.classList.contains("primary"), misfit, smallest: Math.min(...boxes.map(box => Math.min(box.width, box.height))), gap: Math.min(...gaps), reach: Math.round(reach), slack: Math.round(slack) };
@@ -117,7 +118,7 @@ test("Add to a Mix comes first in the bar, labeled and spaced at every width and
   const problems: string[] = [];
   for (const text of ["100%", "200%"]) {
     if (text === "200%") await page.addStyleTag({ content: "html { font-size: 200% !important }" });
-    for (const width of text === "100%" ? [320, 390, 768, 900, 1024, 1440] : [320, 390]) {
+    for (const width of text === "100%" ? [320, 390, 768, 900, 901, 1024, 1280, 1440] : [320, 390]) {
       await page.setViewportSize({ width, height: text === "100%" ? 600 : 800 });
       await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
       const reading = await barReading(page);

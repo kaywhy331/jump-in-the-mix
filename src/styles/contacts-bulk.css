@@ -8,7 +8,8 @@
 .contact-select-control input:checked + span { background: var(--brand); border-color: var(--brand); }
 
 .bulk-contact-bar { position: fixed; z-index: 45; left: max(18px, calc(250px + 18px)); right: 18px; bottom: 18px; max-width: 1120px; margin: 0 auto; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 17px; background: color-mix(in srgb, var(--raised) 97%, transparent); box-shadow: var(--shadow); backdrop-filter: blur(14px); }
-.bulk-selection-count { min-width: 132px; display: flex; align-items: baseline; gap: 5px; white-space: nowrap; padding: 0 8px; }
+/* The count keeps its width beside the actions, which wrap instead (901px to about 1250px). */
+.bulk-selection-count { min-width: 132px; display: flex; flex-shrink: 0; align-items: baseline; gap: 5px; white-space: nowrap; padding: 0 8px; }
 .bulk-selection-count strong { font-size: 1.05rem; }
 .bulk-selection-count span { color: var(--muted); font-size: .82rem; }
 .bulk-selection-count .text-button { margin-left: 5px; }
@@ -70,7 +71,7 @@
   .contact-select-row.selection-mode { grid-template-columns: 44px minmax(0, 1fr) auto; }
   .contact-select-row .table-actions { grid-column: auto; }
   .contact-select-control { width: 44px; height: 48px; }
-  .bulk-contact-bar { left: 10px; right: 10px; bottom: 88px; flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; overflow: visible; }
+  .bulk-contact-bar { left: 10px; right: 10px; bottom: calc(88px + env(safe-area-inset-bottom)); flex-direction: column; align-items: stretch; gap: 8px; padding: 8px; overflow: visible; }
   .bulk-selection-count { min-width: 0; flex-wrap: wrap; align-items: center; gap: 8px; padding: 0 4px; white-space: normal; }
   .bulk-selection-count .text-button { min-height: 44px; margin-left: 0; }
   /* On phones the count, then labeled buttons, an icon above a 12px label (JITM-10 §2.1). The columns are at least 3.3rem,
