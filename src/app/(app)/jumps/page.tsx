@@ -323,7 +323,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     return `${name}, ${days} day${days === 1 ? "" : "s"} overdue`;
   };
 
-  const renderCard = (followUp: (typeof ordered)[number], others: typeof needsAttention = []) => {
+  const renderCard = (followUp: (typeof ordered)[number], others: typeof needsAttention = [], later: string[] = []) => {
     const snapshot = (followUp.renderedSnapshot ?? {}) as Snapshot;
     const { email, phone, dialTarget, planChannel, isPending, planTemplate, automaticForPlan, prepared, usable, recommended, active, followUpChannel } = variantsOf(followUp);
     // The small preview never connects separate runs of a reusable Mix. Keep the
@@ -431,7 +431,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}{failure && <span className="jump-delivery-failed" data-delivery-failed={failure.kind}><AppIcon name="alert" />{failure.kind === "uncertain" ? "Send not confirmed" : "Automatic send failed"}</span>}{reason && <span>{reason}</span>}{mixShown && <span>{followUp.mix.name}</span>}</div>
             <p className="jump-snippet">{snippet}</p>
             {otherIds.length > 0 && <p className="jump-also-due-row">Also due: {alsoDueLabel(followUp)}</p>}
-            {otherIds.length > 0 && <WhileAlsoDue jumpIds={otherIds}><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="text-button jump-skip-earlier" ariaLabel={`Skip this ${channelWord(channelName(followUpChannel))} for ${followUp.contact.displayName}`}><AppIcon name="skip" />Skip this {channelWord(channelName(followUpChannel))}</JumpOutcomeButton></WhileAlsoDue>}
+            {later.length > 0 && <WhileAlsoDue jumpIds={later}><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="text-button jump-skip-earlier" ariaLabel={`Skip this ${channelWord(channelName(followUpChannel))} for ${followUp.contact.displayName}`}><AppIcon name="skip" />Skip this {channelWord(channelName(followUpChannel))}</JumpOutcomeButton></WhileAlsoDue>}
           </div>
 
           <div className="jump-primary-action">
@@ -459,12 +459,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   };
 
   // Every due card sits in its person's group, so a follow-up left after the person's other one is recorded keeps its
-  // place, and its open review, when the list refreshes (D71).
+  // place, and its open review, when the list refreshes (D71). A follow-up offers to skip itself only while a later one
+  // is still due, so only those with a later one mount the offer (PERF-01).
   const renderGroup = (group: typeof needsAttention) => {
     const shared = group.length > 1;
     return (
       <div key={group[0].contactId} className={`jump-person-group${shared ? " shared" : ""}${shared && !compact && group[0].id === nextUp?.id ? " next-follow-up-group" : ""}`} data-person-group={shared || undefined} role={shared ? "group" : undefined} aria-label={shared ? group[0].contact.displayName : undefined}>
-        {group.map(followUp => renderCard(followUp, group.filter(other => other.id !== followUp.id)))}
+        {group.map((followUp, index) => renderCard(followUp, group.filter(other => other.id !== followUp.id), group.slice(index + 1).map(other => other.id)))}
       </div>
     );
   };
