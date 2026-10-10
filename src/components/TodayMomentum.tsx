@@ -118,16 +118,23 @@ export function TodayMomentum() {
     // whose choices are open, so opened choices are brought into view once.
     const restingHeights = new WeakMap<HTMLElement, number>();
     const choicesOpen = new WeakSet<HTMLElement>();
-    // Opened outcome choices below the fold come into view, but never so far that the focused control, the tapped "Mark
-    // sent", goes under the header (A11Y-06). The sheet keeps 24px below the last one, as its scroll padding does.
+    // The highest point a scroll may bring a control to: the bottom of the sheet's header while it sticks, or the sheet's
+    // top where the header scrolls with the review, on screens 480px high or less (A11Y-07).
+    const ceilingOf = (sheet: HTMLElement) => {
+      const top = sheet.getBoundingClientRect().top;
+      const header = sheet.querySelector<HTMLElement>(".sheet-header");
+      return header && getComputedStyle(header).position === "sticky" ? Math.max(top, header.getBoundingClientRect().bottom) : top;
+    };
+    // Opened outcome choices come into view, but the outcome button the owner tapped, which stays beside them, never goes
+    // above the ceiling, and comes back below it if it went there (A11Y-06, A11Y-07). It's measured itself, since WebKit
+    // doesn't focus a tapped button (LAY-11). The sheet keeps 24px below the last choice, as its scroll padding does.
     const revealChoices = (sheet: HTMLElement, choices: HTMLElement) => {
       if (!choices.isConnected) return;
-      const edge = sheet.getBoundingClientRect().bottom;
-      const header = sheet.querySelector(".sheet-header")?.getBoundingClientRect().bottom ?? sheet.getBoundingClientRect().top;
-      const focused = document.activeElement instanceof HTMLElement && sheet.contains(document.activeElement) ? document.activeElement.getBoundingClientRect() : null;
-      const overlap = (choices.lastElementChild ?? choices).getBoundingClientRect().bottom + 24 - edge;
-      const by = Math.min(overlap, focused ? focused.top - 6 - header - 8 : overlap);
-      if (by > 0) sheet.scrollBy({ top: by, behavior: "instant" });
+      const tapped = choices.previousElementSibling ?? choices;
+      const keep = tapped.getBoundingClientRect().top - 6 - ceilingOf(sheet) - 8;
+      const overlap = (choices.lastElementChild ?? choices).getBoundingClientRect().bottom + 24 - sheet.getBoundingClientRect().bottom;
+      const by = keep < 0 ? keep : Math.min(Math.max(overlap, 0), keep);
+      if (by) sheet.scrollBy({ top: by, behavior: "instant" });
     };
     const barSizes = new ResizeObserver(() => {
       if (!bar || !panel) return;
@@ -137,20 +144,22 @@ export function TodayMomentum() {
       panel.style.setProperty("--review-header-height", `${Math.ceil(header)}px`);
       // Opening the outcome choices doesn't alone unstick a bar that fits: the half rule uses its height from before they
       // opened. The room rule uses the bar as it is, so choices that would leave the message no room make the bar scroll
-      // with the review. Choices opened in a bar that scrolls with the review are brought into view (LAY-09).
+      // with the review. Choices are brought into view when they open in a bar that scrolls with the review, or when the
+      // bar starts scrolling with the review while they're open (LAY-09, A11Y-07).
       const choices = bar.querySelector<HTMLElement>("[data-outcome-choices]");
       if (!choices) { restingHeights.set(bar, height); choicesOpen.delete(bar); }
       const opening = Boolean(choices) && !choicesOpen.has(bar);
       if (choices) choicesOpen.add(bar);
       const resting = restingHeights.get(bar) ?? height;
       const flows = header + resting > panel.clientHeight / 2 || panel.clientHeight - header - height < (field?.getBoundingClientRect().height ?? 0) + 24;
+      const started = flows && !panel.hasAttribute("data-review-bar-flows");
       panel.toggleAttribute("data-review-bar-flows", flows);
       const sheet = panel;
-      if (choices && opening && flows) requestAnimationFrame(() => revealChoices(sheet, choices));
+      if (choices && flows && (opening || started)) requestAnimationFrame(() => revealChoices(sheet, choices));
     });
     // A browser reveals only a focused text field's caret, so the rest of the field, and the focus ring its bubble draws,
     // can stay under the stuck bar or below the sheet's edge. Bring the whole ring into view above the bar, while its top
-    // stays below the header (JITM-10 §2.11, LAY-06, A11Y-05). Rings sit 6px outside their box.
+    // stays below the ceiling (JITM-10 §2.11, LAY-06, A11Y-05, A11Y-07). Rings sit 6px outside their box.
     const onFocus = (event: FocusEvent) => {
       const target = event.target;
       // A dialog over the review, such as "Discard your edits?", sits in its own layer and is left alone (A11Y-04).
@@ -158,10 +167,9 @@ export function TodayMomentum() {
       requestAnimationFrame(() => {
         if (!bar || !panel || document.activeElement !== target) return;
         const box = (target.closest<HTMLElement>(".speech-bubble--compose") ?? target).getBoundingClientRect();
-        const header = panel.querySelector(".sheet-header")?.getBoundingClientRect().bottom ?? 0;
         const limit = getComputedStyle(bar).position === "sticky" ? bar.getBoundingClientRect().top : panel.getBoundingClientRect().bottom;
         const overlap = box.bottom + 6 + 8 - limit;
-        if (overlap > 0) panel.scrollBy({ top: Math.min(overlap, Math.max(0, box.top - 6 - header - 8)), behavior: "instant" });
+        if (overlap > 0) panel.scrollBy({ top: Math.min(overlap, Math.max(0, box.top - 6 - ceilingOf(panel) - 8)), behavior: "instant" });
       });
     };
     document.addEventListener("focusin", onFocus);

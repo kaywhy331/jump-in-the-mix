@@ -95,8 +95,8 @@ async function mixEndPerson(name: string, phone: string) {
 }
 /**
  * Nothing covers the focused control: the point at its center hits it, and its focus ring, 6px outside the box it's drawn
- * around (the message's bubble, for the message), is inside the sheet and clear of the sheet's stuck header and action
- * bar, unless the control is inside one of them.
+ * around (the message's bubble, for the message), is inside the sheet, top and bottom, and clear of the sheet's stuck
+ * header and action bar, unless the control is inside one of them.
  */
 async function focusedIsUncovered(page: Page) {
   return page.evaluate(() => {
@@ -111,7 +111,7 @@ async function focusedIsUncovered(page: Page) {
     const header = stuck(".sheet-header"), bar = stuck(".review-action-bar");
     const sheet = focused.closest(".sheet-panel")?.getBoundingClientRect();
     const ring = (focused.closest(".speech-bubble--compose") ?? focused).getBoundingClientRect();
-    const clear = (!header || ring.top - 6 >= header.bottom) && (!bar || ring.bottom + 6 <= bar.top) && (!sheet || ring.bottom + 6 <= sheet.bottom);
+    const clear = (!header || ring.top - 6 >= header.bottom) && (!bar || ring.bottom + 6 <= bar.top) && (!sheet || (ring.top - 6 >= sheet.top && ring.bottom + 6 <= sheet.bottom));
     const name = focused.getAttribute("aria-label") ?? focused.textContent?.trim().slice(0, 30) ?? focused.tagName;
     return { name, uncovered: Boolean(hit && (hit === focused || focused.contains(hit))) && clear, at: [Math.round(ring.top - 6), Math.round(ring.bottom + 6), header ? Math.round(header.bottom) : null, bar ? Math.round(bar.top) : null] };
   });
@@ -340,6 +340,21 @@ test.describe("on a phone", () => {
     await expect(save).toBeInViewport();
     expect(await save.evaluate(button => button.getBoundingClientRect().top >= button.closest(".sheet-panel")!.querySelector(".sheet-header")!.getBoundingClientRect().bottom)).toBe(true);
     await untouched(ids[1]);
+  });
+
+  test("on a screen 480px high or less, opening the outcome choices keeps the tapped button in view", async ({ page }) => {
+    await page.setViewportSize({ width: 320, height: 240 });
+    await page.route(url => url.pathname === "/api/mix-workflow", async route => { await new Promise(resolve => setTimeout(resolve, 4_000)); await route.continue(); });
+    await page.goto("/jumps"); await ready(page);
+    await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+    const review = openReview(page);
+    expect(await review.locator(".review-action-bar").evaluate(bar => getComputedStyle(bar).position)).toBe("static");
+    const tapped = review.getByRole("button", { name: `Mark sent for ${names[0]}`, exact: true });
+    await tapped.click();
+    await expect(review.getByRole("group", { name: "Record journey outcome" })).toBeVisible();
+    await expect(tapped).toBeFocused();
+    await expectUncovered(page);
+    await untouched(ids[0]);
   });
 
   test("a slow Undo doesn't pull focus out of the field the owner moved to", async ({ page }) => {
