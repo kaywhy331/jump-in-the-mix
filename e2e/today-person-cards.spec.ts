@@ -120,6 +120,28 @@ test("skipping the earlier one leaves the later one in place as the person's car
   await expect(headline(page)).toHaveText("5 follow-ups need your attention · 2 overdue.");
 });
 
+/** Presses Enter on an outcome control; one pressed before the review has checked the Mix's next step asks to save first. */
+async function pressOutcome(page: Page, button: Locator, jumpId: string) {
+  await button.focus();
+  await page.keyboard.press("Enter");
+  const decisions = page.getByRole("group", { name: "Record journey outcome" });
+  const recorded = page.locator(`[data-follow-up-undo][data-jump-workflow="${jumpId}"]`);
+  await expect(decisions.or(recorded).first()).toBeVisible();
+  if (await decisions.isVisible()) { await decisions.getByRole("button", { name: "Save outcome", exact: true }).focus(); await page.keyboard.press("Enter"); }
+  await expect.poll(() => status(jumpId)).not.toBe("PENDING");
+}
+
+test("a quick action from the list keeps focus: on the person's next row, or else on the Undo", async ({ page }) => {
+  await page.goto("/jumps"); await ready(page);
+  await pressOutcome(page, card(page, id.gwenText).getByRole("button", { name: "Skip this text for Gwen Group", exact: true }), id.gwenText);
+  await expect(card(page, id.gwenCall).getByRole("button", { name: /^Review call for Gwen Group/ })).toBeFocused();
+  // Pat has nothing else due, so Mark done under "•••" leaves focus on its Undo.
+  await card(page, id.pat).getByRole("button", { name: "More options for Pat Single", exact: true }).focus();
+  await page.keyboard.press("Enter");
+  await pressOutcome(page, page.getByRole("button", { name: "Mark done for Pat Single", exact: true }), id.pat);
+  await expect(page.locator(`[data-follow-up-undo][data-jump-workflow="${id.pat}"]`).getByRole("button", { name: "Undo", exact: true })).toBeFocused();
+});
+
 test.describe("on a phone", () => {
   test.beforeEach(({}, testInfo) => { test.skip(testInfo.project.name !== "mobile-chromium", "The phone review is a modal sheet."); });
 
