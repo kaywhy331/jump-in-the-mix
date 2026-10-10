@@ -182,7 +182,7 @@ export function DeviceContactQuickAdd({ onboarding = false, placement = "sheet" 
     );
   }
 
-  if (support === "unsupported" && onboarding) return <p className="muted">Device contact selection isn’t available in this browser. Import a CSV or vCard file, or enter a person below.</p>;
+  if (support === "unsupported" && onboarding) return <p className="muted">Device contact selection isn’t available in this browser. You can import a CSV or vCard file.</p>;
 
   if (support === "unsupported") {
     // Only Chrome on Android opens the address book from a web page. iPhones share contacts instead.
