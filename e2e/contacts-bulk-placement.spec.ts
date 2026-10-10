@@ -73,27 +73,42 @@ test("Mark No Mix needed from the strip lands on that choice in the sheet", asyn
   await expect(page.getByRole("group", { name: /have No Mix/ })).toHaveCount(0);
 });
 
-test("Add to a Mix comes first in the bar, labeled and spaced at every width, and the bar never covers the list", async ({ page }, testInfo) => {
+/** The bar's actions: names, sizes, gaps to the next one on the same row, whether each label fits its button, how far
+ * anything reaches past the layout's width, and any height the actions take beyond their buttons. */
+async function barReading(page: Page) {
+  return bar(page).evaluate(element => {
+    const buttons = [...element.querySelectorAll<HTMLElement>(".bulk-actions > :not(dialog)")].map(item => item.matches("button") ? item : item.querySelector<HTMLElement>("button")!).filter(Boolean);
+    const boxes = buttons.map(button => button.getBoundingClientRect());
+    const gaps = boxes.slice(1).map((box, index) => Math.abs(box.top - boxes[index].top) < 1 ? box.left - boxes[index].right : 99);
+    const misfit = buttons.filter(button => { const label = button.querySelector<HTMLElement>(".bulk-action-label"); return !label || !label.getBoundingClientRect().width || label.scrollWidth > button.clientWidth + 0.5; }).map(button => button.getAttribute("aria-label"));
+    const reach = Math.max(...[...element.querySelectorAll<HTMLElement>("button, strong")].filter(item => item.getClientRects().length).map(item => item.getBoundingClientRect().right)) - document.documentElement.clientWidth;
+    const slack = element.querySelector(".bulk-actions")!.getBoundingClientRect().height - (Math.max(...boxes.map(box => box.bottom)) - Math.min(...boxes.map(box => box.top)));
+    return { first: buttons[0]?.getAttribute("aria-label"), primary: buttons[0]?.classList.contains("primary"), misfit, smallest: Math.min(...boxes.map(box => Math.min(box.width, box.height))), gap: Math.min(...gaps), reach: Math.round(reach), slack: Math.round(slack) };
+  });
+}
+
+test("Add to a Mix comes first in the bar, labeled and spaced at every width and at 200% text, and the page buttons stay clear of it", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Widths are set directly.");
   await page.goto("/contacts"); await ready(page);
   await page.getByRole("button", { name: "Select", exact: true }).click();
   for (const name of names) await page.getByRole("checkbox", { name: `Select ${name}`, exact: true }).check();
   const problems: string[] = [];
-  for (const width of [320, 390, 768, 900, 1024, 1440]) {
-    await page.setViewportSize({ width, height: 600 });
-    const reading = await bar(page).evaluate(element => {
-      const buttons = [...element.querySelectorAll<HTMLElement>(".bulk-actions > :not(dialog)")].map(item => item.matches("button") ? item : item.querySelector<HTMLElement>("button")!).filter(Boolean);
-      const boxes = buttons.map(button => button.getBoundingClientRect());
-      const gaps = boxes.slice(1).map((box, index) => box.top === boxes[index].top ? box.left - boxes[index].right : 99);
-      return { first: buttons[0]?.getAttribute("aria-label"), primary: buttons[0]?.classList.contains("primary"), labels: buttons.every(button => { const label = button.querySelector(".bulk-action-label"); return Boolean(label && label.getBoundingClientRect().width); }), smallest: Math.min(...boxes.map(box => Math.min(box.width, box.height))), gap: Math.min(...gaps) };
-    });
-    if (reading.first !== "Add to a Mix" || !reading.primary || !reading.labels || reading.smallest < 44 || (width <= 900 && reading.gap < 8)) problems.push(`${width}: ${JSON.stringify(reading)}`);
-    // Scrolled to the end, the last person sits above the bar. The page scrolls smoothly, so jump there at once.
-    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
-    const edges = await page.evaluate(() => { const rows = document.querySelectorAll(".contact-row"); return { last: Math.round(rows[rows.length - 1]!.getBoundingClientRect().bottom), bar: Math.round(document.querySelector(".bulk-contact-bar")!.getBoundingClientRect().top) }; });
-    if (edges.last > edges.bar) problems.push(`${width}: the bar covers the last person ${JSON.stringify(edges)}`);
+  for (const text of ["100%", "200%"]) {
+    if (text === "200%") await page.addStyleTag({ content: "html { font-size: 200% !important }" });
+    for (const width of text === "100%" ? [320, 390, 768, 900, 1024, 1440] : [320, 390]) {
+      await page.setViewportSize({ width, height: text === "100%" ? 600 : 800 });
+      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+      const reading = await barReading(page);
+      if (reading.first !== "Add to a Mix" || !reading.primary || reading.misfit.length || reading.smallest < 44 || (width <= 900 && reading.gap < 8) || reading.reach > 0 || reading.slack > 1) problems.push(`${width} ${text}: ${JSON.stringify(reading)}`);
+      // Scrolled to the end, the last person and the page buttons sit above the bar. The page scrolls smoothly, so jump there at once.
+      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
+      const edges = await page.evaluate(() => { const rows = document.querySelectorAll(".contact-row"); return { last: Math.round(rows[rows.length - 1]!.getBoundingClientRect().bottom), pages: Math.round(document.querySelector(".pagination-bar")!.getBoundingClientRect().bottom), bar: Math.round(document.querySelector(".bulk-contact-bar")!.getBoundingClientRect().top) }; });
+      if (edges.last > edges.bar || edges.pages > edges.bar) problems.push(`${width} ${text}: the bar covers the list ${JSON.stringify(edges)}`);
+    }
   }
   expect(problems).toEqual([]);
+  await page.setViewportSize({ width: 1440, height: 900 });
+  await page.addStyleTag({ content: "html { font-size: 100% !important }" });
   for (const theme of ["light", "dark"]) {
     await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
     const audit = await axeInPage(page).include(".bulk-contact-bar").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();

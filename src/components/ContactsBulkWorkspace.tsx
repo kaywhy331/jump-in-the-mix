@@ -149,6 +149,19 @@ export function ContactsBulkWorkspace({
     if (kind === "none") requestAnimationFrame(() => document.querySelector<HTMLElement>(".bulk-no-mix-form button")?.focus());
   }, [openMixSheet]);
   const noMixTotal = mixCounts?.["no-mix"] ?? totalCount ?? contacts.length;
+  // While the bar shows, the directory keeps room below its page buttons, sized to the bar as it is (CON-23, JITM-07 §2.9).
+  const barRef = useRef<HTMLElement>(null);
+  const barShown = selectedIds.length > 0;
+  useEffect(() => {
+    const bar = barRef.current, directory = bar?.closest<HTMLElement>(".contacts-directory");
+    if (!bar || !directory) return;
+    const measure = () => directory.style.setProperty("--bulk-bar-room", `${Math.ceil(window.innerHeight - bar.getBoundingClientRect().top) + 16}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(bar);
+    window.addEventListener("resize", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); directory.style.removeProperty("--bulk-bar-room"); };
+  }, [barShown]);
 
   const exportSelected = () => {
     if (!selectedContacts.length) return;
@@ -258,9 +271,7 @@ export function ContactsBulkWorkspace({
         </article>;
       })}</div> : query || activeFilterCount ? <EmptyState title="No contacts matched" description="Try a different search or filter." actionHref="/contacts" actionLabel="Clear filters" /> : <EmptyState title="Start with one person" description="Make time for your circle. Add a customer, a friend, or someone you would like to know better." actionHref="/contacts/new" actionLabel="Add a person" />}
 
-      {/* Room under the list, so the bar never covers the last rows or the page buttons (CON-23). */}
-      {selectedIds.length > 0 && <div className="bulk-contact-bar-spacer" aria-hidden="true" />}
-      {selectedIds.length > 0 && <aside className="bulk-contact-bar" aria-label="Actions for selected contacts">
+      {barShown && <aside ref={barRef} className="bulk-contact-bar" aria-label="Actions for selected contacts">
         <div className="bulk-selection-count"><strong>{selectedIds.length}</strong><span>selected</span><button type="button" className="text-button" onClick={() => setSelected(new Set())}>Clear</button>{contacts.length > 1 && <button type="button" className="text-button" onClick={toggleAll}>{allSelected ? "Deselect this page" : "Select this page"}</button>}</div>
         <div className="bulk-actions">
           <Sheet initiallyOpen={Boolean(openMixSheet)} trigger={<button className="button primary bulk-action-button" type="button" aria-label="Add to a Mix"><AppIcon name="mixes" /><span className="bulk-action-label"><span className="bulk-action-long">Add to a </span>Mix</span></button>} title={`Add ${selectedIds.length} ${selectedIds.length === 1 ? "person" : "people"} to a Mix`} description="Start a Mix, or confirm that these people don’t need one.">

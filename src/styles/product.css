@@ -216,14 +216,9 @@
 /* Deliberate tablet rows: the bottom-navigation layout has room for context. */
 @media (max-width: 900px) {
   .sticky-form-actions { bottom: calc(84px + env(safe-area-inset-bottom)); }
-  .bulk-contact-bar { flex-wrap: wrap; }
-  .bulk-selection-count { flex: 1 0 100%; min-width: 0; }
   .bulk-selection-count .text-button { display: inline-flex; align-items: center; justify-content: center; }
   .bulk-contact-bar .bulk-selection-count > span { display: inline; }
-  .bulk-contact-bar > .sheet-trigger { flex: 1 1 0; }
   .bulk-contact-bar .bulk-action-button { width: 100%; min-width: 44px; }
-  .bulk-contact-bar > .bulk-action-button { flex: 1 1 0; width: auto; }
-  .page:has(.bulk-contact-bar) { padding-bottom: 120px; }
 }
 @media (min-width: 768px) and (max-width: 900px) {
   .app-main { padding: 20px 24px 110px; }
