@@ -28,8 +28,11 @@ function nextFieldOnEnter(event: KeyboardEvent<HTMLElement>) {
   const field = event.target;
   if (event.key !== "Enter" || event.defaultPrevented || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || !(field instanceof HTMLInputElement) || ["checkbox", "radio", "button", "submit", "reset", "file"].includes(field.type)) return;
   event.preventDefault();
-  const fields = [...event.currentTarget.querySelectorAll<HTMLElement>("input:not([type=hidden]), select, textarea, button")].filter(element => !element.matches(":disabled") && element.getClientRects().length);
-  fields[fields.indexOf(field) + 1]?.focus();
+  // Focus stays put when the next control is disabled, such as Start while the dates update, rather than skipping past it
+  // to "Skip for now".
+  const fields = [...event.currentTarget.querySelectorAll<HTMLElement>("input:not([type=hidden]), select, textarea, button")].filter(element => element.getClientRects().length);
+  const next = fields[fields.indexOf(field) + 1];
+  if (next && !next.matches(":disabled")) next.focus();
 }
 
 export function OnboardingForm({ userName, industry, timezone, today, locale, scenarioId, contacts, initialSetup, company, smsSignature, notices }: { userName: string; industry: string | null; timezone: string; today: string; locale: string; scenarioId?: string; contacts: ContactOption[]; initialSetup: JourneySetupValues; company?: string; smsSignature?: string; notices?: ReactNode }) {

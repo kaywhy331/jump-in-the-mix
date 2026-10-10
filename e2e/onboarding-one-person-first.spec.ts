@@ -189,6 +189,29 @@ test("a failed refresh of the dates disables Start until the preview is back, an
   expect(profile.smsSignature).toBe("Sam at Lee Plumbing");
 });
 
+test("Start waits while new dates load, and Enter in the signature then stays put", async ({ page }) => {
+  await account(page);
+  await page.goto("/onboarding");
+  const start = page.getByRole("button", { name: /^Start .*follow-up$/ });
+  await expect(start).toBeEnabled();
+  await page.getByRole("button", { name: "Change how you sign texts", exact: true }).click();
+  // The next preview answers slowly (TST-03).
+  let release = () => {};
+  await page.route("**/api/onboarding/preview**", async route => { await new Promise<void>(resolve => { release = resolve; }); await route.continue(); });
+  await page.getByLabel("Follow up on", { exact: true }).fill(new Date(Date.now() + 3 * 86_400_000).toISOString().slice(0, 10));
+  await expect(page.getByText("Updating the dates…")).toBeVisible();
+  await expect(start).toBeDisabled();
+  await expect(start).toHaveAttribute("aria-describedby", "starter-preview-status");
+  // Enter in the signature doesn't skip past the disabled Start to "Skip for now" (INT-03).
+  const signature = page.getByLabel("Sign texts as");
+  await signature.focus();
+  await signature.press("Enter");
+  await expect(signature).toBeFocused();
+  release();
+  await expect(start).toBeEnabled();
+  await expect(page.getByText("Updating the dates…")).toHaveCount(0);
+});
+
 test("Enter in a field moves to the next one and never starts the follow-up", async ({ page }) => {
   await account(page);
   await page.goto("/onboarding");
