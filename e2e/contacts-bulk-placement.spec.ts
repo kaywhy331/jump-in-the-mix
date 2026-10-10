@@ -83,6 +83,8 @@ test("lists for choosing one person, for a note or a date, offer no Select and n
     await expect(page.getByRole("link", { name: "Avery Ames", exact: true })).toBeVisible();
     await expect(page.getByRole("button", { name: "Select", exact: true }), intent).toHaveCount(0);
     await expect(page.getByRole("group", { name: /have No Mix/ }), intent).toHaveCount(0);
+    await page.getByRole("button", { name: "More contact tools", exact: true }).click();
+    await expect(page.getByRole("dialog", { name: "Contact tools", exact: true }).getByRole("button", { name: "Select contacts", exact: true }), intent).toHaveCount(0);
   }
 });
 

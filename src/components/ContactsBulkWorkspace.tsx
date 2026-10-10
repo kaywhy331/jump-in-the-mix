@@ -207,7 +207,7 @@ export function ContactsBulkWorkspace({
           <Sheet trigger={<button className="button mobile-header-action" type="button" aria-label="More contact tools"><AppIcon name="more" /></button>} title="Contact tools">
             <nav className="contact-tools-links">
               <Link href="/contacts/new"><AppIcon name="userPlus" />Add a contact</Link>
-              {contacts.length > 0 && <button type="button" className="text-button" onClick={event => { toggleSelectionMode(); event.currentTarget.closest("dialog")?.close(); }}><AppIcon name="check" />{selectionMode ? "Finish selecting contacts" : "Select contacts"}</button>}
+              {contacts.length > 0 && !pickOne && <button type="button" className="text-button" onClick={event => { toggleSelectionMode(); event.currentTarget.closest("dialog")?.close(); }}><AppIcon name="check" />{selectionMode ? "Finish selecting contacts" : "Select contacts"}</button>}
               <Link href="/journey"><AppIcon name="journey" />Customer journey</Link>
               <Link href="/settings/connections"><AppIcon name="link" />Lead connections</Link>
               <Link href="/contacts/import" onClick={saveContactListState}><AppIcon name="import" />Import contacts</Link>
