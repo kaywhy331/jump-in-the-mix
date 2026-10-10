@@ -64,6 +64,28 @@ test("the No Mix strip selects this page and opens Add to a Mix, with no Mix cho
   await expect.poll(() => prisma.mixAssignment.count({ where: { workspaceId, mixId, isActive: true } })).toBe(3);
 });
 
+test("the strip names one person as one, and stays away while choosing people, so a tick never moves the list", async ({ page }) => {
+  await page.goto("/contacts?mix=no-mix&q=Avery"); await ready(page);
+  await expect(page.getByRole("group", { name: "1 person has No Mix." }).getByRole("button", { name: "Add this person to a Mix", exact: true })).toBeVisible();
+  await expect(page.locator(".contact-list-summary > span").first()).toHaveText("1 person");
+  await page.goto("/contacts?mix=no-mix"); await ready(page);
+  await page.getByRole("button", { name: "Select", exact: true }).click();
+  await expect(page.getByRole("group", { name: /have No Mix/ })).toHaveCount(0);
+  const row = page.getByRole("checkbox", { name: "Select Blake Brook", exact: true });
+  const before = (await row.boundingBox())!.y;
+  await page.getByRole("checkbox", { name: "Select Avery Ames", exact: true }).check();
+  expect((await page.getByRole("checkbox", { name: "Select Blake Brook", exact: true }).boundingBox())!.y).toBe(before);
+});
+
+test("lists for choosing one person, for a note or a date, offer no Select and no strip", async ({ page }) => {
+  for (const intent of ["log-note", "important-date"]) {
+    await page.goto(`/contacts?intent=${intent}&mix=no-mix`); await ready(page);
+    await expect(page.getByRole("link", { name: "Avery Ames", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Select", exact: true }), intent).toHaveCount(0);
+    await expect(page.getByRole("group", { name: /have No Mix/ }), intent).toHaveCount(0);
+  }
+});
+
 test("Mark No Mix needed from the strip lands on that choice in the sheet", async ({ page }) => {
   await page.goto("/contacts?mix=no-mix"); await ready(page);
   await page.getByRole("button", { name: "Mark No Mix needed", exact: true }).click();
@@ -113,5 +135,21 @@ test("Add to a Mix comes first in the bar, labeled and spaced at every width and
     await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
     const audit = await axeInPage(page).include(".bulk-contact-bar").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
     expect(audit.violations.map(item => item.id), theme).toEqual([]);
+  }
+});
+
+test("the list's summary keeps its controls 44px tall and 8px apart on narrow phones", async ({ page }, testInfo) => {
+  test.skip(testInfo.project.name !== "desktop-chromium", "Widths are set directly.");
+  await page.goto("/contacts"); await ready(page);
+  for (const width of [320, 360, 375, 390]) {
+    await page.setViewportSize({ width, height: 700 });
+    const reading = await page.locator(".contact-list-summary").evaluate(element => {
+      const items = [...element.querySelectorAll<HTMLElement>("a[href], button, select")].filter(item => item.getClientRects().length).map(item => item.getBoundingClientRect());
+      const apart = (a: DOMRect, b: DOMRect) => Math.max(b.left - a.right, a.left - b.right, b.top - a.bottom, a.top - b.bottom);
+      return { count: items.length, smallest: Math.min(...items.map(box => box.height)), nearest: Math.min(...items.flatMap((a, i) => items.slice(i + 1).map(b => apart(a, b)))) };
+    });
+    expect(reading.count, `${width}`).toBe(3);
+    expect(reading.smallest, `${width}`).toBeGreaterThanOrEqual(44);
+    expect(reading.nearest, `${width}`).toBeGreaterThanOrEqual(8);
   }
 });
