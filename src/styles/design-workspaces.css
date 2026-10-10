@@ -480,7 +480,7 @@
 .jump-person-group > [data-jump-workflow]:not(:last-child) .jump-task-card { border-bottom: 0; }
 .today-page .jump-person-group > [data-jump-workflow]:not(:last-child) .jump-task-card { padding-bottom: 2px; }
 .today-page .jump-person-group > [data-jump-workflow]:not(:first-child) .jump-task-card { grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding-top: 0; }
-.today-page .jump-person-group > [data-jump-workflow]:not(:first-child) .jump-primary-action { flex-direction: row; gap: 4px; }
+.today-page .jump-person-group > [data-jump-workflow]:not(:first-child) .jump-primary-action { flex-direction: row; gap: 8px; }
 .jump-skip-earlier { display: inline-flex; align-items: center; justify-self: start; gap: 6px; min-height: 36px; font-size: .875rem; }
 .jump-skip-earlier svg { width: 16px; height: 16px; }
 .jump-person-group.next-follow-up-group { border-radius: 14px; background: var(--violet-wash); }
