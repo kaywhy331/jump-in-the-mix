@@ -22,10 +22,11 @@ import { splitContactName } from "@/lib/quick-add-capture";
 
 type ContactOption = { id: string; displayName: string; firstName: string | null; lastName: string | null };
 
-/** Enter in a field moves to the next one: only Start starts the follow-up (JITM-09 §2.11). */
+/** Enter in a field moves to the next one: only Start starts the follow-up (JITM-09 §2.11). Enter that confirms IME text
+ * is left alone; Safari sends it after composition ends, with keyCode 229. */
 function nextFieldOnEnter(event: KeyboardEvent<HTMLElement>) {
   const field = event.target;
-  if (event.key !== "Enter" || event.defaultPrevented || event.nativeEvent.isComposing || !(field instanceof HTMLInputElement) || ["checkbox", "radio", "button", "submit", "reset", "file"].includes(field.type)) return;
+  if (event.key !== "Enter" || event.defaultPrevented || event.nativeEvent.isComposing || event.nativeEvent.keyCode === 229 || !(field instanceof HTMLInputElement) || ["checkbox", "radio", "button", "submit", "reset", "file"].includes(field.type)) return;
   event.preventDefault();
   const fields = [...event.currentTarget.querySelectorAll<HTMLElement>("input:not([type=hidden]), select, textarea, button")].filter(element => !element.matches(":disabled") && element.getClientRects().length);
   fields[fields.indexOf(field) + 1]?.focus();
