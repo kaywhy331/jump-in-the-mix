@@ -124,18 +124,33 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
 
   // Fit map is the overview: the whole map, its width and its height, in the map's fixed frame (D75).
   const fitMap = () => { const canvas = canvasRef.current; if (canvas && canvas.clientWidth > 0) { setFitMode(true); setZoom(Math.min(1, Math.max(.15, Math.min((canvas.clientWidth - 20) / layout.width, (canvas.clientHeight - 20) / connectionLayout.height)))); canvas.scrollTo({ left: 0, top: 0 }); } };
-  // The map opens at 100%, scrolled to the selected Mix or else the first numbered one (D75).
+  const latestFit = useRef(fitMap); latestFit.current = fitMap;
+  // The map opens at 100%, scrolled to the selected Mix or else the first numbered one (D75): when it first shows, after
+  // List → Map and after a Mega-Mix change. On a tablet that opens on Details, the map's pane has no width yet, so the
+  // scroll waits until the pane appears (SCR-01).
   const firstMixId = listMixes[0]?.id ?? "";
+  const scrollTo = useRef({ pending: true, id: "", zoom: 1, fit: false, nodes: layout.nodes });
+  scrollTo.current = { ...scrollTo.current, id: selected || firstMixId, zoom, fit: fitMode, nodes: layout.nodes };
   useEffect(() => {
-    const canvas = canvasRef.current, node = layout.nodes.find(item => item.id === (selected || firstMixId));
-    if (list || fitMode || !canvas || !canvas.clientWidth || !node) return;
-    canvas.scrollTo({ left: Math.max(0, node.x * zoom - 24), top: Math.max(0, node.y * zoom - 24) });
-  }, [list, megaMix]); // eslint-disable-line react-hooks/exhaustive-deps
+    const canvas = canvasRef.current; scrollTo.current.pending = true;
+    if (list || !canvas) return;
+    const consume = () => {
+      const { pending, id, zoom: scale, fit, nodes } = scrollTo.current, node = nodes.find(item => item.id === id);
+      if (!pending || !canvas.clientWidth || !node) return;
+      // Fit map is the owner's overview; it replaces the opening scroll rather than waiting behind it.
+      scrollTo.current.pending = false;
+      if (fit) return;
+      canvas.scrollTo({ left: Math.max(0, node.x * scale - 24), top: Math.max(0, node.y * scale - 24) });
+    };
+    consume();
+    const observer = new ResizeObserver(consume); observer.observe(canvas);
+    return () => observer.disconnect();
+  }, [list, megaMix]);
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas || !fitMode) return;
-    const observer = new ResizeObserver(() => fitMap()); observer.observe(canvas);
+    const observer = new ResizeObserver(() => latestFit.current()); observer.observe(canvas);
     return () => observer.disconnect();
-  }, [fitMode, layout.width, list]); // eslint-disable-line react-hooks/exhaustive-deps
+  }, [fitMode, list]);
   useLayoutEffect(() => {
     const graph = graphRef.current; if (!graph) return;
     const origin = graph.getBoundingClientRect(); const next: Record<string, number> = {};
@@ -201,6 +216,15 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
     requestAnimationFrame(() => { const heading = directoryRef.current?.querySelector<HTMLElement>("h2"); heading?.focus({ preventScroll: true }); if (window.innerWidth < 1200) directoryRef.current?.scrollIntoView({ block: "start", behavior: "instant" }); });
   };
   const revealDetails = () => { setPane("details"); requestAnimationFrame(() => { sidebarRef.current?.querySelector<HTMLElement>("h2")?.focus({ preventScroll: true }); if (window.innerWidth < 1700) sidebarRef.current?.scrollIntoView({ block: "start", behavior: "instant" }); }); };
+  // Find a Mix and the setup issues bring their Mix into view; clicks on the map never move it (JITM-09 §2.59, SCR-01).
+  const revealMix = (id: string) => {
+    selectMix(id);
+    requestAnimationFrame(() => {
+      const canvas = canvasRef.current, node = layout.nodes.find(item => item.id === id);
+      if (canvas && node) canvas.scrollTo({ left: Math.max(0, node.x * zoom - 24), top: Math.max(0, node.y * zoom - 24) });
+      else document.querySelector<HTMLElement>(`[data-list-mix="${CSS.escape(id)}"]`)?.scrollIntoView({ block: "nearest" });
+    });
+  };
   // In the list, choosing a Mix shows its details: below 1700px they sit behind the pane switcher or below (LST-01).
   const selectFromList = (id: string) => { if (editing) return; selectMix(id); if (window.innerWidth < 1700) revealDetails(); };
   const selectMix = (id: string) => { if (editing) return; setPathSelection(null); setSelected(id); setSelectedRoute(""); setStartOpen(false); setPeopleFilter(current => ({ ...current, node: id ? `mix:${id}` : "", offset: 0 })); };
@@ -227,7 +251,7 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
       <header className={styles.mapHeader}><div><h2 ref={mapHeadingRef} tabIndex={-1}>Journey map</h2><p>{selectedPerson ? selectedPerson.displayName : megaMix === "none" ? "Mixes that are not in a Mega-Mix" : data.megaMixes.find(item => item.id === megaMix)?.name ?? "Your Mixes and the paths between them"}</p></div>{data.megaMixes.length > 0 && <div className={styles.megaMixSwitch}><label><span>Mega-Mix</span><select aria-label="Show Mega-Mix" value={megaMix} disabled={Boolean(editing)} onChange={event => { const value = event.target.value; setMegaMix(value); setSelected(""); setPathSelection(null); setSelectedRoute(""); setFitMode(false); setZoom(1); const url = new URL(window.location.href); if (value) url.searchParams.set("megaMix", value); else url.searchParams.delete("megaMix"); url.searchParams.delete("mix"); window.history.replaceState(window.history.state, "", url); }}><option value="">All Mixes</option>{data.megaMixes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}<option value="none">Not in a Mega-Mix</option></select></label><Link href={megaMix && megaMix !== "none" ? `/mixes/mega?megaMix=${encodeURIComponent(megaMix)}` : "/mixes/mega"}>Manage</Link></div>}{contactId && <div className={styles.actions}><button type="button" className={`text-button ${styles.detailsShortcut}`} onClick={revealDetails}>View details</button><button type="button" disabled={Boolean(editing)} className="text-button" onClick={clearPerson}>All people</button></div>}</header>
       <WorkflowCountStrip disabled={Boolean(editing)} counts={data.analytics.summary} value={mode === "Progress" && !peopleFilter.node ? peopleFilter.status : ""} onSelect={status => selectPeople("", status)} />
       <div className={styles.toolbar}><div className={styles.tabs} aria-label="Journey view">{(["Setup", "Progress", "Results"] as const).map(value => <button key={value} type="button" aria-pressed={mode === value} disabled={Boolean(editing)} onClick={() => { setMode(value); setSavedView(false); setPathSelection(null); setSelectedRoute(""); }}>{value}</button>)}</div><div className={styles.tabs} role="group" aria-label="Show the journey as">{(["map", "list"] as const).map(value => <button key={value} type="button" aria-pressed={view === value} onClick={() => setView(value)}>{value === "map" ? "Map" : "List"}</button>)}</div><button className="button small" type="button" disabled={Boolean(editing)} aria-expanded={mapOptions} onClick={() => setMapOptions(!mapOptions)} aria-label="Map options">Options</button></div>
-      {mapOptions && <div className={styles.scope}><span>{mixes.length} {mixes.length === 1 ? "Mix" : "Mixes"} · {mixes.reduce((sum, mix) => sum + mix.steps.length, 0)} {mixes.reduce((sum, mix) => sum + mix.steps.length, 0) === 1 ? "Beat" : "Beats"}</span><label><input type="checkbox" checked={archived} onChange={event => setArchived(event.target.checked)} />Include archived</label><label className={styles.find}><span className="sr-only">Find a Mix</span><select aria-label="Find a Mix" value={selected} onChange={event => selectMix(event.target.value)}><option value="">Find a Mix</option>{mixes.map(mix => <option value={mix.id} key={mix.id}>{mix.name}</option>)}</select></label><Link href="/settings/journey">Stage settings</Link></div>}
+      {mapOptions && <div className={styles.scope}><span>{mixes.length} {mixes.length === 1 ? "Mix" : "Mixes"} · {mixes.reduce((sum, mix) => sum + mix.steps.length, 0)} {mixes.reduce((sum, mix) => sum + mix.steps.length, 0) === 1 ? "Beat" : "Beats"}</span><label><input type="checkbox" checked={archived} onChange={event => setArchived(event.target.checked)} />Include archived</label><label className={styles.find}><span className="sr-only">Find a Mix</span><select aria-label="Find a Mix" value={selected} onChange={event => revealMix(event.target.value)}><option value="">Find a Mix</option>{mixes.map(mix => <option value={mix.id} key={mix.id}>{mix.name}</option>)}</select></label><Link href="/settings/journey">Stage settings</Link></div>}
       {mode === "Results" && <div className={styles.metricControls}>
         <label>Measure <select value={measure} onChange={event => setMeasure(event.target.value)}><option value="starts">Connection starts</option><option value="outcomes">Path choices</option></select></label>
         <label>Period <select aria-label="Period" value={resultDays} onChange={event => setResultDays(Number(event.target.value))}><option value={7}>Last 7 days</option><option value={30}>Last 30 days</option><option value={90}>Last 90 days</option></select></label>
@@ -276,7 +300,7 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
         </section>}
         {mode === "Setup" && <>
           {!chosen && <p className="muted-copy">{list ? "Select a Mix. To connect points, choose Map." : zoom < .7 ? "Select a Mix. To connect points, zoom to 70% or more." : "Select a Mix or drag points to connect."}</p>}
-          <details className={styles.diagnostics} open={data.issues.length > 0 || undefined}><summary>{data.issues.length ? `${data.issues.length} setup issues` : "No setup issues"}</summary>{data.issues.length ? <ul>{data.issues.map((issue, index) => <li key={`${issue.node}:${index}`}><button type="button" className="text-button" onClick={() => { const mix = data.mixes.find(item => issue.node === `mix:${item.id}` || item.steps.some(step => issue.node === `beat:${step.id}`)); if (mix) selectMix(mix.id); }}>{issue.message}</button></li>)}</ul> : <p>All configured paths pass the setup checks.</p>}</details>
+          <details className={styles.diagnostics} open={data.issues.length > 0 || undefined}><summary>{data.issues.length ? `${data.issues.length} setup issues` : "No setup issues"}</summary>{data.issues.length ? <ul>{data.issues.map((issue, index) => <li key={`${issue.node}:${index}`}><button type="button" className="text-button" onClick={() => { const mix = data.mixes.find(item => issue.node === `mix:${item.id}` || item.steps.some(step => issue.node === `beat:${step.id}`)); if (mix) revealMix(mix.id); }}>{issue.message}</button></li>)}</ul> : <p>All configured paths pass the setup checks.</p>}</details>
           <WorkflowSimulation key={`${data.revision}:${selected}`} data={data} initialMixId={selected} />
           <button className="button" type="button" onClick={() => selectPeople(selected ? `mix:${selected}` : "")}>View people and progress</button>
         </>}

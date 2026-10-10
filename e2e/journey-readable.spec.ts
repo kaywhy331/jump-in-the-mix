@@ -102,6 +102,17 @@ test("choosing a Mix in the list shows its details, by touch and by keyboard", a
   await expect(firstRow(page)).toHaveAttribute("aria-pressed", "true");
 });
 
+test("a tablet that opens on Details shows the map at 100% on the first numbered Mix", async ({ page }) => {
+  await page.setViewportSize({ width: 834, height: 1000 });
+  await page.goto("/journey?touchpoint=quiet-days", { waitUntil: "networkidle" });
+  const panels = page.getByRole("navigation", { name: "Journey workspace panels" });
+  await expect(panels.getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await panels.getByRole("button", { name: "Map", exact: true }).click();
+  await expect(canvas(page)).toBeVisible();
+  await expect(page.getByRole("button", { name: "Reset zoom to 100%", exact: true })).toHaveText("100%");
+  await expect.poll(() => firstMixInView(page)).toBe("in view");
+});
+
 test("\"Needs attention\" is shown in the danger colour only above 0", async ({ page }) => {
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/journey", { waitUntil: "networkidle" });
