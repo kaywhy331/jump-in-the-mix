@@ -125,6 +125,17 @@ async function settledFocus(page: Page) {
   }
   return focused;
 }
+/** Opened outcome choices are brought into view a frame or two after they appear; this waits until the sheet stops scrolling. */
+async function settledScroll(panel: Locator) {
+  return panel.evaluate(element => new Promise<number>(resolve => {
+    let last = element.scrollTop, still = 0, frames = 0;
+    const step = () => {
+      frames += 1; still = element.scrollTop === last ? still + 1 : 0; last = element.scrollTop;
+      if ((frames >= 4 && still >= 3) || frames > 60) resolve(last); else requestAnimationFrame(step);
+    };
+    requestAnimationFrame(step);
+  }));
+}
 async function expectUncovered(page: Page) {
   const focused = await settledFocus(page);
   expect(focused, `${focused.name} is covered (top, bottom, header bottom, bar top): ${JSON.stringify(focused.at)}`).toMatchObject({ uncovered: true });
@@ -350,8 +361,13 @@ test.describe("on a phone", () => {
     const review = openReview(page);
     expect(await review.locator(".review-action-bar").evaluate(bar => getComputedStyle(bar).position)).toBe("static");
     const tapped = review.getByRole("button", { name: `Mark sent for ${names[0]}`, exact: true });
+    await tapped.scrollIntoViewIfNeeded();
+    const panel = review.locator(".sheet-panel");
+    const before = await settledScroll(panel);
     await tapped.click();
     await expect(review.getByRole("group", { name: "Record journey outcome" })).toBeVisible();
+    // Checked once the choices have been brought into view, which scrolls the sheet (TST-07).
+    expect(await settledScroll(panel)).toBeGreaterThan(before);
     await expect(tapped).toBeFocused();
     await expectUncovered(page);
     await untouched(ids[0]);
