@@ -19,7 +19,6 @@
 .jump-card-heading { flex-wrap: wrap; }
 .jump-card-heading h3 { flex-basis: 100%; white-space: normal; }
 .jump-meta { display: flex; flex-wrap: wrap; gap: 6px; white-space: normal; }
-.jump-meta span + span::before { content: none; }
 .jump-snippet { margin: 8px 0 0; color: var(--muted); }
 .follow-up-review-sheet > .sheet-panel { width: min(540px, 100%); }
 .follow-up-review-sheet > .sheet-panel > .sheet-body { padding-top: 16px; }

@@ -315,12 +315,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     variantsRead.set(followUp.id, read);
     return read;
   };
+  // A follow-up's time today, and how many days overdue it is, as Today's rows say them.
+  const timeToday = (at: Date) => formatTime(at, { locale: displayPreferences.locale, timeZone: timezone });
+  const overdueWords = (at: Date) => { const days = calendarDaysOverdue(at, today, timezone); return `${days} day${days === 1 ? "" : "s"} overdue`; };
   // How a person's card and reviews name their other follow-up due today: the channel it opens on, and when (D71).
   const alsoDueLabel = (followUp: (typeof ordered)[number]) => {
     const name = channelName(variantsOf(followUp).followUpChannel);
-    if (followUp.scheduledAt >= startToday) return `${name} at ${formatTime(followUp.scheduledAt, { locale: displayPreferences.locale, timeZone: timezone })}`;
-    const days = calendarDaysOverdue(followUp.scheduledAt, today, timezone);
-    return `${name}, ${days} day${days === 1 ? "" : "s"} overdue`;
+    return followUp.scheduledAt >= startToday ? `${name} at ${timeToday(followUp.scheduledAt)}` : `${name}, ${overdueWords(followUp.scheduledAt)}`;
   };
 
   const renderCard = (followUp: (typeof ordered)[number], others: typeof needsAttention = [], later: string[] = []) => {
@@ -374,9 +375,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const snippet = content.length > 150 ? `${content.slice(0, 147)}…` : content;
     const isNext = !compact && followUp.id === nextUp?.id;
     const recentEvents = eventsByFollowUp.get(followUp.id) ?? [];
-    const daysOverdue = calendarDaysOverdue(followUp.scheduledAt, today, timezone);
     const dueLabel = !isPending ? `Originally due ${formatDateTime(followUp.scheduledAt, displayPreferences)}` : followUp.scheduledAt < startToday
-      ? `${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue`
+      ? overdueWords(followUp.scheduledAt)
       : followUp.scheduledAt < endToday
         ? `Today · ${formatDateTime(followUp.scheduledAt, displayPreferences)}`
         : formatDateTime(followUp.scheduledAt, displayPreferences);
@@ -427,7 +427,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         <article id={`jump-${followUp.id}`} className={`jump-card jump-task-card ${isNext ? "next-follow-up" : ""} ${isPending ? "" : "jump-task-complete"}`} data-today-due={isPending && followUp.scheduledAt < endToday ? followUp.scheduledAt < startToday ? "overdue" : "today" : undefined}>
           <div className="jump-card-main"><span className="person-initials jump-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>
             {isNext && <span className="eyebrow">Next up</span>}
-            <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span title={dueLabel} className={isPending && followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{isPending && followUp.scheduledAt >= startToday && followUp.scheduledAt < endToday ? formatTime(followUp.scheduledAt, { locale: displayPreferences.locale, timeZone: timezone }) : dueLabel}</span><span className="channel-pill">{channelName(followUpChannel)}</span></div>
+            <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span title={dueLabel} className={isPending && followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{isPending && followUp.scheduledAt >= startToday && followUp.scheduledAt < endToday ? timeToday(followUp.scheduledAt) : dueLabel}</span><span className="channel-pill">{channelName(followUpChannel)}</span></div>
             <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}{failure && <span className="jump-delivery-failed" data-delivery-failed={failure.kind}><AppIcon name="alert" />{failure.kind === "uncertain" ? "Send not confirmed" : "Automatic send failed"}</span>}{reason && <span>{reason}</span>}{mixShown && <span>{followUp.mix.name}</span>}</div>
             <p className="jump-snippet">{snippet}</p>
             {otherIds.length > 0 && <p className="jump-also-due-row">Also due: {alsoDueLabel(followUp)}</p>}
@@ -464,7 +464,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const renderGroup = (group: typeof needsAttention) => {
     const shared = group.length > 1;
     return (
-      <div key={group[0].contactId} className={`jump-person-group${shared ? " shared" : ""}${shared && !compact && group[0].id === nextUp?.id ? " next-follow-up-group" : ""}`} data-person-group={shared || undefined} role={shared ? "group" : undefined} aria-label={shared ? group[0].contact.displayName : undefined}>
+      <div key={group[0].contactId} className={`jump-person-group${shared && !compact && group[0].id === nextUp?.id ? " next-follow-up-group" : ""}`} data-person-group={shared || undefined} role={shared ? "group" : undefined} aria-label={shared ? group[0].contact.displayName : undefined}>
         {group.map((followUp, index) => renderCard(followUp, group.filter(other => other.id !== followUp.id), group.slice(index + 1).map(other => other.id)))}
       </div>
     );
