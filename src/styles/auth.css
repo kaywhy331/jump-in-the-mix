@@ -95,7 +95,7 @@
 /* Every text button here is a 44px target (JITM-10 §2.1), and "optional" stays at 13px (§2.2). */
 .first-win-onboarding .text-button { min-height: 44px; }
 .onboarding-one-person .field label small, .onboarding-one-person label.field > span small { font-size: .8125rem; }
-.onboarding-way-back { margin-bottom: 8px; }
+.onboarding-way-back { margin-bottom: 8px; text-align: start; }
 /* "Save answers and finish later" is 44px tall too, so its note wraps below it rather than beside a tall line. */
 .first-win-onboarding .skip-setup-form > span { display: flex; flex-wrap: wrap; align-items: center; column-gap: 8px; }
 .onboarding-note-toggle { justify-self: start; }
