@@ -4,7 +4,8 @@ import AxeBuilder from "@axe-core/playwright";
 import { prisma } from "../src/lib/prisma";
 
 // Invitation prompts (JITM-09 §2.9, D72): the desktop rail callout, the More row, and one compact Today prompt that
-// appears below Today's due sections once the owner has recorded an outcome, and that the owner can dismiss.
+// appears below Today's due sections once the owner has recorded an outcome, and that the owner can dismiss. There is
+// no More badge and no tablet header gift.
 test.skip(!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? ""), "Disposable local database only");
 test.use({ screenshot: "off", video: "off", trace: "off" });
 test.setTimeout(120_000);
@@ -79,6 +80,20 @@ test("the prompt opens the invitation card", async ({ page }) => {
   await prompt(page).getByRole("link", { name: "Invite people", exact: true }).click();
   await page.waitForURL(/\/mixes\/system/);
   await expect(page.getByRole("heading", { name: "3 of 3 invitations remaining" })).toBeVisible();
+});
+
+test("there is no More badge and no tablet header gift", async ({ page }, testInfo) => {
+  await recorded(true);
+  if (testInfo.project.name === "mobile-chromium") {
+    await page.goto("/jumps"); await ready(page);
+    await expect(page.locator(".mobile-nav").getByRole("link", { name: "More", exact: true })).toBeVisible();
+    await expect(page.locator(".nav-badge, .invite-count:visible")).toHaveCount(0);
+  } else {
+    await page.setViewportSize({ width: 834, height: 1000 });
+    await page.goto("/jumps"); await ready(page);
+    await expect(page.locator(".mobile-app-header")).toBeVisible();
+    await expect(page.locator(".mobile-app-header").getByRole("link", { name: /^Invite people/ })).toHaveCount(0);
+  }
 });
 
 test("the prompts disappear once every invitation is used", async ({ page }) => {
