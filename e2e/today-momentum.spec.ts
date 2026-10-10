@@ -373,30 +373,38 @@ test.describe("on a phone", () => {
     await untouched(ids[0]);
   });
 
-  test("when the bar starts scrolling with the review while its choices are open, the message the owner moved to stays in view", async ({ page }) => {
-    await page.setViewportSize({ width: 320, height: 700 });
-    await page.route(url => url.pathname === "/api/mix-workflow", async route => { await new Promise(resolve => setTimeout(resolve, 8_000)); await route.continue(); });
-    await page.goto("/jumps"); await ready(page);
-    await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
-    const review = openReview(page);
-    const panel = review.locator(".sheet-panel");
-    await expect.poll(() => panel.evaluate(element => (element as HTMLElement).style.getPropertyValue("--review-bar-height"))).not.toBe("");
-    // The choices open in the stuck bar; then the owner goes back to the message.
-    await review.getByRole("button", { name: `Mark sent for ${names[0]}`, exact: true }).click();
-    await expect(review.getByRole("group", { name: "Record journey outcome" })).toBeVisible();
-    await expect(panel).not.toHaveAttribute("data-review-bar-flows", "");
-    const message = review.getByRole("textbox", { name: "Your message" });
-    await message.focus();
-    await expectUncovered(page);
-    // A shorter screen, as when the phone turns, leaves the message no room beside the bar, so the bar starts scrolling
-    // with the review and the choices are brought into view, but not by moving the message under the header (A11Y-08).
-    await page.setViewportSize({ width: 320, height: 540 });
-    await expect(panel).toHaveAttribute("data-review-bar-flows", "");
-    await settledScroll(panel);
-    await expect(message).toBeFocused();
-    await expectUncovered(page);
-    await untouched(ids[0]);
-  });
+  // The bar starts scrolling with the review while its choices are open and focus is elsewhere; a shorter screen stands in
+  // for decision fields arriving, an outcome error or a turned phone. The choices come into view only as far as the
+  // focused control allows: the message under a header that sticks (320×540) or scrolls with the review (640×360)
+  // (A11Y-08), and the review's heading where the header scrolls with the review (A11Y-09).
+  for (const { focus, to } of [
+    { focus: "message", to: { width: 320, height: 540 } },
+    { focus: "message", to: { width: 640, height: 360 } },
+    { focus: "heading", to: { width: 640, height: 360 } }
+  ] as const) {
+    test(`when the bar starts scrolling with the review at ${to.width}×${to.height} with its choices open, the focused ${focus} stays in view`, async ({ page }) => {
+      await page.setViewportSize({ width: 320, height: 700 });
+      await page.route(url => url.pathname === "/api/mix-workflow", async route => { await new Promise(resolve => setTimeout(resolve, 8_000)); await route.continue(); });
+      await page.goto("/jumps"); await ready(page);
+      await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+      const review = openReview(page);
+      const panel = review.locator(".sheet-panel");
+      await expect.poll(() => panel.evaluate(element => (element as HTMLElement).style.getPropertyValue("--review-bar-height"))).not.toBe("");
+      // The choices open in the stuck bar; then focus moves elsewhere in the review.
+      await review.getByRole("button", { name: `Mark sent for ${names[0]}`, exact: true }).click();
+      await expect(review.getByRole("group", { name: "Record journey outcome" })).toBeVisible();
+      await expect(panel).not.toHaveAttribute("data-review-bar-flows", "");
+      const target = focus === "message" ? review.getByRole("textbox", { name: "Your message" }) : review.locator(".sheet-header h2");
+      await target.focus();
+      await expectUncovered(page);
+      await page.setViewportSize(to);
+      await expect(panel).toHaveAttribute("data-review-bar-flows", "");
+      await settledScroll(panel);
+      await expect(target).toBeFocused();
+      await expectUncovered(page);
+      await untouched(ids[0]);
+    });
+  }
 
   test("a slow Undo doesn't pull focus out of the field the owner moved to", async ({ page }) => {
     await page.route(`**/api/jumps/${ids[0]}/outcome`, async route => {
