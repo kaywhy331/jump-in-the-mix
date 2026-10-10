@@ -48,7 +48,7 @@ import { snoozeChoices, type SnoozePreset } from "@/lib/snooze-schedule";
 import { LiveAttentionSummary, LiveCount, LiveSection, TodayLiveCounts, TodayMomentum } from "@/components/TodayMomentum";
 import { AlsoDueNote, WhileAlsoDue } from "@/components/AlsoDue";
 import { followUpPhone, parseTodayCursor, readTodayPage, TODAY_PAGE_SIZE } from "@/lib/today-list";
-import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
+import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice, groupDueFollowUps } from "@/lib/today-view";
 import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
 import { sendsByItself } from "@/lib/automatic-delivery";
 import { INVITATIONS_PATH, invitationsLeft } from "@/lib/invitation-allowance";
@@ -174,7 +174,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   // Observe preparation first so a just-finished job cannot report ready beside an older list.
   const preparation = await readPreparationStatus(workspace.id);
   const exactRecord = params.jump ? await prisma.jump.findFirst({ where: { id: params.jump.slice(0, 120), workspaceId: workspace.id }, select: { id: true, contactId: true, status: true, completionMethod: true, workflowInstanceId: true } }) : null;
-  const [list, totalCount, pendingCount, attentionCount, overdueCount, dueThisWeekCount, completedTodayCount, sharedOverdueCount] = await Promise.all([
+  const [list, totalCount, pendingCount, attentionCount, overdueCount, dueThisWeekCount, completedTodayCount] = await Promise.all([
     readTodayPage(workspace.id, where, params, range === "due" ? {
       pending: { scheduledAt: { lt: endToday } },
       completed: { completedAt: { gte: startToday, lt: endToday } }
@@ -184,9 +184,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     prisma.jump.count({ where: { AND: [where, { status: "PENDING", scheduledAt: { lt: endToday } }] } }),
     prisma.jump.count({ where: { AND: [where, { status: "PENDING", scheduledAt: { lt: startToday } }] } }),
     prisma.jump.count({ where: { workspaceId: workspace.id, status: { in: pendingStatuses }, scheduledAt: { gte: endToday, lt: endWeek } } }),
-    prisma.jump.count({ where: { workspaceId: workspace.id, status: "DONE", completedAt: { gte: startToday, lt: endToday } } }),
-    // Overdue follow-ups whose person also has one due today: they share that person's card under Today (D71).
-    prisma.jump.count({ where: { AND: [where, { status: "PENDING", scheduledAt: { lt: startToday } }, { contact: { jumps: { some: { AND: [where, { status: "PENDING", scheduledAt: { gte: startToday, lt: endToday } }] } } } }] } })
+    prisma.jump.count({ where: { workspaceId: workspace.id, status: "DONE", completedAt: { gte: startToday, lt: endToday } } })
   ]);
   const followUps = list.items;
   const pendingIds = followUps.filter((followUp) => followUp.status === "PENDING").map((followUp) => followUp.id);
@@ -282,13 +280,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const completed = ordered.filter((followUp) => completedStatuses.includes(followUp.status));
   const upcomingCount = pendingCount - attentionCount;
   // One person's follow-ups due by the end of today share one card, led by the earliest; each keeps its own review,
-  // outcome and Undo (D71, JITM-09 §2.82). The card sits where the person's latest follow-up is due, so one that
-  // remains after the earlier is recorded stays in place. The list is in due order, and so is each card.
-  const people = new Map<string, typeof needsAttention>();
-  for (const followUp of needsAttention) people.set(followUp.contactId, [...people.get(followUp.contactId) ?? [], followUp]);
-  const dueGroups = [...people.values()];
-  const overdueGroups = dueGroups.filter(group => group[group.length - 1].scheduledAt < startToday);
-  const todayGroups = dueGroups.filter(group => group[group.length - 1].scheduledAt >= startToday);
+  // outcome and Undo (D71, JITM-09 §2.82). The card sits where the person's latest follow-up on this page is due, and the
+  // sections count the overdue follow-ups it moves under Today from this page too (CNT-01).
+  const { overdue: overdueGroups, today: todayGroups, moved: movedOverdue } = groupDueFollowUps(needsAttention, startToday);
   const nextUp = overdueGroups[0]?.[0] ?? todayGroups[0]?.[0] ?? upcoming[0] ?? null;
   const activeFilterCount = Number(range !== "due") + Number(status !== "all") + Number(channel !== "all") + Number(Boolean(query)) + Number(priority !== "all") + Number(Boolean(params.jump));
 
@@ -501,7 +495,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
-      <TodayLiveCounts readAt={now.toISOString()} overdue={overdueCount} doneCounts={doneCounts} zero={zeroLine} initial={{ overdue: overdueCount - sharedOverdueCount, today: attentionCount - overdueCount + sharedOverdueCount, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
+      <TodayLiveCounts readAt={now.toISOString()} overdue={overdueCount} doneCounts={doneCounts} zero={zeroLine} initial={{ overdue: overdueCount - movedOverdue, today: attentionCount - overdueCount + movedOverdue, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
       <TodayMomentum />
       <JumpReturnTray />
       <MixEndPrompt mixes={startableMixes} todayKey={logicalDateKey(logicalDateInTimezone(new Date(), timezone))} address={JSON.stringify(params)} viewOnly={Boolean(impersonation)} />

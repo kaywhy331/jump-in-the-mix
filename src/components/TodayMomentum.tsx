@@ -1,6 +1,6 @@
 "use client";
 
-import { createContext, useContext, useEffect, useMemo, useState, type ComponentProps, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import type { JumpStateDetail } from "@/components/JumpWorkflow";
 import { setOpenReviewSlot } from "@/components/useConfirmationTarget";
 
@@ -84,7 +84,20 @@ export function LiveCount({ name }: { name: keyof Counts }) {
 /** A list section that leaves once its live count reaches 0, and returns on Undo; its cards stay mounted for Undo. */
 export function LiveSection({ name, children, ...props }: { name: "overdue" | "today" } & Omit<ComponentProps<"section">, "hidden">) {
   const live = useContext(CountsContext);
-  return <section {...props} data-today-section={name} hidden={live?.counts[name] === 0 || undefined}>{children}</section>;
+  const zero = live?.counts[name] === 0;
+  // A section leaves at 0 only once it holds no due card, so a count can never hide one (CNT-01).
+  const section = useRef<HTMLElement>(null);
+  const [holdsDue, setHoldsDue] = useState(false);
+  useLayoutEffect(() => {
+    const element = section.current;
+    if (!zero || !element) return;
+    const check = () => setHoldsDue(Boolean(element.querySelector("[data-today-due]")));
+    check();
+    const observer = new MutationObserver(check);
+    observer.observe(element, { childList: true, subtree: true });
+    return () => observer.disconnect();
+  }, [zero]);
+  return <section ref={section} {...props} data-today-section={name} hidden={(zero && !holdsDue) || undefined}>{children}</section>;
 }
 
 /** The header's summary of what needs attention, kept in step with the live counts. */

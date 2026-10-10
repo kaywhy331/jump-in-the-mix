@@ -71,3 +71,25 @@ export function doneGrowth(view: { range: string; status: string; priority: stri
   const lists = view.priority !== "overdue" && !page.previous && (page.listedCompleted > 0 || page.pending <= page.size || page.pendingOnPage < page.size);
   return { done: lists && (view.status === "all" || view.status === "done"), skipped: lists && (view.status === "all" || view.status === "skipped") };
 }
+
+/**
+ * One person's follow-ups due by the end of today share one card, led by the earliest (D71, JITM-09 §2.82). `due` is the
+ * page's due follow-ups in due order, and each group keeps that order. A group sits where its latest follow-up is due,
+ * so the one left after the earlier is recorded stays in place; `moved` counts the overdue follow-ups that sit under
+ * Today. Both come from the page alone: the sections adjust the view's totals by `moved`, so each section counts at
+ * least the cards it shows, however the list is paged (CNT-01).
+ */
+export function groupDueFollowUps<T extends { contactId: string; scheduledAt: Date }>(due: readonly T[], startToday: Date): { overdue: T[][]; today: T[][]; moved: number } {
+  const people = new Map<string, T[]>();
+  for (const followUp of due) people.set(followUp.contactId, [...(people.get(followUp.contactId) ?? []), followUp]);
+  const overdue: T[][] = [], today: T[][] = [];
+  let moved = 0;
+  for (const group of people.values()) {
+    if (group[group.length - 1].scheduledAt < startToday) overdue.push(group);
+    else {
+      today.push(group);
+      moved += group.filter(followUp => followUp.scheduledAt < startToday).length;
+    }
+  }
+  return { overdue, today, moved };
+}
