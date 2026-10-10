@@ -75,11 +75,31 @@ test("on a phone Journey opens in its list view, with people counts, and the map
   await expect(firstRow(page)).toBeVisible();
   await expect(canvas(page)).toHaveCount(0);
   await expect(showAs(page, "List")).toHaveAttribute("aria-pressed", "true");
-  await expect(firstRow(page)).toContainText("0 here");
+  const people = page.getByRole("button", { name: "Mike follow-up: 0 people here, 0 total", exact: true });
+  await expect(people).toBeVisible();
+  // The count is its own 44px target, 8px below the Mix's heading (JITM-10 §2.1).
+  const [row, count] = [(await firstRow(page).boundingBox())!, (await people.boundingBox())!];
+  expect(count.height).toBeGreaterThanOrEqual(44); expect(count.y - row.y - row.height).toBeGreaterThanOrEqual(8);
   await showAs(page, "Map").click();
   await expect(canvas(page)).toBeVisible();
   await expect(page.getByRole("button", { name: "Reset zoom to 100%", exact: true })).toHaveText("100%");
   await expect.poll(() => firstMixInView(page)).toBe("in view");
+});
+
+test("choosing a Mix in the list shows its details, by touch and by keyboard", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/journey", { waitUntil: "networkidle" });
+  // The view switches by keyboard as well.
+  await showAs(page, "Map").focus(); await page.keyboard.press("Enter");
+  await expect(canvas(page)).toBeVisible();
+  await showAs(page, "List").focus(); await page.keyboard.press("Space");
+  await expect(canvas(page)).toHaveCount(0);
+  await firstRow(page).focus(); await page.keyboard.press("Enter");
+  const details = page.getByRole("complementary", { name: "Journey details" });
+  await expect(details.getByRole("heading", { name: "Details", exact: true })).toBeFocused();
+  await expect(details.getByRole("heading", { name: /Mike follow-up/ })).toBeVisible();
+  await page.getByRole("navigation", { name: "Journey workspace panels" }).getByRole("button", { name: "Map", exact: true }).click();
+  await expect(firstRow(page)).toHaveAttribute("aria-pressed", "true");
 });
 
 test("\"Needs attention\" is shown in the danger colour only above 0", async ({ page }) => {

@@ -250,3 +250,9 @@
 /* Journey's segmented controls meet the 44px floor and keep 8px between segments on touch widths (TGT-01). */
 .tabs button{min-width:44px}
 @media(max-width:900px){.tabs{gap:8px}}
+/* A list row's selection, and its people and attention as on the map's card (LST-01). */
+.listHeading[aria-pressed=true]{color:var(--violet-text)}
+.listPeople{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin:8px 0 6px;font-size:13px}
+.listPeople button{min-height:44px;padding:0;border:0;background:none;color:var(--violet-text);font:inherit;cursor:pointer}
+.listPeople button span{color:var(--text-3)}
+.listPeople [data-status=attention]{color:var(--danger);font-weight:600}
