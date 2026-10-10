@@ -59,6 +59,8 @@ const card = (page: Page, jumpId: string) => page.locator(`[data-jump-workflow="
 const openReview = (page: Page) => page.locator(".follow-up-review-sheet[open]");
 const status = async (jumpId: string) => (await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } })).status;
 const metaParts = (scope: Locator) => scope.locator(".jump-meta > span").allTextContents();
+/** Waits `count` animation frames. Today opens the next review two frames after an outcome, and it mounts a frame later. */
+const frames = (page: Page, count: number) => page.evaluate(left => new Promise<void>(resolve => { const step = (n: number) => n ? requestAnimationFrame(() => step(n - 1)) : resolve(); step(left); }), count);
 /** Records an outcome. A tap before the review has checked the Mix's next step asks to save once it has (existing). */
 async function record(page: Page, button: Locator, jumpId: string) {
   await button.click();
@@ -167,7 +169,7 @@ test.describe("on a phone", () => {
     // Gwen's text was passed over by recording the call; it leads her card again, with its review closed.
     await expect(page.locator(`[data-follow-up-undo][data-jump-workflow="${id.gwenCall}"]`)).toBeVisible();
     await expect(card(page, id.gwenText).getByRole("heading", { name: "Gwen Group" })).toBeVisible();
-    await page.waitForTimeout(500);
+    await frames(page, 6);
     await expect(openReview(page)).toHaveCount(0);
     expect(await status(id.gwenText)).toBe("PENDING");
   });
@@ -177,16 +179,17 @@ test.describe("on a phone", () => {
       await page.setViewportSize({ width, height: 800 });
       await page.goto("/jumps"); await ready(page);
       await expect(page.getByRole("button", { name: "Review message for Oscar Overdue", exact: true })).toBeVisible();
-      // Measured in one step once the list has settled: the card inside the screen, its Review inside the card and
-      // reachable at its right edge.
+      // Measured in one step once the list has settled: the card inside the page, which clips what crosses its sides,
+      // and so inside the screen; its Review inside the card and reachable at its right edge.
       await expect.poll(() => page.evaluate(screen => {
         const card = document.querySelector(".jump-card.next-follow-up");
         const review = card?.querySelector("[data-review-trigger]");
-        if (!card || !review) return "missing";
-        const box = card.getBoundingClientRect(), button = review.getBoundingClientRect();
+        const sheet = document.querySelector(".today-page");
+        if (!card || !review || !sheet) return "missing";
+        const box = card.getBoundingClientRect(), button = review.getBoundingClientRect(), bounds = sheet.getBoundingClientRect();
         if (!box.width) return "not shown";
         const hit = document.elementFromPoint(button.right - 2, button.top + button.height / 2);
-        return box.left >= 0 && box.right <= screen && button.right <= box.right && Boolean(hit && review.contains(hit)) ? "inside" : `outside ${JSON.stringify([box.left, box.right, button.right])}`;
+        return box.left >= bounds.left && box.right <= bounds.right && bounds.left >= 0 && bounds.right <= screen && button.right <= box.right && Boolean(hit && review.contains(hit)) ? "inside" : `outside ${JSON.stringify([bounds.left, box.left, box.right, bounds.right, button.right])}`;
       }, width)).toBe("inside");
     });
   }
