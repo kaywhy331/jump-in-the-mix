@@ -24,8 +24,8 @@ test.afterEach(async () => { await prisma.workspace.deleteMany({ where: { id: wo
 
 test("the Mega-Mix route validates, previews and atomically installs a tailored journey", async ({ page }) => {
   await page.goto("/onboarding");
-  // One person and one follow-up is recommended (JITM-09 §2.20); a complete Mega-Mix stays one choice away.
-  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
+  // One person and one follow-up is the start (JITM-09 §2.20, D73); a complete Mega-Mix is a link away.
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
   await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
   await page.getByLabel("Preferred communication", { exact: true }).selectOption("EMAIL");
   await page.getByLabel("Space between follow-ups", { exact: true }).selectOption("RELAXED");
@@ -63,6 +63,7 @@ test("individual Mix setup adds a selected library Mix without requiring a perso
   await prisma.sharedMix.create({ data: { id: sharedId, title: "My first check-in", description: "A simple conversation to start with.", category: "Current clients", industry: "Other", durationDays: 7, status: "APPROVED", steps: [{ name: "Check in", channel: "EMAIL", dayOffset: 0, sendTimeMinutes: 600, subject: "Checking in", body: "Hi {{First Name}}, how are things going?", script: null, longSms: false, includeOptOut: false }] } });
   await prisma.sharedMixMetadata.create({ data: { sharedMixId: sharedId, version: 1, triggerMode: "MANUAL_START", publishedAt: new Date() } });
   await page.goto("/onboarding");
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
   await page.getByRole("radio", { name: /Choose individual Mixes/ }).check();
   await page.getByLabel("Preferred communication", { exact: true }).selectOption("SMS");
   await page.getByRole("button", { name: "Review my setup", exact: true }).click();
@@ -97,7 +98,8 @@ test("onboarding reflows in both themes and supports keyboard and enlarged text"
       }
     }
   }
-  // The loop above reflows the recommended one-person form; the Mega-Mix route must reflow too.
+  // The loop above reflows the one-person form; the Mega-Mix route must reflow too.
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
   await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
   for (const width of [320, 390, 834, 1440]) {
     await page.setViewportSize({ width, height: 1000 });

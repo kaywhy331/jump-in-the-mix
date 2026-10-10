@@ -66,13 +66,16 @@ test("onboarding can prepare a full journey without adding a contact, while keep
   await page.setViewportSize({ width: 390, height: 844 });
   await prisma.workspaceProfile.update({ where: { workspaceId }, data: { onboardingDone: false } });
   await page.goto("/onboarding");
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
   await page.getByRole("radio", { name: /Choose individual Mixes/ }).check();
   await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("Unfinished person");
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
   await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
   await page.getByRole("radio", { name: /Choose individual Mixes/ }).check();
   await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Unfinished person");
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
   await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
   await page.getByRole("combobox", { name: "Your Mega-Mix", exact: true }).selectOption("photographer");
   await page.getByText("Business name and message signature", { exact: true }).click();

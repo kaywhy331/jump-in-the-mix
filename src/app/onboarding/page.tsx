@@ -6,13 +6,12 @@ import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { OnboardingForm } from "@/components/OnboardingForm";
 import { requireWorkspace } from "@/lib/auth";
-import { timezoneForUser } from "@/lib/display-preferences";
-import { onboardingUses } from "@/lib/onboarding-options";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { storedMarketingScenario } from "@/lib/marketing-scenarios";
 import { initialJourneySetup } from "@/lib/journey-preferences";
 import { prisma } from "@/lib/prisma";
 
-export const metadata: Metadata = { title: "Choose your starting point" };
+export const metadata: Metadata = { title: "Set up your first follow-up" };
 
 export default async function OnboardingPage({ searchParams }: { searchParams: Promise<{ error?: string; at?: string; sig?: string; useCase?: string | string[]; verified?: string; again?: string }> }) {
   const [params, { session, workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
@@ -20,7 +19,7 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
   // finished workspace that opens setup from Help sees where to go instead of adding the same person again.
   if ((workspace.profile?.onboardingStep ?? 0) >= 5 && params.again !== "1") return (
     <main className="onboarding-shell">
-      <div className="onboarding-top"><Logo /><span className="setup-step">Your starting point</span></div>
+      <div className="onboarding-top"><Logo /><span className="setup-step">Setup</span></div>
       <section className="onboarding-card first-win-onboarding">
         <h1>Setup is complete</h1>
         <p className="onboarding-intro">Your follow-ups are on Today, and the Marketplace has more ready-made Mixes to add.</p>
@@ -30,20 +29,19 @@ export default async function OnboardingPage({ searchParams }: { searchParams: P
       </section>
     </main>
   );
-  const [timezone, marketingPreference, contacts, scheduling] = await Promise.all([timezoneForUser(user.id), prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId: workspace.id } }), prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true, displayName: true }, orderBy: { createdAt: "desc" }, take: 100 }), prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })]);
-  const selectedUses = onboardingUses(params.useCase ? [params.useCase].flat() : workspace.profile?.useCases.length ? workspace.profile.useCases : ["business"]);
+  const [{ timeZone: timezone, locale }, marketingPreference, contacts, scheduling] = await Promise.all([displayPreferencesForUser(user.id), prisma.workspaceMarketingPreference.findUnique({ where: { workspaceId: workspace.id } }), prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true, displayName: true }, orderBy: { createdAt: "desc" }, take: 100 }), prisma.workspacePreference.findUnique({ where: { workspaceId: workspace.id } })]);
   const today = dateInputInTimezone(new Date(), timezone);
   const scenario = storedMarketingScenario(marketingPreference?.scenario, marketingPreference?.version);
   return (
     <main className="onboarding-shell">
-      <div className="onboarding-top"><Logo /><span className="setup-step">Your starting point</span></div>
+      <div className="onboarding-top"><Logo /><span className="setup-step">Setup</span></div>
       <section className="onboarding-card first-win-onboarding">
-        <h1>Jump in the mix.</h1>
-        <p className="onboarding-intro">Start with one person and review their first follow-up before you send it.</p>
+        <h1>Set up your first follow-up</h1>
+        <p className="onboarding-intro">Add one person and see their first follow-up before anything is sent.</p>
         {scenario && <p className="onboarding-intro">You tried the {scenario.label.toLowerCase()} example. We’ll use it to suggest a starting point.</p>}
         {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
         <UrlErrorNotice params={params} viewer={session} />
-        <OnboardingForm initialSetup={initialJourneySetup(scheduling, timezone)} company={workspace.profile?.company ?? undefined} smsSignature={workspace.profile?.smsSignature ?? undefined} userName={user.name} industry={workspace.profile?.industry ?? scenario?.businessType ?? null} initialUses={selectedUses} contacts={contacts} timezone={timezone} today={today} scenarioId={scenario?.id} />
+        <OnboardingForm initialSetup={initialJourneySetup(scheduling, timezone)} company={workspace.profile?.company ?? undefined} smsSignature={workspace.profile?.smsSignature ?? undefined} userName={user.name} industry={workspace.profile?.industry ?? scenario?.businessType ?? null} contacts={contacts} timezone={timezone} today={today} locale={locale} scenarioId={scenario?.id} />
       </section>
     </main>
   );

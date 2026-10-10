@@ -4,8 +4,9 @@ import { prisma } from "../src/lib/prisma";
 import { MARKETING_SCENARIO_VERSION } from "../src/lib/marketing-scenarios";
 import { axeInPage } from "./axe-in-page";
 
-// Onboarding recommends one person and one follow-up; once that follow-up is ready, Today offers a complete Mega-Mix
-// as the optional next step, suggested from the business type or the marketing example (JITM-09 §2.20, B-17).
+// Onboarding starts with one person and one follow-up, on about two phone screens (D73); once that follow-up is ready,
+// Today offers a complete Mega-Mix as the optional next step, suggested from the business type or the marketing example
+// (JITM-09 §2.20, B-17).
 test.skip(!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? ""), "Requires isolated local fixtures.");
 test.setTimeout(120_000);
 const users: string[] = [];
@@ -25,19 +26,14 @@ async function account(page: Page, options: { scenario?: string; megaMix?: boole
   await page.request.get("/api/auth/browser-context");
 }
 
-async function prepareFirstFollowUp(page: Page, choices: { businessType?: string; personalOnly?: boolean; email?: boolean } = {}) {
+async function prepareFirstFollowUp(page: Page, choices: { businessType?: string; email?: boolean } = {}) {
   await page.goto("/onboarding");
-  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
-  if (choices.personalOnly) {
-    await page.getByRole("checkbox", { name: /Personal connections/ }).check();
-    await page.getByRole("checkbox", { name: /^Business/ }).uncheck();
-  }
+  await expect(page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true })).toBeVisible();
   if (choices.businessType) await page.getByLabel("Type of business").selectOption(choices.businessType);
   await page.getByLabel("Name", { exact: true }).fill("Riley Example");
-  await page.getByLabel("Phone recommended").fill("+1 (555) 010-0142");
-  if (choices.email) await page.getByLabel("Email recommended").fill("riley@example.test");
-  await page.getByRole("checkbox", { name: /I reviewed this Mix/ }).check();
-  await Promise.all([page.waitForURL(/\/jumps\?.*welcome=1/), page.getByRole("button", { name: "Prepare my first follow-up" }).click()]);
+  await page.getByLabel("Mobile phone").fill("+1 (555) 010-0142");
+  if (choices.email) await page.getByRole("textbox", { name: "Email optional" }).fill("riley@example.test");
+  await Promise.all([page.waitForURL(/\/jumps\?.*welcome=1/), page.getByRole("button", { name: "Start Riley’s follow-up" }).click()]);
   await expect(page.getByText("Your first follow-up for Riley Example is ready.")).toBeVisible();
 }
 
@@ -67,22 +63,23 @@ test("a realtor's first follow-up comes from the Real estate journey, starting w
   await account(page);
   await page.goto("/onboarding");
   await page.getByLabel("Type of business").selectOption("Real estate");
-  const reason = page.getByLabel("What do you want to do?");
+  const reason = page.getByLabel("What’s it about?");
   await expect(reason).toHaveValue("Reply to a new buyer lead");
   await expect(reason.locator("option")).toHaveText(["Reply to a new buyer lead", "Reply to a new seller lead", "Follow up after a showing or open house", "Check back when they asked you to",
     "Update a client who is under contract", "Check in after closing", "Keep in touch with a past client"]);
-  const preview = page.getByRole("region", { name: "Review your starter" });
+  const preview = page.getByRole("region", { name: "Preview of the first follow-up" });
   await expect(preview.getByRole("heading", { name: "New buyer lead", exact: true })).toBeVisible();
   await expect(preview).toContainText("thanks for reaching out about buying a home");
-  await expect(preview).toContainText("1 day after");
+  // Real dates on the 12-hour clock, the first on the chosen day (D73, D79).
+  await expect(preview.locator(".onboarding-preview-when")).toHaveText(/^(Text|Email|Call) · \w{3}, \w{3} \d{1,2} · \d{1,2}:\d{2}\s(AM|PM)$/);
+  await expect(preview.locator(".onboarding-preview-later li").first()).toHaveText(/^Then (text|email|call): .+ · \w{3}, \w{3} \d{1,2} · \d{1,2}:\d{2}\s(AM|PM)$/);
   await expect(preview).not.toContainText(/estimate/i);
   await reason.selectOption("Follow up after a showing or open house");
   await expect(preview.getByRole("heading", { name: "After a showing or open house", exact: true })).toBeVisible();
   await reason.selectOption("Reply to a new buyer lead");
   await page.getByLabel("Name", { exact: true }).fill("Riley Example");
-  await page.getByLabel("Phone recommended").fill("+1 (555) 010-0142");
-  await page.getByRole("checkbox", { name: /I reviewed this Mix/ }).check();
-  await Promise.all([page.waitForURL(/\/jumps\?.*welcome=1/), page.getByRole("button", { name: "Prepare my first follow-up" }).click()]);
+  await page.getByLabel("Mobile phone").fill("+1 (555) 010-0142");
+  await Promise.all([page.waitForURL(/\/jumps\?.*welcome=1/), page.getByRole("button", { name: "Start Riley’s follow-up" }).click()]);
   await expect(page.getByText("Your first follow-up for Riley Example is ready.")).toBeVisible();
   const workspace = await prisma.workspace.findFirstOrThrow({ where: { ownerId: users.at(-1)! } });
   const first = await prisma.jump.findFirstOrThrow({ where: { workspaceId: workspace.id }, orderBy: { scheduledAt: "asc" } });
@@ -102,24 +99,29 @@ test("a business type that several Mega-Mixes share opens the list to choose fro
   await expect(page.getByRole("link", { name: "Choose a complete Mega-Mix", exact: true })).toHaveAttribute("href", "/templates/journeys");
 });
 
-test("no Mega-Mix is suggested for personal use or when the account already has one", async ({ page }) => {
-  await account(page);
-  await prepareFirstFollowUp(page, { personalOnly: true });
-  await expect(page.getByRole("link", { name: /Mega-Mix/ })).toHaveCount(0);
+test("no Mega-Mix is suggested when the account already has one", async ({ page }) => {
   await account(page, { megaMix: true });
   await prepareFirstFollowUp(page, { businessType: "Real estate" });
   await expect(page.getByRole("link", { name: /Mega-Mix/ })).toHaveCount(0);
 });
 
-test("the recommended form keeps its controls whole and fits 320px at 200% text", async ({ page }) => {
+test("the one-person form fits about two phone screens, and its controls stay whole at 320px and 200% text", async ({ page }) => {
   await account(page);
-  await page.setViewportSize({ width: 320, height: 844 });
+  await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/onboarding");
-  await expect(page.getByRole("checkbox", { name: /I reviewed this Mix/ })).toBeEnabled();
-  const whole = await page.locator(".first-win-onboarding .checkbox-card > input:visible").evaluateAll(inputs => inputs.map(input => { const box = input.getBoundingClientRect(); return box.width >= box.height; }));
-  expect(whole.length).toBeGreaterThan(3);
-  expect(whole).not.toContain(false);
+  await expect(page.getByRole("button", { name: "Start the follow-up", exact: true })).toBeEnabled();
+  // D73: the person's name on the first screen, and the whole form, its start button included, in about two.
+  const layout = await page.evaluate(() => ({ name: document.querySelector("#contactName")!.getBoundingClientRect().top + scrollY, height: document.documentElement.scrollHeight }));
+  expect(layout.name).toBeLessThan(844 - 120);
+  expect(layout.height).toBeLessThanOrEqual(2_050);
+  await page.setViewportSize({ width: 320, height: 844 });
   await page.addStyleTag({ content: "html { font-size: 200% !important }" });
+  expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
+  // The pipeline choices keep their radios whole beside long text.
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
+  const whole = await page.locator(".first-win-onboarding .checkbox-card > input:visible").evaluateAll(inputs => inputs.map(input => { const box = input.getBoundingClientRect(); return box.width >= box.height; }));
+  expect(whole.length).toBeGreaterThanOrEqual(2);
+  expect(whole).not.toContain(false);
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
 });
 
@@ -129,10 +131,10 @@ test.describe("on a device whose timezone differs from the account's", () => {
   test("an untouched form reports no unsaved changes and leaves without asking", async ({ page }) => {
     await account(page);
     await page.goto("/onboarding");
-    const form = page.locator("form").filter({ has: page.getByRole("button", { name: "Prepare my first follow-up" }) });
+    const form = page.locator("form").filter({ has: page.getByRole("button", { name: /^Start .*follow-up$/ }) });
     // The page fills in the device timezone, today's date there and the starter preview; none of that is the person's change.
     await expect(form.getByText("Detected from this device for follow-up times.", { exact: false })).toBeVisible();
-    await expect(form.getByRole("checkbox", { name: /I reviewed this Mix/ })).toBeEnabled();
+    await expect(form.getByRole("button", { name: /^Start .*follow-up$/ })).toBeEnabled();
     const unsaved = form.getByRole("status").filter({ hasText: "Unsaved changes" });
     await expect(unsaved).toHaveCount(0);
     const prompts: string[] = [];

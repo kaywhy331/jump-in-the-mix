@@ -36,7 +36,7 @@ async function settle(instanceId: string, now = new Date()) {
 
 test("setup alternatives and finish later retain answers without installing unrelated work", async ({ page }) => {
   await page.goto("/onboarding");
-  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
   await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
   await page.getByLabel("Preferred communication", { exact: true }).selectOption("EMAIL");
   await page.getByLabel("Space between follow-ups", { exact: true }).selectOption("RELAXED");
@@ -50,8 +50,10 @@ test("setup alternatives and finish later retain answers without installing unre
   await expect(page.getByRole("radio", { name: /A complete Mega-Mix/ })).toBeChecked();
   await expect(page.getByLabel("Preferred communication", { exact: true })).toHaveValue("EMAIL");
   await expect(page.getByLabel("Space between follow-ups", { exact: true })).toHaveValue("RELAXED");
-  await page.getByRole("radio", { name: /^One person and one follow-up/ }).check();
-  await expect(page.getByRole("checkbox", { name: /Personal connections/ })).toBeVisible();
+  await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toBeVisible();
+  // Business wording only: setup no longer asks about personal use (D85).
+  await expect(page.getByRole("checkbox", { name: /Personal connections/ })).toHaveCount(0);
 });
 
 test("chosen work survives adding a person and exposes its actual first follow-up", async ({ page }) => {
@@ -153,7 +155,7 @@ test("changed screens retain themes, keyboard access and narrow-screen reflow", 
   await processWorkflowInstance(workspaceId, id, new Date(), { requestId: randomUUID(), businessUpdate: { kind: "WAIT", runId: workflowState(current.state).runs[0].id, scope: "SOURCE_MIX_REMAINDER", source: "CUSTOMER", dueAt: new Date(Date.now() + 1000).toISOString(), timezone: "UTC" } });
   const report: unknown[] = [];
   async function waitForScreen(name: string) {
-    const heading = page.getByRole("heading", { level: 1, name: name === "onboarding" ? "Jump in the mix." : name === "today" ? "Today" : name === "journey" ? "Journey" : "Help", exact: true, includeHidden: name === "journey" });
+    const heading = page.getByRole("heading", { level: 1, name: name === "onboarding" ? "Set up your first follow-up" : name === "today" ? "Today" : name === "journey" ? "Journey" : "Help", exact: true, includeHidden: name === "journey" });
     if (name === "journey") await expect(heading).toBeAttached();
     else await expect(heading).toBeVisible();
     await page.waitForLoadState("networkidle");
