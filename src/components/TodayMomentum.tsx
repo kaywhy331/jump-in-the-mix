@@ -128,12 +128,19 @@ export function TodayMomentum() {
     // Opened outcome choices come into view, but the outcome button the owner tapped, which stays beside them, never goes
     // above the ceiling, and comes back below it if it went there (A11Y-06, A11Y-07). It's measured itself, since WebKit
     // doesn't focus a tapped button (LAY-11). The sheet keeps 24px below the last choice, as its scroll padding does.
+    // Focus may have moved on by then, such as back into the message before the bar starts scrolling with the review. The
+    // focused control's ring stays in view as well, its top below the ceiling first (A11Y-08); the header doesn't scroll.
     const revealChoices = (sheet: HTMLElement, choices: HTMLElement) => {
       if (!choices.isConnected) return;
       const tapped = choices.previousElementSibling ?? choices;
-      const keep = tapped.getBoundingClientRect().top - 6 - ceilingOf(sheet) - 8;
-      const overlap = (choices.lastElementChild ?? choices).getBoundingClientRect().bottom + 24 - sheet.getBoundingClientRect().bottom;
-      const by = keep < 0 ? keep : Math.min(Math.max(overlap, 0), keep);
+      const ceiling = ceilingOf(sheet), bottom = sheet.getBoundingClientRect().bottom;
+      const active = document.activeElement;
+      const focused = active instanceof HTMLElement && active !== sheet && sheet.contains(active) && !active.closest(".sheet-header") && active.closest("dialog") === sheet.closest("dialog") ? active : null;
+      const ring = focused ? (focused.closest<HTMLElement>(".speech-bubble--compose") ?? focused).getBoundingClientRect() : null;
+      const keep = Math.min(tapped.getBoundingClientRect().top, ring?.top ?? Infinity) - 6 - ceiling - 8;
+      const overlap = (choices.lastElementChild ?? choices).getBoundingClientRect().bottom + 24 - bottom;
+      let by = keep < 0 ? keep : Math.min(Math.max(overlap, 0), keep);
+      if (ring) by = Math.min(Math.max(by, ring.bottom + 6 + 8 - bottom), ring.top - 6 - ceiling - 8);
       if (by) sheet.scrollBy({ top: by, behavior: "instant" });
     };
     const barSizes = new ResizeObserver(() => {
