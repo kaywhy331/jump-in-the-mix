@@ -117,7 +117,8 @@ test("Mix selection preserves scroll and zoom while revealing incoming and outgo
   await page.goto("/journey");
   const canvas = page.getByRole("region", { name: /Scrollable journey diagram/ });
   await expect(canvas).toBeVisible();
-  const first = page.locator('[data-workflow-node]').first().getByRole("button").first();
+  // The Mix's own heading button: at 100% in Setup, connection points come first in each card (D75).
+  const first = page.locator('[data-workflow-node] button[class*="nodeHeading"]').first();
   await first.scrollIntoViewIfNeeded();
   const position = () => canvas.evaluate(el => ({ x: el.scrollLeft, y: el.scrollTop, page: window.scrollY, transform: el.querySelector<HTMLElement>('[data-overview]')!.style.transform }));
   const before = await position(); await first.click();
@@ -139,9 +140,10 @@ test("Mix selection preserves scroll and zoom while revealing incoming and outgo
   }
   for (const size of [1440, 390]) {
     await page.setViewportSize({ width: size, height: 1000 });
-    await page.getByRole("button", { name: "Zoom out", exact: true }).click();
-    await page.getByRole("button", { name: "Zoom out", exact: true }).click();
-    await expect(page.getByRole("button", { name: "Reset zoom to 100%", exact: true })).toHaveText("15%");
+    // Journey opens at 100% (D75); zoom out to the 15% floor.
+    const zoomLabel = page.getByRole("button", { name: "Reset zoom to 100%", exact: true });
+    for (let step = 0; step < 10 && (await zoomLabel.textContent()) !== "15%"; step++) await page.getByRole("button", { name: "Zoom out", exact: true }).click();
+    await expect(zoomLabel).toHaveText("15%");
     expect((await axeInPage(page).withRules(["target-size"]).analyze()).violations).toEqual([]);
     const overlaps = await page.locator('[data-workflow-node]').evaluateAll(nodes => {
       const rects = nodes.map(node => node.getBoundingClientRect());
