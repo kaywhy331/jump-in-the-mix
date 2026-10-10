@@ -61,8 +61,12 @@ test("from 768px the map opens at 100%, scrolled to the first numbered Mix, and 
   expect(await canvas(page).evaluate(element => element.scrollHeight - element.clientHeight - element.scrollTop)).toBeGreaterThan(40);
   expect(await firstMixInView(page)).toBe("in view");
   await expect(showAs(page, "Map")).toHaveAttribute("aria-pressed", "true");
+  // At 100% the line labels show, so the legend asks for a closer zoom only in the overview.
+  const legend = page.getByLabel("Connection colors");
+  await expect(legend).not.toContainText("Zoom in for line labels");
   await page.getByRole("button", { name: "Fit map", exact: true }).click();
   await expect(page.getByRole("button", { name: "Reset zoom to 100%", exact: true })).not.toHaveText("100%");
+  await expect(legend).toContainText("Zoom in for line labels.");
   // The list is one tap away, in journey order.
   await showAs(page, "List").click();
   await expect(canvas(page)).toHaveCount(0);
