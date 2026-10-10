@@ -52,7 +52,7 @@ import { followUpPhone, parseTodayCursor, readTodayPage, TODAY_PAGE_SIZE } from 
 import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice, groupDueFollowUps } from "@/lib/today-view";
 import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
 import { sendsByItself } from "@/lib/automatic-delivery";
-import { invitationsLeft } from "@/lib/invitation-allowance";
+import { hasRecordedOutcome, invitationsLeft } from "@/lib/invitation-allowance";
 import { phoneRegionOrDefault } from "@/lib/phone-number";
 import { matchedMegaMix, megaMixById } from "@/lib/mega-mixes";
 import { storedMarketingScenario } from "@/lib/marketing-scenarios";
@@ -138,10 +138,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
   const { session, workspace, user, impersonation } = await requireWorkspace();
   const invitations = impersonation ? null : await invitationsLeft(user.id, workspace.id);
-  // Today's invitation prompt waits for the owner's first recorded outcome (JITM-09 §2.9, D72).
-  const outcomeRecorded = invitations ? Boolean(await prisma.jump.findFirst({ where: { workspaceId: workspace.id, completionMethod: { startsWith: "outcome:" } }, select: { id: true } })) : false;
-  // Prepared personal invitations wait here until the owner sends them from their own email or text app.
-  const invitationsToSend = impersonation ? [] : await prisma.jump.findMany({ where: { workspaceId: workspace.id, status: "PENDING", accessInvite: { is: { inviterUserId: user.id, acceptedAt: null, revokedAt: null } } }, select: { id: true, contact: { select: { displayName: true } }, accessInvite: { select: { recipientEmail: true, recipientPhone: true } } }, orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], take: 3 });
+  const [outcomeRecorded, invitationsToSend] = await Promise.all([
+    // Today's invitation prompt waits for the owner's first recorded outcome (JITM-09 §2.9, D72).
+    invitations ? hasRecordedOutcome(workspace.id) : false,
+    // Prepared personal invitations wait here until the owner sends them from their own email or text app.
+    impersonation ? [] : prisma.jump.findMany({ where: { workspaceId: workspace.id, status: "PENDING", accessInvite: { is: { inviterUserId: user.id, acceptedAt: null, revokedAt: null } } }, select: { id: true, contact: { select: { displayName: true } }, accessInvite: { select: { recipientEmail: true, recipientPhone: true } } }, orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], take: 3 })
+  ]);
   const displayPreferences = await displayPreferencesForUser(user.id);
   const timezone = displayPreferences.timeZone;
   const today = logicalDateInTimezone(new Date(), timezone);
