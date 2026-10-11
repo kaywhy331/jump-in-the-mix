@@ -12,13 +12,14 @@ export type ContactMixRowInput = {
   starts: Array<{ assignmentId: string; mixId: string }>;
   /** Shown tags of theirs that a Mix runs for. */
   tags: Array<{ mixId: string; tag: string }>;
-  stops: Array<{ mixId: string; planLimit: boolean }>;
+  /** `stageExit`: the stop a stage change writes on the old stage's Mix (src/lib/journey.ts), lifted again if they return. */
+  stops: Array<{ mixId: string; planLimit: boolean; stageExit: boolean }>;
   /** The earliest pending Beat per Mix. */
   pending: Array<{ mixId: string; at: Date }>;
   /** Preparation still to run for them: in these Mixes, or (`all`) in any. */
   preparing: { mixIds: string[]; all: boolean };
-  /** Their open Journey work, with the Mixes it is still running. */
-  work: Array<{ id: string; paused: boolean; mixIds: string[] }>;
+  /** Their open Journey work, with the Mixes it is still running, and whether a connection started each one. */
+  work: Array<{ id: string; paused: boolean; runs: Array<{ mixId: string; viaConnection: boolean }> }>;
 };
 
 export type ContactMixRow = {
@@ -26,11 +27,13 @@ export type ContactMixRow = {
   /** Their own start, which Remove ends. */
   assignmentId: string | null;
   tags: string[];
-  stop: "stopped" | "plan-limit" | null;
+  stop: "stopped" | "plan-limit" | "stage-exit" | null;
   nextBeatAt: Date | null;
   preparing: boolean;
   workIds: string[];
   workPaused: boolean;
+  /** A Journey connection started the work, rather than the owner from the Journey page. */
+  workViaConnection: boolean;
 };
 
 export function buildContactMixRows(input: ContactMixRowInput): ContactMixRow[] {
@@ -39,16 +42,18 @@ export function buildContactMixRows(input: ContactMixRowInput): ContactMixRow[] 
     const mix = input.mixes.find(item => item.id === mixId);
     if (!mix || mix.status === "ARCHIVED") return null;
     let found = rows.get(mixId);
-    if (!found) rows.set(mixId, found = { mixId, name: mix.name, mixStatus: mix.status, assignmentId: null, tags: [], stop: null, nextBeatAt: null, preparing: false, workIds: [], workPaused: false });
+    if (!found) rows.set(mixId, found = { mixId, name: mix.name, mixStatus: mix.status, assignmentId: null, tags: [], stop: null, nextBeatAt: null, preparing: false, workIds: [], workPaused: false, workViaConnection: false });
     return found;
   };
   for (const start of input.starts) { const found = row(start.mixId); if (found) found.assignmentId ??= start.assignmentId; }
   for (const tag of input.tags) { const found = row(tag.mixId); if (found && !found.tags.includes(tag.tag)) found.tags.push(tag.tag); }
-  for (const stop of input.stops) { const found = row(stop.mixId); if (found) found.stop = stop.planLimit ? "plan-limit" : "stopped"; }
+  for (const stop of input.stops) { const found = row(stop.mixId); if (found) found.stop = stop.planLimit ? "plan-limit" : stop.stageExit ? "stage-exit" : "stopped"; }
   for (const beat of input.pending) { const found = row(beat.mixId); if (found && (!found.nextBeatAt || beat.at < found.nextBeatAt)) found.nextBeatAt = beat.at; }
-  for (const work of input.work) for (const mixId of work.mixIds) {
-    const found = row(mixId);
-    if (!found || found.workIds.includes(work.id)) continue;
+  for (const work of input.work) for (const run of work.runs) {
+    const found = row(run.mixId);
+    if (!found) continue;
+    found.workViaConnection ||= run.viaConnection;
+    if (found.workIds.includes(work.id)) continue;
     found.workIds.push(work.id);
     found.workPaused ||= work.paused;
   }
@@ -63,10 +68,11 @@ export type ContactMixRowStatus = { label: string; tone: "late" | "running" | "p
 /** What the row says about the Mix for this person, in the order the Mix itself decides it. */
 export function contactMixRowStatus(row: ContactMixRow, now: Date, preferences: DisplayFormatPreferences): ContactMixRowStatus {
   if (row.stop === "plan-limit") return { label: "Not started: plan limit", tone: "stopped" };
+  if (row.stop === "stage-exit") return { label: "Ended at a stage change", tone: "stopped" };
   if (row.stop) return { label: "Stopped", tone: "stopped" };
   if (row.mixStatus === "DRAFT") return { label: "Draft", tone: "paused" };
   if (row.mixStatus === "PAUSED") return { label: "Mix paused", tone: "paused" };
-  if (row.workPaused) return { label: "Paused", tone: "paused" };
+  if (row.workPaused) return { label: "Journey work paused", tone: "paused" };
   if (row.nextBeatAt) return { label: `Next Beat · ${contactDueLabel(row.nextBeatAt, now, preferences)}`, tone: row.nextBeatAt < now ? "late" : "running" };
   if (row.preparing) return { label: "Getting follow-ups ready", tone: "running" };
   return { label: "No follow-ups to come", tone: "idle" };
@@ -76,14 +82,21 @@ export function contactMixRowStatus(row: ContactMixRow, now: Date, preferences: 
 export function contactMixRowRoute(row: ContactMixRow): string | null {
   if (row.assignmentId) return null;
   if (row.tags.length) return `Through the ${row.tags.length === 1 ? "tag" : "tags"} ${row.tags.join(", ")}`;
-  if (row.workIds.length) return "Started by a Journey connection";
+  if (row.workIds.length) return row.workViaConnection ? "Started by a Journey connection" : "Started in Journey";
   return null;
 }
 
 /** The row menu's one sentence on where the Mix stands for the person. */
 export function contactMixRowSummary(row: ContactMixRow, name: string, now: Date, preferences: DisplayFormatPreferences): string {
   if (row.stop === "plan-limit") return `Not started for ${name}: your plan’s people limit was reached.`;
-  if (row.stop) return `Stopped for ${name}. Resuming prepares their follow-ups from it again.`;
+  if (row.stop) {
+    // What Resume does depends on what still places them in the Mix: it only lifts the stop.
+    const placed = Boolean(row.assignmentId || row.tags.length);
+    const resume = !placed ? "Resuming only lifts the stop: add them to the Mix to restart it."
+      : row.mixStatus === "ACTIVE" ? `Resuming prepares their follow-ups from it again${row.assignmentId ? "" : " through the tag"}.`
+      : "Resuming lets it prepare their follow-ups once the Mix is on.";
+    return row.stop === "stage-exit" ? `Ended when ${name}’s stage changed. It starts again if they return to that stage. ${resume}` : `Stopped for ${name}. ${resume}`;
+  }
   if (row.mixStatus === "DRAFT") return "This Mix is a draft, so it prepares nothing until it’s turned on.";
   if (row.mixStatus === "PAUSED") return `This Mix is paused for everyone, so ${name}’s follow-ups from it wait until it’s turned back on.`;
   if (row.workPaused) return `${name}’s Journey work in this Mix is paused.`;
