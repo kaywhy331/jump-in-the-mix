@@ -75,13 +75,18 @@ describe("the profile's Mixes rows (D77)", () => {
   it("sums up the row in one sentence for its menu", () => {
     const [base] = buildContactMixRows(input({ mixes: [mix("a", "Estimate follow-up")], starts: [{ assignmentId: "s", mixId: "a" }] }));
     const summary = (patch: Partial<typeof base>) => contactMixRowSummary({ ...base, ...patch }, "Marcus Reed", now, preferences);
-    expect(summary({ stop: "stopped" })).toBe("Stopped for Marcus Reed. Resuming prepares their follow-ups from it again.");
+    expect(summary({ stop: "stopped" })).toBe("Stopped for Marcus Reed. Resuming brings back their follow-ups from it; any already due wait for you on Today.");
     // Resume only lifts the stop, so what it promises depends on what still places them and on the Mix (TRU-01).
     expect(summary({ stop: "stopped", mixStatus: "PAUSED" })).toBe("Stopped for Marcus Reed. Resuming lets it prepare their follow-ups once the Mix is on.");
     expect(summary({ stop: "stopped", mixStatus: "DRAFT" })).toBe("Stopped for Marcus Reed. Resuming lets it prepare their follow-ups once the Mix is on.");
     expect(summary({ stop: "stopped", assignmentId: null })).toBe("Stopped for Marcus Reed. Resuming only lifts the stop: add them to the Mix to restart it.");
-    expect(summary({ stop: "stopped", assignmentId: null, tags: ["Customers"] })).toBe("Stopped for Marcus Reed. Resuming prepares their follow-ups from it again through the tag.");
+    expect(summary({ stop: "stopped", assignmentId: null, tags: ["Customers"] })).toBe("Stopped for Marcus Reed. Resuming brings back their follow-ups from it through the tag; any already due wait for you on Today.");
+    // Journey work places them too, and Resume brings it back (TRU-03); paused work waits for its own resume.
+    expect(summary({ stop: "stopped", assignmentId: null, workIds: ["w"] })).toBe("Stopped for Marcus Reed. Resuming brings back their follow-ups from it; any already due wait for you on Today.");
+    expect(summary({ stop: "stopped", assignmentId: null, workIds: ["w"], workPaused: true })).toBe("Stopped for Marcus Reed. Resuming brings back their follow-ups from it once their Journey work is resumed.");
     expect(summary({ stop: "stage-exit", assignmentId: null })).toBe("Ended when Marcus Reed’s stage changed. It starts again if they return to that stage. Resuming only lifts the stop: add them to the Mix to restart it.");
+    // Even with a tag, the stage change's cancelled Beats stay ended.
+    expect(summary({ stop: "stage-exit", assignmentId: null, tags: ["Customers"] })).toBe("Ended when Marcus Reed’s stage changed. It starts again if they return to that stage. Resuming only lifts the stop: add them to the Mix to restart it.");
     expect(summary({ stop: "plan-limit" })).toBe("Not started for Marcus Reed: your plan’s people limit was reached.");
     expect(summary({ mixStatus: "PAUSED" })).toBe("This Mix is paused for everyone, so Marcus Reed’s follow-ups from it wait until it’s turned back on.");
     expect(summary({ nextBeatAt: new Date("2026-10-09T14:00:00Z") })).toBe("Next Beat was due Oct 9, 10:00 AM.");

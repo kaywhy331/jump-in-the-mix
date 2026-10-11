@@ -90,11 +90,14 @@ export function contactMixRowRoute(row: ContactMixRow): string | null {
 export function contactMixRowSummary(row: ContactMixRow, name: string, now: Date, preferences: DisplayFormatPreferences): string {
   if (row.stop === "plan-limit") return `Not started for ${name}: your plan’s people limit was reached.`;
   if (row.stop) {
-    // What Resume does depends on what still places them in the Mix: it only lifts the stop.
-    const placed = Boolean(row.assignmentId || row.tags.length);
+    // Resume brings back what the stop removed, for whatever still places them in the Mix: their start, a tag, or
+    // their Journey work (src/lib/mix-stop-actions.ts). With nothing left, it only lifts the stop. A stage change's own
+    // cancellations never come back (src/lib/journey.ts), so Resume only lifts that stop too.
+    const placed = row.stop !== "stage-exit" && Boolean(row.assignmentId || row.tags.length || row.workIds.length);
     const resume = !placed ? "Resuming only lifts the stop: add them to the Mix to restart it."
-      : row.mixStatus === "ACTIVE" ? `Resuming prepares their follow-ups from it again${row.assignmentId ? "" : " through the tag"}.`
-      : "Resuming lets it prepare their follow-ups once the Mix is on.";
+      : row.mixStatus !== "ACTIVE" ? "Resuming lets it prepare their follow-ups once the Mix is on."
+      : !row.assignmentId && !row.tags.length && row.workPaused ? "Resuming brings back their follow-ups from it once their Journey work is resumed."
+      : `Resuming brings back their follow-ups from it${row.assignmentId || !row.tags.length ? "" : " through the tag"}; any already due wait for you on Today.`;
     return row.stop === "stage-exit" ? `Ended when ${name}’s stage changed. It starts again if they return to that stage. ${resume}` : `Stopped for ${name}. ${resume}`;
   }
   if (row.mixStatus === "DRAFT") return "This Mix is a draft, so it prepares nothing until it’s turned on.";
