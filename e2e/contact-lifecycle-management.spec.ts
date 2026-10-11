@@ -49,7 +49,7 @@ test("Contact state, archive restoration, and duplicate review are operable", as
     await page.getByRole("button", { name: `More options for ${displayName}`, exact: true }).click();
     await page.getByRole("button", { name: "Do not contact", exact: true }).click();
     await page.getByRole("dialog", { name: /^Stop \d+ pending follow-ups? for this person\?$/ }).getByRole("button", { name: "Stop follow-ups", exact: true }).click();
-    await expect(page.getByText("Do not contact is on.", { exact: true })).toBeVisible();
+    await expect(page.getByText("Do not contact is on. No follow-ups will be prepared for them.", { exact: true })).toBeVisible();
     await expect.poll(async () => await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: activeId } })).toMatchObject({ priority: "URGENT", doNotContact: true });
 
     await page.goto(`/contacts/archived?q=${encodeURIComponent(`Archived ${suffix}`)}`);

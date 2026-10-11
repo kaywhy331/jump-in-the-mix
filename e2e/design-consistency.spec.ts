@@ -81,6 +81,8 @@ test("Do not contact asks in the app dialog and Cancel leaves it off", async ({ 
   await expect(prompt).toBeVisible();
   await prompt.getByRole("button", { name: "Cancel", exact: true }).click();
   await expect(page.getByRole("button", { name: "Do not contact", exact: true })).toBeVisible();
+  // Long enough for a wrongly sent save to land before reading.
+  await page.waitForTimeout(750);
   expect(await prisma.contactRelationshipState.count({ where: { contactId, doNotContact: true } })).toBe(0);
 });
 

@@ -137,10 +137,14 @@ test("Do not contact from the menu asks first and keeps the person's other prefe
   const confirm = page.getByRole("dialog", { name: "Stop 3 pending follow-ups for this person?" });
   await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused();
   await confirm.getByRole("button", { name: "Cancel" }).click();
+  // Long enough for a wrongly sent save to land before reading.
+  await page.waitForTimeout(750);
   expect((await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: person.id } })).doNotContact).toBe(false);
   await menu.getByRole("button", { name: "Do not contact", exact: true }).click();
-  await Promise.all([page.waitForURL(/stateUpdated=1/), confirm.getByRole("button", { name: "Stop follow-ups" }).click()]);
-  await expect(page.getByText("Do not contact is on.", { exact: true })).toBeVisible();
+  await Promise.all([page.waitForURL(/dncOn=1/), confirm.getByRole("button", { name: "Stop follow-ups" }).click()]);
+  await expect(page.getByText("Do not contact is on. No follow-ups will be prepared for them.", { exact: true })).toBeVisible();
+  // The menu's change leaves More closed; only a Preferences save opens it.
+  await expect(page.locator("#dates-and-mixes")).not.toHaveAttribute("open", "");
   let state = await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: person.id } });
   expect(state).toMatchObject({ doNotContact: true, priority: "HIGH", preferredChannel: "EMAIL" });
   expect(await prisma.jump.count({ where: { contactId: person.id, status: "PENDING" } })).toBe(0);
@@ -153,9 +157,10 @@ test("Do not contact from the menu asks first and keeps the person's other prefe
   // While it's on, the menu offers to turn it off and doesn't offer a review request.
   menu = await open();
   await expect(menu.getByRole("button", { name: "Ask for a review" })).toHaveCount(0);
-  await Promise.all([page.waitForURL(/stateUpdated=1/), menu.getByRole("button", { name: "Turn off Do not contact" }).click()]);
+  await Promise.all([page.waitForURL(/dncOff=1/), menu.getByRole("button", { name: "Turn off Do not contact" }).click()]);
   await expect.poll(async () => (await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: person.id } })).doNotContact).toBe(false);
-  await expect(page.getByText("Do not contact is on.", { exact: true })).toHaveCount(0);
+  await expect(page.getByText("Do not contact is off. Follow-ups can be prepared for them again.", { exact: true })).toBeVisible();
+  await expect(page.getByText("Do not contact is on.", { exact: false })).toHaveCount(0);
   state = await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: person.id } });
   expect(state).toMatchObject({ doNotContact: false, priority: "URGENT", preferredChannel: "EMAIL" });
 });
@@ -232,6 +237,48 @@ test("Notes to remember show three lines with Show all, and the next meeting lin
   await expect(page.getByRole("link", { name: "Add notes to remember" })).toBeVisible();
 });
 
+test("a stop says what Resume will do: a stage change's stop, and a stop on a paused Mix", async ({ page }) => {
+  const person = await marcus();
+  // A stage change ended Aftercare's start and stopped it (src/lib/journey.ts); Seasonal tune-up is paused for everyone.
+  const tagless = await prisma.contact.update({ where: { id: person.id }, data: { groupMemberships: { deleteMany: {} } } });
+  await prisma.mixStop.create({ data: { workspaceId, mixId: mixes.aftercare, contactId: tagless.id, reason: "journey.stage.exit" } });
+  await prisma.mixStop.create({ data: { workspaceId, mixId: mixes.seasonal, contactId: person.id, stoppedByUserId: userId } });
+  await page.goto(`/contacts/${person.id}`); await ready(page);
+  await expect(row(page, "Aftercare check-in")).toContainText("Ended at a stage change");
+  await row(page, "Aftercare check-in").getByRole("button", { name: /^Options for Aftercare check-in: / }).click();
+  await expect(page.getByRole("dialog", { name: "Aftercare check-in" })).toHaveAccessibleDescription("Ended when Marcus Reed’s stage changed. It starts again if they return to that stage. Resuming only lifts the stop: add them to the Mix to restart it.");
+  await page.keyboard.press("Escape");
+  await expect(row(page, "Seasonal tune-up")).toContainText("Stopped");
+  await row(page, "Seasonal tune-up").getByRole("button", { name: /^Options for Seasonal tune-up: / }).click();
+  await expect(page.getByRole("dialog", { name: "Seasonal tune-up" })).toHaveAccessibleDescription("Stopped for Marcus Reed. Resuming lets it prepare their follow-ups once the Mix is on.");
+  // Escape returns focus to the row's •••.
+  await page.keyboard.press("Escape");
+  await expect(row(page, "Seasonal tune-up").getByRole("button", { name: /^Options for Seasonal tune-up: / })).toBeFocused();
+});
+
+test("a row's menu works by keyboard, and Cancel in its confirmation returns to Stop", async ({ page }) => {
+  const person = await marcus();
+  await page.goto(`/contacts/${person.id}`); await ready(page);
+  const options = row(page, "Quote check-in").getByRole("button", { name: /^Options for Quote check-in: / });
+  await options.focus(); await page.keyboard.press("Enter");
+  const menu = page.getByRole("dialog", { name: "Quote check-in" });
+  await expect(menu.getByRole("heading", { name: "Quote check-in" })).toBeFocused();
+  const stop = menu.getByRole("button", { name: "Stop for Marcus Reed…" });
+  for (let step = 0; step < 6 && !(await stop.evaluate(element => element === document.activeElement)); step++) await page.keyboard.press("Tab");
+  await expect(stop).toBeFocused();
+  await page.keyboard.press("Enter");
+  const confirm = page.getByRole("dialog", { name: "Stop Quote check-in for Marcus Reed?" });
+  await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused();
+  await page.keyboard.press("Enter");
+  await expect(confirm).toBeHidden();
+  await expect(stop).toBeFocused();
+  await page.waitForTimeout(750);
+  expect(await prisma.mixStop.count({ where: { contactId: person.id, mixId: mixes.quote } })).toBe(0);
+  await page.keyboard.press("Escape");
+  await expect(menu).toBeHidden();
+  await expect(options).toBeFocused();
+});
+
 test("the person's Journey work sits in its Mix's menu, without Review", async ({ page }) => {
   await installMegaMix({ workspaceId, actorUserId: userId, blueprintId: "contractor", expectedVersion: 1, setup: initialJourneySetup(null, "UTC") }).catch(() => undefined);
   const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId, name: "Estimate follow-up" } });
@@ -240,24 +287,30 @@ test("the person's Journey work sits in its Mix's menu, without Review", async (
   await processWorkflowInstance(workspaceId, instance, new Date());
   await prisma.job.updateMany({ where: { workspaceId, completedAt: null }, data: { completedAt: new Date() } });
   await page.goto(`/contacts/${person.id}`); await ready(page);
+  // The owner started this work from Journey, so no connection is credited with it (TRU-01).
+  await expect(row(page, "Estimate follow-up")).toContainText("Started in Journey");
   await row(page, "Estimate follow-up").getByRole("button", { name: /^Options for Estimate follow-up: / }).click();
   const menu = page.getByRole("dialog", { name: "Estimate follow-up" });
   await expect(menu.getByRole("link", { name: "Open in Journey" })).toHaveAttribute("href", `/journey?contactId=${person.id}&work=${instance}`);
   const work = menu.locator(`[data-workflow-instance="${instance}"]`);
   await expect(work).toContainText("Kitchen estimate");
   await expect(work.getByRole("link", { name: "Review" })).toHaveCount(0);
+  // Its controls are 44px tall in the menu, text buttons and links included (A11Y-01).
+  const short = await work.evaluate(card => [...card.querySelectorAll<HTMLElement>("button, a[href], summary")].filter(element => element.getClientRects().length && element.getBoundingClientRect().height < 44).map(element => element.textContent?.trim()));
+  expect(short).toEqual([]);
   await expect(page.getByRole("link", { name: "Review", exact: true })).toHaveCount(1);
   await work.getByRole("button", { name: "Pause this work" }).click();
   await expect(work.locator(".status-pill")).toHaveText("Paused");
   await page.keyboard.press("Escape");
-  await expect(row(page, "Estimate follow-up")).toContainText("Paused");
+  await expect(row(page, "Estimate follow-up")).toContainText("Journey work paused");
 });
 
 test("the menu sits in the name row, and new controls are 44px with nothing past the screen, at every width and at 200% text", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Widths are set here");
   const person = await marcus();
   const problems: string[] = [];
-  for (const [width, path] of [[320, `/contacts/${person.id}`], [390, `/contacts/${person.id}`], [768, `/contacts/${person.id}`], [1024, `/contacts/${person.id}`], [1440, `/contacts?person=${person.id}`], [1920, `/contacts?person=${person.id}`]] as const) {
+    // Docking starts at 1200px, the details column at 1700px, and the quick actions join the name row at 1840px.
+  for (const [width, path] of [[320, `/contacts/${person.id}`], [390, `/contacts/${person.id}`], [768, `/contacts/${person.id}`], [1024, `/contacts/${person.id}`], [1199, `/contacts/${person.id}`], [1200, `/contacts?person=${person.id}`], [1440, `/contacts?person=${person.id}`], [1699, `/contacts?person=${person.id}`], [1700, `/contacts?person=${person.id}`], [1839, `/contacts?person=${person.id}`], [1840, `/contacts?person=${person.id}`], [1920, `/contacts?person=${person.id}`], [2560, `/contacts?person=${person.id}`]] as const) {
     for (const text of width <= 390 ? ["100%", "200%"] : ["100%"]) {
       await page.setViewportSize({ width, height: 900 });
       await page.goto(path); await ready(page);
