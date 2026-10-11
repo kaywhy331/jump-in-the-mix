@@ -32,7 +32,7 @@ export async function readContactMixRows(workspaceId: string, contact: { id: str
       || state.transitions.some(path => (path.status === "WAITING" || path.status === "HELD") && state.evaluations.some(evaluation => evaluation.id === path.evaluationId && evaluation.runId === run.id)));
     const latest = [...state.runs].sort((a, b) => b.startedAt.localeCompare(a.startedAt))[0];
     // A run a connection started has the transition that started it; one the owner started has none.
-    const runs = (open.length ? open : latest ? [latest] : []).map(run => ({ mixId: run.mixId, viaConnection: run.parentTransitionId !== null }));
+    const runs = (open.length ? open : latest ? [latest] : []).map(run => ({ mixId: run.mixId, viaConnection: Boolean(run.parentTransitionId) }));
     return runs.length ? [{ id: instance.id, paused: instance.status === "PAUSED", runs }] : [];
   });
   const preparing = { mixIds: [] as string[], all: false };

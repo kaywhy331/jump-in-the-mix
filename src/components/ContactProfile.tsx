@@ -223,7 +223,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
             {!state.doNotContact && <ReviewRequestButton contactId={contact.id} />}
             <Link href={`/calendar?contact=${encodeURIComponent(contact.id)}`}><AppIcon name="calendar" />Schedule a meeting</Link>
             <DoNotContactMenuItem contactId={contact.id} pendingCount={pendingCount} state={state} />
-            <ConfirmDialog trigger={<><AppIcon name="archive" />Archive contact…</>} triggerClassName="is-danger" title={`Archive ${contact.displayName}?`} description="Future follow-ups will be removed. Completed history stays available." danger><form action={archiveContactAction} data-closes-menu><input type="hidden" name="contactId" value={contact.id} /><button type="submit" className="button danger" disabled={Boolean(impersonation)}>Archive contact</button></form></ConfirmDialog>
+            <ConfirmDialog trigger={<><AppIcon name="archive" />Archive contact…</>} triggerClassName="is-danger" title={`Archive ${contact.displayName}?`} description="Future follow-ups will be removed. Completed history stays available." danger><form action={archiveContactAction} data-closes-menu><input type="hidden" name="contactId" value={contact.id} /><FormSubmitButton label="Archive contact" pendingLabel="Archiving…" className="button danger" disabled={Boolean(impersonation)} /></form></ConfirmDialog>
           </div></ClosesOnSubmit>
         </Sheet></div>
         <nav className="contact-profile-quick-actions" aria-label={`Contact ${contact.displayName}`}>
