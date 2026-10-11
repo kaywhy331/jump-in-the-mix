@@ -98,6 +98,10 @@ describe.skipIf(!local).sequential("Stop and Resume for one person", () => {
     await prepareQueued();
     expect(await pending(someone)).toEqual(before);
     expect(await status(someone)).toBe("in-mix");
+    // The Beat already due comes back for the owner to send or skip, never by automatic sending (JITM-09 §2.72);
+    // automatic delivery passes over manual-only rows (src/lib/automatic-delivery.ts). The later Beat sends as before.
+    const flags = await prisma.jump.findMany({ where: { workspaceId, contactId: someone, status: "PENDING" }, orderBy: { scheduledAt: "asc" }, select: { scheduledAt: true, manualOnly: true } });
+    expect(flags.map(row => [row.scheduledAt < new Date(), row.manualOnly])).toEqual([[true, true], [false, false]]);
   });
 
   it("brings back the Beats a tag runs for them", async () => {
