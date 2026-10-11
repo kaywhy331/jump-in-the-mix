@@ -45,6 +45,7 @@ export type ContactProfileSearchParams = {
   mixStopped?: string; mixResumed?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
   stateUpdated?: string; merged?: string; restored?: string; error?: string; at?: string; sig?: string;
   noMixNeeded?: string; noMixCleared?: string; noMixInMix?: string; noMixDnc?: string; noMixAlready?: string;
+  dncOn?: string; dncOff?: string;
 };
 
 function addressText(address: { street1: string | null; street2: string | null; city: string | null; state: string | null; postalCode: string | null; country: string | null }): string {
@@ -79,7 +80,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
     prisma.journeyStage.findMany({ where: { workspaceId: workspace.id }, orderBy: [{ position: "asc" }, { id: "asc" }], select: { id: true, name: true, position: true, isActive: true, planId: true } }),
     prisma.journeyEvent.findMany({ where: { workspaceId: workspace.id, contactId, resultingStageId: { not: null } }, orderBy: [{ occurredAt: "desc" }, { id: "desc" }], take: 100 }),
     // The next meeting with them, near the top (D77): one not cancelled that hasn't ended.
-    prisma.calendarEntry.findFirst({ where: { workspaceId: workspace.id, contactId, kind: "MEETING", canceledAt: null, endsAt: { gt: new Date() } }, orderBy: [{ startsAt: "asc" }, { id: "asc" }], select: { id: true, title: true, startsAt: true, connectionId: true } })
+    prisma.calendarEntry.findFirst({ where: { workspaceId: workspace.id, contactId, kind: "MEETING", canceledAt: null, endsAt: { gt: new Date() } }, orderBy: [{ startsAt: "asc" }, { id: "asc" }], select: { id: true, title: true, startsAt: true } })
   ]);
   if (!contact) notFound();
 
@@ -139,7 +140,8 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
     return next ? [{ id: item.id, title: item.label || item.dateType.name, type: item.dateType.name, date: zonedDateTimeToUtc(next, 12 * 60, displayPreferences.timeZone) }] : [];
   });
   const upcoming = [
-    ...comingUp.filter(beat => beat.id !== nextFollowUp?.id).map(beat => ({ id: beat.id, date: beat.scheduledAt, title: beat.reason, href: `/jumps?jump=${encodeURIComponent(beat.id)}&range=all` })),
+    // The Next card already shows its own Beats, so Coming up lists the rest (LEN-03).
+    ...comingUp.filter(beat => beat.id !== nextFollowUp?.id && !sequence.some(item => item.id === beat.id)).map(beat => ({ id: beat.id, date: beat.scheduledAt, title: beat.reason, href: `/jumps?jump=${encodeURIComponent(beat.id)}&range=all` })),
     ...importantDates.map(date => ({ ...date, href: `#dates-and-mixes` }))
   ].sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 5);
   const stageNames = new Map(journeyStages.map(stage => [stage.id, stage.name]));
@@ -160,7 +162,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
     {plans.length > 0 && !state.doNotContact && <form action={assignMixToContactAction} className="form-stack" data-closes-menu><input type="hidden" name="contactId" value={contact.id} /><label className="field"><span>Choose a Mix</span><select name="mixId" required defaultValue=""><option value="" disabled>Choose a Mix</option>{plans.map(plan => <option value={plan.id} key={plan.id}>{plan.name}</option>)}</select></label>{startDateField}<button className="button primary" disabled={Boolean(impersonation)} type="submit">Add to the Mix</button></form>}
     {plans.length === 0 && <p>Create a Mix first. <Link href="/mixes">Go to Mixes</Link></p>}
     {!state.doNotContact && <Link className="button" href={`/contacts?intent=one-time-jump&people=${encodeURIComponent(contact.id)}&q=${encodeURIComponent(contact.displayName)}`}>Schedule a one-time follow-up</Link>}
-    {state.doNotContact && <p>Do not contact is on. Turn it off from the ••• menu beside their name before adding them to a Mix.</p>}
+    {state.doNotContact && <p>Do not contact is on. Turn it off under More options beside their name before adding them to a Mix.</p>}
     {noMixChoice}
   </ClosesOnSubmit>;
   const addToMix = <Sheet trigger={<button type="button" className="contact-inline-action contact-add-mix"><AppIcon name="add" />Add to a Mix</button>} title={`Add ${contact.displayName} to a Mix`}>{mixChoices}</Sheet>;
@@ -177,7 +179,8 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
     const status = contactMixRowStatus(row, now, displayPreferences), route = contactMixRowRoute(row);
     return { mixId: row.mixId, name: row.name, status, route, summary: `${contactMixRowSummary(row, contact.displayName, now, displayPreferences)}${route ? ` ${route}.` : ""}`, assignmentId: row.assignmentId, hasTags: row.tags.length > 0, stopped: Boolean(row.stop), workIds: row.workIds };
   });
-  const meetingLink = nextMeeting && (nextMeeting.connectionId ? `/calendar?date=${logicalDateKey(logicalDateInTimezone(nextMeeting.startsAt, displayPreferences.timeZone))}` : `/calendar?edit=${encodeURIComponent(nextMeeting.id)}`);
+  // Opens it in Calendar's editor on its own day, as the agenda's links do. Synced calendar entries are never meetings.
+  const meetingLink = nextMeeting && `/calendar?${new URLSearchParams({ edit: nextMeeting.id, date: logicalDateKey(logicalDateInTimezone(nextMeeting.startsAt, displayPreferences.timeZone)) })}#schedule-event`;
 
   return (
     <div className={`page contact-detail-page${embedded ? " contact-profile-embedded" : ""}`}>
@@ -200,7 +203,9 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
       {query.mixStopError && <Notice type="error">Mix could not be stopped.</Notice>}
       {query.mixResumeError && <Notice type="error">Mix could not be resumed.</Notice>}
       <UrlErrorNotice params={query} viewer={session} />
-      {state.doNotContact && <Notice type="info">Do not contact is on.</Notice>}
+      {query.dncOn && <Notice type="success">Do not contact is on. No follow-ups will be prepared for them.</Notice>}
+      {query.dncOff && <Notice type="success">Do not contact is off. Follow-ups can be prepared for them again.</Notice>}
+      {state.doNotContact && !query.dncOn && <Notice type="info">Do not contact is on.</Notice>}
 
       <header className="contact-profile-header">
         <div className="contact-detail-header-actions">
@@ -215,7 +220,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
         <div className="contact-profile-menu"><Sheet trigger={<button type="button" className="icon-button" aria-label={`More options for ${contact.displayName}`}><AppIcon name="more" /></button>} title={contact.displayName}>
           <ClosesOnSubmit><div className="contact-tools-links contact-menu-list">
             <Link href={`/contacts/${contact.id}/edit`}><AppIcon name="edit" />Edit contact</Link>
-            {!state.doNotContact && <ReviewRequestButton contactId={contact.id} inMenu />}
+            {!state.doNotContact && <ReviewRequestButton contactId={contact.id} />}
             <Link href={`/calendar?contact=${encodeURIComponent(contact.id)}`}><AppIcon name="calendar" />Schedule a meeting</Link>
             <DoNotContactMenuItem contactId={contact.id} pendingCount={pendingCount} state={state} />
             <ConfirmDialog trigger={<><AppIcon name="archive" />Archive contact…</>} triggerClassName="is-danger" title={`Archive ${contact.displayName}?`} description="Future follow-ups will be removed. Completed history stays available." danger><form action={archiveContactAction} data-closes-menu><input type="hidden" name="contactId" value={contact.id} /><button type="submit" className="button danger" disabled={Boolean(impersonation)}>Archive contact</button></form></ConfirmDialog>
@@ -262,8 +267,8 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
         {/* Lasting context stays open beside the details (D77), its first three lines at once. */}
         <section className="contact-notes" aria-labelledby="contact-notes-heading">
           <div className="contact-section-heading"><h2 id="contact-notes-heading">Notes to remember</h2><Link className="contact-inline-action" href={`/contacts/${contact.id}/edit#contact-notes`} aria-label={contact.publicNotes || contact.privateNotes ? "Edit notes to remember" : "Add notes to remember"}><AppIcon name="edit" />{contact.publicNotes || contact.privateNotes ? "Edit" : "Add"}</Link></div>
-          {contact.publicNotes ? <ClampedText className="note-copy" text={contact.publicNotes} /> : !contact.privateNotes && <p className="contact-empty-copy">No notes yet.</p>}
-          {contact.privateNotes && <div className="private-note"><strong>Private</strong><ClampedText className="note-copy" text={contact.privateNotes} /></div>}
+          {contact.publicNotes ? <ClampedText className="note-copy" text={contact.publicNotes} what="notes" /> : !contact.privateNotes && <p className="contact-empty-copy">No notes yet.</p>}
+          {contact.privateNotes && <div className="private-note"><strong>Private</strong><ClampedText className="note-copy" text={contact.privateNotes} what="private notes" /></div>}
         </section>
         <section className="contact-coming-up"><div className="contact-section-heading"><h2>Coming up</h2></div>{upcoming.length ? <ol>{upcoming.map(item => <li key={item.id}><time dateTime={item.date.toISOString()}>{shortDate(item.date)}</time><Link href={item.href}>{item.title}</Link></li>)}</ol> : <p className="contact-empty-copy">Nothing else scheduled.</p>}</section>
       </aside>

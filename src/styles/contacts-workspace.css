@@ -71,7 +71,7 @@
 /* The profile's ••• menu ends the name row in every layout (D77). */
 .contact-profile-menu { grid-column: 3; align-self: start; }
 /* Borderless, like History options: a quiet control beside the name and on each Mix row. */
-.contact-profile-menu .icon-button, .contact-mix-row-menu.icon-button { width: 44px; min-width: 44px; height: 44px; border-color: transparent; border-radius: 12px; background: transparent; color: var(--text-2); }
+.contact-profile-menu .icon-button, .contact-mix-row-menu.icon-button { width: 44px; min-width: 44px; height: 44px; border-color: transparent; border-radius: 50%; background: transparent; color: var(--text-2); }
 .contact-profile-header .contact-detail-header-actions { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; margin: 0; }
 .contact-profile-header .profile-avatar { width: 56px; height: 56px; font-size: 1rem; }
 .profile-identity { min-width: 0; }
@@ -153,6 +153,9 @@
 .contact-detail-page .contact-add-mix { min-height: 44px; margin-top: 6px; }
 /* A menu's rows: links and buttons alike, a form's button included, as Contact tools draws them. */
 .contact-menu-list > form, .closes-on-submit { display: contents; }
+/* The list ends at its last row: no rule of the list's own, and none under the last row, whatever dialog follows it. */
+.contact-tools-links.contact-menu-list { padding-bottom: 0; border-bottom: 0; }
+.contact-menu-list > :nth-last-child(1 of a, button, form), .contact-menu-list > form:nth-last-child(1 of a, button, form) > button { border-bottom: 0; }
 .contact-menu-list > form > button, .contact-menu-list > button { display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; min-width: 0; min-height: 48px; padding: 12px 4px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--text); font: inherit; font-size: .875rem; font-weight: 500; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
 .contact-menu-list > :is(a, button) > svg, .contact-menu-list > form > button > svg { width: 20px; height: 20px; flex: 0 0 auto; color: var(--text-2); }
 .contact-menu-list > button:disabled, .contact-menu-list > form > button:disabled { color: var(--text-3); cursor: not-allowed; }
@@ -161,6 +164,9 @@
 .contact-menu-list > .review-request-ready { margin: 12px 0; }
 .contact-mix-work { display: grid; gap: 12px; margin-top: 20px; }
 .contact-mix-work > h3 { margin: 0; font-size: .875rem; font-weight: 600; color: var(--text-2); }
+/* The Journey work card's controls are 44px here, its text buttons and links included (JITM-10 §2.1). */
+.contact-mix-work :is(button, a[href]) { min-height: 44px; }
+.contact-mix-work :is(.text-button, a[href]) { display: inline-flex; align-items: center; }
 .contact-detail-primary { display: contents; }
 .contact-priority-card { margin: 0 0 28px; padding: 0; border: 0; }
 .contact-priority-card .contact-section-heading { min-height: 28px; padding: 0; border: 0; }

@@ -150,8 +150,8 @@ describe("Contacts", () => {
   it("shows a service's own user-facing refusal", async () => {
     mocks.mixFindFirst.mockResolvedValue({ id: "mix-1", triggerMode: "MANUAL_START", steps: [] });
     mocks.contactFindFirst.mockResolvedValue({ id: "c1" });
-    mocks.transaction.mockRejectedValue(new UserFacingError("This Mix is stopped for this person. Open More on their contact profile to review and resume the stopped Mix."));
-    expect(shown(await redirected(assignMixToContactAction(form({ contactId: "c1", mixId: "mix-1" })))).text).toBe("This Mix is stopped for this person. Open More on their contact profile to review and resume the stopped Mix.");
+    mocks.transaction.mockRejectedValue(new UserFacingError("This Mix is stopped for this person. Resume it from its row in the Mixes section of their contact profile."));
+    expect(shown(await redirected(assignMixToContactAction(form({ contactId: "c1", mixId: "mix-1" })))).text).toBe("This Mix is stopped for this person. Resume it from its row in the Mixes section of their contact profile.");
     mocks.setActiveGroups.mockRejectedValue(new UserFacingError("One or more selected tags are unavailable."));
     expect(shown(await redirected(saveActiveGroupsAction(form({ activeGroupIds: "group-1" })))).text).toBe("One or more selected tags are unavailable.");
   });

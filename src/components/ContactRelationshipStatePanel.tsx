@@ -57,6 +57,7 @@ export function DoNotContactMenuItem({ contactId, pendingCount, state }: { conta
   const [confirm, confirmDialog] = useConfirmDialog();
   const turnOn = () => void confirm({ title: `Stop ${pendingCount} pending follow-up${pendingCount === 1 ? "" : "s"} for this person?`, description: "Saved history stays available. You can still open contact details, but must respect their contact preference. Turning this off can prepare future follow-ups again.", confirmLabel: "Stop follow-ups", danger: true }).then(stop => { if (stop) formRef.current?.requestSubmit(); });
   return <form ref={formRef} action={updateContactRelationshipStateAction} data-closes-menu>
+    <input type="hidden" name="intent" value="do-not-contact" />
     <input type="hidden" name="contactId" value={contactId} />
     <input type="hidden" name="version" value={state.version} />
     <input type="hidden" name="priority" value={state.priority} />

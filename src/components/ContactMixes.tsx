@@ -25,7 +25,8 @@ export type ContactMixesRow = {
 /** What a row of Journey work still needs from the owner, so it shows without opening the menu. */
 function attention(instances: WorkflowInstanceView[]): string | null {
   if (instances.some(instance => instance.preparationFailed)) return "Follow-up preparation needs another try";
-  if (instances.some(instance => instance.decisions.some(decision => !decision.outcome))) return "Waiting for you to record an outcome";
+  // Only a decision still waiting, in work that isn't paused, can take an outcome now.
+  if (instances.some(instance => instance.status !== "PAUSED" && instance.decisions.some(decision => decision.status === "WAITING" && !decision.outcome))) return "Waiting for you to record an outcome";
   if (instances.some(instance => instance.beats.some(beat => beat.status === "HELD" && instance.state.visits.find(visit => visit.id === beat.visitId)?.reason?.includes("appointment")))) return "Waiting for you to link an appointment";
   return instances.find(instance => instance.state.issue)?.state.issue ?? null;
 }
@@ -53,8 +54,9 @@ export function ContactMixes({ contactId, contactName, rows, displayPreferences,
     window.addEventListener("jitm:workflow-updated", refresh);
     return () => window.removeEventListener("jitm:workflow-updated", refresh);
   }, [hasWork, refresh]);
-  // A change to Journey work can change the rows themselves (Paused, the next Beat), which the server reads.
-  const updated = () => { refresh(); router.refresh(); };
+  // A saved change re-reads the work through `jitm:workflow-updated` (src/lib/mix-workflow-client.ts). It can also
+  // change the rows themselves (paused, the next Beat), which the server reads.
+  const updated = () => router.refresh();
   const returnTo = `/contacts/${contactId}`;
   return <section className="contact-mixes" aria-labelledby="contact-mixes-heading">
     <div className="contact-section-heading"><h2 id="contact-mixes-heading">Mixes</h2></div>
@@ -74,12 +76,12 @@ export function ContactMixes({ contactId, contactName, rows, displayPreferences,
             {row.workIds.length > 0 && <Link href={`/journey?${new URLSearchParams({ contactId, work: row.workIds[0] })}`}><AppIcon name="journey" />Open in Journey</Link>}
             {row.stopped
               ? <form action={resumeMixForContactAction} data-closes-menu><input type="hidden" name="mixId" value={row.mixId} /><input type="hidden" name="contactId" value={contactId} /><input type="hidden" name="returnTo" value={returnTo} /><FormSubmitButton label={`Resume for ${contactName}`} pendingLabel="Resuming…" className="" icon={<AppIcon name="play" />} disabled={viewOnly} /></form>
-              : <ConfirmDialog trigger={<><AppIcon name="pause" />Stop for {contactName}…</>} triggerClassName="" title={`Stop ${row.name} for ${contactName}?`} description={`Their follow-ups still to come from ${row.name} are removed, and the Mix won’t prepare more for them, through a tag or a new start, until you resume it here. Completed history stays.`}><form action={stopMixForContactAction} data-closes-menu><input type="hidden" name="mixId" value={row.mixId} /><input type="hidden" name="contactId" value={contactId} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button danger" type="submit" disabled={viewOnly}>Stop the Mix</button></form></ConfirmDialog>}
-            {row.assignmentId && <ConfirmDialog trigger={<><AppIcon name="close" />Remove from this Mix…</>} triggerClassName="is-danger" title={`Remove ${contactName} from ${row.name}?`} description={`This ends your start of ${row.name} for them: its follow-ups still to come are removed, and you can start the Mix for them again later.${row.hasTags ? " A tag of theirs also runs this Mix, so its follow-ups from the tag continue." : ""} Completed history stays.`} danger><form action={removeMixAssignmentAction} data-closes-menu><input type="hidden" name="assignmentId" value={row.assignmentId} /><input type="hidden" name="contactId" value={contactId} /><button className="button danger" type="submit" disabled={viewOnly}>Remove</button></form></ConfirmDialog>}
+              : <ConfirmDialog trigger={<><AppIcon name="pause" />Stop for {contactName}…</>} triggerClassName="" title={`Stop ${row.name} for ${contactName}?`} description={`Their follow-ups still to come from ${row.name} are removed, and the Mix won’t prepare more for them, through a tag or a new start, until you resume it here. Completed history stays.`}><form action={stopMixForContactAction} data-closes-menu><input type="hidden" name="mixId" value={row.mixId} /><input type="hidden" name="contactId" value={contactId} /><input type="hidden" name="returnTo" value={returnTo} /><FormSubmitButton label="Stop the Mix" pendingLabel="Stopping…" className="button danger" disabled={viewOnly} /></form></ConfirmDialog>}
+            {row.assignmentId && <ConfirmDialog trigger={<><AppIcon name="close" />Remove from this Mix…</>} triggerClassName="is-danger" title={`Remove ${contactName} from ${row.name}?`} description={`This ends your start of ${row.name} for them: its follow-ups still to come are removed, and you can start the Mix for them again later.${row.hasTags ? " A tag of theirs also runs this Mix, so its follow-ups from the tag continue." : ""} Completed history stays.`} danger><form action={removeMixAssignmentAction} data-closes-menu><input type="hidden" name="assignmentId" value={row.assignmentId} /><input type="hidden" name="contactId" value={contactId} /><FormSubmitButton label="Remove" pendingLabel="Removing…" className="button danger" disabled={viewOnly} /></form></ConfirmDialog>}
           </div></ClosesOnSubmit>
           {row.workIds.length > 0 && <div className="contact-mix-work">
             <h3>Journey work</h3>
-            {workError && <p role="status" className="notice error">{workError}</p>}
+            {workError && <p role="status" className="notice error">{workError} <button type="button" className="text-button" onClick={refresh}>Try again</button></p>}
             {!work && !workError && <p role="status" className="muted-copy">Loading…</p>}
             {instances.map(instance => <WorkflowInstanceCard key={instance.id} instance={instance} displayPreferences={displayPreferences} canEdit={Boolean(work?.canEdit) && !viewOnly} onUpdate={updated} inProfile />)}
           </div>}
