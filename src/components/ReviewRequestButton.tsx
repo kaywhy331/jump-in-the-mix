@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AppIcon } from "@/components/AppIcon";
 
 type ReviewRequestResult = {
   reviewUrl: string;
@@ -10,7 +11,8 @@ type ReviewRequestResult = {
   expiresAt: string;
 };
 
-export function ReviewRequestButton({ contactId }: { contactId: string }) {
+/** `inMenu`: a row of the profile's ••• menu (D77) rather than a standalone button. */
+export function ReviewRequestButton({ contactId, inMenu = false }: { contactId: string; inMenu?: boolean }) {
   const [result, setResult] = useState<ReviewRequestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
   const [loading, setLoading] = useState(false);
@@ -41,6 +43,7 @@ export function ReviewRequestButton({ contactId }: { contactId: string }) {
     }
   };
 
+  if (!result && inMenu) return <><button type="button" onClick={create} disabled={loading} aria-busy={loading}><AppIcon name="heart" />{loading ? "Preparing…" : "Ask for a review"}</button>{error && <p className="field-error" role="alert">{error}</p>}</>;
   if (!result) return <span className="review-request-control"><button className="button" type="button" onClick={create} disabled={loading}>{loading ? "Preparing…" : "Ask for a review"}</button>{error && <span className="field-error" role="alert">{error}</span>}</span>;
 
   return <section className="review-request-ready" aria-live="polite">

@@ -65,7 +65,7 @@
 .mix-list .timeline-step { grid-template-columns: 64px 32px minmax(0, 1fr); }
 .mix-list .timeline-content { background: var(--surface); border-radius: 16px; padding: 20px; }
 .mix-list .timeline-content > p { font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.5; }
-.contact-notes-card .note-copy, .contact-notes-card .private-note p { font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.6; }
+.contact-notes .note-copy { font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.6; }
 .contact-detail-primary .card { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
 .contact-next-line { background: var(--violet-wash); border-color: var(--line); border-radius: 12px; }
 .contacts-page .selectable-contact-list { display: block; }

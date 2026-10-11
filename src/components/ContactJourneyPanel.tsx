@@ -19,6 +19,5 @@ export async function ContactJourneyPanel({ workspaceId, contactId, expanded = f
       {person && <form action={toggleContactJourneyAction}><input type="hidden" name="contactId" value={contactId} /><input type="hidden" name="directory" value={String(returnToDirectory)} /><input type="hidden" name="version" value={person.version} /><input type="hidden" name="automatic" value={String(!person.automatic)} /><button className="button small" type="submit">{person.automatic ? "Pause transitions for this person" : "Resume transitions for this person"}</button></form>}
       <p className="muted-copy">Pausing transitions keeps this person’s current Mixes running. A manual move can stop the previous stage’s Mix and start the next stage’s Mix.</p>
     </details>
-    <Link className="button" href={`/calendar?contact=${contactId}`}>Schedule a meeting</Link>
   </div>;
 }

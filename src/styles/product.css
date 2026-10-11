@@ -55,10 +55,6 @@
 .relationship-chip span { min-height: 38px; display: inline-flex; align-items: center; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--raised, var(--raised)); font-size: .8125rem; font-weight: 700; }
 .relationship-chip input:checked + span { color: var(--brand-dark); border-color: var(--brand); background: var(--brand-soft); }
 .relationship-chip input:focus-visible + span { outline: 3px solid var(--focus, var(--violet-mark)); outline-offset: 2px; }
-.relationship-toggle { min-height: 48px; display: flex; gap: 10px; align-items: center; cursor: pointer; }
-.relationship-toggle input { width: 20px; height: 20px; }
-.relationship-toggle span { display: grid; }
-.relationship-toggle small { color: var(--muted); }
 .contact-profile-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .contact-next-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-muted); }
 .contact-next-line > span { color: var(--muted); font-size: .8125rem; font-weight: 800; text-transform: uppercase; }
@@ -174,8 +170,6 @@
   .contact-timeline-card { grid-column: auto; }
   .contact-profile-quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .contact-profile-quick-actions .button { min-width: 0; padding-inline: 8px; }
-  .contact-profile-quick-actions .review-request-control { grid-column: 1 / -1; }
-  .contact-profile-quick-actions .review-request-control .button { width: 100%; }
   .rating-options { justify-content: space-between; gap: 3px; }
   .rating-options span[aria-hidden] { width: 44px; height: 44px; }
   .contact-next-line { align-items: center; }
