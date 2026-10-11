@@ -34,8 +34,8 @@ test("Contact search updates while typing and shows useful details", async ({ pa
   await expect(profile.getByRole("heading", { name: "Sarah Chen", exact: true })).toBeVisible();
   await expect(profile.getByRole("link", { name: "+1 555 010 1001", exact: true })).toBeVisible();
   await expect(profile.getByRole("link", { name: "sarah@example.com", exact: true })).toBeVisible();
-  await profile.getByText("Notes to remember", { exact: true }).click();
-  await expect(profile.getByText(/^Introduced by a past customer/)).toBeVisible();
+  // Notes to remember show open beside the details (D77).
+  await expect(profile.getByRole("region", { name: "Notes to remember" }).getByText(/^Introduced by a past customer/)).toBeVisible();
 });
 
 test("Plan and ready-made plan filters stay focused", async ({ page }, testInfo) => {
@@ -71,13 +71,16 @@ test("Contact mobile header actions include icons", async ({ page }, testInfo) =
   await signIn(page);
   await page.goto("/contacts/demo_contact_sarah");
 
+  // Back on the header row, and the profile's ••• menu, which holds Edit (D77), at the end of the name row.
   const headerActions = page.locator(".contact-detail-header-actions");
-  const edit = headerActions.getByRole("link", { name: "Edit", exact: true });
   const back = headerActions.getByRole("link", { name: "Back to contacts", exact: true });
-  await expect(edit).toBeVisible();
+  const menu = page.locator(".contact-profile-header").getByRole("button", { name: "More options for Sarah Chen", exact: true });
   await expect(back).toBeVisible();
-  await expect(edit.locator("svg")).toHaveCount(1);
+  await expect(menu).toBeVisible();
   await expect(back.locator("svg")).toHaveCount(1);
+  await expect(menu.locator("svg")).toHaveCount(1);
+  await menu.click();
+  await expect(page.getByRole("dialog", { name: "Sarah Chen" }).getByRole("link", { name: "Edit contact", exact: true })).toHaveAttribute("href", "/contacts/demo_contact_sarah/edit");
 });
 
 test("Contact details use a fixed phone-first layout", async ({ page }, testInfo) => {
@@ -85,17 +88,19 @@ test("Contact details use a fixed phone-first layout", async ({ page }, testInfo
   await signIn(page);
   await page.goto("/contacts/demo_contact_sarah");
 
-  // One fixed order: the stage, the history and the notes to remember, with contact details beside them.
+  // One fixed order: Mixes under the Next card, then the stage and the history, with the details and the notes to
+  // remember beside them (D77).
   const primary = page.locator(".contact-detail-primary");
+  await expect(page.getByRole("region", { name: "Mixes", exact: true })).toBeVisible();
   await expect(primary.getByRole("heading", { name: "Stage", exact: true })).toBeVisible();
   await expect(primary.getByRole("heading", { name: "History", exact: true })).toBeVisible();
-  await expect(primary.getByText("Notes to remember", { exact: true })).toBeVisible();
   await expect(page.locator(".contact-profile-details").getByRole("heading", { name: "Details", exact: true })).toBeVisible();
+  await expect(page.locator(".contact-profile-details").getByRole("heading", { name: "Notes to remember", exact: true })).toBeVisible();
   await expect(page.locator("[data-personalizable-card-board]")).toHaveCount(0);
 
-  // Preferences, dates and Mixes wait under More.
+  // Preferences and dates wait under More; Mixes are no longer there.
   await page.locator(".contact-detail-more > summary").click();
   await expect(page.getByRole("heading", { name: "Preferences", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Dates", exact: true })).toBeVisible();
-  await expect(page.getByRole("heading", { name: "Mixes", exact: true })).toBeVisible();
+  await expect(page.locator(".contact-detail-more").getByRole("heading", { name: "Mixes", exact: true })).toHaveCount(0);
 });

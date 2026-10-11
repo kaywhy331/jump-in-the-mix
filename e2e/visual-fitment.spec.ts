@@ -285,12 +285,12 @@ test("confirmation dialogs restore focus and accessibility preferences remain us
   await expect(trigger).toBeFocused();
   await expectNoHorizontalOverflow(page);
 
-  // Archiving moved from a per-row menu to the contact's own page.
+  // Archiving moved from a per-row menu to the contact's own page, in its ••• menu (D77).
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/contacts");
   await page.locator(".contact-main").first().click();
   await expect(page).toHaveURL(/\/contacts\/[^/?]+$/);
-  await page.locator("details.contact-detail-more > summary").click();
+  await page.getByRole("button", { name: /^More options for / }).click();
   const archiveTrigger = page.getByRole("button", { name: "Archive contact…" });
   await archiveTrigger.click();
   const archiveDialog = page.getByRole("dialog", { name: /Archive .+\?/ });

@@ -93,9 +93,12 @@ test("a contact with no Mix says so, and the owner can confirm it or start one f
     await expect(page.locator(".notice.success").filter({ hasText: "No Mix needed removed." })).toBeVisible();
     await expect(chip).toBeVisible();
 
-    // Starting a Mix from the same sheet ends No Mix while its Beats are prepared.
+    // Starting a Mix from the same sheet ends No Mix while its Beats are prepared. Nothing is chosen until the owner
+    // chooses (D77).
     await chip.click();
-    await Promise.all([page.waitForURL(/mixAssigned=/), sheet.getByRole("button", { name: "Start Mix", exact: true }).click()]);
+    await expect(sheet.getByRole("combobox", { name: "Choose a Mix" })).toHaveValue("");
+    await sheet.getByRole("combobox", { name: "Choose a Mix" }).selectOption({ index: 1 });
+    await Promise.all([page.waitForURL(/mixAssigned=/), sheet.getByRole("button", { name: "Add to the Mix", exact: true }).click()]);
     await expect(page.locator(".contact-mix-chip")).toHaveCount(0);
   } finally {
     await cleanUp([person.id], since);
@@ -248,7 +251,7 @@ test("the chip, the What's next sheet and the bulk Mix sheet work from the keybo
     await page.keyboard.press("Enter");
     const sheet = page.getByRole("dialog", { name: `What’s next for ${person.displayName}` });
     await expect(sheet).toBeVisible();
-    for (const control of [sheet.getByRole("combobox", { name: "Choose a Mix" }), sheet.getByLabel("Start on"), sheet.getByRole("button", { name: "Start Mix", exact: true }), sheet.getByRole("link", { name: "Schedule a one-time follow-up" }), sheet.getByRole("button", { name: "Mark No Mix needed", exact: true })]) await tabTo(control, 20);
+    for (const control of [sheet.getByRole("combobox", { name: "Choose a Mix" }), sheet.getByLabel("Start on"), sheet.getByRole("button", { name: "Add to the Mix", exact: true }), sheet.getByRole("link", { name: "Schedule a one-time follow-up" }), sheet.getByRole("button", { name: "Mark No Mix needed", exact: true })]) await tabTo(control, 20);
     await page.keyboard.press("Escape");
     await expect(sheet).toBeHidden();
     await expect(chip).toBeFocused();

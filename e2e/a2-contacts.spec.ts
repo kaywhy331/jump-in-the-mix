@@ -174,9 +174,11 @@ test("profile Mix controls carry the Mix name and the Journey track can be reach
     await track.focus();
     await expect(track).toBeFocused();
 
-    await page.locator("details.contact-detail-more > summary").click();
-    await expect(page.getByRole("button", { name: `Stop the ${mix.name} Mix`, exact: true })).toBeVisible();
-    await expect(page.getByRole("button", { name: `Remove the ${mix.name} Mix`, exact: true })).toBeVisible();
+    // The Mix's row names it, and its menu, titled with the Mix, holds Stop and Remove (D77).
+    await page.getByRole("button", { name: new RegExp(`^Options for ${mix.name}: `) }).click();
+    const menu = page.getByRole("dialog", { name: mix.name, exact: true });
+    await expect(menu.getByRole("button", { name: `Stop for Named Controls ${suffix}…`, exact: true })).toBeVisible();
+    await expect(menu.getByRole("button", { name: "Remove from this Mix…", exact: true })).toBeVisible();
   } finally {
     await prisma.contact.deleteMany({ where: { workspaceId, id: contactId } });
     await prisma.journeyStage.deleteMany({ where: { id: stage.id } });

@@ -37,7 +37,7 @@ test("Contact state, archive restoration, and duplicate review are operable", as
   try {
     await signIn(page);
     await page.goto(`/contacts/${activeId}`);
-    // Priority and Do not contact live in Preferences, under the profile's More disclosure.
+    // Priority lives in Preferences, under the profile's More disclosure; Do not contact is in its ••• menu (D77).
     await page.locator(".contact-detail-more > summary").click();
     await expect(page.getByRole("heading", { name: "Preferences", exact: true })).toBeVisible();
     await page.locator("label.relationship-chip").filter({ hasText: "Urgent" }).click();
@@ -46,9 +46,10 @@ test("Contact state, archive restoration, and duplicate review are operable", as
     await expect.poll(async () => (await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: activeId } })).priority).toBe("URGENT");
 
     // Turning on Do not contact asks before it stops the person's pending follow-ups.
-    await page.getByLabel("Do not contact").click();
+    await page.getByRole("button", { name: `More options for ${displayName}`, exact: true }).click();
+    await page.getByRole("button", { name: "Do not contact", exact: true }).click();
     await page.getByRole("dialog", { name: /^Stop \d+ pending follow-ups? for this person\?$/ }).getByRole("button", { name: "Stop follow-ups", exact: true }).click();
-    await expect(page.getByLabel("Do not contact")).toBeChecked();
+    await expect(page.getByText("Do not contact is on.", { exact: true })).toBeVisible();
     await expect.poll(async () => await prisma.contactRelationshipState.findUniqueOrThrow({ where: { contactId: activeId } })).toMatchObject({ priority: "URGENT", doNotContact: true });
 
     await page.goto(`/contacts/archived?q=${encodeURIComponent(`Archived ${suffix}`)}`);
