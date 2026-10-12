@@ -330,7 +330,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="page contacts-page">
-      {params.stateUpdated && <Notice type="success">Journey stage updated.</Notice>}
+      {params.stateUpdated && <Notice type="success">Stage updated.</Notice>}
       {params.created && <Notice type="success">Contact added.</Notice>}
       {params.archived && <Notice type="success"><span className="notice-with-action">Contact archived.{params.archivedContact && <form action={restoreContactAction}><input type="hidden" name="contactId" value={params.archivedContact} /><input type="hidden" name="returnTo" value="/contacts" /><FormSubmitButton label="Undo" pendingLabel="Restoring…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {params.restored && <Notice type="success">Contact restored.</Notice>}
@@ -348,7 +348,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.viewSaved && <Notice type="success">View saved.</Notice>}
       {params.defaultViewSaved && <Notice type="success">Default view saved.</Notice>}
       {params.viewDeleted && <Notice type="success">View deleted.</Notice>}
-      {importBatchId && <Notice type={importBatch ? "info" : "error"}>{importBatch ? `Showing Contacts touched by the selected ${importBatch.status.toLowerCase()} import.` : "That import batch is unavailable in your personal data."}</Notice>}
+      {importBatchId && <Notice type={importBatch ? "info" : "error"}>{importBatch ? "Showing the people from this import." : "That import batch is unavailable in your personal data."}</Notice>}
       <UrlErrorNotice params={params} viewer={session} />
       <p className="sr-only" role="status" aria-live="polite">{resultMessage}</p>
       <div className="contacts-workspace"><section className="contacts-directory" aria-label="Contact directory">

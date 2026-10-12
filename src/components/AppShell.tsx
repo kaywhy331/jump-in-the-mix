@@ -93,7 +93,7 @@ export function AppShell({
       )}
       <main id="workspace-main" tabIndex={-1} className="app-main">{children}</main>
       <div className="mobile-nav"><Nav moreBadge={invitationsLeft} quickAdd={!impersonation} /></div>
-      {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} />}
+      {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} locale={displayPreferences.locale} />}
     </div>
   );
 }

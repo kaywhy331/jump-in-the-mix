@@ -31,7 +31,7 @@ function formatIn(timezone: string, options: Intl.DateTimeFormatOptions, at: Dat
 /** Token values for one appointment, formatted in the appointment's own timezone. */
 export function appointmentTokenValues(appointment: AppointmentContext | null | undefined, locale = "en-US"): Record<string, string> {
   const date = appointment ? formatIn(appointment.timezone, { weekday: "long", month: "long", day: "numeric" }, appointment.startsAt, locale) : "";
-  const time = appointment ? formatIn(appointment.timezone, { hour: "numeric", minute: "2-digit" }, appointment.startsAt, locale) : "";
+  const time = appointment ? formatIn(appointment.timezone, { hour: "numeric", minute: "2-digit", hour12: true }, appointment.startsAt, locale) : "";
   const values = {
     title: appointment?.title?.trim() ?? "",
     date,

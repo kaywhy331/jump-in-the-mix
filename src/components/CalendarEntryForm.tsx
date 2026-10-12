@@ -10,6 +10,7 @@ import { Notice } from "@/components/Notice";
 import { RequiredFieldsNote } from "@/components/RequiredFieldsNote";
 import { WhenPicker, type WhenAvailability } from "@/components/WhenPicker";
 import { addMinutesToLocal, formatDateTrigger, formatDurationLabel, formatTimeLabel, minutesOf, splitLocal } from "@/lib/when-picker";
+import { zoneLabel } from "@/lib/display-labels";
 
 const DURATIONS = [15, 30, 45, 60, 90, 120] as const;
 type Duration = (typeof DURATIONS)[number] | "custom";
@@ -68,7 +69,7 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
   const end = values.duration === "custom" ? splitLocal(values.customEnd) : addMinutesToLocal(values.date, values.time, values.duration);
   const startsAt = `${values.date}T${values.time}`;
   const endsAt = values.duration === "custom" ? values.customEnd : `${end!.date}T${end!.time}`;
-  const endSummary = end ? `Ends ${end.date === values.date ? "" : `${formatDateTrigger(end.date)} at `}${formatTimeLabel(end.time)}` : "Choose when it ends";
+  const endSummary = end ? `Ends ${end.date === values.date ? "" : `${formatDateTrigger(end.date, undefined, locale)} at `}${formatTimeLabel(end.time, locale)}` : "Choose when it ends";
 
   const submit = (event: React.FormEvent<HTMLFormElement>) => { event.preventDefault(); const data = new FormData(event.currentTarget); startTransition(() => action(data)); };
   // React resets a form submitted through its action prop once the action settles, which blanks
@@ -101,14 +102,14 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
     {values.kind === "MEETING" && plans.length > 0 && !entry && <label className="field full"><span>Follow-up Mix for this visit (optional)</span><select name="planId" value={values.planId} onChange={event => update("planId", event.target.value)}><option value="">No Mix</option>{plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select><small>Its reminders and check-ins line up with this appointment and move with it. Nothing is sent automatically unless you turn that on for this visit.</small></label>}
     {values.kind === "MEETING" && plans.length === 0 && !entry && <p className="muted-copy field full">No Mix is ready to line up with a visit yet. <Link href="/mixes/new?custom=1" className="inline-action">Create a Mix</Link> with the cue “When I start it for someone” and start it; no one needs to be enrolled first.</p>}
     <label className="field full calendar-form-row calendar-with"><span>Contact (optional)</span><select name="contactId" value={values.contactId} onChange={event => update("contactId", event.target.value)}><option value="">No contact</option>{contactOptions.map(contact => <option value={contact.id} key={contact.id}>{contact.displayName}</option>)}</select></label>
-    <div className="field full calendar-form-row calendar-timezone"><TimezonePicker defaultValue={values.timezone} onChange={zone => update("timezone", zone)} label="Event timezone" /><small>Event times are entered in {values.timezone}. Changing the zone keeps the entered clock time.</small></div>
+    <div className="field full calendar-form-row calendar-timezone"><TimezonePicker defaultValue={values.timezone} onChange={zone => update("timezone", zone)} label="Event timezone" /><small>Times are {zoneLabel(values.timezone)}. Changing the time zone keeps the clock times you entered.</small></div>
     <label className="field full calendar-form-row"><span>Where (optional)</span><input name="location" maxLength={200} value={values.location} onChange={event => update("location", event.target.value)} placeholder="Address or place, for reminders" /></label>
     <details className="field full calendar-extra-details" open={Boolean(entry?.link || entry?.details)}><summary>More event details</summary><div className="form-grid">
     <label className="field full"><span>Link to join or find it (optional)</span><input name="link" type="url" inputMode="url" maxLength={500} value={values.link} onChange={event => update("link", event.target.value)} placeholder="https://" /></label>
     <label className="field full"><span>Details the customer should be reminded of (optional)</span><textarea name="details" maxLength={1000} rows={2} value={values.details} onChange={event => update("details", event.target.value)} placeholder="What to bring, where to park, who to ask for" /></label>
     <label className="field full checkbox-row"><input type="checkbox" name="allowOverlap" checked={values.allowOverlap} onChange={event => update("allowOverlap", event.target.checked)} /><span>Allow an intentional overlap with another event{availability && availability.bufferMinutes > 0 ? ` or its ${availability.bufferMinutes}-minute buffer` : ""}</span></label>
     </div></details>
-    <div className="form-actions field full calendar-save-actions"><p className="muted-copy">Saved to your calendar only. No invitation is sent.{values.kind === "MEETING" && values.contactId ? " Your journey rules may start follow-ups for this person." : ""}</p>{entry && <a className="button" href={`/api/calendar/export?id=${encodeURIComponent(entry.id)}`}>Download for sharing</a>}<button className="button primary" disabled={pending}>{pending ? "Saving…" : entry ? "Save changes" : "Save event"}</button></div>
+    <div className="form-actions field full calendar-save-actions"><p className="muted-copy">Saved to your calendar only. No invitation is sent.{values.kind === "MEETING" && values.contactId ? " Your stage rules may start follow-ups for this person." : ""}</p>{entry && <a className="button" href={`/api/calendar/export?id=${encodeURIComponent(entry.id)}`}>Download for sharing</a>}<button className="button primary" disabled={pending}>{pending ? "Saving…" : entry ? "Save changes" : "Save event"}</button></div>
   </fieldset>
   </form>;
 }

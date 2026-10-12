@@ -10,6 +10,7 @@ import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/
 import { prisma } from "@/lib/prisma";
 import { setStagesFromTagJoins } from "@/lib/mix-stage";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
+import { channelName, channelWord } from "@/lib/display-labels";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -182,7 +183,7 @@ export async function applyJumpToContactsAction(formData: FormData): Promise<voi
     try { manual = validateManualContent(formData); }
     catch (error) { fail(error instanceof ManualContentError ? error.message : "The one-time follow-up could not be prepared.", session); }
     prepared = {
-      name: value(formData, "manualName") || `One-time ${manual.channel.replaceAll("_", " ").toLowerCase()}`,
+      name: value(formData, "manualName") || `One-time ${channelWord(channelName(manual.channel))}`,
       channel: manual.channel,
       subject: manual.subject,
       body: manual.body,

@@ -140,7 +140,7 @@ test("an appointment-based Mix starts with no one enrolled, attaches to the visi
   expect(await prisma.jump.count({ where: { mixId: mix.id } })).toBe(0);
   // The Mix library does not present visit-timed beats as days: the row counts beats and the preview describes each timing.
   await page.goto(`/mixes?mix=${mix.id}`); await ready(page);
-  await expect(page.locator(".mix-library-row", { hasText: name })).toContainText("active · 3 Beats");
+  await expect(page.locator(".mix-library-row", { hasText: name })).toContainText("On · 3 Beats");
   const preview = page.getByRole("region", { name: "Beat preview" });
   await expect(preview.locator("li").first()).toContainText("1 hour 30 minutes before the appointment starts");
   await expect(preview.locator("li").nth(1)).toContainText("30 minutes after the appointment ends");

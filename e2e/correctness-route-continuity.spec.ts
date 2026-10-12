@@ -134,7 +134,7 @@ test("name-only contacts keep saved-date access and return to the filtered list"
       editDialog.getByRole("button", { name: "Save date" }).click()
     ]);
     await openMore();
-    await expect(page.getByText("2/28", { exact: true })).toBeVisible();
+    await expect(page.locator(".important-date-summary").getByText("Feb 28", { exact: true })).toBeVisible();
 
     await datesSection.getByRole("button", { name: "Remove Birthday", exact: true }).click();
     const removeDialog = page.getByRole("dialog", { name: "Remove Birthday?" });
@@ -142,7 +142,7 @@ test("name-only contacts keep saved-date access and return to the filtered list"
       page.waitForURL(/dateDeleted=1/),
       removeDialog.getByRole("button", { name: "Remove date" }).click()
     ]);
-    await expect(page.getByText("2/28", { exact: true })).toHaveCount(0);
+    await expect(page.locator(".important-date-summary").getByText("Feb 28", { exact: true })).toHaveCount(0);
     await openMore();
     await expect(datesSection.getByText("No dates saved yet.", { exact: true })).toBeVisible();
     const storedDate = await prisma.jumpDate.findUniqueOrThrow({ where: { id: jumpDateId } });

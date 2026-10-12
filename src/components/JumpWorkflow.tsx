@@ -137,7 +137,7 @@ function useOutcomeRequestIds(): OutcomeRequestIds {
 }
 
 function formatNextFollowUp(value: string): string {
-  return new Date(value).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit" });
+  return new Date(value).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
 }
 
 function dispatchJumpState(detail: JumpStateDetail): void {
@@ -545,7 +545,7 @@ export function JumpStampEditor({ jumpId, completedAt, label }: { jumpId: string
       const response = await fetch(`/api/jumps/${encodeURIComponent(jumpId)}/completed-at`, { method: "PATCH", headers: { "content-type": "application/json" }, body: JSON.stringify({ completedAt: next.toISOString() }) });
       const payload = await response.json().catch(() => ({})) as { error?: string };
       if (!response.ok) throw new Error(payload.error || "The time could not be saved.");
-      setShown(new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit" }).format(next));
+      setShown(new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).format(next));
       setEditing(false);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The time could not be saved.");

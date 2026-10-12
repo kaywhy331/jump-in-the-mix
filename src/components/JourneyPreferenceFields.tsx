@@ -2,6 +2,7 @@
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { COMMUNICATION_CHOICES, WORK_DAYS, type JourneySetupValues } from "@/lib/journey-preferences";
 import { formatTimeInput, parseTimeInput } from "@/lib/mix-broadcast";
+import { timeOfDayLabel, zoneLabel } from "@/lib/display-labels";
 import { APPOINTMENT_BUFFER_CHOICES } from "@/lib/calendar-availability";
 import styles from "./JourneySetup.module.css";
 
@@ -33,13 +34,21 @@ export function JourneyPreferenceFields({ value, onChange, id, detectTimezone = 
   </div>;
 }
 
+/** Working days as the owner reads them: "Every day", "Weekdays", or the days in order. */
+function workDaysLabel(days: number[]): string {
+  const chosen = [1, 2, 3, 4, 5, 6, 0].filter(day => days.includes(day));
+  if (chosen.length === 7) return "Every day";
+  if (chosen.length === 5 && chosen.every(day => day >= 1 && day <= 5)) return "Weekdays";
+  return chosen.map(day => WORK_DAYS[day].slice(0, 3)).join(", ");
+}
+
 export function JourneyPreferenceSummary({ value }: { value: JourneySetupValues }) {
   const p = value.preferences;
   return <dl className={styles.summary}>
     <div><dt>Communication</dt><dd>{COMMUNICATION_CHOICES[p.communication]}</dd></div>
     <div><dt>Spacing</dt><dd>{p.pace === "RELAXED" ? "Double the recommended delays" : "Recommended delays"}</dd></div>
-    <div><dt>Working hours</dt><dd>{[1, 2, 3, 4, 5, 6, 0].filter(day => p.workDays.includes(day)).map(day => WORK_DAYS[day].slice(0, 3)).join(", ")} · {formatTimeInput(p.workStart)}–{formatTimeInput(p.workEnd)} · {value.timezone}</dd></div>
-    <div><dt>Follow-ups</dt><dd>Prefer {formatTimeInput(value.defaultFollowUpMinutes)}{value.quietHoursStart !== value.quietHoursEnd ? ` · Quiet from ${formatTimeInput(value.quietHoursStart)} to ${formatTimeInput(value.quietHoursEnd)}` : " · No quiet time"}</dd></div>
-    <div><dt>Appointments</dt><dd>{p.avoidAppointments ? "Move reminders around calendar appointments" : "Keep reminders within working hours"} · {value.appointmentBufferMinutes}-minute buffer</dd></div>
+    <div><dt>Working hours</dt><dd>{workDaysLabel(p.workDays)} · {timeOfDayLabel(p.workStart)}–{timeOfDayLabel(p.workEnd)} · {zoneLabel(value.timezone)}</dd></div>
+    <div><dt>Follow-ups</dt><dd>Prefer {timeOfDayLabel(value.defaultFollowUpMinutes)}{value.quietHoursStart !== value.quietHoursEnd ? ` · Quiet from ${timeOfDayLabel(value.quietHoursStart)} to ${timeOfDayLabel(value.quietHoursEnd)}` : " · No quiet time"}</dd></div>
+    <div><dt>Appointments</dt><dd>{p.avoidAppointments ? "Move reminders around calendar appointments" : "Keep reminders within working hours"} · {value.appointmentBufferMinutes ? `${value.appointmentBufferMinutes}-minute buffer` : "No buffer"}</dd></div>
   </dl>;
 }

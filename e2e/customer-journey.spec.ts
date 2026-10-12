@@ -40,13 +40,13 @@ test("owners configure stages, custom triggers, order and individual pauses", as
   // The profile's stage chip opens the journey sheet; its "Stage and automation" controls start expanded.
   const stageSheet = async () => {
     await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
-    await page.getByRole("button",{ name: /^Change journey stage:/ }).click();
-    const sheet = page.getByRole("dialog",{ name: "Journey stage for Jordan Sample", exact: true }); await expect(sheet).toBeVisible();
+    await page.getByRole("button",{ name: /^Change stage:/ }).click();
+    const sheet = page.getByRole("dialog",{ name: "Stage for Jordan Sample", exact: true }); await expect(sheet).toBeVisible();
     await openDetails(sheet.getByText("Stage and automation",{ exact: true })); return sheet;
   };
   await page.goto(`/contacts/${contactId}`);
   const lead = ordered.find(stage => stage.name === "Lead")!; let sheet = await stageSheet(); await sheet.getByLabel("Move to stage").selectOption(lead.id); await submit(page, sheet.getByRole("button",{ name: "Move stage", exact: true }));
-  await expect(page.getByRole("button",{ name: "Change journey stage: Lead", exact: true })).toBeVisible();
+  await expect(page.getByRole("button",{ name: "Change stage: Lead", exact: true })).toBeVisible();
   sheet = await stageSheet(); await expect(sheet.locator(".journey-current")).toContainText("Lead");
   await submit(page, sheet.getByRole("button",{ name: "Pause transitions for this person" }));
   sheet = await stageSheet(); await expect(sheet.locator(".contact-journey-panel")).toContainText("Automatic transitions are paused"); await expect(sheet.getByRole("button",{ name: "Record a sale", exact: true })).toHaveCount(0);

@@ -7,6 +7,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { deleteMegaMixAction, duplicateMegaMixAction, importFileAction, previewImportAction, saveMegaMixAction, type ImportPreview } from "@/lib/mega-mix-pipeline-actions";
+import { mixStatusLabel } from "@/lib/display-labels";
 
 export type MegaMixChoice = { id: string; name: string; beats: number; status: string; pipeline: { id: string; name: string } | null };
 
@@ -24,7 +25,7 @@ export function MegaMixForm({ pipeline, mixes }: { pipeline?: { id: string; name
       <label className="sr-only" htmlFor="mega-mix-choice-search">Find a Mix</label>
       <input id="mega-mix-choice-search" type="search" placeholder="Find a Mix" value={query} onChange={event => setQuery(event.target.value)} />
       {visible.length ? <ul>{visible.map(mix => <li key={mix.id}><label className="checkbox-label"><input type="checkbox" name="mixId" value={mix.id} checked={chosen.has(mix.id)} onChange={event => setChosen(current => { const next = new Set(current); if (event.target.checked) next.add(mix.id); else next.delete(mix.id); return next; })} />
-        <span><strong>{mix.name}</strong><small>{mix.beats} {mix.beats === 1 ? "Beat" : "Beats"} · {mix.status.toLowerCase()}{mix.pipeline && mix.pipeline.id !== pipeline?.id ? ` · in ${mix.pipeline.name}` : ""}</small></span></label></li>)}</ul> : <p className="muted-copy">{mixes.length ? "No Mix matches." : "Create a Mix first, then group it here."}</p>}
+        <span><strong>{mix.name}</strong><small>{mix.beats} {mix.beats === 1 ? "Beat" : "Beats"} · {mixStatusLabel(mix.status)}{mix.pipeline && mix.pipeline.id !== pipeline?.id ? ` · in ${mix.pipeline.name}` : ""}</small></span></label></li>)}</ul> : <p className="muted-copy">{mixes.length ? "No Mix matches." : "Create a Mix first, then group it here."}</p>}
       {/* Hidden inputs keep chosen Mixes that the search hides. */}
       {[...chosen].filter(id => !visible.some(mix => mix.id === id)).map(id => <input key={id} type="hidden" name="mixId" value={id} />)}
     </fieldset>

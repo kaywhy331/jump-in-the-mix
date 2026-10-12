@@ -50,7 +50,7 @@ export default async function ImportContactsPage({ searchParams }: { searchParam
   return (
     <div className="page import-contacts-page">
       <BackLink href="/contacts" label="Contacts" /><header className="page-header">
-        <div><h1>Import Contacts</h1><p>Choose a file, review only the rows that need a decision, then let the background worker finish safely.</p></div>
+        <div><h1>Import Contacts</h1><p>Choose a file, check anything that needs a decision, then import. You can leave while it finishes.</p></div>
         
       </header>
       {onboarding && <p>After importing, return to your setup tab; saved people refresh automatically and your other choices stay there. <Link href="/onboarding">Open setup</Link> if you closed it.</p>}
