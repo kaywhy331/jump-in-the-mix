@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTodayUpdates } from "@/components/useTodayUpdates";
+import { FollowUpConfirmations } from "@/components/JumpWorkflow";
 import { openSheet } from "@/lib/sheet-layout";
 import { AppIcon } from "@/components/AppIcon";
 
@@ -101,6 +102,8 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     {/* Confirmations go in the inner list, and an end-of-Mix question after it, so the order on screen is also the order
         for keyboard and screen-reader users (A11Y-03). */}
     <div id="follow-up-confirmations" className="follow-up-confirmations" aria-label="Recent follow-up results"><div id="follow-up-undos" className="follow-up-undos" /></div>
+    {/* Outside the list, so a fresh read of it never takes a confirmation or its Undo away (D99). */}
+    <FollowUpConfirmations />
     {updateState && updateState !== "undo" && <aside className="notice info" aria-label="Today updates" data-today-notice={updateState === "refreshing" ? undefined : true}>
       <p role="status">{updateState === "draft" ? "There are updates for this list. Finish or discard your message edits to show them."
         : updateState === "offline" ? "Your progress is saved. Reconnect to update this list."
