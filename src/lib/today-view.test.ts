@@ -163,6 +163,13 @@ describe("groupDueFollowUps", () => {
     expect(groupDueFollowUps([due("call", "M", 9)], startToday).moved).toBe(0);
   });
 
+  it("keeps a person contacted today under Today, so the follow-up left after the later one is recorded stays put (D99)", () => {
+    const result = groupDueFollowUps([due("text", "M", -24), due("p", "P", 1), due("old", "Q", -30)], startToday, new Set(["M"]));
+    expect(ids(result.overdue)).toEqual([["old"]]);
+    expect(ids(result.today)).toEqual([["text"], ["p"]]);
+    expect(result.moved).toBe(1);
+  });
+
   it("lets every section count at least the cards it shows, wherever the pages break", () => {
     const list = [due("m1", "M", -50), due("n1", "N", -26), due("m2", "M", -20), due("p1", "P", 1), due("n2", "N", 2), due("q1", "Q", 3), due("m3", "M", 6), due("p2", "P", 7)];
     const overdueTotal = list.filter(item => item.scheduledAt < startToday).length;
