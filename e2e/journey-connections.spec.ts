@@ -204,7 +204,7 @@ test("invalid drops, Escape, pointer cancellation, and view changes leave no dra
   await expect(source).toHaveAttribute("aria-pressed", "false");
   await page.mouse.move(a.x, a.y); await page.mouse.down(); await page.mouse.move(10, 10); await page.mouse.up();
   await expect(page.getByRole("heading", { name: "Connect what happens next" })).toHaveCount(0);
-  await source.click(); await page.getByRole("button", { name: "Map options", exact: true }).click(); await page.getByRole("button", { name: "Show list", exact: true }).click(); await page.getByRole("button", { name: "Show diagram", exact: true }).click();
+  await source.click(); const showAs = page.getByRole("group", { name: "Show the journey as" }); await showAs.getByRole("button", { name: "List", exact: true }).click(); await showAs.getByRole("button", { name: "Map", exact: true }).click();
   await page.getByRole("button", { name: "Reset zoom to 100%", exact: true }).click(); await expect(source).toHaveAttribute("aria-pressed", "false");
   await page.getByRole("button", { name: "Progress", exact: true }).click(); await expect(page.locator("[data-workflow-port]")).toHaveCount(0);
 });
@@ -261,6 +261,8 @@ test("handles follow themes, keyboard focus, narrow layouts, and read-only state
     if (process.env.CONNECTION_ARTIFACTS) await page.screenshot({ path: `${process.env.CONNECTION_ARTIFACTS}/journey-${width}-${theme}.png`, fullPage: true });
   }
   await page.route("**/api/mix-workflow?*", async route => { const response = await route.fetch(); const json = await response.json(); await route.fulfill({ response, json: { ...json, canEdit: false } }); });
+  // Below 768px Journey opens in its list view (D75), so the read-only map is checked at a desktop width.
+  await page.setViewportSize({ width: 1440, height: 1000 });
   await page.reload({ waitUntil: "networkidle" }); await page.getByRole("button", { name: "Reset zoom to 100%", exact: true }).click();
   await expect(page.locator("[data-workflow-port]")).toHaveCount(0);
 });
