@@ -63,7 +63,7 @@ test("meeting booking advances the journey, retains invalid form input and expor
   const pickStart = async (time: string) => { await form.locator(".when-trigger.time").click(); const sheet = page.getByRole("dialog", { name: "Starts", exact: true }); await sheet.getByRole("button", { name: time, exact: true }).click(); await expect(sheet).toBeHidden(); };
   await form.getByLabel("Title",{ exact: true }).fill("Discovery with Jordan"); await pickStart("9:00 AM"); await form.getByRole("button", { name: "30 min", exact: true }).click();
   await expect(form.locator('input[name="startsAt"]')).toHaveValue("2026-09-10T09:00"); await expect(form.locator('input[name="endsAt"]')).toHaveValue("2026-09-10T09:30");
-  await submit(page, form.getByRole("button",{ name: "Save event", exact: true })); await expect(page.getByText("Calendar updated.",{ exact: true })).toBeVisible();
+  await submit(page, form.getByRole("button",{ name: "Save event", exact: true })); await expect(page.getByRole("status").filter({ hasText: "Discovery with Jordan saved for" })).toContainText("No invitation was sent.");
   await expect(page.locator(".calendar-event")).toContainText("Discovery with Jordan");
   expect((await prisma.contactJourney.findUniqueOrThrow({ where: { contactId }, include: { stage: true } })).stage.name).toBe("Prospect");
   // After a save the editor shows the saved event; a second event starts from New event.

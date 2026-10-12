@@ -67,7 +67,8 @@ for (const width of [390, 1280]) test(`a Mix's stage moves the person who starts
   await stage.focus();
   await expect(page.getByText("People who start this Mix move to this stage, and only the label changes.", { exact: false })).toBeVisible();
   await capture(page, `editor-stage-${width}`, ".mix-stage-choice");
-  await page.getByRole("button", { name: "Save and activate", exact: true }).click();
+  // The Mix is already on and this save starts no one, so it is a plain save (TRU-02).
+  await page.getByRole("button", { name: "Save Mix", exact: true }).click();
   await expect(page.getByText("Mix saved.")).toBeVisible();
   expect((await prisma.mix.findUniqueOrThrow({ where: { id: mix.id }, include: { stage: true } })).stage?.name).toBe("Prospect");
   await page.goto(`/mixes?mix=${mix.id}`);

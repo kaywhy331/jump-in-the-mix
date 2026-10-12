@@ -31,6 +31,15 @@ describe.skipIf(!local)("follow-up preparation", () => {
     expect((await readPreparationStatus(workspaceId, "person")).state).toBe("preparing");
     expect((await readPreparationStatus(workspaceId, "' OR true --")).state).toBe("preparing");
   });
+  it("counts a bulk start's work only for the people it started (TRU-04)", async () => {
+    await job({ payload: { mixId: "plan", contactIds: ["started", "also-started"] } });
+    expect((await readPreparationStatus(workspaceId, "started")).state).toBe("preparing");
+    expect((await readPreparationStatus(workspaceId, "also-started")).state).toBe("preparing");
+    expect((await readPreparationStatus(workspaceId, "unrelated")).state).toBe("ready");
+    expect((await readPreparationStatus(workspaceId)).state).toBe("preparing");
+    await job({ payload: { mixId: "plan", contactIds: ["started"] }, failedAt: new Date() });
+    expect((await readPreparationStatus(workspaceId, "unrelated")).state).toBe("ready");
+  });
   it("keeps future retries and active leases pending and flags delays", async () => {
     const pending = await job({ lockedAt: new Date(), lockedBy: "worker", runAt: new Date(Date.now() + 120_000) });
     expect((await readPreparationStatus(workspaceId)).state).toBe("preparing");

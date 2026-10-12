@@ -122,12 +122,19 @@ test("paging and filters protect closed message drafts until the owner discards 
   expect(await prisma.jump.count({ where: { workspaceId, status: "PENDING" } })).toBe(323);
 });
 
+test("an older snooze link without a time shows the plain notice (SNZ-01)", async ({ page }) => {
+  await visit(page, "/jumps?snoozed=1");
+  await expect(page.getByText("Follow-up snoozed.", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Snoozed until/)).toHaveCount(0);
+});
+
 test("filters reset the page and snooze/stop actions preserve the current filtered position", async ({ page }) => {
   await visit(page, "/jumps?range=all&status=pending&channel=SMS"); await next(page, smsIds[30]);
   const cursor = new URL(page.url()).searchParams.get("after"); expect(cursor).toBeTruthy();
   await page.getByRole("button", { name: "More options for Queue person 031", exact: true }).click();
-  await page.getByRole("dialog", { name: "Follow up with Queue person 031", exact: true }).getByRole("button", { name: "Tomorrow", exact: true }).click();
-  await expect(page).toHaveURL(/snoozed=1/); expect(new URL(page.url()).searchParams.get("after")).toBe(cursor);
+  await page.getByRole("dialog", { name: "Follow up with Queue person 031", exact: true }).getByRole("button", { name: /^Tomorrow · \d{1,2}:\d{2}/ }).click();
+  await expect(page).toHaveURL(/snoozed=\d{4}-/); expect(new URL(page.url()).searchParams.get("after")).toBe(cursor);
+  await expect(page.getByText(/^Snoozed until .+\d{1,2}:\d{2}\s?[AP]M\.$/)).toBeVisible();
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[31]}`);
   await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
   await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).getByRole("button", { name: "Stop Mix…", exact: true }).click();

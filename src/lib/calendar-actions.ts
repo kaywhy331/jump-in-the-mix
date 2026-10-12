@@ -42,38 +42,49 @@ export async function appointmentOutcomeAction(data: FormData) {
   const raw = value(data, "outcome");
   const outcome = raw === "COMPLETED" || raw === "NO_SHOW" ? raw as AppointmentOutcome : null;
   const result = await recordAppointmentOutcome({ workspaceId: workspace.id, actorUserId: user.id, entryId: value(data, "id"), version: Number(value(data, "version")), outcome });
-  const next = new URLSearchParams({ date: value(data, "date") });
-  if (!result.ok) redirect(withViewerError(`/calendar?${next}`, result.message, session));
-  next.set("saved", "1");
-  redirect(`/calendar?${next}`);
+  if (!result.ok) redirect(withViewerError(`/calendar?${calendarPlace(data)}`, result.message, session));
+  // The confirmation names the visit and what was recorded (TRU-07).
+  redirect(`/calendar?${calendarPlace(data, { done: outcome === "COMPLETED" ? "happened" : outcome === "NO_SHOW" ? "no-show" : "cleared", event: value(data, "id") })}`);
 }
 
 /** Hold or resume one visit's follow-ups without touching the person's other plans. */
 export async function appointmentBindingHoldAction(data: FormData) {
-  const { workspace } = await context();
-  await setAppointmentBindingHold({ workspaceId: workspace.id, bindingId: value(data, "bindingId"), held: value(data, "held") === "1" });
-  redirect(`/calendar?date=${encodeURIComponent(value(data, "date"))}&saved=1`);
+  const { workspace, session } = await context();
+  const changed = await setAppointmentBindingHold({ workspaceId: workspace.id, bindingId: value(data, "bindingId"), held: value(data, "held") === "1" });
+  // A notice confirms only a change that happened (CAL-02).
+  if (!changed) redirect(withViewerError(`/calendar?${calendarPlace(data)}`, "This visit’s follow-ups changed. Refresh the calendar and try again.", session));
+  redirect(`/calendar?${calendarPlace(data, { done: value(data, "held") === "1" ? "held" : "resumed", binding: value(data, "bindingId") })}`);
 }
 
 /** Automatic sending for one visit's follow-ups stays off until the owner turns it on here. */
 export async function appointmentBindingDeliveryAction(data: FormData) {
-  const { workspace } = await context();
-  await setAppointmentBindingDelivery({ workspaceId: workspace.id, bindingId: value(data, "bindingId"), automaticDelivery: value(data, "automaticDelivery") === "1" });
-  redirect(`/calendar?date=${encodeURIComponent(value(data, "date"))}&saved=1`);
+  const { workspace, session } = await context();
+  const changed = await setAppointmentBindingDelivery({ workspaceId: workspace.id, bindingId: value(data, "bindingId"), automaticDelivery: value(data, "automaticDelivery") === "1" });
+  if (!changed) redirect(withViewerError(`/calendar?${calendarPlace(data)}`, "This visit’s follow-ups changed. Refresh the calendar and try again.", session));
+  redirect(`/calendar?${calendarPlace(data, { done: value(data, "automaticDelivery") === "1" ? "delivery-on" : "delivery-off", binding: value(data, "bindingId") })}`);
 }
 
 export async function cancelCalendarAction(data: FormData) {
-  const { workspace, user } = await context();
-  await prisma.$transaction(async tx => {
+  const { workspace, user, session } = await context();
+  const canceled = await prisma.$transaction(async tx => {
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR NO KEY UPDATE`;
     const entry = await tx.calendarEntry.findFirst({ where: { id: value(data, "id"), workspaceId: workspace.id, connectionId: null, canceledAt: null, version: Number(value(data, "version")) } });
-    if (!entry) return;
+    if (!entry) return false;
     await tx.calendarEntry.update({ where: { id: entry.id }, data: { canceledAt: new Date(), version: { increment: 1 } } });
     // Bound follow-ups are held with their own reason on the next pass, never sent for a visit that is off.
     await queueBoundReconciliation(tx, workspace.id, entry.id);
     if (entry.contactId) await tx.contactActivity.create({ data: { workspaceId: workspace.id, contactId: entry.contactId, actorUserId: user.id, kind: "SYSTEM", visibility: "WORKSPACE", summary: `Canceled calendar event: ${entry.title}. The customer’s stage was kept.`, metadata: { calendarEntryId: entry.id } } });
+    return true;
   });
-  redirect("/calendar?saved=1");
+  // Back to the days the owner was viewing, with a notice that names the event, or says nothing was canceled (TRU-07, CAL-02).
+  if (!canceled) redirect(withViewerError(`/calendar?${calendarPlace(data)}`, "This event changed. Refresh the calendar before canceling it.", session));
+  redirect(`/calendar?${calendarPlace(data, { done: "canceled", event: value(data, "id") })}`);
+}
+
+/** The Calendar view a form came from (its date and one or seven days), plus a result. */
+function calendarPlace(data: FormData, result: Record<string, string> = {}): URLSearchParams {
+  const date = value(data, "date"), days = value(data, "days");
+  return new URLSearchParams({ ...(/^\d{4}-\d{2}-\d{2}$/.test(date) ? { date } : {}), ...(days === "1" ? { days } : {}), ...result });
 }
 
 /** A calendar connection request this action refuses; its message is shown on the calendar as written. */

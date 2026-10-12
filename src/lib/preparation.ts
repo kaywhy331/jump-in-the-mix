@@ -8,7 +8,10 @@ type Reader = Pick<Prisma.TransactionClient, "$queryRaw">;
 // queries may leave a conservative preparing state, never a stale empty/ready one.
 export async function readPreparationStatus(workspaceId: string, contactId?: string, db: Reader = prisma): Promise<PreparationStatus> {
   const now = new Date();
-  const scope = contactId ? Prisma.sql`AND (j.payload ->> 'contactId' IS NULL OR j.payload ->> 'contactId' = ${contactId})` : Prisma.empty;
+  // For one person: a job for them, or one for the whole account or a whole Mix. A bulk start's job lists the people it
+  // started (`contactIds`), so it covers only them, as the person's Mix status counts it (TRU-04).
+  const scope = contactId ? Prisma.sql`AND (j.payload ->> 'contactId' = ${contactId}
+    OR (j.payload ->> 'contactId' IS NULL AND (j.payload -> 'contactIds' IS NULL OR j.payload -> 'contactIds' @> jsonb_build_array(${contactId}::text))))` : Prisma.empty;
   const [result] = await db.$queryRaw<Array<{ pending: boolean; delayed: boolean; failed: boolean }>>(Prisma.sql`
     WITH relevant AS (
       SELECT j."createdAt", j.attempts, j."completedAt", j."failedAt", j.payload FROM "Job" j

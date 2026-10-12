@@ -71,5 +71,6 @@ export async function snoozeJumpAction(formData: FormData): Promise<void> {
     data: { scheduledAt: resolution.scheduledAt, snoozedUntil: resolution.scheduledAt }
   });
   if (!result.count) redirect(withViewerError(returnTo, "This follow-up changed a moment ago. Check it and snooze again.", session));
-  redirect(withParam(returnTo, "snoozed", "1"));
+  // The confirmation names the time the follow-up now waits until (TRU-05).
+  redirect(withParam(returnTo, "snoozed", resolution.scheduledAt.toISOString()));
 }

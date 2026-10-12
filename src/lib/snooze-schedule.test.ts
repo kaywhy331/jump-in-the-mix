@@ -23,6 +23,15 @@ describe("snoozeChoices", () => {
     expect(choices.defaultDate).toBe("2026-09-15");
   });
 
+  it("says when each preset lands, and offers Later today only while it stays today (TRU-05)", () => {
+    const morning = snoozeChoices({ now, timezone, floor: new Date("2026-09-10T17:00:00.000Z") });
+    expect(morning.presets.find(([preset]) => preset === "later-today")?.[2].toISOString()).toBe("2026-09-14T20:00:00.000Z"); // 13:00 Pacific
+    expect(morning.presets.find(([preset]) => preset === "tomorrow")?.[2].toISOString()).toBe("2026-09-15T17:00:00.000Z"); // 10:00 Pacific
+    // At 17:00, four hours later is quiet time, so "Later today" would land tomorrow morning.
+    const evening = snoozeChoices({ now: new Date("2026-09-15T00:00:00.000Z"), timezone, floor: new Date("2026-09-10T17:00:00.000Z") });
+    expect(evening.presets.map(([preset]) => preset)).toEqual(["tomorrow", "next-monday", "next-week"]);
+  });
+
   it("hides presets that land before a follow-up due later today", () => {
     const choices = snoozeChoices({ now, timezone, floor: new Date("2026-09-14T22:00:00.000Z") }); // 15:00 Pacific today
     expect(choices.presets.map(([preset]) => preset)).toEqual(["tomorrow", "next-monday", "next-week"]);
