@@ -4,9 +4,10 @@ import { prisma } from "@/lib/prisma";
 import { starterPlanForBusinessType, starterPlanForMarketingScenario } from "@/lib/vertical-plan-library";
 import { starterPlanForReason } from "@/lib/journey-starts";
 
-/** The starter Mix onboarding reuses for a title, so its preview can show the Mix the follow-up will use. */
+/** The starter Mix onboarding reuses for a title, so its preview can show the Mix the follow-up will use: only one that
+ * is on and starts from the follow-up date, so the preview's dates hold (D94, PRV-03). */
 export function existingStarterMixWhere(workspaceId: string, title?: string): Prisma.MixWhereInput {
-  return { workspaceId, source: "STARTER", status: { not: "ARCHIVED" }, ...(title ? { name: title } : {}) };
+  return { workspaceId, source: "STARTER", status: "ACTIVE", triggerMode: "DATE_TRIGGERED", dateType: { is: { scopeKey: "system", slug: "follow-up" } }, ...(title ? { name: title } : {}) };
 }
 
 export async function ensureStarterMix(workspaceId: string, businessType?: string | null, reason?: string, marketingScenario?: string | null, transaction?: Prisma.TransactionClient) {
@@ -22,12 +23,17 @@ export async function ensureStarterMix(workspaceId: string, businessType?: strin
     if (existing) return existing;
     const followUp = await tx.dateType.findFirst({ where: { scopeKey: "system", slug: "follow-up", isActive: true } });
     if (!followUp) throw new Error("System Follow-up date type is missing. Run the seed command again.");
+    // A starter setup can't reuse, such as one the owner paused or set to start another way, keeps its name; the new one
+    // is told apart from it, and from any other Mix still in use (D94).
+    const taken = new Set((await tx.mix.findMany({ where: { workspaceId, status: { not: "ARCHIVED" }, name: { startsWith: draft.title } }, select: { name: true } })).map(item => item.name));
+    let name = draft.title;
+    for (let number = 2; taken.has(name); number++) name = `${draft.title} (${number})`;
     const mixId = randomUUID();
     const mix = await tx.mix.create({
       data: {
         id: mixId,
         workspaceId,
-        name: draft.title,
+        name,
         description: draft.description,
         framework: draft.framework,
         category: draft.category,
@@ -42,7 +48,7 @@ export async function ensureStarterMix(workspaceId: string, businessType?: strin
 
     for (const [index, step] of draft.steps.entries()) {
       const template = await tx.stepTemplate.create({
-        data: { workspaceId, name: `${draft.title} — ${step.name}`, channel: step.channel }
+        data: { workspaceId, name: `${name} — ${step.name}`, channel: step.channel }
       });
       const version = await tx.stepVersion.create({
         data: {
