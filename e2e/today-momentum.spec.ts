@@ -300,6 +300,26 @@ test.describe("on a phone", () => {
     }
   });
 
+  test("on a phone a notice that appears in the review comes into view above the stuck bar (D100, LAY-07)", async ({ page }) => {
+    await page.setViewportSize({ width: 375, height: 667 });
+    await page.goto("/jumps"); await ready(page);
+    await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+    const review = openReview(page);
+    expect(await review.locator(".review-action-bar").evaluate(bar => getComputedStyle(bar).position)).toBe("sticky");
+    try {
+      // Over 900 characters, a text gets the long-text warning below the message, where the stuck bar sits.
+      await review.getByRole("textbox", { name: "Your message" }).fill("Checking in about the estimate we sent. ".repeat(25));
+      const notice = review.getByText("This text is over 900 characters", { exact: false });
+      await expect(notice).toBeVisible();
+      await expect.poll(() => notice.evaluate(element => {
+        const bar = element.closest(".sheet-panel")!.querySelector(".review-action-bar")!.getBoundingClientRect();
+        return element.getBoundingClientRect().bottom <= bar.top + 1;
+      })).toBe(true);
+    } finally {
+      await prisma.jumpDraft.deleteMany({ where: { jumpId: ids[0] } });
+    }
+  });
+
   test("on a screen 480px high or less the action bar scrolls with the review", async ({ page }) => {
     await page.setViewportSize({ width: 320, height: 240 });
     await page.goto("/jumps"); await ready(page);
