@@ -148,7 +148,8 @@
 .contact-row-menu-panel a:hover, .mix-row-menu-panel a:hover { background: var(--surface-soft); color: var(--ink); }
 .contact-row:has(.contact-row-menu[open]), .mix-card:has(.mix-row-menu[open]) { position: relative; z-index: 34; }
 .contact-tools-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
-.contact-tools-links a, .contact-tools-links button { min-height: 42px; display: grid; place-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 10px; text-align: center; font-weight: 700; }
+/* Rows only: buttons inside a row's confirmation keep their own look. */
+.contact-tools-links > a, .contact-tools-links > button { min-height: 42px; display: grid; place-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 10px; text-align: center; font-weight: 700; }
 .mix-create-menu-panel { width: 270px; }
 .mix-create-menu-panel > a, .mix-create-menu-panel > form > button { width: 100%; display: grid; gap: 2px; padding: 10px; border-radius: 9px; text-align: left; }
 .mix-create-menu-panel > a:hover, .mix-create-menu-panel > form > button:hover { background: var(--surface-soft); }
@@ -171,9 +172,6 @@
 .contact-method-row { display: grid; padding: 8px 0; border-bottom: 1px solid var(--line); overflow-wrap: anywhere; }
 .contact-method-row small { color: var(--muted); }
 .note-copy { white-space: pre-wrap; overflow-wrap: anywhere; }
-.assigned-mix-list { display: grid; gap: 8px; margin-top: 15px; }
-.assigned-mix-row { display: flex; align-items: center; justify-content: space-between; gap: 9px; padding: 8px; border: 1px solid var(--line); border-radius: 11px; }
-.assigned-mix-row a { font-weight: 750; color: var(--brand-dark); }
 
 .settings-hub-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5); }
 .account-section-nav { position: sticky; top: var(--space-2); z-index: 8; display: flex; gap: var(--space-2); overflow-x: auto; scrollbar-width: thin; margin: -4px 0 var(--space-5); padding: var(--space-2); border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--raised) 94%, transparent); box-shadow: var(--shadow-sm); backdrop-filter: blur(12px); }

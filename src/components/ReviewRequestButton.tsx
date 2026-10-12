@@ -1,6 +1,7 @@
 "use client";
 
 import { useState } from "react";
+import { AppIcon } from "@/components/AppIcon";
 
 type ReviewRequestResult = {
   reviewUrl: string;
@@ -10,6 +11,7 @@ type ReviewRequestResult = {
   expiresAt: string;
 };
 
+/** A row of the profile's More options menu (D77). */
 export function ReviewRequestButton({ contactId }: { contactId: string }) {
   const [result, setResult] = useState<ReviewRequestResult | null>(null);
   const [error, setError] = useState<string | null>(null);
@@ -41,7 +43,7 @@ export function ReviewRequestButton({ contactId }: { contactId: string }) {
     }
   };
 
-  if (!result) return <span className="review-request-control"><button className="button" type="button" onClick={create} disabled={loading}>{loading ? "Preparing…" : "Ask for a review"}</button>{error && <span className="field-error" role="alert">{error}</span>}</span>;
+  if (!result) return <><button type="button" onClick={create} disabled={loading} aria-busy={loading}><AppIcon name="heart" />{loading ? "Preparing…" : "Ask for a review"}</button>{error && <p className="field-error" role="alert">{error}</p>}</>;
 
   return <section className="review-request-ready" aria-live="polite">
     <strong>Private check-in ready</strong>

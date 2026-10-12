@@ -90,5 +90,6 @@ export async function updateContactRelationshipStateAction(formData: FormData): 
     await tx.contactActivity.create({ data: { workspaceId: workspace.id, contactId, actorUserId: user.id, kind: "SYSTEM", visibility: "WORKSPACE", summary: doNotContact ? "Contact marked do not contact." : `Relationship state updated to ${priority.toLowerCase()} priority${relationshipStatus ? ` · ${relationshipStatus}` : ""}.`, nextCommitmentAt, metadata: { preferredChannel, priority, doNotContact } } });
     await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: "contact.relationship-state.update", entityType: "ContactRelationshipState", entityId: contactId, source: "contacts.detail", beforeData: existing ? { preferredChannel: existing.preferredChannel, priority: existing.priority, doNotContact: existing.doNotContact, relationshipStatus: existing.relationshipStatus, nextCommitmentAt: existing.nextCommitmentAt } : undefined, afterData: { preferredChannel, priority, doNotContact, relationshipStatus, nextCommitmentAt } } });
   });
-  redirect(`/contacts/${contactId}?stateUpdated=1`);
+  // The menu's Do not contact says what it did and leaves More closed (D77); the Preferences form opens More again.
+  redirect(`/contacts/${contactId}?${formData.get("intent") === "do-not-contact" ? (doNotContact ? "dncOn=1" : "dncOff=1") : "stateUpdated=1"}`);
 }
