@@ -4,7 +4,8 @@ import { prisma } from "../src/lib/prisma";
 
 // With more than a page of due follow-ups, one person's follow-ups can land on different pages. Each page groups and
 // places only what it holds, and the sections count from that same page, so an overdue follow-up whose person's
-// due-today one is on the next page stays under Overdue, counted and shown there (D71, CNT-01).
+// due-today one is on the next page stays under Overdue, counted and shown there (D71, CNT-01). Each card still names
+// the person's follow-up on the other page in "Also due", and the earlier one keeps its skip offer (D97).
 test.skip(!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? ""), "Requires isolated local fixtures.");
 test.use({ screenshot: "off", video: "off", trace: "off", actionTimeout: 15_000 });
 test.setTimeout(120_000);
@@ -53,7 +54,8 @@ test("an overdue follow-up stays under Overdue, counted there, when the person's
   await expect(overdue).toBeVisible();
   await expect(overdue.locator(".section-label span")).toHaveText("1");
   await expect(overdue.locator(".jump-card-heading h3")).toHaveText(["Avery Across"]);
-  await expect(overdue.locator(".jump-also-due-row:visible")).toHaveCount(0);
+  await expect(overdue.locator(".jump-also-due-row:visible")).toHaveText(["Also due: Text at 2:00 AM"]);
+  await expect(overdue.getByRole("button", { name: "Skip this text for Avery Across", exact: true })).toBeVisible();
   const today = page.locator('[data-today-section="today"]');
   await expect(today.locator(".section-label span")).toHaveText("30");
   await expect(today.locator("article.jump-card")).toHaveCount(29);
@@ -62,6 +64,8 @@ test("an overdue follow-up stays under Overdue, counted there, when the person's
   await page.getByRole("link", { name: "Next follow-ups", exact: true }).click();
   await expect(today.locator(".jump-card-heading h3")).toHaveText(["Avery Across"]);
   await expect(today.locator("article.jump-card")).toHaveCount(1);
-  await expect(today.locator(".jump-also-due-row:visible")).toHaveCount(0);
+  await expect(today.locator(".jump-also-due-row:visible")).toHaveText(["Also due: Text, 1 day overdue"]);
+  // Only the earlier follow-up offers to skip itself.
+  await expect(today.getByRole("button", { name: /^Skip this/ })).toHaveCount(0);
   await expect(overdue).toHaveCount(0);
 });

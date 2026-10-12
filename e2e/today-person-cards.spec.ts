@@ -172,6 +172,15 @@ test.describe("on a phone", () => {
     await frames(page, 6);
     await expect(openReview(page)).toHaveCount(0);
     expect(await status(id.gwenText)).toBe("PENDING");
+    // She was contacted today, so her text says so and keeps its skip offer (D98); a fresh read says when.
+    const text = card(page, id.gwenText);
+    await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today$/ })).toBeVisible();
+    await expect(text.getByRole("button", { name: "Skip this text for Gwen Group", exact: true })).toBeVisible();
+    await page.reload(); await ready(page);
+    await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today at \d{1,2}:\d{2} [AP]M$/ })).toBeVisible();
+    await expect(text.getByRole("button", { name: "Skip this text for Gwen Group", exact: true })).toBeVisible();
+    await text.getByRole("button", { name: "Review message for Gwen Group", exact: true }).click();
+    await expect(openReview(page).locator(".review-also-due").filter({ hasText: /^Contacted today at / })).toBeVisible();
   });
 
   for (const width of [320, 390]) {
