@@ -41,8 +41,9 @@ export function MixEndPrompt({ mixes, todayKey, address, viewOnly = false }: { m
     window.addEventListener("jitm:jump-state", onState);
     return () => window.removeEventListener("jitm:jump-state", onState);
   }, [mixes]);
-  // The question goes after the confirmations already showing, such as the 10-second Undo for the same outcome, so
-  // they stay in view above it and come first to keyboard and screen-reader users too (LAY-02, A11Y-02).
+  // The question goes after the stack's list of confirmations, such as the 10-second Undo for the same outcome, so they
+  // stay in view above it and come first to keyboard and screen-reader users too, even ones that arrive later (LAY-02,
+  // A11Y-02, A11Y-03).
   const questionId = question?.jumpId;
   useEffect(() => {
     const target = questionId ? document.getElementById("follow-up-confirmations") : null;
@@ -59,7 +60,8 @@ export function MixEndPrompt({ mixes, todayKey, address, viewOnly = false }: { m
   const chosen = mixes.find(mix => mix.id === choice);
   // Closing it leaves the person as they are, and keyboard focus moves on rather than to the page (UX-02).
   const close = () => {
-    const next = document.querySelector<HTMLElement>("#follow-up-confirmations [data-follow-up-undo] button") ?? document.querySelector<HTMLElement>(".today-page-header h1");
+    // An Undo may float or sit inside the review Today opened.
+    const next = document.querySelector<HTMLElement>("[data-follow-up-undo] button") ?? document.querySelector<HTMLElement>(".today-page-header h1");
     setQuestion(null);
     requestAnimationFrame(() => next?.focus());
   };

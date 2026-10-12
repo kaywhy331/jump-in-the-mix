@@ -25,13 +25,14 @@ test.afterEach(async () => {
 });
 
 async function enterPerson(page: Page, name = "Riley Retry", phone = "+1 (202) 555-0142") {
-  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
+  await expect(page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true })).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill(name);
-  await page.getByLabel("Phone recommended").fill(phone);
-  await page.getByRole("checkbox", { name: /I reviewed this Mix/ }).check();
+  await page.getByLabel("Mobile phone").fill(phone);
+  // The follow-up starts from below its preview (D73), once the preview has loaded.
+  await expect(prepare(page)).toBeEnabled();
 }
 
-const prepare = (page: Page) => page.getByRole("button", { name: "Prepare my first follow-up", exact: true });
+const prepare = (page: Page) => page.getByRole("button", { name: /^Start .*follow-up$/ });
 
 test("a lost onboarding response recovers once by keyboard and the tester can report feedback", async ({ page }, info) => {
   await page.goto("/onboarding");

@@ -33,7 +33,8 @@ describe("public funnel wiring", () => {
   });
 
   it("states the required fields at the top of the one-person setup form", () => {
-    expect(read("src/components/OnboardingForm.tsx")).toMatch(/protect=\{setupMode === "person"\}>\s*<RequiredFieldsNote \/>/);
+    // Only the hidden button that keeps Enter from starting the follow-up comes before the note.
+    expect(read("src/components/OnboardingForm.tsx")).toMatch(/protect=\{oneView\}>\s*(?:\{\/\*[\s\S]*?\*\/\}\s*)?<button type="submit" hidden aria-hidden="true"[^\n]*\/>\s*<RequiredFieldsNote \/>/);
   });
 
   it("offers Open Today in the public header once the browser context confirms a session", () => {

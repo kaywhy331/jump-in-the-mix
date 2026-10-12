@@ -243,8 +243,8 @@ test("the New contacts setting preselects its Mix in Add a contact and Quick Add
   await choice.selectOption("");
   await expect(page.getByText("They’ll show as No Mix until you choose one.")).toBeVisible();
   await choice.selectOption(estimateMixId);
-  await page.getByRole("button", { name: "Queue 1 valid row", exact: true }).click();
-  await expect(page.getByRole("heading", { name: /Import is running|Import results/ })).toBeVisible();
+  await page.getByRole("button", { name: "Import 1 person", exact: true }).click();
+  await expect(page.getByRole("heading", { name: /Import is (?:running|waiting to start)|Import results/ })).toBeVisible();
   const batch = await prisma.contactImportBatch.findFirstOrThrow({ where: { workspaceId }, orderBy: { createdAt: "desc" }, select: { payload: true } });
   expect((batch.payload as { mixId?: string }).mixId).toBe(estimateMixId);
   await prisma.workspacePreference.update({ where: { workspaceId }, data: { newContactPlacement: "NONE", newContactMixId: null } });
@@ -301,7 +301,8 @@ test("each lead connection can choose its own Mix for new people", async ({ page
     await expect(select).toHaveValue("");
     await expect(select.locator("option").first()).toHaveText("Follow your New contacts setting (No Mix)");
     await select.selectOption({ label: "Add them to Stay in touch" });
-    await Promise.all([page.waitForURL(/saved=1/), setup.getByRole("button", { name: "Save for this connection", exact: true }).click()]);
+    await Promise.all([page.waitForURL(/saved=placement/), setup.getByRole("button", { name: "Save for this connection", exact: true }).click()]);
+    await expect(page.getByText("Saved where new people from this connection go.", { exact: true })).toBeVisible();
     expect(await prisma.intakeConnection.findUnique({ where: { id: connection.id }, select: { newContactPlacement: true, newContactMixId: true } })).toEqual({ newContactPlacement: "MIX", newContactMixId: nurtureMixId });
   } finally {
     await prisma.intakeConnection.delete({ where: { id: connection.id } });

@@ -285,12 +285,12 @@ test("confirmation dialogs restore focus and accessibility preferences remain us
   await expect(trigger).toBeFocused();
   await expectNoHorizontalOverflow(page);
 
-  // Archiving moved from a per-row menu to the contact's own page.
+  // Archiving moved from a per-row menu to the contact's own page, in its ••• menu (D77).
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto("/contacts");
   await page.locator(".contact-main").first().click();
   await expect(page).toHaveURL(/\/contacts\/[^/?]+$/);
-  await page.locator("details.contact-detail-more > summary").click();
+  await page.getByRole("button", { name: /^More options for / }).click();
   const archiveTrigger = page.getByRole("button", { name: "Archive contact…" });
   await archiveTrigger.click();
   const archiveDialog = page.getByRole("dialog", { name: /Archive .+\?/ });
@@ -396,7 +396,7 @@ test("Jump overflow provides first-class snooze presets", async ({ page }, testI
     await more.click();
     const sheet = page.getByRole("dialog", { name: /^Follow up with / });
     // The sheet also carries the inline date picker, whose quick chip is named "Tomorrow" too.
-    await sheet.locator(".sheet-actions").getByRole("button", { name: "Tomorrow", exact: true }).click();
-    await expect(page.getByText("Follow-up snoozed.")).toBeVisible();
+    await sheet.locator(".sheet-actions").getByRole("button", { name: /^Tomorrow · \d{1,2}:\d{2}/ }).click();
+    await expect(page.getByText(/^Snoozed until .+\d{1,2}:\d{2}/)).toBeVisible();
   } finally { await removePendingJumpFixture(jumpId); }
 });

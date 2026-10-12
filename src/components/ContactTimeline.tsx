@@ -6,6 +6,7 @@ import { Sheet } from "@/components/Sheet";
 import { AppIcon } from "@/components/AppIcon";
 import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { formatDate, formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
+import { channelName } from "@/lib/display-labels";
 
 type TimelineItem = {
   conversation?: boolean;
@@ -166,7 +167,7 @@ export function ContactTimeline({
               <div className={styles.timelineBody}>
                 <div className={styles.timelineMeta}>
                   {(!item.summary || item.kind === "JUMP_OUTCOME" || item.conversation) && <strong>{label(item)}</strong>}
-                  {item.channel && <span>{item.channel.replaceAll("_", " ").toLowerCase()}</span>}
+                  {item.channel && <span>{channelName(item.channel)}</span>}
                   {item.visibility === "PRIVATE" && <span className={styles.privateBadge}>Private</span>}
 
                 </div>

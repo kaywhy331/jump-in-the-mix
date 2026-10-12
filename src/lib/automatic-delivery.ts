@@ -28,6 +28,17 @@ export function automaticEmailConfigured(): boolean {
   return automaticCustomerEmailEnabled() && transactionalEmailConfigured();
 }
 
+/**
+ * Whether a follow-up on this channel can send by itself: the account's automatic sending is on and the channel is
+ * switched on. Email also needs the deployment's automatic customer email (off during the beta). Texts follow their
+ * switch, which the Sending page offers only while texts can be sent and which the worker reads. Calls never do.
+ */
+export function sendsByItself(automation: { enabled: boolean; emailEnabled: boolean; smsEnabled: boolean } | null | undefined, channel: Channel): boolean {
+  if (!automation?.enabled) return false;
+  if (channel === "EMAIL") return automation.emailEnabled && automaticEmailConfigured();
+  return channel === "SMS" && automation.smsEnabled;
+}
+
 export function automaticSmsConfigured(configuration: Pick<typeof env, "twilioAccountSid" | "twilioAuthToken" | "twilioFromNumber"> = env): boolean {
   return Boolean(configuration.twilioAccountSid.trim() && configuration.twilioAuthToken.trim() && configuration.twilioFromNumber.trim());
 }

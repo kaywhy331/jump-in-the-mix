@@ -21,7 +21,7 @@
 .contact-filter-button { display: inline-flex; align-items: center; justify-content: center; gap: 4px; min-width: 44px; min-height: 44px; padding: 8px; border: 0; background: transparent; color: var(--text-2); cursor: pointer; }
 .contact-filter-button svg { width: 18px; height: 18px; }
 .contact-filter-button span { color: var(--violet-text); font-size: .75rem; }
-.contact-list-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 0 8px; min-height: 44px; margin: 0; font-size: .8125rem; color: var(--text-3); }
+.contact-list-summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px; min-height: 44px; margin: 0; font-size: .8125rem; color: var(--text-3); }
 .contact-list-summary form { margin: 0 0 0 auto; min-width: 0; }
 .contact-list-summary select { width: auto; max-width: 150px; min-height: 44px; margin: 0; padding: 8px 4px; border: 0; background: transparent; font-size: .8125rem; color: var(--text-2); }
 .contacts-page .contact-list { margin: 6px -12px 0; padding: 0; border: 0; background: var(--page); }
@@ -67,7 +67,11 @@
 .contact-detail-page { --contact-inset: 24px; display: flex; flex-direction: column; gap: 0; min-width: 0; padding: 24px; }
 .contact-detail-page .contact-inline-action { display: inline-flex; align-items: center; gap: 8px; width: auto; min-height: 32px; padding: 0; border: 0; background: transparent; color: var(--violet-text); font: inherit; font-weight: 600; cursor: pointer; }
 .contact-inline-action svg { width: 18px; height: 18px; flex-shrink: 0; }
-.contact-profile-header { display: grid; grid-template-columns: 56px minmax(0, 1fr); align-items: center; gap: 16px; margin: 0 0 28px; padding: 0; }
+.contact-profile-header { display: grid; grid-template-columns: 56px minmax(0, 1fr) auto; align-items: center; gap: 16px; margin: 0 0 28px; padding: 0; }
+/* The profile's ••• menu ends the name row in every layout (D77). */
+.contact-profile-menu { grid-column: 3; align-self: start; }
+/* Borderless, like History options: a quiet control beside the name and on each Mix row. */
+.contact-profile-menu .icon-button, .contact-mix-row-menu.icon-button { width: 44px; min-width: 44px; height: 44px; border-color: transparent; border-radius: 50%; background: transparent; color: var(--text-2); }
 .contact-profile-header .contact-detail-header-actions { grid-column: 1 / -1; display: flex; align-items: center; justify-content: space-between; gap: 16px; width: 100%; margin: 0; }
 .contact-profile-header .profile-avatar { width: 56px; height: 56px; font-size: 1rem; }
 .profile-identity { min-width: 0; }
@@ -117,12 +121,52 @@
 .contact-detail-row > :is(a, span) { min-width: 0; color: var(--text); font-size: .9375rem; overflow-wrap: anywhere; }
 .contact-detail-row small { max-width: 80px; font-size: .75rem; color: var(--text-3); overflow-wrap: anywhere; text-align: right; }
 .contact-detail-page .contact-add-details { min-height: 44px; margin: 0; font-size: .9375rem; }
+/* Notes to remember, open beside the details: the first three lines, with Show all when there's more (D77). */
+.contact-notes { margin-top: 24px; }
+.contact-notes .contact-section-heading { margin-bottom: 10px; }
+.contact-detail-page .contact-notes .contact-section-heading .contact-inline-action { min-height: 44px; }
+.contact-notes .note-copy { margin: 0; }
+.clamped-text.is-clamped { display: -webkit-box; -webkit-box-orient: vertical; -webkit-line-clamp: 3; line-clamp: 3; overflow: hidden; }
+.contact-notes .clamped-text-toggle { min-height: 44px; font-size: .875rem; }
+.contact-notes .private-note { margin-top: 12px; }
 .contact-coming-up { margin-top: 28px; }
 .contact-coming-up ol { list-style: none; padding: 0; margin: 0; }
 .contact-coming-up li { display: grid; grid-template-columns: 54px minmax(0, 1fr); gap: 10px; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: .8125rem; }
 .contact-coming-up time { color: var(--text-3); }
 .contact-coming-up a { color: var(--text-2); overflow-wrap: anywhere; }
 .contact-empty-copy { color: var(--text-3); font-size: .8125rem; }
+/* The next meeting, right under the Next card (D77). */
+.contact-detail-page .contact-next-meeting { display: grid; grid-template-columns: 18px minmax(0, 1fr); align-items: center; column-gap: 10px; min-height: 44px; margin: -16px 0 24px; padding: 4px 22px; color: var(--text-2); font-size: .875rem; }
+.contact-next-meeting > svg { width: 18px; height: 18px; color: var(--text-3); }
+.contact-next-meeting > span { min-width: 0; overflow-wrap: anywhere; }
+.contact-next-meeting strong { font-weight: 600; color: var(--violet-text); }
+/* One Mixes section under the Next card: a row per Mix, each with its own menu (D77, JITM-09 §2.32). */
+.contact-mixes { min-width: 0; margin: 0 0 28px; }
+.contact-mix-list { list-style: none; margin: 0; padding: 0; }
+.contact-mix-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; column-gap: 12px; min-height: 60px; padding: 8px 0; border-bottom: 1px solid var(--line); }
+.contact-mix-row-text { display: flex; flex-direction: column; gap: 2px; min-width: 0; }
+.contact-mix-row-text > strong { font-size: .9375rem; font-weight: 600; line-height: 1.35; overflow-wrap: anywhere; }
+.contact-mix-row-text > :is(span, small) { font-size: .8125rem; line-height: 1.4; color: var(--text-2); overflow-wrap: anywhere; }
+.contact-mix-row-text > small { color: var(--text-3); }
+.contact-mix-row-text > .contact-mix-row-status.overdue-text { color: var(--danger); }
+.contact-mix-row-text > .contact-mix-row-attention { font-weight: 600; color: var(--status-warning-ink); }
+.contact-detail-page .contact-add-mix { min-height: 44px; margin-top: 6px; }
+/* A menu's rows: links and buttons alike, a form's button included, as Contact tools draws them. */
+.contact-menu-list > form, .closes-on-submit { display: contents; }
+/* The list ends at its last row: no rule of the list's own, and none under the last row, whatever dialog follows it. */
+.contact-tools-links.contact-menu-list { padding-bottom: 0; border-bottom: 0; }
+.contact-menu-list > :nth-last-child(1 of a, button, form), .contact-menu-list > form:nth-last-child(1 of a, button, form) > button { border-bottom: 0; }
+.contact-menu-list > form > button, .contact-menu-list > button { display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; min-width: 0; min-height: 48px; padding: 12px 4px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--text); font: inherit; font-size: .875rem; font-weight: 500; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
+.contact-menu-list > :is(a, button) > svg, .contact-menu-list > form > button > svg { width: 20px; height: 20px; flex: 0 0 auto; color: var(--text-2); }
+.contact-menu-list > button:disabled, .contact-menu-list > form > button:disabled { color: var(--text-3); cursor: not-allowed; }
+.contact-menu-list > button.is-danger, .contact-menu-list > button.is-danger > svg { color: var(--danger); }
+.contact-menu-list > .field-error { margin: 4px 0 8px; color: var(--danger); font-size: .8125rem; }
+.contact-menu-list > .review-request-ready { margin: 12px 0; }
+.contact-mix-work { display: grid; gap: 12px; margin-top: 20px; }
+.contact-mix-work > h3 { margin: 0; font-size: .875rem; font-weight: 600; color: var(--text-2); }
+/* The Journey work card's controls are 44px here, its text buttons and links included (JITM-10 §2.1). */
+.contact-mix-work :is(button, a[href]) { min-height: 44px; }
+.contact-mix-work :is(.text-button, a[href]) { display: inline-flex; align-items: center; }
 .contact-detail-primary { display: contents; }
 .contact-priority-card { margin: 0 0 28px; padding: 0; border: 0; }
 .contact-priority-card .contact-section-heading { min-height: 28px; padding: 0; border: 0; }
@@ -144,17 +188,11 @@
 .contact-journey-today { position: relative; display: flex; flex-direction: column; justify-content: flex-end; align-items: center; min-width: 66px; padding-top: 58px; font-size: .75rem; }
 .contact-journey-today::before { position: absolute; content: ""; top: 43px; width: 100%; border-top: 2px dashed var(--line); }
 .contact-journey-today > i { position: absolute; top: 34px; height: 20px; width: 2px; background: var(--text); }
-.contact-journey-touchpoints { display: flex; justify-content: flex-end; flex-wrap: wrap; gap: 8px 20px; min-height: 20px; margin-top: 10px; font-size: .8125rem; }
-.contact-journey-touchpoints a { display: inline-flex; align-items: center; gap: 6px; max-width: 100%; min-width: 0; min-height: 44px; overflow-wrap: anywhere; color: var(--text-3); }
-.contact-journey-touchpoints svg { width: 14px; height: 14px; }
 .contact-timeline-card { padding: 0; margin: 0; border: 0; }
 .contact-icon-button { display: inline-flex; align-items: center; justify-content: center; min-width: 36px; min-height: 28px; padding: 3px 6px; border: 0; background: transparent; color: var(--text-3); cursor: pointer; }
 .contact-icon-button svg { width: 18px; height: 18px; }
 .contact-note-composer:not([open]) { display: none; }
 .contact-note-composer > summary { padding-top: 12px; font-size: .875rem; }
-.contact-notes-card { margin: 24px 0 0; padding: 12px 0; border-top: 1px solid var(--line); }
-.contact-notes-card > summary { cursor: pointer; }
-.contact-notes-card .note-copy, .contact-notes-card .private-note p { font-family: var(--font-voice); font-size: 1.125rem; }
 .contact-detail-page .contact-detail-more { margin: 0; padding: 12px 0; border: 0; border-top: 1px solid var(--line); border-radius: 0; background: transparent; }
 .contact-detail-more > summary { cursor: pointer; }
 .contact-mobile-journey { display: none; }
@@ -171,7 +209,7 @@
   .contacts-selected { display: block; min-width: 0; padding: 0; }
   .contact-profile-embedded { width: 100%; max-width: none; margin: 0; padding: 40px 28px; }
   .contact-profile-embedded .contact-detail-header-actions { display: none; }
-  .contact-profile-embedded .contact-profile-header { grid-template-columns: 56px minmax(0, 1fr); }
+  .contact-profile-embedded .contact-profile-header { grid-template-columns: 56px minmax(0, 1fr) auto; }
   .contact-profile-embedded .contact-details-rows { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 20px; }
   .contact-profile-embedded .contact-coming-up { display: none; }
 }
@@ -185,8 +223,9 @@
   .contact-profile-embedded .contact-coming-up { display: block; }
 }
 @media (min-width: 1840px) {
-  .contact-profile-embedded .contact-profile-header { grid-template-columns: 56px minmax(0, 1fr) auto; }
+  .contact-profile-embedded .contact-profile-header { grid-template-columns: 56px minmax(0, 1fr) auto auto; }
   .contact-profile-embedded .contact-profile-quick-actions { grid-column: 3; grid-row: 1; flex-wrap: nowrap; margin: 0; }
+  .contact-profile-embedded .contact-profile-menu { grid-column: 4; grid-row: 1; align-self: center; }
 }
 @media (min-width: 2200px) {
   .contact-profile-embedded { grid-template-columns: minmax(0, 1fr) 340px; }
@@ -202,6 +241,7 @@
   .contact-detail-page .contact-next-line { grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; padding: 0; margin-bottom: 28px; border-radius: 0; background: transparent; }
   .contact-detail-page .contact-next-line h2 { grid-column: 1 / -1; padding-bottom: 6px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
   .contact-detail-page .contact-next-line .contact-review-button { grid-column: 2; grid-row: 2; padding-inline: 18px; }
+  .contact-detail-page .contact-next-meeting { margin-top: -12px; padding: 4px 0; }
   .contact-next-description { display: block; grid-column: 1; min-width: 0; }
   .contact-next-description > strong { font-size: 1rem; }
   .contact-beat-track { margin-top: 18px; }

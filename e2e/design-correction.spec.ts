@@ -87,7 +87,7 @@ test("Today shows horizontal Beats from the selected occurrence and one continuo
     await page.setViewportSize({ width: 1920, height: 1080 });
     await page.goto(`/jumps?jump=${jumpId}&range=all`);
     const panel = page.locator(".follow-up-review-sheet[open]");
-    const beats = panel.getByRole("list", { name: "Pending Beats in this Mix occurrence" }).getByRole("link");
+    const beats = panel.getByRole("list", { name: "Follow-up dates in this Mix" }).getByRole("link");
     await expect(beats).toHaveCount(2);
     await expect(beats.nth(1)).toHaveAttribute("href", new RegExp(`jump=${ids[0]}`));
     for (const width of [1920, 834, 390]) {
@@ -111,7 +111,11 @@ test("Today shows horizontal Beats from the selected occurrence and one continuo
 test("completion shows a floating confirmation and Undo restores the pending follow-up", async ({ page }) => {
   await page.setViewportSize({ width: 834, height: 1194 }); await page.goto("/jumps");
   await page.locator(".follow-up-review-sheet[open]").getByRole("button", { name: "Mark sent for Ava Zoom", exact: true }).click();
+  // A tap before the review has checked the Mix's next step asks to save once it has (existing).
+  const decisions = page.locator(".follow-up-review-sheet[open]").getByRole("group", { name: "Record journey outcome" });
   const confirmation = page.locator("#follow-up-confirmations [data-follow-up-undo]");
+  await expect(decisions.or(confirmation).first()).toBeVisible();
+  if (await decisions.isVisible()) await decisions.getByRole("button", { name: "Save outcome", exact: true }).click();
   await expect(confirmation).toBeVisible(); expect(await prisma.jump.findUnique({ where: { id: jumpId }, select: { status: true } })).toEqual({ status: "DONE" });
   await confirmation.getByRole("button", { name: "Undo", exact: true }).click();
   await expect(confirmation).toHaveCount(0); expect(await prisma.jump.findUnique({ where: { id: jumpId }, select: { status: true } })).toEqual({ status: "PENDING" });
@@ -269,10 +273,93 @@ test("inline Mix Beat names and hidden options survive saving", async ({ page })
   expect(saved.stepVersion.variants.find(item => item.family === "CALL")?.script).toBe("Ask about the next renovation milestone.");
 });
 
-test("short-phone activation dialog keeps both decisions inside its scroll boundary", async ({ page }) => {
+test("saving wording in a Mix that is on asks nothing when the save starts no one (TRU-02)", async ({ page }) => {
   await prisma.mix.update({ where: { id: mixId }, data: { status: "ACTIVE" } });
+  await prisma.userPreference.update({ where: { userId }, data: { reviewMixActivation: true } });
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/mixes/${mixId}/edit`);
+  const form = page.locator(".mix-editor-form");
+  await form.getByRole("group", { name: "Beat 1", exact: true }).getByRole("textbox", { name: "Message", exact: true }).fill("Hi {{First Name}}, how are the renovation plans going?");
+  await expect(form.getByText("You’ll review who gets this Mix before activating.")).toHaveCount(0);
+  await form.getByRole("button", { name: "Save Mix", exact: true }).click();
+  await expect(page).toHaveURL(/updated=manual/);
+  expect((await prisma.mix.findUniqueOrThrow({ where: { id: mixId } })).status).toBe("ACTIVE");
+  const saved = await prisma.mixStep.findFirstOrThrow({ where: { mixId, isActive: true }, include: { stepVersion: true }, orderBy: { sortOrder: "asc" } });
+  expect(saved.stepVersion.body).toBe("Hi {{First Name}}, how are the renovation plans going?");
+});
+
+test("with activate-on-save, adding a tag to a Mix that is on is a plain save that says it starts them (MIX-01)", async ({ page }) => {
+  await prisma.mix.update({ where: { id: mixId }, data: { status: "ACTIVE" } });
+  await prisma.userPreference.update({ where: { userId }, data: { reviewMixActivation: false } });
+  const tag = await prisma.group.create({ data: { workspaceId, name: "Renovation clients" } });
+  try {
+    await page.setViewportSize({ width: 1280, height: 900 });
+    await page.goto(`/mixes/${mixId}/edit`);
+    await page.locator(".mix-start-settings > summary").click();
+    await page.getByRole("checkbox", { name: /Renovation clients/ }).check();
+    await expect(page.getByText("Saving starts this Mix for the people it adds, using your sending settings.")).toBeVisible();
+    await expect(page.getByRole("button", { name: "Review first", exact: true })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Review and save", exact: true })).toHaveCount(0);
+    await page.getByRole("button", { name: "Save Mix", exact: true }).click();
+    await expect(page).toHaveURL(/updated=manual/);
+    expect(await prisma.mixAssignment.count({ where: { mixId, groupId: tag.id, isActive: true } })).toBe(1);
+  } finally {
+    await prisma.mixAssignment.deleteMany({ where: { mixId, groupId: tag.id } });
+    await prisma.group.delete({ where: { id: tag.id } });
+    await prisma.userPreference.update({ where: { userId }, data: { reviewMixActivation: true } });
+  }
+});
+
+test("turning a paused Mix back on reviews what resuming does and needs no audience (MIX-02)", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  const resume = async (id: string) => {
+    await page.goto(`/mixes/${id}/edit`);
+    await page.locator(".mix-start-settings > summary").click();
+    await page.getByRole("combobox", { name: "After saving", exact: true }).selectOption("ACTIVE");
+    await page.getByRole("button", { name: "Review and turn on", exact: true }).click();
+    const dialog = page.getByRole("dialog", { name: "Turn this Mix back on?", exact: true });
+    await expect(dialog).toContainText("Turning it back on brings back the follow-ups it held for the people in it.");
+    await expect(dialog).not.toContainText("No one is enrolled yet");
+    await expect(dialog).not.toContainText("Choose who gets this Mix.");
+    await dialog.getByRole("button", { name: "Turn it back on", exact: true }).click();
+    await expect(page).toHaveURL(/updated=manual/);
+    expect((await prisma.mix.findUniqueOrThrow({ where: { id } })).status).toBe("ACTIVE");
+  };
+  // A Mix started for one person at a time.
+  await prisma.mix.update({ where: { id: mixId }, data: { status: "PAUSED" } });
+  await resume(mixId);
+  // A date-based Mix whose people were started one at a time, with no audience of its own.
+  const dateType = await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: "Move-in", slug: `move-in-${randomUUID()}` } });
+  const template = await prisma.stepTemplate.create({ data: { workspaceId, name: "Moving day", channel: "SMS" } });
+  const version = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 1, body: "Happy moving day, {{First Name}}!" } });
+  const dated = await prisma.mix.create({ data: { workspaceId, name: "Moving day", status: "PAUSED", triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id, steps: { create: { stepVersionId: version.id, dayOffset: 0, sortOrder: 1 } } } });
+  await resume(dated.id);
+});
+
+test("a Mix whose date type was turned off says so and reviews the change of date (MIX-05)", async ({ page }) => {
+  await page.setViewportSize({ width: 1280, height: 900 });
+  await prisma.userPreference.update({ where: { userId }, data: { reviewMixActivation: true } });
+  const off = await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: "Lease renewal", slug: `lease-${randomUUID()}`, isActive: false } });
+  const tag = await prisma.group.create({ data: { workspaceId, name: `Tenants ${randomUUID()}` } });
+  const template = await prisma.stepTemplate.create({ data: { workspaceId, name: "Renewal reminder", channel: "SMS" } });
+  const version = await prisma.stepVersion.create({ data: { stepTemplateId: template.id, version: 1, body: "Your lease renews soon, {{First Name}}." } });
+  const leases = await prisma.mix.create({ data: { workspaceId, name: "Lease reminders", status: "ACTIVE", triggerMode: "DATE_TRIGGERED", dateTypeId: off.id, steps: { create: { stepVersionId: version.id, dayOffset: 0, sortOrder: 1 } } } });
+  await prisma.mixAssignment.create({ data: { workspaceId, mixId: leases.id, groupId: tag.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${leases.id}:group:${tag.id}` } });
+  await page.goto(`/mixes/${leases.id}/edit`);
+  await page.locator(".mix-start-settings > summary").click();
+  await expect(page.getByText("The date this Mix used is turned off. Choose another date, or turn it back on in Date types.", { exact: true })).toBeVisible();
+  // The form will save another date, so the save is a reschedule and is reviewed, as the server requires.
+  await page.getByRole("button", { name: "Review and save", exact: true }).click();
+  await expect(page.getByRole("dialog", { name: "Save these changes?", exact: true })).toContainText("Changing when this Mix starts reschedules everyone it covers.");
+});
+
+test("short-phone activation dialog keeps both decisions inside its scroll boundary", async ({ page }) => {
+  // Turning a Mix on opens the review; a save on one already on that starts no one doesn't (TRU-02).
+  await prisma.mix.update({ where: { id: mixId }, data: { status: "DRAFT" } });
   await page.setViewportSize({ width: 320, height: 568 });
   await page.goto(`/mixes/${mixId}/edit`);
+  await page.locator(".mix-start-settings > summary").click();
+  await page.getByRole("combobox", { name: "After saving", exact: true }).selectOption("ACTIVE");
   await page.getByRole("button", { name: "Review and start", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Start this Mix?", exact: true });
   await expect(dialog).toBeVisible();
@@ -290,6 +377,10 @@ test("expanded Journey stage actions stay reachable on a narrow phone", async ({
   // Only visible actions count; "Retire stage" confirms in the app dialog, whose buttons stay hidden until asked.
   const actions = stage.locator(":scope > form > .form-actions button:visible");
   await expect(actions).toHaveCount(4);
+  // A stage with people in it can't be retired, so Retire is disabled and says what to do first (TRU-12).
+  const retire = stage.getByRole("button", { name: "Retire empty stage…", exact: true });
+  await expect(retire).toBeDisabled();
+  await expect(retire).toHaveAccessibleDescription("Move the 2 people in this stage to another stage first.");
   for (const theme of ["light", "dark"] as const) {
     await page.emulateMedia({ colorScheme: theme });
     for (const action of await actions.all()) {

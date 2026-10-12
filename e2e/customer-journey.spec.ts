@@ -40,13 +40,13 @@ test("owners configure stages, custom triggers, order and individual pauses", as
   // The profile's stage chip opens the journey sheet; its "Stage and automation" controls start expanded.
   const stageSheet = async () => {
     await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
-    await page.getByRole("button",{ name: /^Change journey stage:/ }).click();
-    const sheet = page.getByRole("dialog",{ name: "Journey stage for Jordan Sample", exact: true }); await expect(sheet).toBeVisible();
+    await page.getByRole("button",{ name: /^Change stage:/ }).click();
+    const sheet = page.getByRole("dialog",{ name: "Stage for Jordan Sample", exact: true }); await expect(sheet).toBeVisible();
     await openDetails(sheet.getByText("Stage and automation",{ exact: true })); return sheet;
   };
   await page.goto(`/contacts/${contactId}`);
   const lead = ordered.find(stage => stage.name === "Lead")!; let sheet = await stageSheet(); await sheet.getByLabel("Move to stage").selectOption(lead.id); await submit(page, sheet.getByRole("button",{ name: "Move stage", exact: true }));
-  await expect(page.getByRole("button",{ name: "Change journey stage: Lead", exact: true })).toBeVisible();
+  await expect(page.getByRole("button",{ name: "Change stage: Lead", exact: true })).toBeVisible();
   sheet = await stageSheet(); await expect(sheet.locator(".journey-current")).toContainText("Lead");
   await submit(page, sheet.getByRole("button",{ name: "Pause transitions for this person" }));
   sheet = await stageSheet(); await expect(sheet.locator(".contact-journey-panel")).toContainText("Automatic transitions are paused"); await expect(sheet.getByRole("button",{ name: "Record a sale", exact: true })).toHaveCount(0);
@@ -63,7 +63,7 @@ test("meeting booking advances the journey, retains invalid form input and expor
   const pickStart = async (time: string) => { await form.locator(".when-trigger.time").click(); const sheet = page.getByRole("dialog", { name: "Starts", exact: true }); await sheet.getByRole("button", { name: time, exact: true }).click(); await expect(sheet).toBeHidden(); };
   await form.getByLabel("Title",{ exact: true }).fill("Discovery with Jordan"); await pickStart("9:00 AM"); await form.getByRole("button", { name: "30 min", exact: true }).click();
   await expect(form.locator('input[name="startsAt"]')).toHaveValue("2026-09-10T09:00"); await expect(form.locator('input[name="endsAt"]')).toHaveValue("2026-09-10T09:30");
-  await submit(page, form.getByRole("button",{ name: "Save event", exact: true })); await expect(page.getByText("Calendar updated.",{ exact: true })).toBeVisible();
+  await submit(page, form.getByRole("button",{ name: "Save event", exact: true })); await expect(page.getByRole("status").filter({ hasText: "Discovery with Jordan saved for" })).toContainText("No invitation was sent.");
   await expect(page.locator(".calendar-event")).toContainText("Discovery with Jordan");
   expect((await prisma.contactJourney.findUniqueOrThrow({ where: { contactId }, include: { stage: true } })).stage.name).toBe("Prospect");
   // After a save the editor shows the saved event; a second event starts from New event.

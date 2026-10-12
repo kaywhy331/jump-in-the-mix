@@ -71,8 +71,11 @@ test("relationship Mixes can be previewed, remixed, fine-tuned, and started with
     await page.goto(`/contacts/${contact.id}`);
     await page.locator(".contact-detail-more > summary").click();
     await expect(page.getByRole("combobox", { name: "Loop · repeat this date", exact: true })).toBeVisible();
-    await page.getByRole("combobox", { name: "Choose a Mix", exact: true }).selectOption(mixId);
-    await page.getByRole("button", { name: "Add to a Mix", exact: true }).click();
+    // Add to a Mix ends the profile's Mixes section (D77).
+    await page.getByRole("region", { name: "Mixes", exact: true }).getByRole("button", { name: "Add to a Mix", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: `Add ${contact.displayName} to a Mix`, exact: true });
+    await sheet.getByRole("combobox", { name: "Choose a Mix", exact: true }).selectOption(mixId);
+    await sheet.getByRole("button", { name: "Add to the Mix", exact: true }).click();
     // Starting a Mix for someone now confirms with the preparation notice (006d445).
     await expect(page.getByText(/^Start saved\b.*Follow-ups are being prepared\./)).toBeVisible();
   } finally {

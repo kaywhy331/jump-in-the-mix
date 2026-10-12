@@ -140,7 +140,7 @@ test("an appointment-based Mix starts with no one enrolled, attaches to the visi
   expect(await prisma.jump.count({ where: { mixId: mix.id } })).toBe(0);
   // The Mix library does not present visit-timed beats as days: the row counts beats and the preview describes each timing.
   await page.goto(`/mixes?mix=${mix.id}`); await ready(page);
-  await expect(page.locator(".mix-library-row", { hasText: name })).toContainText("active · 3 Beats");
+  await expect(page.locator(".mix-library-row", { hasText: name })).toContainText("On · 3 Beats");
   const preview = page.getByRole("region", { name: "Beat preview" });
   await expect(preview.locator("li").first()).toContainText("1 hour 30 minutes before the appointment starts");
   await expect(preview.locator("li").nth(1)).toContainText("30 minutes after the appointment ends");
@@ -153,7 +153,8 @@ test("an appointment-based Mix starts with no one enrolled, attaches to the visi
   await form.getByLabel("Title").fill("Roof estimate");
   await form.getByLabel("Follow-up Mix for this visit (optional)").selectOption(mix.id);
   await form.getByRole("button", { name: "Save event", exact: true }).click();
-  await expect(page.getByRole("status").filter({ hasText: "line up with this visit" })).toHaveText("Calendar updated. The Mix’s follow-ups line up with this visit. 1 Beat is scheduled and will appear on Today. 1 Beat after the visit waits until you record how it went. 1 Beat counts from the moment you mark the visit completed.");
+  // One notice names the event and its time, what the Mix gives the owner now, and that no invitation went out (TRU-07).
+  await expect(page.getByRole("status").filter({ hasText: "line up with this visit" })).toHaveText(/^Roof estimate saved for .+\. The Mix’s follow-ups line up with this visit\. 1 Beat is scheduled and will appear on Today\. 1 Beat after the visit waits until you record how it went\. 1 Beat counts from the moment you mark the visit completed\. No invitation was sent\. Download the saved event and share it through your calendar provider\.$/);
   const binding = await prisma.appointmentBinding.findFirstOrThrow({ where: { workspaceId, mixId: mix.id }, include: { calendarEntry: true } });
   expect(binding.calendarEntry).toMatchObject({ title: "Roof estimate", contactId });
   expect(await prisma.appointmentBinding.count({ where: { workspaceId, mixId: mix.id } })).toBe(1);
@@ -178,7 +179,8 @@ test("an appointment-based Mix starts with no one enrolled, attaches to the visi
   await openEventOptions();
   await expect(visit.locator(".calendar-binding")).toContainText("Follow-ups after the visit wait until you record how it went.");
   await visit.locator(".calendar-outcome").getByRole("button", { name: "Visit happened", exact: true }).click();
-  await page.waitForURL(/saved=1/);
+  await page.waitForURL(/done=happened/);
+  await expect(page.getByRole("status").filter({ hasText: "Marked as happened" })).toHaveText("Marked as happened: Roof estimate.");
   await expect(visit.locator(".calendar-outcome .status-pill")).toHaveText("Visit happened");
   await openEventOptions();
   await expect(visit.locator(".calendar-outcome").getByRole("button", { name: "Clear outcome", exact: true })).toBeVisible();

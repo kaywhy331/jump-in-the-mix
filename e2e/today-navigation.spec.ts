@@ -2,7 +2,7 @@ import { createHash, randomUUID } from "node:crypto";
 import { mkdir, mkdtemp, rm, writeFile } from "node:fs/promises";
 import { tmpdir } from "node:os";
 import { join } from "node:path";
-import { chromium, test, expect, type Page } from "@playwright/test";
+import { chromium, test, expect, type Locator, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
 import { axeInPage } from "./axe-in-page";
 
@@ -122,12 +122,19 @@ test("paging and filters protect closed message drafts until the owner discards 
   expect(await prisma.jump.count({ where: { workspaceId, status: "PENDING" } })).toBe(323);
 });
 
+test("an older snooze link without a time shows the plain notice (SNZ-01)", async ({ page }) => {
+  await visit(page, "/jumps?snoozed=1");
+  await expect(page.getByText("Follow-up snoozed.", { exact: true })).toBeVisible();
+  await expect(page.getByText(/Snoozed until/)).toHaveCount(0);
+});
+
 test("filters reset the page and snooze/stop actions preserve the current filtered position", async ({ page }) => {
   await visit(page, "/jumps?range=all&status=pending&channel=SMS"); await next(page, smsIds[30]);
   const cursor = new URL(page.url()).searchParams.get("after"); expect(cursor).toBeTruthy();
   await page.getByRole("button", { name: "More options for Queue person 031", exact: true }).click();
-  await page.getByRole("dialog", { name: "Follow up with Queue person 031", exact: true }).getByRole("button", { name: "Tomorrow", exact: true }).click();
-  await expect(page).toHaveURL(/snoozed=1/); expect(new URL(page.url()).searchParams.get("after")).toBe(cursor);
+  await page.getByRole("dialog", { name: "Follow up with Queue person 031", exact: true }).getByRole("button", { name: /^Tomorrow · \d{1,2}:\d{2}/ }).click();
+  await expect(page).toHaveURL(/snoozed=\d{4}-/); expect(new URL(page.url()).searchParams.get("after")).toBe(cursor);
+  await expect(page.getByText(/^Snoozed until .+\d{1,2}:\d{2}\s?[AP]M\.$/)).toBeVisible();
   await expect(page.locator(".jump-card").first()).toHaveAttribute("id", `jump-${smsIds[31]}`);
   await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
   await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).getByRole("button", { name: "Stop Mix…", exact: true }).click();
@@ -209,7 +216,8 @@ test.describe("live outcome updates", () => {
     await expect(pager(page)).toContainText("Showing 30 of 320 follow-ups");
     expect(await ids(page)).toEqual(smsIds.slice(31, 61)); expect(page.url()).toBe(location);
     await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
-    await page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).filter({ hasText: "Move it to a better day" }).getByRole("button", { name: "Skip Beat", exact: true }).click();
+    const options = page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).filter({ hasText: "Move it to a better day" });
+    await options.getByRole("button", { name: "Skip Beat", exact: true }).click(); await saveIfAsked(page, options, smsIds[31]);
     await expect(undoFor(page, smsIds[31])).toBeVisible(); await page.clock.runFor(10_500);
     await expect(pager(page)).toContainText("Showing 30 of 319 follow-ups");
     expect(await ids(page)).toEqual(smsIds.slice(32, 62)); expect(page.url()).toBe(location);
@@ -480,4 +488,12 @@ async function markDone(page: Page, id: string) {
   const card = page.locator(`#jump-${id}`);
   await card.getByRole("button", { name: /^More options for/ }).click();
   await card.getByRole("button", { name: /^Mark done for/ }).click();
+  await saveIfAsked(page, card, id);
+}
+/** A tap before the options have checked the Mix's next step asks to save once they have (existing); this saves then. */
+async function saveIfAsked(page: Page, scope: Locator, id: string) {
+  const decisions = scope.getByRole("group", { name: "Record journey outcome" });
+  const undo = page.locator(`[data-jump-workflow="${id}"]`).getByRole("button", { name: "Undo", exact: true });
+  await expect(decisions.or(undo).first()).toBeVisible();
+  if (await decisions.isVisible()) await decisions.getByRole("button", { name: "Save outcome", exact: true }).click();
 }

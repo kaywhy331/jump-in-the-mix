@@ -26,32 +26,30 @@ test.afterEach(async () => {
   await prisma.user.deleteMany({ where: { id: { in: users } } }); users.length = 0;
 });
 
-test("onboarding supports multiple purposes, a single starting-point dropdown, and imported contacts", async ({ page }) => {
+test("onboarding offers business follow-ups, keeps the business name, and starts from an imported contact", async ({ page }) => {
   const { workspace } = await account(page);
   await page.goto("/onboarding");
-  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
-  await page.getByRole("checkbox", { name: /Personal connections/ }).check();
-  await page.getByRole("checkbox", { name: /Networking and business development/ }).check();
-  await expect(page.getByRole("checkbox", { name: /^Business/ })).toBeChecked();
-  await expect(page.getByText("Choose a different follow-up")).toHaveCount(0);
-  await page.getByLabel("What do you want to do?").selectOption("Check in with a friend");
-  await expect(page.getByLabel("Email recommended")).toBeVisible();
-  await expect(page.getByLabel("Phone recommended")).toBeVisible();
+  // Business wording by default: setup no longer asks about personal use (D85), and offers one choice per starter (D73).
+  await expect(page.getByRole("checkbox", { name: /Personal connections/ })).toHaveCount(0);
+  const reason = page.getByLabel("What’s it about?");
+  await expect(reason.locator("option")).toHaveText(["Follow up about an estimate or quote", "Reconnect with someone who went quiet", "Check in after the job", "Ask for a review"]);
+  await reason.selectOption("Reconnect with someone who went quiet");
+  await expect(page.getByLabel("Mobile phone")).toBeVisible();
+  await expect(page.getByRole("textbox", { name: "Email optional" })).toBeVisible();
+  await page.getByText("Have a list? Import a file", { exact: true }).click();
   await expect(page.getByRole("link", { name: "Import contacts from a file" })).toHaveAttribute("href", "/contacts/import?onboarding=1");
-  await page.getByText("Optional business details and signature", { exact: true }).click();
-  await page.getByRole("textbox", { name: "Business name (optional)", exact: true }).fill("Saved Business");
+  await page.getByRole("textbox", { name: "Business name optional" }).fill("Saved Business");
   const contact = await prisma.contact.create({ data: { workspaceId: workspace.id, displayName: "Imported Friend", firstName: "Imported", source: "CSV", emails: { create: { email: "friend@example.test", normalized: "friend@example.test", isPrimary: true } } } });
   await page.getByRole("button", { name: "Refresh imported contacts" }).click();
   await page.getByLabel("Choose a saved person").selectOption(contact.id);
-  await expect(page.getByRole("textbox", { name: "Business name (optional)", exact: true })).toHaveValue("Saved Business");
-  await expect(page.getByLabel("What do you want to do?")).toHaveValue("Check in with a friend");
+  await expect(page.getByRole("textbox", { name: "Business name optional" })).toHaveValue("Saved Business");
+  await expect(reason).toHaveValue("Reconnect with someone who went quiet");
   const accessibility = await axeInPage(page).include(".onboarding-card").analyze();
   expect(accessibility.violations.filter(item => ["serious", "critical"].includes(item.impact ?? ""))).toEqual([]);
   await page.screenshot({ path: `.artifacts/onboarding-${test.info().project.name}.png`, fullPage: true });
-  await page.getByRole("checkbox", { name: /I reviewed this Mix/ }).check();
-  await page.getByRole("button", { name: "Prepare my first follow-up" }).click();
+  await page.getByRole("button", { name: "Start Imported’s follow-up" }).click();
   await expect(page).toHaveURL(/\/jumps\?.*welcome=1/);
-  expect((await prisma.workspaceProfile.findUniqueOrThrow({ where: { workspaceId: workspace.id } })).useCases).toEqual(["business", "personal", "networking"]);
+  expect((await prisma.workspaceProfile.findUniqueOrThrow({ where: { workspaceId: workspace.id } })).useCases).toEqual(["business"]);
   expect(await prisma.contact.count({ where: { workspaceId: workspace.id } })).toBe(1);
   expect(await prisma.jump.count({ where: { workspaceId: workspace.id, contactId: contact.id } })).toBeGreaterThan(0);
 });

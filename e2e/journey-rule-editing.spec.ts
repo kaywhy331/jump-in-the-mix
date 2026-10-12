@@ -148,14 +148,14 @@ test("a lost save response preserves the draft and checks the committed rule bef
 
 test("contact rules distinguish business pauses, individual pauses and milestone destinations", async ({ page }) => {
   // The journey panel opens from the contact's stage chip (Contacts redesign, b4efcfc).
-  const openPanel = async () => { await visit(page, `/contacts/${contactId}`); await page.getByRole("button", { name: /^Change journey stage:/ }).first().click(); };
+  const openPanel = async () => { await visit(page, `/contacts/${contactId}`); await page.getByRole("button", { name: /^Change stage:/ }).first().click(); };
   const panel = page.locator("dialog[open] .contact-journey-panel");
   await openPanel();
   await expect(panel.getByRole("list", { name: "Automatic transition rules" })).toContainText("A sale is confirmed → Customer");
   await expect(panel.getByRole("button", { name: "Record a sale", exact: true })).toHaveAccessibleDescription("Moves to Customer");
   await prisma.journeyPreference.update({ where: { workspaceId }, data: { enabled: false } }); await openPanel();
   await expect(panel).toContainText("paused for your business");
-  await expect(panel.getByRole("link", { name: "Review journey settings" })).toBeVisible();
+  await expect(panel.getByRole("link", { name: "Review Contact stages" })).toBeVisible();
   await prisma.journeyPreference.update({ where: { workspaceId }, data: { enabled: true } });
   await prisma.contactJourney.update({ where: { contactId }, data: { automatic: false } }); await openPanel();
   await expect(panel).toContainText("paused for this person");

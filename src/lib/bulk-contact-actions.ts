@@ -10,6 +10,7 @@ import { containsPrivateNotesPlaceholder, findUnknownPlaceholders } from "@/lib/
 import { prisma } from "@/lib/prisma";
 import { setStagesFromTagJoins } from "@/lib/mix-stage";
 import { requireWritableWorkspace } from "@/lib/writable-workspace";
+import { channelName, channelWord } from "@/lib/display-labels";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -58,14 +59,16 @@ export async function bulkAssignGroupAction(formData: FormData): Promise<void> {
     prisma.group.findFirst({ where: { id: groupId, workspaceId: workspace.id }, select: { id: true } })
   ]);
   if (!group) fail("Choose an available tag.", session);
-  await prisma.$transaction(async (tx) => {
+  const added = await prisma.$transaction(async (tx) => {
     const tagged = new Set((await tx.contactGroupMembership.findMany({ where: { groupId: group.id, contactId: { in: contacts.map((contact) => contact.id) } }, select: { contactId: true } })).map((item) => item.contactId));
     await tx.contactGroupMembership.createMany({ data: contacts.map((contact) => ({ contactId: contact.id, groupId: group.id })), skipDuplicates: true });
     // A tag's Mix that names a Contact stage starts for the people newly given the tag, so it sets that stage (JITM-09 §2.79).
     await setStagesFromTagJoins(tx, { workspaceId: workspace.id, joins: contacts.filter((contact) => !tagged.has(contact.id)).map((contact) => ({ contactId: contact.id, groupId: group.id })), actorUserId: user.id });
+    return contacts.length - tagged.size;
   });
   await queueWorkspaceReconciliation(workspace.id);
-  redirect(`/contacts?bulkAssigned=${contacts.length}`);
+  // The notice names the tag and how many people newly have it (TRU-07).
+  redirect(`/contacts?bulkAssigned=${added}&bulkTag=${encodeURIComponent(group.id)}`);
 }
 
 export async function bulkRemoveGroupAction(formData: FormData): Promise<void> {
@@ -77,9 +80,9 @@ export async function bulkRemoveGroupAction(formData: FormData): Promise<void> {
     prisma.group.findFirst({ where: { id: groupId, workspaceId: workspace.id }, select: { id: true } })
   ]);
   if (!group) fail("Choose an available tag.", session);
-  await prisma.contactGroupMembership.deleteMany({ where: { groupId: group.id, contactId: { in: contacts.map((contact) => contact.id) } } });
+  const removed = await prisma.contactGroupMembership.deleteMany({ where: { groupId: group.id, contactId: { in: contacts.map((contact) => contact.id) } } });
   await queueWorkspaceReconciliation(workspace.id);
-  redirect(`/contacts?bulkRemoved=${contacts.length}`);
+  redirect(`/contacts?bulkRemoved=${removed.count}&bulkTag=${encodeURIComponent(group.id)}`);
 }
 
 export async function bulkArchiveContactsAction(formData: FormData): Promise<void> {
@@ -180,7 +183,7 @@ export async function applyJumpToContactsAction(formData: FormData): Promise<voi
     try { manual = validateManualContent(formData); }
     catch (error) { fail(error instanceof ManualContentError ? error.message : "The one-time follow-up could not be prepared.", session); }
     prepared = {
-      name: value(formData, "manualName") || `One-time ${manual.channel.replaceAll("_", " ").toLowerCase()}`,
+      name: value(formData, "manualName") || `One-time ${channelWord(channelName(manual.channel))}`,
       channel: manual.channel,
       subject: manual.subject,
       body: manual.body,

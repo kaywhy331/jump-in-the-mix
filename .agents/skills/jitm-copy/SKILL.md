@@ -38,6 +38,8 @@ If the text sits in a changed layout, also load `jitm-ui-change`.
 - **ICPs:** the five ICP profiles are fictional composites. Use them as research inputs only, never as proof or testimony (JITM-02 §2).
 - **Clean-room:** no third-party framework, course, sales-method or author names in copy, standards or skills. Describe the mechanism instead (JITM-04 §2).
 - **Implementation talk:** copy never explains workers, queues, databases or other internals. An empty state names the next useful business action (JITM-04 §2).
+- **Who speaks:** the lead form, the private review page and the review request speak with the business name, never "we" or "I" (JITM-04 §2.37). Copy uses business wording by default, never "people in my circle" (JITM-04 §2.38).
+- **Dates and times:** 12-hour times with AM/PM and time zones named by a city ("New York time"); never an IANA zone name, an ISO date or a 24-hour time (JITM-05 §2.19).
 - **Demo:** homepage and profession-page demos follow the demo contract in JITM-09 §2.
 - **Ready-made messages:** a message that asserts availability, scarcity or a fact needs a visible "only if true" cue or a placeholder the owner fills in (JITM-04 §2).
 

@@ -70,14 +70,13 @@ test("worked schedule uses weekend and quiet-hour rules while appointment offset
   expect(data.items.map((item: { at: string }) => item.at)).toEqual(["2026-09-21T15:00:00.000Z", "2026-09-19T16:30:00.000Z"]);
 });
 
-test("onboarding permits minimal details only after reviewing its actual starter", async ({ page }) => {
+test("onboarding permits minimal details once its actual starter is previewed", async ({ page }) => {
   const { workspace } = await member(page, false);
   await page.goto("/onboarding");
-  // Onboarding opens on its recommended start, one person and one follow-up (JITM-09 §2.20).
-  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
+  // Onboarding opens on its one-person start (JITM-09 §2.20, D73).
+  await expect(page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true })).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill("Notes Only Person");
-  await page.getByRole("checkbox", { name: /I reviewed this Mix/ }).check();
-  await page.getByRole("button", { name: "Prepare my first follow-up" }).click();
+  await page.getByRole("button", { name: "Start Notes’s follow-up" }).click();
   await expect(page).toHaveURL(/\/jumps\?.*welcome=1/);
   await expect(page.getByText(/saved\. Add (an email address|a phone number)/)).toBeVisible();
   // Adding the missing details is the one next step; the optional Mega-Mix waits until the follow-up is ready.
@@ -103,6 +102,48 @@ test("all ratings retain the same optional public-review route and a correction 
   }
 });
 
+
+test("rating stars read 1 to 5 from left to right and fill up to the tapped star (TRU-01)", async ({ page }) => {
+  const { workspace } = await member(page);
+  const contact = await prisma.contact.create({ data: { workspaceId: workspace.id, displayName: "Star order person" } });
+  const token = randomBytes(32).toString("base64url");
+  await prisma.reviewRequest.create({ data: { workspaceId: workspace.id, contactId: contact.id, tokenHash: createHash("sha256").update(token).digest("hex"), expiresAt: new Date(Date.now() + 3600_000) } });
+  await page.goto(`/review/${token}`);
+  const stars = page.locator(".rating-options label");
+  await expect(stars).toHaveCount(5);
+  await stars.first().scrollIntoViewIfNeeded();
+  // Picking a star by its accessible name passes even when the stars are drawn backwards, so this checks what a
+  // customer sees: one row, 1 on the left, 5 on the right, and a tap by position records that position's value.
+  const boxes = await stars.evaluateAll(labels => labels.map(label => {
+    const box = label.getBoundingClientRect();
+    return { value: (label.querySelector("input") as HTMLInputElement).value, x: box.left + box.width / 2, y: box.top + box.height / 2 };
+  }));
+  expect(boxes.map(box => box.value)).toEqual(["1", "2", "3", "4", "5"]);
+  for (let index = 1; index < boxes.length; index++) {
+    expect(boxes[index].x).toBeGreaterThan(boxes[index - 1].x);
+    expect(Math.abs(boxes[index].y - boxes[0].y)).toBeLessThan(2);
+  }
+  const marks = page.locator(".rating-options span[aria-hidden]");
+  const emptyBackground = await marks.first().evaluate(mark => getComputedStyle(mark).backgroundColor);
+  const filled = () => marks.evaluateAll((items, empty) => items.map(item => getComputedStyle(item).backgroundColor !== empty), emptyBackground);
+  expect(await filled()).toEqual([false, false, false, false, false]);
+  // Tab enters the group at star 1, and the arrow keys move the way the row reads.
+  for (let press = 0; press < 20 && !(await page.evaluate(() => (document.activeElement as HTMLInputElement | null)?.name === "rating")); press++) await page.keyboard.press("Tab");
+  await expect(page.locator(".rating-options input[value='1']")).toBeFocused();
+  await page.keyboard.press("ArrowRight");
+  await expect(page.locator(".rating-options input[value='2']")).toBeFocused();
+  await expect(page.getByText("Selected 2 out of 5")).toBeVisible();
+  await expect.poll(filled).toEqual([true, true, false, false, false]);
+  expect(await marks.nth(1).evaluate(mark => getComputedStyle(mark).outlineStyle)).toBe("solid");
+  await page.mouse.click(boxes[4].x, boxes[4].y);
+  await expect(page.getByText("Selected 5 out of 5")).toBeVisible();
+  await expect.poll(filled).toEqual([true, true, true, true, true]);
+  await page.mouse.click(boxes[2].x, boxes[2].y);
+  await expect(page.getByText("Selected 3 out of 5")).toBeVisible();
+  await expect.poll(filled).toEqual([true, true, true, false, false]);
+  await page.getByRole("button", { name: "Send private feedback" }).click();
+  await expect.poll(async () => (await prisma.reviewRequest.findFirstOrThrow({ where: { contactId: contact.id } })).rating).toBe(3);
+});
 
 test("passwordless deletion rechecks recent authentication on the server", async ({ page }) => {
   const { user, session } = await member(page);

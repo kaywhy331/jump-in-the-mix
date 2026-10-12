@@ -80,6 +80,12 @@ export async function resumeMixForContactAction(formData: FormData): Promise<voi
   const refusal = await reservePeople(workspace.id, [contactId]);
   if (refusal) redirect(withViewerError(returnTo, refusal, session));
 
+  // The Beats the stop cancelled come back (TRU-02): the stop's own cancellations are handed to the passes that
+  // revive them, as Remove hands its to the scheduler. The scheduler's next pass brings back the ones its starts and
+  // tags still want; the Journey pass brings back its own. Stopped work that has ended stays ended. Those already due
+  // come back for the owner to send or skip on Today, never by automatic sending (JITM-09 §2.72, SEND-01).
+  const now = new Date();
+  const stoppedHere = { workspaceId: workspace.id, contactId, mixId, status: "CANCELED" as const, completionMethod: "mix_stopped_for_contact" };
   const status = await prisma.$transaction(async (tx) => {
     await tx.mixStop.delete({ where: { id: stop.id } });
     // Someone removed from a Mix for Everyone was stopped in it (D64); resuming gives them their place back. Read under
@@ -93,6 +99,12 @@ export async function resumeMixForContactAction(formData: FormData): Promise<voi
       where: { workspaceId: workspace.id, mixId, contactId, assignmentKey: `${workspace.id}:${mixId}:audience:${contactId}`, isActive: false, contact: { archivedAt: null } },
       data: { isActive: true, startDate: everyone.triggerMode === "MANUAL_START" ? new Date() : null }
     });
+    // Read inside the transaction, after the stop is gone, so the Journey records match the Beats relabeled below.
+    const journeyRecords = [...new Set((await tx.jump.findMany({ where: { ...stoppedHere, workflowManaged: true, workflowInstanceId: { not: null } }, select: { workflowInstanceId: true } })).map(jump => jump.workflowInstanceId!))];
+    await tx.jump.updateMany({ where: { ...stoppedHere, scheduledAt: { lte: now } }, data: { manualOnly: true } });
+    await tx.jump.updateMany({ where: { ...stoppedHere, workflowManaged: false }, data: { completionMethod: "reconciled" } });
+    await tx.jump.updateMany({ where: { ...stoppedHere, workflowManaged: true }, data: { completionMethod: "workflow_held" } });
+    for (const instanceId of journeyRecords) await tx.job.create({ data: { workspaceId: workspace.id, task: "mix-workflow", payload: { instanceId } } });
     await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId, mixId } } });
     await tx.auditLog.create({
       data: {

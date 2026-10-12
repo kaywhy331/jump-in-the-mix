@@ -7,7 +7,7 @@
 - **D64:** Remove on an Everyone Mix stops that Mix for the person, so no later save or resume puts them back in it.
 - **D65:** a tag added while a Mix is paused moves its members to the Mix's stage when the Mix resumes, after the same review as adding a tag to a Mix that is on.
 
-**Rules:** JITM-09 §2.78 and §2.79 (7.0.0). Five readings the decisions leave open are agent defaults, listed below for Kevin.
+**Rules:** JITM-09 §2.78 and §2.79 (8.0.0; 7.0.0 on this branch before main's #136 took that number). Five readings the decisions leave open are agent defaults, listed below for Kevin.
 
 **Concept fit (JITM-01 §2):** a Contact stage tells the owner where each person is, so it has to change only when the owner can see why. These changes keep a pause from silently swallowing a move (D63, D65), keep a person the owner took out of a Mix out of it (D64), and make the number in the review match what the save does (UX-09). Nothing about sending changes.
 
@@ -105,6 +105,16 @@ Clearing every mark is also safe. The only cost is that tags added before the ro
    - a run their stage manages: that stage's "Mix completed" rule then never fires, and re-entering the stage doesn't restart it.
 
    Resume brings back the Everyone place, but not the other routes' cancelled follow-ups. *Is that what "stops that Mix for the person" means? Or should Remove leave the other routes running, and only keep Everyone from putting them back? Recommended: as built.*
+
+**Answered 2026-10-12** (D87–D102; Kevin: "I will go off of what you recommend"): defaults 1, 2, 3 and 5 as built, and default 4 as the review recommended (D102: the release writes the missing stops, after reporting how many). Since #147 (D87), Resume also hands back the follow-ups a stop removed by other routes, for the scheduler or the Journey pass to revive what a start, tag or Journey work still wants; those already due come back for the owner, never by automatic sending.
+
+## Merged with the UX batch (2026-10-12)
+
+Main took #139–#147 first, so this branch merged it (4e78545) and carries their changes:
+- **Resume** (`src/lib/mix-stop-actions.ts`): one interactive transaction does both: it gives an Everyone place back under the Mix's row lock (D64, this PR) and hands the stop's cancelled follow-ups to the passes that revive them, marking those already due manual-only (D87, #147). The Journey records are read inside the transaction now, after the stop is gone (#147's HIST-01).
+- **The contact profile** (#147, D77) replaced More → Mixes with one Mixes section. Remove on an Everyone place now says, in the row's menu, that it stops the Mix for the person; a stop it wrote says Resume gives the place back, and once the Mix is on it prepares their follow-ups (`src/lib/contact-mix-row-labels.ts`, `src/lib/contact-mix-rows.ts`, `src/components/ContactMixes.tsx`). The browser test moved to the row's menu.
+- **The Mix editor** keeps #139's review rules (a save that starts no one isn't reviewed, a changed start is reviewed as a reschedule, a resume is reviewed as a resume, TRU-02 and MIX-03) with this PR's: a resume starts the tags added while paused and counts Everyone's intake (D65, UX-09). The resume review names the tags added while paused, and the stage line reads "Turning it back on moves…".
+- **The audience count** keeps #139's count without a stage beside this PR's resume count.
 
 ## Tests
 

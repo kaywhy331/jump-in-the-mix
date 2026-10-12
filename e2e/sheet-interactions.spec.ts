@@ -99,7 +99,7 @@ test("the contact message shortcut opens automatically and keeps an unscheduled 
   for (const width of [320, 390, 768, 900, 1024, 1440]) {
     await page.setViewportSize({ width, height: 844 });
     const actions = page.getByRole("complementary", { name: "Actions for selected contacts" });
-    for (const name of ["Clear", "Select this page", "Tags", "Message", "Export CSV", "Archive 1…"]) {
+    for (const name of ["Clear", "Select this page", "Add to a Mix", "Tags", "Message", "Export CSV", "Archive 1…"]) {
       const action = actions.getByRole("button", { name, exact: true });
       await expect(action).toBeVisible();
       expect(await action.evaluate(element => {
@@ -150,22 +150,33 @@ test("timezone selection shows the current value, searches by keyboard and retur
   for (const viewport of [{ width: 1440, height: 1000 }, { width: 320, height: 568 }, { width: 844, height: 390 }]) {
     await page.setViewportSize(viewport); await page.goto("/account/preferences"); await ready(page);
     const trigger = page.getByRole("button", { name: "Change personal timezone", exact: true });
+    // A closed picker renders no city rows, so it does no zone-name work, and the server's page carries none (DT-09).
+    await expect(page.locator(".timezone-city")).toHaveCount(0);
+    expect(await (await page.request.get("/account/preferences")).text()).not.toMatch(/class="timezone-city(?: selected)?"/);
     await trigger.click();
     const popup = page.getByRole("dialog", { name: "Choose a timezone", exact: true });
     const search = popup.getByRole("searchbox", { name: "Search timezones", exact: true });
     await expect(search).toBeFocused();
     await expect(popup.locator(".timezone-city").first()).toHaveAttribute("aria-pressed", "true");
-    await expect(popup.getByRole("button", { name: /Tokyo.*Asia\/Tokyo/ })).toBeAttached();
+    // Each city shows its zone's everyday name, never the raw zone id (DT-06).
+    await expect(popup.getByRole("button", { name: /Tokyo.*Japan Standard Time/ })).toBeAttached();
+    await expect(popup.getByText("Asia/Tokyo", { exact: true })).toHaveCount(0);
+    await expect(popup.locator(".timezone-city").filter({ hasText: "Coordinated Universal Time" })).not.toContainText("GMT");
+    // The everyday name is searchable too (DT-10).
+    await search.fill("Pacific Time");
+    await expect(popup.getByRole("button", { name: /^Los Angeles/ })).toBeAttached();
     await search.fill("no matching timezone");
     await expect(popup.getByRole("status")).toContainText("Try a nearby major city");
     await search.fill("London");
     for (const theme of ["light", "dark"] as const) { await setTheme(page, theme); await audit(page); }
     await page.keyboard.press("Tab"); await page.keyboard.press("Enter");
     await expect(popup).not.toBeVisible(); await expect(trigger).toBeFocused();
+    await expect(page.locator(".timezone-city")).toHaveCount(0);
     await expect(page.locator('input[name="timezone"]')).toHaveValue("Europe/London");
     await trigger.click(); await expect(search).toHaveValue("");
     await expect(popup.locator(".timezone-city").first()).toContainText("London");
     await closeSheet(page); await expect(trigger).toBeFocused();
+    await expect(page.locator(".timezone-city")).toHaveCount(0);
   }
 });
 

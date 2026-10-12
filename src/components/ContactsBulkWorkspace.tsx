@@ -102,9 +102,12 @@ export function ContactsBulkWorkspace({
   const [selectionMode, setSelectionMode] = useState(intent === "one-time-jump");
   const [messageChannel, setMessageChannel] = useState("SMS");
   const [sendWhen, setSendWhen] = useState("now");
+  // The No Mix strip selects this page and opens the Mix sheet (JITM-09 §2.81, D76); "none" lands on Mark No Mix needed.
+  const [openMixSheet, setOpenMixSheet] = useState<"" | "mix" | "none">("");
   // The Mix chosen in the bulk Mix sheet, so its wording follows how that Mix starts (COPY-02).
-  const [chosenMixId, setChosenMixId] = useState(mixes[0]?.id ?? "");
-  const chosenMix = mixes.find(mix => mix.id === chosenMixId) ?? mixes[0];
+  // Nothing is preselected: the owner names the Mix, so a quick Add can't start the alphabetically first one.
+  const [chosenMixId, setChosenMixId] = useState("");
+  const chosenMix = mixes.find(mix => mix.id === chosenMixId);
   const selectedIds = useMemo(() => [...selected], [selected]);
   const selectedContacts = useMemo(() => contacts.filter((contact) => selected.has(contact.id)), [contacts, selected]);
   const selectedDoNotContact = selectedContacts.filter((contact) => contact.doNotContact);
@@ -138,6 +141,29 @@ export function ContactsBulkWorkspace({
   });
   const toggleAll = () => setSelected(allSelected ? new Set() : new Set(contacts.map((contact) => contact.id)));
   const toggleSelectionMode = () => { setSelectionMode((current) => !current); setSelected(new Set()); };
+  const startBulkMix = (kind: "mix" | "none") => { setSelectionMode(true); setSelected(new Set(contacts.map(contact => contact.id))); setOpenMixSheet(kind); };
+  useEffect(() => {
+    if (!openMixSheet) return;
+    const kind = openMixSheet;
+    setOpenMixSheet("");
+    if (kind === "none") requestAnimationFrame(() => document.querySelector<HTMLElement>(".bulk-no-mix-form button")?.focus());
+  }, [openMixSheet]);
+  const noMixTotal = mixCounts?.["no-mix"] ?? totalCount ?? contacts.length;
+  // Choosing one person for a note or a date isn't bulk work, so those lists offer no Select (D76).
+  const pickOne = intent === "log-note" || intent === "important-date";
+  // While the bar shows, the directory keeps room below its page buttons, sized to the bar as it is (CON-23, JITM-07 §2.9).
+  const barRef = useRef<HTMLElement>(null);
+  const barShown = selectedIds.length > 0;
+  useEffect(() => {
+    const bar = barRef.current, directory = bar?.closest<HTMLElement>(".contacts-directory");
+    if (!bar || !directory) return;
+    const measure = () => directory.style.setProperty("--bulk-bar-room", `${Math.ceil(window.innerHeight - bar.getBoundingClientRect().top) + 16}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(bar);
+    window.addEventListener("resize", measure);
+    return () => { observer.disconnect(); window.removeEventListener("resize", measure); directory.style.removeProperty("--bulk-bar-room"); };
+  }, [barShown]);
 
   const exportSelected = () => {
     if (!selectedContacts.length) return;
@@ -181,7 +207,7 @@ export function ContactsBulkWorkspace({
           <Sheet trigger={<button className="button mobile-header-action" type="button" aria-label="More contact tools"><AppIcon name="more" /></button>} title="Contact tools">
             <nav className="contact-tools-links">
               <Link href="/contacts/new"><AppIcon name="userPlus" />Add a contact</Link>
-              {contacts.length > 0 && <button type="button" className="text-button" onClick={event => { toggleSelectionMode(); event.currentTarget.closest("dialog")?.close(); }}><AppIcon name="check" />{selectionMode ? "Finish selecting contacts" : "Select contacts"}</button>}
+              {contacts.length > 0 && !pickOne && <button type="button" className="text-button" onClick={event => { toggleSelectionMode(); event.currentTarget.closest("dialog")?.close(); }}><AppIcon name="check" />{selectionMode ? "Finish selecting contacts" : "Select contacts"}</button>}
               <Link href="/journey"><AppIcon name="journey" />Customer journey</Link>
               <Link href="/settings/connections"><AppIcon name="link" />Lead connections</Link>
               <Link href="/contacts/import" onClick={saveContactListState}><AppIcon name="import" />Import contacts</Link>
@@ -226,7 +252,12 @@ export function ContactsBulkWorkspace({
       {intent === "one-time-jump" && <div className="notice info" role="status"><strong>Choose one or more people.</strong></div>}
       {intent === "log-note" && <div className="notice info" role="status"><strong>Choose a person.</strong> Then add what happened to their notes.</div>}
 
-      <div className="contact-list-summary"><span>{selectionMode ? `${selectedIds.length} selected` : `${(totalCount ?? contacts.length).toLocaleString()} people`}</span>{!selectionMode && !mixFilter && Boolean(mixCounts?.["no-mix"]) && <Link className="contact-no-mix-link" href={noMixHref}>{mixCounts!["no-mix"].toLocaleString()} with No Mix</Link>}<form action="/contacts">{directoryContext}<input name="q" type="hidden" value={query} />{groupFilter && <input name="group" type="hidden" value={groupFilter} />}{priorityFilter && <input name="priority" type="hidden" value={priorityFilter} />}{permissionFilter && <input name="permission" type="hidden" value={permissionFilter} />}{mixFilter && <input name="mix" type="hidden" value={mixFilter} />}<select name="sort" aria-label="Sort contacts" defaultValue={sort} onChange={event => event.currentTarget.form?.requestSubmit()}><option value="name">Name</option><option value="last-name">Last name</option><option value="updated">Recently updated</option><option value="newest">Recently added</option></select></form>{selectionMode && <button type="button" className="contact-inline-action" onClick={toggleSelectionMode}>Done</button>}</div>
+      <div className="contact-list-summary"><span>{selectionMode ? `${selectedIds.length} selected` : `${(totalCount ?? contacts.length).toLocaleString()} ${(totalCount ?? contacts.length) === 1 ? "person" : "people"}`}</span>{!selectionMode && !mixFilter && Boolean(mixCounts?.["no-mix"]) && <Link className="contact-no-mix-link" href={noMixHref}>{mixCounts!["no-mix"].toLocaleString()} with No Mix</Link>}<span className="contact-list-tools"><form action="/contacts">{directoryContext}<input name="q" type="hidden" value={query} />{groupFilter && <input name="group" type="hidden" value={groupFilter} />}{priorityFilter && <input name="priority" type="hidden" value={priorityFilter} />}{permissionFilter && <input name="permission" type="hidden" value={permissionFilter} />}{mixFilter && <input name="mix" type="hidden" value={mixFilter} />}<select name="sort" aria-label="Sort contacts" defaultValue={sort} onChange={event => event.currentTarget.form?.requestSubmit()}><option value="name">Name</option><option value="last-name">Last name</option><option value="updated">Recently updated</option><option value="newest">Recently added</option></select></form>{contacts.length > 0 && !pickOne && <button type="button" className="text-button contact-select-toggle" onClick={toggleSelectionMode}>{selectionMode ? "Done" : "Select"}</button>}</span></div>
+      {/* Outside selection mode only: a tick never moves the list, and an intent's own sheet never stacks with the Mix sheet. */}
+      {!intent && !selectionMode && mixFilter === "no-mix" && contacts.length > 0 && <div className="contact-no-mix-strip" role="group" aria-labelledby="contact-no-mix-strip-text">
+        <p id="contact-no-mix-strip-text"><strong>{noMixTotal.toLocaleString()}</strong> {noMixTotal === 1 ? "person has" : "people have"} No Mix.{noMixTotal > contacts.length ? ` This page shows ${contacts.length}.` : ""}</p>
+        <div className="contact-no-mix-strip-actions"><button type="button" className="button primary" onClick={() => startBulkMix("mix")}>{contacts.length === 1 ? "Add this person to a Mix" : "Add these people to a Mix"}</button><button type="button" className="button" onClick={() => startBulkMix("none")}>Mark No Mix needed</button></div>
+      </div>}
       {contacts.length ? <div className="contact-list selectable-contact-list">{contacts.map((contact) => {
         const isSelected = selected.has(contact.id);
         const primaryEmail = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email;
@@ -235,7 +266,7 @@ export function ContactsBulkWorkspace({
           <label className="contact-select-control" title={isSelected ? "Deselect contact" : "Select contact"}><input type="checkbox" checked={isSelected} onChange={() => toggleContact(contact.id)} aria-label={`${isSelected ? "Deselect" : "Select"} ${contact.displayName}`} /><span>{isSelected ? <AppIcon name="check" /> : null}</span></label>
           <div className="contact-main">
             <div className="avatar">{initials(contact.displayName) || "?"}</div>
-            <div><h3><Link href={`/contacts/${contact.id}`} className="contact-open" aria-current={docked && selectedContactId === contact.id ? "true" : undefined} onClick={event => { saveContactListState(); if (!intent && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && window.matchMedia("(min-width: 1200px)").matches) { event.preventDefault(); const params = new URLSearchParams(searchParams); params.set("person", contact.id); if (contact.id === selectedContactId) document.getElementById("contact-profile-heading")?.focus(); else pendingProfileFocus.current = contact.id; router.push(`/contacts?${params}`, { scroll: false }); } }}>{contact.displayName}</Link></h3>
+            <div><h3><Link href={`/contacts/${contact.id}`} className="contact-open" aria-current={docked && selectedContactId === contact.id ? "true" : undefined} onClick={event => { if (selectionMode && event.detail > 0) { event.preventDefault(); toggleContact(contact.id); return; } saveContactListState(); if (!intent && !event.metaKey && !event.ctrlKey && !event.shiftKey && !event.altKey && window.matchMedia("(min-width: 1200px)").matches) { event.preventDefault(); const params = new URLSearchParams(searchParams); params.set("person", contact.id); if (contact.id === selectedContactId) document.getElementById("contact-profile-heading")?.focus(); else pendingProfileFocus.current = contact.id; router.push(`/contacts?${params}`, { scroll: false }); } }}>{contact.displayName}</Link></h3>
               <p className="contact-row-summary"><span>{contact.stageName ?? "No stage"}</span><span className="contact-summary-separator" aria-hidden="true"> · </span>{(contact.mixStatus === "no-mix" || contact.mixStatus === "no-mix-needed") && <><span className={contact.mixStatus === "no-mix" ? "contact-no-mix" : "contact-no-mix-needed"}>{CONTACT_MIX_FILTERS[contact.mixStatus]}</span>{(contact.nextJump || (!primaryEmail && !primaryPhone)) && <span className="contact-summary-separator" aria-hidden="true"> · </span>}</>}{!primaryEmail && !primaryPhone && !contact.doNotContact ? <Link className="contact-missing-method" href={`/contacts/${contact.id}/edit`}>Add phone or email</Link> : contact.doNotContact ? <span>Do not contact</span> : contact.nextJump ? <span className={contact.nextJumpOverdue ? "overdue-text" : ""}>{contact.nextJump}</span> : contact.mixStatus === "in-mix" ? <span>Nothing scheduled</span> : null}</p>
             </div>
           </div>
@@ -243,48 +274,50 @@ export function ContactsBulkWorkspace({
         </article>;
       })}</div> : query || activeFilterCount ? <EmptyState title="No contacts matched" description="Try a different search or filter." actionHref="/contacts" actionLabel="Clear filters" /> : <EmptyState title="Start with one person" description="Make time for your circle. Add a customer, a friend, or someone you would like to know better." actionHref="/contacts/new" actionLabel="Add a person" />}
 
-      {selectedIds.length > 0 && <aside className="bulk-contact-bar" aria-label="Actions for selected contacts">
+      {barShown && <aside ref={barRef} className="bulk-contact-bar" aria-label="Actions for selected contacts">
         <div className="bulk-selection-count"><strong>{selectedIds.length}</strong><span>selected</span><button type="button" className="text-button" onClick={() => setSelected(new Set())}>Clear</button>{contacts.length > 1 && <button type="button" className="text-button" onClick={toggleAll}>{allSelected ? "Deselect this page" : "Select this page"}</button>}</div>
-        <Sheet trigger={<button className="button bulk-action-button" type="button" aria-label="Tags"><AppIcon name="people" /><span className="bulk-action-label">Tags</span></button>} title="Update tags">
-          {groups.length ? <>
-            {activeTags.length ? <form action={assignSelectedContactsToActiveGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<label className="field"><span>Add tag</span><select name="groupId" required>{activeTags.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button primary" type="submit">Add tag</button></form> : <p>No tags are available.</p>}
-            <form action={bulkRemoveGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<label className="field"><span>Remove tag</span><select name="groupId" required>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button" type="submit">Remove tag</button></form>
-          </> : <p>Add a tag first.</p>}
-        </Sheet>
-        <Sheet trigger={<button className="button bulk-action-button" type="button" aria-label="Mix"><AppIcon name="mixes" /><span className="bulk-action-label">Mix</span></button>} title={`Mix for ${selectedIds.length} ${selectedIds.length === 1 ? "person" : "people"}`} description="Start a Mix, or confirm that these people don’t need one.">
-          {mixes.length ? <>
-            {selectedDoNotContact.length > 0 && <div className="notice error" id="bulk-mix-blocked">Remove {selectedDoNotContact.map((contact) => contact.displayName).join(", ")} because “Do not contact” is on.</div>}
-            <form action={bulkAssignMixAction} className="form-stack">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />
-              <label className="field"><span>Choose a Mix</span><select name="mixId" required value={chosenMix?.id} onChange={(event) => setChosenMixId(event.target.value)}>{mixes.map(mix => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></label>
-              {/* A fixed-date Mix goes out on its own date, so it asks for no start day (COPY-02). */}
-              {chosenMix?.triggerMode !== "BROADCAST" && <label className="field"><span>Start on</span><input type="date" name="startDate" required min={todayKey} defaultValue={todayKey} /></label>}
-              <p className="muted-copy">{bulkMixSheetSentence(chosenMix?.triggerMode ?? "MANUAL_START")}</p>
-              {/* The reason a disabled button gives is linked to it, so assistive technology reads it too (JITM-08 §2.6).
-                  It stays disabled while the start is sent, so a double tap starts nobody twice (UNDO-03). */}
-              <FormSubmitButton label="Add to the Mix" pendingLabel="Adding…" disabled={selectedDoNotContact.length > 0} describedBy={selectedDoNotContact.length > 0 ? "bulk-mix-blocked" : undefined} />
+        <div className="bulk-actions">
+          <Sheet initiallyOpen={Boolean(openMixSheet)} trigger={<button className="button primary bulk-action-button" type="button" aria-label="Add to a Mix"><AppIcon name="mixes" /><span className="bulk-action-label"><span className="bulk-action-long">Add to a </span>Mix</span></button>} title={`Add ${selectedIds.length} ${selectedIds.length === 1 ? "person" : "people"} to a Mix`} description="Start a Mix, or confirm that these people don’t need one.">
+            {mixes.length ? <>
+              {selectedDoNotContact.length > 0 && <div className="notice error" id="bulk-mix-blocked">Remove {selectedDoNotContact.map((contact) => contact.displayName).join(", ")} because “Do not contact” is on.</div>}
+              <form action={bulkAssignMixAction} className="form-stack">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />
+                <label className="field"><span>Choose a Mix</span><select name="mixId" required value={chosenMixId} onChange={(event) => setChosenMixId(event.target.value)}><option value="" disabled>Choose a Mix</option>{mixes.map(mix => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></label>
+                {/* A fixed-date Mix goes out on its own date, so it asks for no start day (COPY-02). */}
+                {chosenMix?.triggerMode !== "BROADCAST" && <label className="field"><span>Start on</span><input type="date" name="startDate" required min={todayKey} defaultValue={todayKey} /></label>}
+                {chosenMix && <p className="muted-copy">{bulkMixSheetSentence(chosenMix.triggerMode)}</p>}
+                {/* The reason a disabled button gives is linked to it, so assistive technology reads it too (JITM-08 §2.6).
+                    It stays disabled while the start is sent, so a double tap starts nobody twice (UNDO-03). */}
+                <FormSubmitButton label="Add to the Mix" pendingLabel="Adding…" disabled={selectedDoNotContact.length > 0} describedBy={selectedDoNotContact.length > 0 ? "bulk-mix-blocked" : undefined} />
+              </form>
+            </> : <p>Create a Mix first. <Link href="/mixes">Go to Mixes</Link></p>}
+            <form action={setNoMixNeededAction} className="form-stack bulk-no-mix-form">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />
+              <p className="muted-copy">For people who don’t need follow-ups from a Mix, such as a supplier. Anyone already in a Mix stays as they are.</p>
+              <button className="button" type="submit">Mark No Mix needed</button>
             </form>
-          </> : <p>Create a Mix first. <Link href="/mixes">Go to Mixes</Link></p>}
-          <form action={setNoMixNeededAction} className="form-stack bulk-no-mix-form">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />
-            <p className="muted-copy">For people who don’t need follow-ups from a Mix, such as a supplier. Anyone already in a Mix stays as they are.</p>
-            <button className="button" type="submit">Mark No Mix needed</button>
-          </form>
-        </Sheet>
-        <Sheet initiallyOpen={intent === "one-time-jump"} trigger={<button className="button primary bulk-action-button" type="button" aria-label="Message"><AppIcon name="message" /><span className="bulk-action-label">Message</span></button>} title={`Message ${selectedIds.length} ${selectedIds.length === 1 ? "person" : "people"}`} description="Choose how, write the message, and say when it should appear on Today.">
-          {selectedDoNotContact.length > 0 && <div className="notice error">Remove {selectedDoNotContact.map((contact) => contact.displayName).join(", ")} because “Do not contact” is on.</div>}
-          <form action={applyJumpToContactsAction} className="form-stack">
-            {contactIdsInputs(selectedIds)}
-            <input type="hidden" name="applyMode" value="manual" />
-            <input type="hidden" name="manualName" value="One-time message" />
-            <label className="field"><span>How</span><select name="manualChannel" value={messageChannel} onChange={(event) => setMessageChannel(event.target.value)}><option value="SMS">Text</option><option value="EMAIL">Email</option><option value="PHONE_CALL">Phone call</option><option value="WHATSAPP">WhatsApp</option></select></label>
-            {messageChannel === "EMAIL" && <label className="field"><span>Subject</span><input name="manualSubject" placeholder="A quick note" required /></label>}
-            {["SMS", "EMAIL", "WHATSAPP"].includes(messageChannel) ? <label className="field"><span>Message</span><textarea name="manualBody" placeholder="Hi {{First Name}}, …" required /></label> : <label className="field"><span>Call notes</span><textarea name="manualScript" required /></label>}
-            <label className="field"><span>When</span><select name="sendWhen" value={sendWhen} onChange={(event) => setSendWhen(event.target.value)}><option value="now">Now</option><option value="tomorrow">Tomorrow</option><option value="date">Choose a date</option></select></label>
-            {sendWhen === "date" && <label className="field"><span>Date</span><input name="scheduledDate" type="date" required /></label>}
-            <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0}>Schedule message</button>
-          </form>
-        </Sheet>
-        <button className="button bulk-action-button" type="button" aria-label="Export CSV" onClick={exportSelected}><AppIcon name="export" className="export-icon" /><span className="bulk-action-label">Export CSV</span></button>
-        <ConfirmDialog trigger={`Archive ${selectedIds.length}…`} title={`Archive ${selectedIds.length} selected contact${selectedIds.length === 1 ? "" : "s"}?`} description="Future follow-ups will be removed. Completed history stays available." danger><form action={bulkArchiveContactsAction}>{contactIdsInputs(selectedIds)}<button className="button danger" type="submit"><AppIcon name="archive" />Archive</button></form></ConfirmDialog>
+          </Sheet>
+          <Sheet trigger={<button className="button bulk-action-button" type="button" aria-label="Tags"><AppIcon name="tag" /><span className="bulk-action-label">Tags</span></button>} title="Update tags">
+            {groups.length ? <>
+              {activeTags.length ? <form action={assignSelectedContactsToActiveGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<label className="field"><span>Add tag</span><select name="groupId" required>{activeTags.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button primary" type="submit">Add tag</button></form> : <p>No tags are available.</p>}
+              <form action={bulkRemoveGroupAction} className="form-stack">{contactIdsInputs(selectedIds)}<label className="field"><span>Remove tag</span><select name="groupId" required>{groups.map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label><button className="button" type="submit">Remove tag</button></form>
+            </> : <p>Add a tag first.</p>}
+          </Sheet>
+          <Sheet initiallyOpen={intent === "one-time-jump"} trigger={<button className="button bulk-action-button" type="button" aria-label="Message"><AppIcon name="message" /><span className="bulk-action-label">Message</span></button>} title={`Message ${selectedIds.length} ${selectedIds.length === 1 ? "person" : "people"}`} description="Choose how, write the message, and say when it should appear on Today.">
+            {selectedDoNotContact.length > 0 && <div className="notice error">Remove {selectedDoNotContact.map((contact) => contact.displayName).join(", ")} because “Do not contact” is on.</div>}
+            <form action={applyJumpToContactsAction} className="form-stack">
+              {contactIdsInputs(selectedIds)}
+              <input type="hidden" name="applyMode" value="manual" />
+              <input type="hidden" name="manualName" value="One-time message" />
+              <label className="field"><span>How</span><select name="manualChannel" value={messageChannel} onChange={(event) => setMessageChannel(event.target.value)}><option value="SMS">Text</option><option value="EMAIL">Email</option><option value="PHONE_CALL">Call</option><option value="WHATSAPP">WhatsApp</option></select></label>
+              {messageChannel === "EMAIL" && <label className="field"><span>Subject</span><input name="manualSubject" placeholder="A quick note" required /></label>}
+              {["SMS", "EMAIL", "WHATSAPP"].includes(messageChannel) ? <label className="field"><span>Message</span><textarea name="manualBody" placeholder="Hi {{First Name}}, …" required /></label> : <label className="field"><span>Call notes</span><textarea name="manualScript" required /></label>}
+              <label className="field"><span>When</span><select name="sendWhen" value={sendWhen} onChange={(event) => setSendWhen(event.target.value)}><option value="now">Now</option><option value="tomorrow">Tomorrow</option><option value="date">Choose a date</option></select></label>
+              {sendWhen === "date" && <label className="field"><span>Date</span><input name="scheduledDate" type="date" required /></label>}
+              <button className="button primary" type="submit" disabled={selectedDoNotContact.length > 0}>Schedule message</button>
+            </form>
+          </Sheet>
+          <button className="button bulk-action-button" type="button" aria-label="Export CSV" onClick={exportSelected}><AppIcon name="export" className="export-icon" /><span className="bulk-action-label">Export<span className="bulk-action-long"> CSV</span></span></button>
+          <ConfirmDialog trigger={<><AppIcon name="archive" /><span className="bulk-action-label">Archive<span className="bulk-action-long"> {selectedIds.length}…</span></span></>} triggerAriaLabel={`Archive ${selectedIds.length}…`} triggerClassName="button danger bulk-action-button" title={`Archive ${selectedIds.length} selected contact${selectedIds.length === 1 ? "" : "s"}?`} description="Future follow-ups will be removed. Completed history stays available." danger><form action={bulkArchiveContactsAction}>{contactIdsInputs(selectedIds)}<button className="button danger" type="submit"><AppIcon name="archive" />Archive</button></form></ConfirmDialog>
+        </div>
       </aside>}
     </>
   );

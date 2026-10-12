@@ -65,7 +65,7 @@
 .mix-list .timeline-step { grid-template-columns: 64px 32px minmax(0, 1fr); }
 .mix-list .timeline-content { background: var(--surface); border-radius: 16px; padding: 20px; }
 .mix-list .timeline-content > p { font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.5; }
-.contact-notes-card .note-copy, .contact-notes-card .private-note p { font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.6; }
+.contact-notes .note-copy { font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.6; }
 .contact-detail-primary .card { border: 0; border-top: 1px solid var(--line); border-radius: 0; }
 .contact-next-line { background: var(--violet-wash); border-color: var(--line); border-radius: 12px; }
 .contacts-page .selectable-contact-list { display: block; }
@@ -263,9 +263,11 @@
 }
 
 .follow-up-confirmations { position: fixed; z-index: 150; bottom: 24px; left: 50%; transform: translateX(-50%); width: min(540px, calc(100vw - 32px)); display: grid; gap: 10px; pointer-events: none; }
-/* The question sits in a box-less slot (MixEndPrompt), so its card takes the same raised surface as the other cards (LAY-04). */
-.follow-up-confirmations > :not(.mix-end-slot), .mix-end-slot > * { pointer-events: auto; background: var(--raised); color: var(--text); border-radius: 20px; box-shadow: var(--shadow); }
-.follow-up-confirmations:empty { display: none; }
+/* The confirmations sit in a box-less list and the question in a box-less slot after it (MixEndPrompt), so each card takes
+   the same raised surface and the stack's spacing (LAY-04, A11Y-03). */
+.follow-up-undos { display: contents; }
+.follow-up-undos > *, .mix-end-slot > * { pointer-events: auto; background: var(--raised); color: var(--text); border-radius: 20px; box-shadow: var(--shadow); }
+.follow-up-confirmations:not(:has(> .follow-up-undos > *, > .mix-end-slot)) { display: none; }
 @media (max-width: 900px) { .follow-up-confirmations { bottom: calc(96px + env(safe-area-inset-bottom)); } }
 /* The end-of-Mix question (JITM-09 §2.77) waits in the same stack until the owner answers or closes it, after the timed
    confirmations so their Undo stays in view (LAY-02; MixEndPrompt places it). With enlarged text its actions take their own row, and the stack
@@ -279,8 +281,8 @@
 .mix-end-question small { margin-top: 2px; font-size: .8125rem; color: var(--text-2); }
 .mix-end-question-actions { display: flex; align-items: center; gap: 4px; flex-shrink: 0; margin-left: auto; }
 .mix-end-question-actions .button { min-height: 44px; }
-.mix-end-question-actions .icon-button { width: 44px; min-width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); }
-.mix-end-question-actions .icon-button svg { width: 18px; height: 18px; }
+.mix-end-question-actions .icon-button, .invite-strip .icon-button { width: 44px; min-width: 44px; height: 44px; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); }
+.mix-end-question-actions .icon-button svg, .invite-strip .icon-button svg { width: 18px; height: 18px; }
 
 .mix-desktop-editor { display: none; min-width: 0; }
 .mix-mobile-tabs { margin-bottom: 16px; }
@@ -413,29 +415,80 @@
 
 /* Keep the phone and portrait-tablet Journey ahead of secondary settings. */
 
-/* Personal invitations: a standing prompt in the sidebar and the phone header while any are left. */
+/* Personal invitations, while any are left (JITM-09 §2.9, D72): the sidebar callout, the More row and one compact Today prompt. */
 .invite-callout { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 44px; padding: 12px; border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent); border-radius: 14px; background: var(--brand-soft); color: var(--brand-dark); text-decoration: none; }
 .invite-callout:hover { border-color: var(--brand); }
-.invite-callout:focus-visible, .mobile-invite-link:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
+.invite-callout:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .invite-callout > svg { width: 22px; height: 22px; }
 .invite-callout strong { display: block; font-size: .875rem; }
 .invite-callout small { display: block; margin-top: 2px; font-size: .75rem; color: var(--text-2); }
 .invite-count { display: inline-grid; place-items: center; min-width: 20px; height: 20px; padding: 0 6px; border-radius: 999px; background: var(--brand); color: var(--on-brand); font-size: .75rem; font-weight: 700; line-height: 1; }
 .invite-callout .invite-count { display: none; }
 .mobile-header-actions { display: flex; align-items: center; gap: 8px; }
-.mobile-invite-link { position: relative; display: inline-grid; place-items: center; width: 44px; height: 44px; border-radius: 50%; background: var(--brand-soft); color: var(--brand-dark); }
-.mobile-invite-link svg { width: 20px; height: 20px; }
-.mobile-invite-link .invite-count { position: absolute; top: -2px; right: -2px; min-width: 18px; height: 18px; padding: 0 5px; font-size: .6875rem; }
 @media (min-width: 901px) and (max-width: 1279px) {
   .invite-callout { grid-template-columns: 1fr; justify-items: center; padding: 10px 4px; }
   .invite-callout > span:not(.invite-count) { position: absolute; width: 1px; height: 1px; overflow: hidden; clip-path: inset(50%); }
   .invite-callout .invite-count { display: inline-grid; position: absolute; top: 4px; right: 8px; min-width: 18px; height: 18px; padding: 0 5px; font-size: .6875rem; }
 }
-.invite-strip { display: flex; align-items: center; gap: 12px; margin-block: 0 16px; padding: 12px 16px; border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent); border-radius: 14px; background: var(--brand-soft); color: var(--text); }
-.invite-strip > svg { flex: 0 0 22px; width: 22px; height: 22px; color: var(--brand-dark); }
-.invite-strip p { flex: 1; margin: 0; font-size: .875rem; }
-.invite-strip p span { color: var(--text-2); }
-.invite-strip .button { flex-shrink: 0; }
-@media (max-width: 430px) { .invite-strip { flex-wrap: wrap; } .invite-strip p { flex-basis: calc(100% - 34px); } .invite-strip .button { margin-left: 34px; } }
+/* Today's prompt: the More row's words in one 44px link, which wraps inside itself in a narrow column, and the Mix-end
+   prompt's Dismiss. */
+.invite-strip { display: flex; align-items: center; gap: 8px; margin-block: 16px; padding-inline: 14px 4px; border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent); border-radius: 14px; background: var(--brand-soft); }
+.invite-strip > a { display: flex; flex: 1 1 auto; align-items: center; gap: 10px; min-width: 0; min-height: 44px; padding-block: 4px; font-size: .875rem; color: var(--text-2); }
+.invite-strip > a > svg { flex: 0 0 18px; width: 18px; height: 18px; color: var(--brand-dark); }
+.invite-strip > a > span { min-width: 0; overflow-wrap: break-word; }
+.invite-strip > a > span > span { display: inline-block; max-width: 100%; }
+.invite-strip > a strong { font-weight: 600; color: var(--violet-text); }
+.invite-strip > a:hover strong { text-decoration: underline; }
 .more-page .invite-hub-card { border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); }
-.mobile-nav .nav-badge { position: absolute; top: 6px; left: calc(50% + 6px); min-width: 18px; height: 18px; padding: 0 5px; font-size: .6875rem; }
+/* Follow-up confirmations inside the open review, each with its Undo (D70). The review sits inside the card's
+   .jump-primary-action, whose buttons fill the width, so the Undo keeps its own size beside its words. */
+.sheet-momentum { display: grid; gap: 8px; }
+.sheet-momentum > :last-child { margin-bottom: 12px; }
+.sheet-momentum [data-follow-up-undo] .button { width: auto; min-width: 44px; min-height: 44px; flex: none; }
+/* On a phone the review's handoff and outcomes stay on screen while a confirmation above them, or a long message, makes
+   the sheet scroll (JITM-08 §2.3). On a screen 480px high or less, and wherever the header and the bar would take more
+   than half the sheet or leave too little room for the message field (Today marks the panel), they scroll with the
+   content (JITM-07 §2.26, LAY-06).
+   Focus and scrolled-to fields stop above the stuck bar and below the header, whose heights Today measures (JITM-10
+   §2.11), and the bar's top edge shows where it covers the review (LAY-07). */
+@media (max-width: 767px) and (min-height: 481px) {
+  .follow-up-review-sheet > .sheet-panel { scroll-padding-top: calc(var(--review-header-height, 84px) + 8px); }
+  .follow-up-review-sheet .review-action-bar { padding-top: 8px; }
+  /* The second shadow fills the sheet's bottom padding below the stuck bar, with 8px to spare (the sheet clips the rest).
+     The draft's status row, just below the bar, paints over that fill, so its save warnings stay visible (LAY-12). */
+  .follow-up-review-sheet > .sheet-panel:not([data-review-bar-flows]) .review-action-bar { position: sticky; bottom: 0; z-index: 1; box-shadow: inset 0 1px 0 var(--line), 0 calc(max(16px, env(safe-area-inset-bottom)) + 8px) 0 var(--raised); background: var(--raised); }
+  .follow-up-review-sheet .review-draft-status { position: relative; z-index: 1; }
+  .follow-up-review-sheet > .sheet-panel:not([data-review-bar-flows]) { scroll-padding-bottom: calc(var(--review-bar-height, 160px) + 16px); }
+}
+/* Forced colors drop shadows, so the stuck bar's edge is a border there, with the bar's height unchanged (LAY-10). */
+@media (forced-colors: active) and (max-width: 767px) and (min-height: 481px) {
+  .follow-up-review-sheet > .sheet-panel:not([data-review-bar-flows]) .review-action-bar { padding-top: 7px; border-top: 1px solid CanvasText; box-shadow: none; }
+}
+/* A row says what the follow-up is about on one line: its reason, then its Mix (TDY-02). A completed row's time
+   editor opens in that line, so completed rows still wrap. The review gives the reason under the Mix name. Only
+   Today's rows join their parts with " · ". */
+.today-page .jump-task-card:not(.jump-task-complete) .jump-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-page .jump-meta > span + span::before { content: " · "; }
+.review-reason, .review-also-due { margin: 2px 0 0; color: var(--text-2); font-size: .8125rem; }
+.review-also-due { margin-top: 8px; font-weight: 600; }
+/* One person's follow-ups due today share one card (D71). The earliest leads; each other one follows as an "Also due"
+   row with its own review and options. When the leader is recorded, the next row takes its place. */
+.jump-also-due-row { display: none; margin: 0; color: var(--text-2); font-size: .875rem; font-weight: 600; }
+.jump-person-group > [data-jump-workflow]:not(:first-child) .jump-also-due-row { display: block; }
+.today-page .jump-person-group > [data-jump-workflow]:not(:first-child) :is(.eyebrow, .jump-card-heading, .jump-meta, .jump-snippet, .jump-skip-earlier) { display: none; }
+.jump-person-group > [data-jump-workflow]:not(:first-child) .jump-person-avatar { visibility: hidden; }
+.jump-person-group > [data-jump-workflow]:not(:last-child) .jump-task-card { border-bottom: 0; }
+.today-page .jump-person-group > [data-jump-workflow]:not(:last-child) .jump-task-card { padding-bottom: 2px; }
+.today-page .jump-person-group > [data-jump-workflow]:not(:first-child) .jump-task-card { grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding-top: 0; }
+.today-page .jump-person-group > [data-jump-workflow]:not(:first-child) .jump-primary-action { flex-direction: row; gap: 8px; }
+.jump-skip-earlier { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: .875rem; }
+.jump-skip-earlier svg { width: 18px; height: 18px; }
+.jump-person-group.next-follow-up-group { border-radius: 14px; background: var(--violet-wash); }
+.jump-person-group.next-follow-up-group .jump-task-card { border-bottom: 0; background: transparent; }
+@media (max-width: 900px) {
+  .jump-skip-earlier { min-height: 44px; }
+}
+@media (max-width: 767px) {
+  .today-page .jump-person-group.next-follow-up-group { margin-bottom: 8px; border: 1px solid var(--violet-mark); border-radius: 16px; }
+  .today-page .jump-person-group.next-follow-up-group .jump-card.next-follow-up { margin: 0; border: 0; }
+}

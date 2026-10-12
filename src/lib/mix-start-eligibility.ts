@@ -12,5 +12,5 @@ export async function assertMixStartEligible(db: Prisma.TransactionClient, works
   ]);
   if (!contact || !mix) throw new UserFacingError("Choose a saved person and an active Mix in this account.");
   if (restriction?.doNotContact) throw new UserFacingError("This person is marked Do not contact. Review their contact preference before starting follow-ups.");
-  if (stop) throw new UserFacingError("This Mix is stopped for this person. Open More on their contact profile to review and resume the stopped Mix.");
+  if (stop) throw new UserFacingError("This Mix is stopped for this person. Resume it from its row in the Mixes section of their contact profile.");
 }

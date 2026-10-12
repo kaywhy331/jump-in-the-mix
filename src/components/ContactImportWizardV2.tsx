@@ -5,6 +5,7 @@ import { useEffect, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { Notice } from "@/components/Notice";
 import { useConfirmDialog } from "@/components/useConfirmDialog";
+import { importStatusLabel, recurrenceLabel } from "@/lib/display-labels";
 import {
   buildImportRows,
   contactNameForImport,
@@ -120,14 +121,14 @@ function mappingOptionsForHeader(header: string, dateTypes: ImportDateTypeOption
     for (const recurrence of ["NONE", "MONTHLY", "YEARLY"] as const) {
       options.push({
         value: encodeMappingTarget({ kind: "DATE", dateTypeId: type.id, dateTypeName: null, recurrence }),
-        label: `Saved date · ${type.name} · ${recurrence === "NONE" ? "one time" : recurrence.toLowerCase()}`
+        label: `Saved date · ${type.name} · ${recurrenceLabel(recurrence)}`
       });
     }
   }
   const inferredName = header.replace(/[_-]+/g, " ").replace(/\b(date|dt)\b/gi, "").replace(/\s+/g, " ").trim() || "Imported Date";
   for (const recurrence of ["NONE", "MONTHLY", "YEARLY"] as const) {
     const target: ImportMappingTarget = { kind: "DATE", dateTypeId: null, dateTypeName: inferredName, recurrence };
-    options.push({ value: encodeMappingTarget(target), label: `New saved date type · ${inferredName} · ${recurrence === "NONE" ? "one time" : recurrence.toLowerCase()}` });
+    options.push({ value: encodeMappingTarget(target), label: `New saved date type · ${inferredName} · ${recurrenceLabel(recurrence)}` });
   }
   return options;
 }
@@ -139,7 +140,7 @@ function defaultResolution(match: ImportMatch): ImportResolution {
 function actionLabel(action: ImportResolutionAction): string {
   if (action === "CREATE") return "Create new Contact";
   if (action === "MERGE") return "Merge without overwriting";
-  if (action === "REPLACE") return "Prefer imported values";
+  if (action === "REPLACE") return "Update from the file";
   return "Skip row";
 }
 
@@ -149,7 +150,7 @@ function terminal(status: ImportBatch["status"]): boolean {
 
 function batchDate(value: string): string {
   const date = new Date(value);
-  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { dateStyle: "medium", timeStyle: "short" }).format(date);
+  return Number.isNaN(date.getTime()) ? value : new Intl.DateTimeFormat(undefined, { month: "short", day: "numeric", year: "numeric", hour: "numeric", minute: "2-digit", hour12: true }).format(date);
 }
 
 /** Up to three Mix names, then how many more, so a long list never hides that it was cut. */
@@ -324,7 +325,7 @@ export function ContactImportWizardV2({
       const proceed = await confirm({
         title: "Most rows have no phone or email",
         description: `${contactMethodSummary}. Those people will be saved with names only, and Today cannot prepare a call or message for them. If the file has phone or email columns, go back and check the field mapping first.`,
-        confirmLabel: "Queue anyway",
+        confirmLabel: "Import anyway",
         cancelLabel: "Go back"
       });
       if (!proceed) return;
@@ -361,7 +362,7 @@ export function ContactImportWizardV2({
       setStage("RESULTS");
       void loadRecent();
     } catch (cause) {
-      setError(cause instanceof Error ? cause.message : "The import could not be queued.");
+      setError(cause instanceof Error ? cause.message : "The import could not start.");
     } finally {
       setBusy(false);
     }
@@ -421,7 +422,7 @@ export function ContactImportWizardV2({
             <input ref={fileInputRef} type="file" accept=".csv,.vcf,.vcard,text/csv,text/vcard" onChange={(event) => void selectFile(event.target.files?.[0] ?? null)} disabled={busy} />
             <span className="import-drop-icon"><AppIcon name="import" /></span>
             <strong>{busy ? "Analyzing file…" : "Choose a CSV or VCF file"}</strong>
-            <small>Up to 5,000 rows and 10 MB. You may leave after the import is queued.</small>
+            <small>Up to 5,000 rows and 10 MB. You can leave once the import starts.</small>
           </label>
           <div className="import-privacy-note"><strong>Only your account can access the contacts you import.</strong><span>We check for matching email addresses and phone numbers. You decide what to do with possible duplicates.</span></div>
           <p className="import-phone-link"><Link className="inline-action" href="/contacts/from-phone">Adding people from your phone?</Link></p>
@@ -456,7 +457,7 @@ export function ContactImportWizardV2({
           <div className="import-summary-grid">
             <div><strong>{planned.create}</strong><span>Create</span></div>
             <div><strong>{planned.merge}</strong><span>Merge</span></div>
-            <div><strong>{planned.replace}</strong><span>Prefer imported</span></div>
+            <div><strong>{planned.replace}</strong><span>Update from file</span></div>
             <div><strong>{planned.skip}</strong><span>Skip / invalid</span></div>
           </div>
 
@@ -479,13 +480,13 @@ export function ContactImportWizardV2({
             {mixes.length > 0 && <div className="field"><label htmlFor="importMixChoice">Add the {planned.create.toLocaleString()} new {planned.create === 1 ? "person" : "people"} to a Mix</label><select id="importMixChoice" value={mixChoice} onChange={(event) => setMixChoice(event.target.value)} aria-describedby="importMixChoiceHint"><option value="">Don’t add them to a Mix</option>{mixes.map((mix) => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select><small id="importMixChoiceHint">{[stageNote, mixChoice ? (stageNote ? (mixChoice === stageMixId ? "" : "The Mix you choose here starts too, on the day they’re imported.") : "It starts for each of them on the day they’re imported.") : stageNote ? "" : "They’ll show as No Mix until you choose one."].filter(Boolean).join(" ")}</small></div>}
             {everyoneMixes.length > 0 && <p className="muted-copy">{everyoneMixNames(everyoneMixes)} {everyoneMixes.length === 1 ? "is for everyone, so it starts" : "are for everyone, so they start"} for the new people too.</p>}
           </fieldset>}
-          <div className="import-stage-actions"><button className="button" type="button" onClick={reset}>Back</button><button className="button primary" type="button" disabled={busy || !validRows.length} onClick={() => void queueImport()}>{busy ? "Queueing…" : `Queue ${validRows.length} valid row${validRows.length === 1 ? "" : "s"}`}</button></div>
+          <div className="import-stage-actions"><button className="button" type="button" onClick={reset}>Back</button><button className="button primary" type="button" disabled={busy || !validRows.length} onClick={() => void queueImport()}>{busy ? "Starting the import…" : `Import ${validRows.length} ${validRows.length === 1 ? "person" : "people"}`}</button></div>
         </section>
       )}
 
       {stage === "RESULTS" && batch && (
         <section className="card import-stage" aria-live="polite">
-          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : pollError ? "Import status unavailable" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}.{!terminal(batch.status) && " You may close this page; the import will continue."}</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{batch.status.toLowerCase()}</span></div>
+          <div className="import-stage-heading"><div><h2>{terminal(batch.status) ? "Import results" : pollError ? "Import status unavailable" : batch.status === "QUEUED" ? "Import is waiting to start" : "Import is running"}</h2><p>{batch.sourceFileName || "Contact import"} · created {batchDate(batch.createdAt)}.{!terminal(batch.status) && " You may close this page; the import will continue."}</p></div><span className={`status-pill ${batch.status === "COMPLETED" ? "done" : ""}`}>{importStatusLabel(batch.status, batch.createdCount + batch.mergedCount + batch.replacedCount)}</span></div>
           {pollError && <Notice type="error">{pollError} {lastChecked && <span>Last checked: {batchDate(lastChecked)}.</span>} <button type="button" className="button" onClick={() => setPollVersion(value => value + 1)}>Retry status check</button></Notice>}
           <progress aria-label="Contact import completion" max={100} value={batch.progress} />
           <p><strong>{batch.processedRows.toLocaleString()} of {batch.totalRows.toLocaleString()}</strong> rows processed · {batch.progress}%</p>
@@ -494,14 +495,14 @@ export function ContactImportWizardV2({
           {batch.failedCount > 0 && <div className="import-error-actions"><button className="button" type="button" onClick={downloadErrors}>Download error CSV</button>{table && terminal(batch.status) && <button className="button" type="button" disabled={busy} onClick={() => void queueImport(true)}>Retry failed rows</button>}</div>}
           {!table && batch.failedCount > 0 && <p className="notice info">To retry after reopening this page, download the error CSV, use its row numbers to make a file containing only failed rows from your original file, then choose Import another file. Review the duplicate decisions before importing again.</p>}
           <div className="import-result-list">{batch.results.filter((result) => result.status === "FAILED").slice(0, 20).map((result) => <div key={result.rowId}><strong>Row {result.sourceRow}</strong><span>{result.message}</span></div>)}</div>
-          <div className="import-stage-actions">{!terminal(batch.status) && <button className="button danger" type="button" disabled={busy} onClick={() => void cancelBatch()}>{busy ? "Canceling…" : "Cancel import"}</button>}<button className="button" type="button" onClick={reset}>Import another file</button><Link className="button primary" href={`/contacts?importBatch=${encodeURIComponent(batch.id)}`}>View imported Contacts</Link></div>
+          <div className="import-stage-actions">{!terminal(batch.status) && <button className="button danger" type="button" disabled={busy} onClick={() => void cancelBatch()}>{busy ? "Canceling…" : "Cancel import"}</button>}<button className="button" type="button" onClick={reset}>Import another file</button>{(!terminal(batch.status) || batch.createdCount + batch.mergedCount + batch.replacedCount > 0) && <Link className="button primary" href={`/contacts?importBatch=${encodeURIComponent(batch.id)}`}>View imported Contacts</Link>}</div>
         </section>
       )}
 
       {recentBatches.length > 0 && (
         <section className="card import-stage">
           <div className="import-stage-heading"><div><h2>Recent imports</h2><p>Resume progress, review errors, or confirm completed batches.</p></div></div>
-          <div className="import-result-list">{recentBatches.map((item) => <button type="button" className="contact-method-row" key={item.id} onClick={() => { setBatch(item); setStage("RESULTS"); }}><span><strong>{item.sourceFileName || "Contact import"}</strong><small>{batchDate(item.createdAt)} · {item.processedRows}/{item.totalRows} rows</small></span><span className="status-pill">{item.status.toLowerCase()}</span></button>)}</div>
+          <div className="import-result-list">{recentBatches.map((item) => <button type="button" className="contact-method-row" key={item.id} onClick={() => { setBatch(item); setStage("RESULTS"); }}><span><strong>{item.sourceFileName || "Contact import"}</strong><small>{batchDate(item.createdAt)} · {item.processedRows}/{item.totalRows} rows</small></span><span className="status-pill">{importStatusLabel(item.status, item.createdCount + item.mergedCount + item.replacedCount)}</span></button>)}</div>
         </section>
       )}
       {confirmDialog}

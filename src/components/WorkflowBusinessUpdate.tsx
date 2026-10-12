@@ -9,6 +9,7 @@ import type { WorkflowInstanceView } from "@/lib/mix-workflow-view";
 import type { WorkflowBusinessUpdate } from "@/lib/mix-workflow-types";
 import type { BusinessUpdatePreview } from "@/lib/workflow-business-preview";
 import styles from "@/components/WorkflowJourney.module.css";
+import { zoneLabel } from "@/lib/display-labels";
 
 export function WorkflowBusinessUpdateForm({ instance, displayPreferences, onUpdate }: { instance: WorkflowInstanceView; displayPreferences: DisplayFormatPreferences; onUpdate: () => void }) {
   const runs = instance.updateRuns ?? [];
@@ -51,13 +52,13 @@ export function WorkflowBusinessUpdateForm({ instance, displayPreferences, onUpd
   if (instance.state.pendingBusinessUpdate) return <p className="notice" role="status">Your update is saved. An earlier message is already being processed. Further automatic messages from this work are on hold until its result is known; progress will then apply your update.</p>;
   const latest = [...(instance.state.updates ?? [])].reverse().find(record => record.kind !== "UNDO" && !record.reversedAt);
   return <>
-    {instance.state.commitments?.filter(item => item.status === "OPEN").map(item => <p key={item.id} className="notice">{item.source === "CUSTOMER" ? "Customer requested a callback" : "You chose to check again"}: <strong>{formatDateTime(item.dueAt, { ...displayPreferences, timeZone: item.timezone })}</strong> ({item.timezone}). Review this work at that time; no customer acceptance has been assumed.</p>)}
+    {instance.state.commitments?.filter(item => item.status === "OPEN").map(item => <p key={item.id} className="notice">{item.source === "CUSTOMER" ? "Customer requested a callback" : "You chose to check again"}: <strong>{formatDateTime(item.dueAt, { ...displayPreferences, timeZone: item.timezone })}</strong> ({zoneLabel(item.timezone)}). Review this work at that time; no customer acceptance has been assumed.</p>)}
     <details><summary>Record an update or choose a callback date</summary>
       <form className={styles.decision} onSubmit={event => { event.preventDefault(); void reviewUpdate(); }}>
         <label className="field"><span>Which work changed?</span><select value={runId} onChange={event => { setRunId(event.target.value); setChoice(""); }} disabled={busy}>{runs.map(run => <option key={run.id} value={run.id}>{run.name} · {formatDateTime(instance.state.runs.find(item => item.id === run.id)!.startedAt, displayPreferences)}</option>)}</select></label>
         <label className="field"><span>What happened?</span><select value={choice} onChange={event => setChoice(event.target.value)} required disabled={busy}><option value="">Choose an update</option>{selected?.choices.map((option, index) => <option key={`${option.ruleId}:${option.outcome}`} value={index}>{option.label}</option>)}<option value="CUSTOMER">Customer asked me to get back to them</option><option value="OWNER">I want to choose when to check again</option></select></label>
         {waiting && <><label className="field"><span>Check-back date and time</span><input type="datetime-local" value={time} onChange={event => setTime(event.target.value)} required disabled={busy} /></label><TimezonePicker name={`callbackTimezone-${instance.id}`} defaultValue={timezone} onChange={setTimezone} /><small>This saves one action for you in Today. The remaining follow-ups in this Mix end; review what to do next at the saved time.</small></>}
-        {!selected?.choices.length && <small>This saved Mix has no whole-Mix outcome path. Choose a check-back date to end its remaining reminders and review the next step later, or pause this work below.</small>}
+        {!selected?.choices.length && <small>This work has no outcome to record for the Mix as a whole, so the update here is a date to check back: its remaining follow-ups end, and you decide the next step then.{instance.status === "ACTIVE" ? " Or pause this work below." : ""}</small>}
         <button className="button small" disabled={busy || !choice}>{busy ? "Checking…" : "Review this update"}</button>
       </form>
       {latest && <p>Last update: {latest.summary}. {latest.canUndo ? <button className="text-button" type="button" disabled={busy} onClick={() => void save({ undoUpdateId: latest.id })}>Undo last update</button> : "To correct it, record a new update above. Performed work stays in history."}</p>}
@@ -65,7 +66,7 @@ export function WorkflowBusinessUpdateForm({ instance, displayPreferences, onUpd
     {notice && <p role="status">{notice}</p>}
     {error && !review && <p className="notice error" role="alert">{error}</p>}
     <ReviewDialog open={Boolean(review)} onClose={() => { if (!busy) setReview(null); }} title="Save this update?" description={review ? `${review.preview.contactName} · ${review.preview.label} · ${review.preview.mixName}` : "Review the effect on this work."}>
-      {review && <div className="form-stack"><p>{review.input.kind === "OUTCOME" ? review.input.outcome : `${review.input.source === "CUSTOMER" ? "Customer requested" : "You chose"}: ${formatDateTime(review.input.dueAt!, { ...displayPreferences, timeZone: review.input.timezone! })} (${review.input.timezone})`}</p>
+      {review && <div className="form-stack"><p>{review.input.kind === "OUTCOME" ? review.input.outcome : `${review.input.source === "CUSTOMER" ? "Customer requested" : "You chose"}: ${formatDateTime(review.input.dueAt!, { ...displayPreferences, timeZone: review.input.timezone! })} (${zoneLabel(review.input.timezone!)})`}</p>
         <p><strong>{review.preview.ends.length} pending follow-up{review.preview.ends.length === 1 ? " ends" : "s end"}.</strong> Review the reminders below before saving.</p>
         {Boolean(review.preview.ends.length) && <ul>{review.preview.ends.map((name, index) => <li key={index}>{name}</li>)}</ul>}
         <p>{review.preview.keepsCompleted} completed or skipped actions stay in history. {review.preview.independentPending} other pending follow-ups in this work stay as they are. Separate work for this person is unaffected.</p>

@@ -55,10 +55,6 @@
 .relationship-chip span { min-height: 38px; display: inline-flex; align-items: center; padding: 7px 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--raised, var(--raised)); font-size: .8125rem; font-weight: 700; }
 .relationship-chip input:checked + span { color: var(--brand-dark); border-color: var(--brand); background: var(--brand-soft); }
 .relationship-chip input:focus-visible + span { outline: 3px solid var(--focus, var(--violet-mark)); outline-offset: 2px; }
-.relationship-toggle { min-height: 48px; display: flex; gap: 10px; align-items: center; cursor: pointer; }
-.relationship-toggle input { width: 20px; height: 20px; }
-.relationship-toggle span { display: grid; }
-.relationship-toggle small { color: var(--muted); }
 .contact-profile-quick-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .contact-next-line { display: flex; flex-wrap: wrap; align-items: baseline; gap: 8px 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 13px; background: var(--surface-muted); }
 .contact-next-line > span { color: var(--muted); font-size: .8125rem; font-weight: 800; text-transform: uppercase; }
@@ -90,8 +86,6 @@
 .timezone-city:last-child { border-bottom: 0; }
 .timezone-city small { color: var(--muted); }
 .timezone-city.selected { color: var(--brand-dark); background: var(--brand-soft); }
-.review-request-control { display: grid; gap: 5px; }
-.review-request-control .field-error { max-width: 260px; color: var(--danger); font-size: .8125rem; }
 .review-request-ready { flex: 1 0 100%; display: grid; gap: 8px; padding: 14px; border: 1px solid var(--violet-mark); border-radius: 14px; background: var(--brand-soft); }
 .review-request-ready p, .review-request-ready small { margin: 0; color: var(--muted); }
 .review-page { min-height: 100dvh; display: grid; place-items: center; padding: 22px; background: radial-gradient(circle at top left, var(--violet-wash), transparent 44%), var(--surface-soft); }
@@ -101,11 +95,14 @@
 .review-feedback-form { display: grid; gap: 20px; }
 .review-feedback-form fieldset { min-width: 0; margin: 0; padding: 0; border: 0; }
 .review-feedback-form legend { margin-bottom: 10px; font-weight: 800; }
-.rating-options { display: flex; flex-direction: row-reverse; justify-content: flex-end; gap: 6px; }
+/* Stars read 1 to 5 from left to right, in DOM order, and fill from the left up to the chosen one (TRU-01). */
+.rating-options { display: flex; justify-content: flex-start; gap: 6px; }
 .rating-options label { position: relative; cursor: pointer; }
 .rating-options input { position: absolute; opacity: 0; }
 .rating-options span[aria-hidden] { display: grid; width: 48px; height: 48px; place-items: center; border: 1px solid var(--line); border-radius: 12px; color: var(--text-3); background: var(--raised, var(--raised)); font-size: 1.55rem; }
-.rating-options label:has(input:checked) span[aria-hidden], .rating-options label:has(input:checked) ~ label span[aria-hidden] { color: var(--status-warning-ink); border-color: var(--warning-border); background: var(--status-warning-bg); }
+.rating-options label:has(input:checked) span[aria-hidden], .rating-options label:has(~ label input:checked) span[aria-hidden] { color: var(--status-warning-ink); border-color: var(--warning-border); background: var(--status-warning-bg); }
+/* Browsers without :has() still light the chosen star. */
+.rating-options input:checked + span[aria-hidden] { color: var(--status-warning-ink); border-color: var(--warning-border); background: var(--status-warning-bg); }
 .rating-options input:focus-visible + span { outline: 3px solid var(--focus, var(--violet-mark)); outline-offset: 2px; }
 .review-thanks { display: grid; gap: 14px; }
 .review-next-actions { display: flex; flex-wrap: wrap; gap: 9px; }
@@ -145,7 +142,7 @@
   .today-page .page-header p { display: block; margin-top: 2px; font-size: .8125rem; }
   .today-page .jump-snippet { display: -webkit-box; margin: 6px 0 0; overflow: hidden; color: var(--muted); font-size: .8125rem; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .today-page .jump-task-card { padding: 12px 0; }
-  .today-page .jump-card.next-follow-up { margin: 0 -8px 8px; padding: 14px; border: 1px solid var(--violet-mark); border-radius: 16px; }
+  .today-page .jump-card.next-follow-up { margin: 0 0 8px; padding: 14px; border: 1px solid var(--violet-mark); border-radius: 16px; }
   .jump-card.next-follow-up .jump-card-heading h3 { flex-basis: auto; }
   .jump-card.next-follow-up .jump-primary-action { display: flex; }
   .today-page .jump-completion-actions .jump-done-action { display: inline-flex; }
@@ -171,8 +168,6 @@
   .contact-timeline-card { grid-column: auto; }
   .contact-profile-quick-actions { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); }
   .contact-profile-quick-actions .button { min-width: 0; padding-inline: 8px; }
-  .contact-profile-quick-actions .review-request-control { grid-column: 1 / -1; }
-  .contact-profile-quick-actions .review-request-control .button { width: 100%; }
   .rating-options { justify-content: space-between; gap: 3px; }
   .rating-options span[aria-hidden] { width: 44px; height: 44px; }
   .contact-next-line { align-items: center; }
@@ -213,14 +208,9 @@
 /* Deliberate tablet rows: the bottom-navigation layout has room for context. */
 @media (max-width: 900px) {
   .sticky-form-actions { bottom: calc(84px + env(safe-area-inset-bottom)); }
-  .bulk-contact-bar { flex-wrap: wrap; }
-  .bulk-selection-count { flex: 1 0 100%; min-width: 0; }
   .bulk-selection-count .text-button { display: inline-flex; align-items: center; justify-content: center; }
   .bulk-contact-bar .bulk-selection-count > span { display: inline; }
-  .bulk-contact-bar > .sheet-trigger { flex: 1 1 0; }
   .bulk-contact-bar .bulk-action-button { width: 100%; min-width: 44px; }
-  .bulk-contact-bar > .bulk-action-button { flex: 1 1 0; width: auto; }
-  .page:has(.bulk-contact-bar) { padding-bottom: 120px; }
 }
 @media (min-width: 768px) and (max-width: 900px) {
   .app-main { padding: 20px 24px 110px; }
@@ -357,6 +347,7 @@
 .journey-stage-settings > summary > span { display: block; margin: 6px 0; color: var(--muted); font-size: .875rem; }
 .journey-stage-settings[open] > form { margin-top: 20px; }
 .journey-stage-settings .form-actions { flex-wrap: wrap; }
+.journey-stage-settings .stage-retire-reason { flex-basis: 100%; margin: 0; text-align: end; }
 /* Which Mixes set this stage (JITM-09 §2.79), across the form's full width. */
 .journey-stage-settings .journey-stage-mixes { grid-column: 1 / -1; margin: 0; }
 .journey-stage-mixes a, .mix-stage-choice a { color: var(--violet-text); text-decoration: underline; text-underline-offset: 2px; }

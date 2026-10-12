@@ -38,7 +38,9 @@ export async function intakeConnectionAction(data: FormData) {
       await tx.auditLog.create({ data: { workspaceId: workspace.id, actorType: "USER", actorUserId: user.id, action: `intake.connection.${intent}`, entityType: "IntakeConnection", entityId: selected, source: "settings.connections" } });
     });
   } catch (error) { redirect(withViewerError("/settings/connections", error instanceof ConnectionActionError ? error.message : "The connection could not be saved.", session)); }
-  redirect(`/settings/connections?selected=${encodeURIComponent(selected)}&saved=1`);
+  // Back at the connection itself, open, with a notice there that says what this action did (TRU-07).
+  const intent = value(data, "intent");
+  redirect(`/settings/connections?selected=${encodeURIComponent(selected)}&saved=${["create", "rotate", "toggle", "placement"].includes(intent) ? intent : "1"}#connection-${encodeURIComponent(selected)}`);
 }
 
 export async function reviewIntakeAction(data: FormData) {

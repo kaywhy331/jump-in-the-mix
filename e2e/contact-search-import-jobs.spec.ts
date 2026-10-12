@@ -94,13 +94,17 @@ test("queued imports remain visible after navigation and expose their terminal o
   const cancel = page.getByRole("button", { name: "Cancel import" });
   if (await cancel.isVisible()) {
     await cancel.click();
-    const terminalState = currentImport.getByText(/canceled|completed|partial/, { exact: true });
+    const terminalState = currentImport.getByText(/^(?:Canceled|Completed|Partly imported)$/);
     await expect(terminalState).toBeVisible();
-    if ((await terminalState.textContent()) !== "canceled") {
+    if ((await terminalState.textContent()) !== "Canceled") {
       await expect(currentImport.getByRole("link", { name: "View imported Contacts" })).toBeVisible();
+    } else {
+      // A canceled import offers its people only if it saved some (TRU-06).
+      const canceled = await prisma.contactImportBatch.findUniqueOrThrow({ where: { workspaceId_importId: { workspaceId: "demo_workspace", importId } } });
+      await expect(currentImport.getByRole("link", { name: "View imported Contacts" })).toHaveCount(canceled.createdCount + canceled.mergedCount + canceled.replacedCount > 0 ? 1 : 0);
     }
   } else {
-    await expect(currentImport.getByText(/completed|partial/, { exact: true })).toBeVisible();
+    await expect(currentImport.getByText(/^(?:Completed|Partly imported)$/)).toBeVisible();
     await expect(currentImport.getByRole("link", { name: "View imported Contacts" })).toBeVisible();
   }
 
@@ -136,7 +140,7 @@ test("import review counts the rows with no phone or email and asks before queue
   await expect(cellPhoneMapping).toHaveValue("field:phone");
 
   // More than half the rows lack a contact method, so Queue asks first; Go back queues nothing.
-  await page.getByRole("button", { name: "Queue 3 valid rows", exact: true }).click();
+  await page.getByRole("button", { name: "Import 3 people", exact: true }).click();
   const dialog = page.getByRole("dialog", { name: "Most rows have no phone or email" });
   await expect(dialog).toBeVisible();
   await expect(dialog).toContainText("2 of 3 rows have no phone or email");

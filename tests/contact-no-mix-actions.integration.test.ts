@@ -403,7 +403,7 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
 
     // Neither is counted as already in it and keeping their start: the batch is refused before anything is saved.
     const refused = await redirectOf(bulkAssignMixAction(form({ contactIds: [stoppedWithVisit, fresh], mixId: visits.id, startDate: today, returnTo: "/contacts" })));
-    expect(errorFor(refused)).toBe(`Stopped with a visit ${suffix.slice(0, 6)}: This Mix is stopped for this person. Open More on their contact profile to review and resume the stopped Mix.`);
+    expect(errorFor(refused)).toBe(`Stopped with a visit ${suffix.slice(0, 6)}: This Mix is stopped for this person. Resume it from its row in the Mixes section of their contact profile.`);
     const refusedDnc = await redirectOf(bulkAssignMixAction(form({ contactIds: [dnc, fresh], mixId: visits.id, startDate: today, returnTo: "/contacts" })));
     expect(errorFor(refusedDnc)).toBe(`Marked do not contact ${suffix.slice(0, 6)}: This person is marked Do not contact. Review their contact preference before starting follow-ups.`);
     expect(await prisma.mixAssignment.count({ where: { assignmentKey: { in: [stoppedWithVisit, dnc, fresh].map(direct) } } })).toBe(0);
@@ -445,7 +445,7 @@ describe.skipIf(!local)("No Mix actions with PostgreSQL (JITM-09 §2.76–§2.77
     const willing = await person("Willing"), stoppedPerson = await person("Asked to stop");
     await prisma.mixStop.create({ data: { workspaceId, mixId, contactId: stoppedPerson, reason: "Asked to stop" } });
     const refused = await redirectOf(bulkAssignMixAction(form({ contactIds: [willing, stoppedPerson], mixId, startDate: today, returnTo: "/contacts" })));
-    expect(errorFor(refused)).toBe(`Asked to stop ${suffix.slice(0, 6)}: This Mix is stopped for this person. Open More on their contact profile to review and resume the stopped Mix.`);
+    expect(errorFor(refused)).toBe(`Asked to stop ${suffix.slice(0, 6)}: This Mix is stopped for this person. Resume it from its row in the Mixes section of their contact profile.`);
     expect(await prisma.mixAssignment.count({ where: { contactId: { in: [willing, stoppedPerson] } } })).toBe(0);
     // The stop is never cleared by a start.
     expect(await prisma.mixStop.count({ where: { contactId: stoppedPerson } })).toBe(1);

@@ -50,7 +50,7 @@ test("browse a whole journey, install it once, open its actual map and editable 
   await page.goto("/templates/journeys?journey=contractor");
   await expect(page.getByRole("heading", { name: "Already in your Journey" })).toBeVisible();
   await expect(page.getByRole("button", { name: "Add Contractor Mega-Mix" })).toHaveCount(0);
-  await page.getByRole("complementary", { name: "Mega-Mix setup" }).getByRole("link", { name: "Estimate follow-up active" }).click();
+  await page.getByRole("complementary", { name: "Mega-Mix setup" }).getByRole("link", { name: "Estimate follow-up On" }).click();
   await expect(page.getByRole("heading", { name: "Estimate follow-up", exact: true })).toBeVisible();
   await expect(page.getByRole("link", { name: "Start for someone", exact: true })).toBeVisible();
   await page.getByRole("link", { name: "Start for someone", exact: true }).click();
@@ -66,13 +66,16 @@ test("onboarding can prepare a full journey without adding a contact, while keep
   await page.setViewportSize({ width: 390, height: 844 });
   await prisma.workspaceProfile.update({ where: { workspaceId }, data: { onboardingDone: false } });
   await page.goto("/onboarding");
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
   await page.getByRole("radio", { name: /Choose individual Mixes/ }).check();
   await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await page.getByRole("textbox", { name: "Name", exact: true }).fill("Unfinished person");
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
   await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
   await page.getByRole("radio", { name: /Choose individual Mixes/ }).check();
   await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
   await expect(page.getByRole("textbox", { name: "Name", exact: true })).toHaveValue("Unfinished person");
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
   await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
   await page.getByRole("combobox", { name: "Your Mega-Mix", exact: true }).selectOption("photographer");
   await page.getByText("Business name and message signature", { exact: true }).click();

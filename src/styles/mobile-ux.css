@@ -76,7 +76,6 @@
   .jump-card-heading h3 { flex: 1 1 auto; min-width: 0; margin: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
   .jump-card-heading .due-pill { flex: 0 0 auto; font-size: .68rem; }
   .jump-meta { display: block; overflow: hidden; color: var(--muted); font-size: .76rem; text-overflow: ellipsis; white-space: nowrap; }
-  .jump-meta span + span::before { content: " · "; }
   .jump-expanded-content { grid-column: 1 / -1; }
   .jump-primary-action { width: auto; display: flex; align-items: center; gap: 2px; }
   .jump-primary-action .jump-channel-action { width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 12px; }

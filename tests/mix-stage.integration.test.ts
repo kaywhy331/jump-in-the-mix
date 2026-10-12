@@ -469,6 +469,8 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect(await stageMovesForAudience(prisma, { workspaceId, stageId: client, all: true, groupIds: [], mixId: care.id })).toEqual({ moving: 1, fromOtherStages: 0, starting: 8 });
       // Everyone and a tag together: the tag's members from any stage, plus Everyone's.
       expect(await stageMovesForAudience(prisma, { workspaceId, stageId: client, all: true, groupIds: [tag.id], mixId: care.id })).toEqual({ moving: 3, fromOtherStages: 1, starting: 8 });
+      // With no stage, only how many people the save starts: the review of a save that adds people to a Mix that is on (TRU-02).
+      expect(await stageMovesForAudience(prisma, { workspaceId, stageId: "", all: false, groupIds: [tag.id], mixId: care.id })).toEqual({ moving: 0, fromOtherStages: 0, starting: 6 });
       await prisma.journeyPreference.update({ where: { workspaceId }, data: { enabled: false } });
       expect(await stageMovesForAudience(prisma, { workspaceId, stageId: client, all: true, groupIds: [], mixId: care.id })).toEqual({ moving: 0, fromOtherStages: 0, starting: 8 });
       expect(before).toBeTruthy();
@@ -799,6 +801,9 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect(resumed.searchParams.get("mixResumed")).toBe("1");
       expect([await prisma.mixStop.count({ where: { workspaceId, mixId: tips.id, contactId: rae } }), (await placeOf(tips.id, rae))?.isActive]).toEqual([0, true]);
       expect((await placeOf(tips.id, rae))!.startDate!.getTime()).toBeGreaterThanOrEqual(resumedAt.getTime() - 1000);
+      // Resume also hands back what the stop removed by other routes, for the scheduler to revive what a start or tag
+      // still wants (D87, TRU-02).
+      expect(await prisma.jump.findUniqueOrThrow({ where: { id: other.id }, select: { status: true, completionMethod: true } })).toEqual({ status: "CANCELED", completionMethod: "reconciled" });
     });
 
     it("a tag added while the Mix is paused moves its members when it is turned back on, after a review (D65)", async () => {

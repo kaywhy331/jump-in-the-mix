@@ -1,6 +1,7 @@
 import { WorkflowAttention, UpcomingWorkflowCommitments } from "@/components/WorkflowAttention";
 import { readWorkflowAttention } from "@/lib/workflow-attention";
 import { QuietDaySuggestions } from "@/components/QuietDaySuggestions";
+import { InvitationPrompt } from "@/components/InvitationPrompt";
 import { readQuietDays } from "@/lib/quiet-days";
 import { contactMixCounts, noMixTodayLine } from "@/lib/contact-mix-status";
 import { noMixNeededNotice } from "@/lib/contact-mix-status-labels";
@@ -12,6 +13,7 @@ import { sameContactSequence } from "@/lib/contact-profile-view";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
+import { cookies } from "next/headers";
 import { AppIcon } from "@/components/AppIcon";
 import { AutoSubmitForm } from "@/components/AutoSubmitForm";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -31,7 +33,8 @@ import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { projectDraftSource, type DraftValues } from "@/lib/draft-segments";
-import { formatDate, formatDateTime } from "@/lib/format";
+import { formatDate, formatDateTime, formatTime } from "@/lib/format";
+import { channelName, channelWord, followUpEndedReason, zoneLabel } from "@/lib/display-labels";
 import { readJumpDrafts } from "@/lib/jump-drafts";
 import { buildJumpReplacementValues } from "@/lib/jump-render";
 import { detachedChanges, preparationFamilyForChannel, type PreparationFamily } from "@/lib/preparation-family";
@@ -43,12 +46,16 @@ import { prisma } from "@/lib/prisma";
 import { planLimits, recentPlanLimitSkips } from "@/lib/plan-limits";
 import { readPreparationStatus } from "@/lib/preparation";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
-import { snoozeChoices } from "@/lib/snooze-schedule";
-import { followUpPhone, parseTodayCursor, readTodayPage } from "@/lib/today-list";
-import { calendarDaysOverdue, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
+import { snoozeChoices, type SnoozePreset } from "@/lib/snooze-schedule";
+import { LiveAttentionSummary, LiveCount, LiveSection, TodayLiveCounts, TodayMomentum } from "@/components/TodayMomentum";
+import { AlsoDueNote, WhileAlsoDue } from "@/components/AlsoDue";
+import { followUpPhone, parseTodayCursor, readTodayPage, TODAY_PAGE_SIZE } from "@/lib/today-list";
+import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice, groupDueFollowUps } from "@/lib/today-view";
 import { automaticSendWindow, type AutomaticSendingRule } from "@/lib/automatic-delivery-window";
-import { automaticEmailConfigured } from "@/lib/automatic-delivery";
-import { INVITATIONS_PATH, invitationsLeft } from "@/lib/invitation-allowance";
+import { sendsByItself } from "@/lib/automatic-delivery";
+import { hasRecordedOutcome, invitationsLeft } from "@/lib/invitation-allowance";
+import { INVITATION_PROMPT_COOKIE, invitationPromptDismissed } from "@/lib/invitation-labels";
+import { browserScope } from "@/lib/browser-scope";
 import { phoneRegionOrDefault } from "@/lib/phone-number";
 import { matchedMegaMix, megaMixById } from "@/lib/mega-mixes";
 import { storedMarketingScenario } from "@/lib/marketing-scenarios";
@@ -108,11 +115,6 @@ const doneStatuses: JumpStatus[] = ["DONE"];
 const completedStatuses: JumpStatus[] = [...doneStatuses, "SKIPPED"];
 const channels: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
 
-function channelLabel(channel: Channel): string {
-  if (channel === "PHONE_CALL") return "call";
-  if (channel === "VOICEMAIL") return "voicemail";
-  return channel.replaceAll("_", " ").toLowerCase();
-}
 
 /** The chip for one usable variant: the family's plain name, WhatsApp when the person prefers it. */
 function choiceOption(family: PreparationFamily, channel: Channel): ChannelChoiceOption {
@@ -139,8 +141,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
   const { session, workspace, user, impersonation } = await requireWorkspace();
   const invitations = impersonation ? null : await invitationsLeft(user.id, workspace.id);
-  // Prepared personal invitations wait here until the owner sends them from their own email or text app.
-  const invitationsToSend = impersonation ? [] : await prisma.jump.findMany({ where: { workspaceId: workspace.id, status: "PENDING", accessInvite: { is: { inviterUserId: user.id, acceptedAt: null, revokedAt: null } } }, select: { id: true, contact: { select: { displayName: true } }, accessInvite: { select: { recipientEmail: true, recipientPhone: true } } }, orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], take: 3 });
+  // Today's invitation prompt waits for the owner's first recorded outcome, and isn't rendered once dismissed (JITM-09 §2.9, D72).
+  const promptDismissed = invitationPromptDismissed((await cookies()).get(INVITATION_PROMPT_COOKIE)?.value, browserScope(session));
+  const [outcomeRecorded, invitationsToSend] = await Promise.all([
+    invitations && !promptDismissed ? hasRecordedOutcome(workspace.id) : false,
+    // Prepared personal invitations wait here until the owner sends them from their own email or text app.
+    impersonation ? [] : prisma.jump.findMany({ where: { workspaceId: workspace.id, status: "PENDING", accessInvite: { is: { inviterUserId: user.id, acceptedAt: null, revokedAt: null } } }, select: { id: true, contact: { select: { displayName: true } }, accessInvite: { select: { recipientEmail: true, recipientPhone: true } } }, orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], take: 3 })
+  ]);
   const displayPreferences = await displayPreferencesForUser(user.id);
   const timezone = displayPreferences.timeZone;
   const today = logicalDateInTimezone(new Date(), timezone);
@@ -222,7 +229,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const noMixCount = mixCounts?.["no-mix"] ?? 0;
   const failedDeliveries = new Map(failedDeliveryRows.map((row) => [row.jumpId, row] as const));
   // A drafted follow-up is held from automatic delivery; the card says so only where delivery would otherwise apply.
-  const automaticFor = (followUpChannel: Channel) => Boolean(automation?.enabled && ((followUpChannel === "EMAIL" && automation.emailEnabled && automaticEmailConfigured()) || (followUpChannel === "SMS" && automation.smsEnabled)));
+  const automaticFor = (followUpChannel: Channel) => sendsByItself(automation, followUpChannel);
   const profile = workspace.profile;
   const renderOwner = { name: owner?.name ?? user.name ?? "", email: owner?.email ?? user.email };
   const viewParams = new URLSearchParams({ range, status, channel, ...(query ? { q: query } : {}), ...(params.jump ? { jump: params.jump.slice(0, 120) } : {}), ...(priority !== "all" ? { priority } : {}), ...(compact ? { view: "compact" } : {}) });
@@ -253,6 +260,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   // A problem reading the rule falls back to the fixed wording, never a wrong time or a missing page.
   const sendingRule = await readSendingRule().catch(() => null);
   // Only offer snooze times after the follow-up is due, so nothing offered is refused.
+  // Each snooze choice says when it lands: the time today or tomorrow, the day and time further out (TRU-05).
+  const snoozeLabel = (preset: SnoozePreset, label: string, at: Date) => `${label} · ${preset === "later-today" || preset === "tomorrow" ? formatTime(at, displayPreferences) : formatDateTime(at, displayPreferences)}`;
   const choicesFor = (followUp: { baseScheduledAt: Date | null; scheduledAt: Date }) => snoozeChoices({
     now,
     timezone,
@@ -279,19 +288,20 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const upcoming = pending.filter((followUp) => followUp.scheduledAt >= endToday);
   const completed = ordered.filter((followUp) => completedStatuses.includes(followUp.status));
   const upcomingCount = pendingCount - attentionCount;
-  const nextUp = needsAttention[0] ?? upcoming[0] ?? null;
+  // One person's follow-ups due by the end of today share one card, led by the earliest; each keeps its own review,
+  // outcome and Undo (D71, JITM-09 §2.82). The card sits where the person's latest follow-up on this page is due, and the
+  // sections count the overdue follow-ups it moves under Today from this page too (CNT-01).
+  const { overdue: overdueGroups, today: todayGroups, moved: movedOverdue } = groupDueFollowUps(needsAttention, startToday);
+  const nextUp = overdueGroups[0]?.[0] ?? todayGroups[0]?.[0] ?? upcoming[0] ?? null;
   const activeFilterCount = Number(range !== "due") + Number(status !== "all") + Number(channel !== "all") + Number(Boolean(query)) + Number(priority !== "all") + Number(Boolean(params.jump));
 
-  const renderCard = (followUp: (typeof ordered)[number]) => {
-    const snapshot = (followUp.renderedSnapshot ?? {}) as Snapshot;
+  // The channel and wording a follow-up's card opens on. A person's card also names the channel of their other
+  // follow-up due today (D71), so each follow-up's is worked out once.
+  const readVariants = (followUp: (typeof ordered)[number]) => {
     const email = followUp.accessInvite?.recipientEmail ?? followUp.contact.emails.find((item) => item.isPrimary)?.email ?? followUp.contact.emails[0]?.email;
     const { phone, dialTarget } = followUpPhone(followUp, phoneRegion);
     const planChannel = followUp.stepVersion.stepTemplate.channel;
     const isPending = pendingStatuses.includes(followUp.status);
-    // The small preview never connects separate runs of a reusable Mix. Keep the
-    // selected Beat visible even when it falls beyond the contact's preview limit.
-    const reviewBeats = [followUp, ...followUp.contact.jumps.filter(beat => beat.id !== followUp.id && sameContactSequence(followUp, beat))]
-      .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.id.localeCompare(b.id));
     // A pending follow-up edits its plan text as a draft; the card shows the draft rendered over the
     // contact and business details, so an edit made yesterday still reads with today's details.
     const planTemplate = isPending ? templateTextOf(followUp.templateSnapshot) : null;
@@ -306,7 +316,30 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     // Every Beat offers text, email and a call; the recommended one opens unless the owner chose another.
     const recommended = recommendedVariant(usable, { contactPreferred: followUp.contact.relationshipState?.preferredChannel, ownerPreferred, automaticPlan: automaticForPlan });
     const active = selectedVariant(usable, followUp.selectedFamily ?? recommended?.family) ?? prepared[0] ?? null;
-    const followUpChannel = active?.channel ?? planChannel;
+    return { email, phone, dialTarget, planChannel, isPending, planTemplate, automaticForPlan, prepared, usable, recommended, active, followUpChannel: active?.channel ?? planChannel };
+  };
+  const variantsRead = new Map<string, ReturnType<typeof readVariants>>();
+  const variantsOf = (followUp: (typeof ordered)[number]) => {
+    const read = variantsRead.get(followUp.id) ?? readVariants(followUp);
+    variantsRead.set(followUp.id, read);
+    return read;
+  };
+  // A follow-up's time today, and how many days overdue it is, as Today's rows say them.
+  const timeToday = (at: Date) => formatTime(at, { locale: displayPreferences.locale, timeZone: timezone });
+  const overdueWords = (at: Date) => { const days = calendarDaysOverdue(at, today, timezone); return `${days} day${days === 1 ? "" : "s"} overdue`; };
+  // How a person's card and reviews name their other follow-up due today: the channel it opens on, and when (D71).
+  const alsoDueLabel = (followUp: (typeof ordered)[number]) => {
+    const name = channelName(variantsOf(followUp).followUpChannel);
+    return followUp.scheduledAt >= startToday ? `${name} at ${timeToday(followUp.scheduledAt)}` : `${name}, ${overdueWords(followUp.scheduledAt)}`;
+  };
+
+  const renderCard = (followUp: (typeof ordered)[number], others: typeof needsAttention = [], later: string[] = []) => {
+    const snapshot = (followUp.renderedSnapshot ?? {}) as Snapshot;
+    const { email, phone, dialTarget, planChannel, isPending, planTemplate, automaticForPlan, prepared, usable, recommended, active, followUpChannel } = variantsOf(followUp);
+    // The small preview never connects separate runs of a reusable Mix. Keep the
+    // selected Beat visible even when it falls beyond the contact's preview limit.
+    const reviewBeats = [followUp, ...followUp.contact.jumps.filter(beat => beat.id !== followUp.id && sameContactSequence(followUp, beat))]
+      .sort((a, b) => a.scheduledAt.getTime() - b.scheduledAt.getTime() || a.id.localeCompare(b.id));
     const family = active?.family ?? preparationFamilyForChannel(planChannel);
     const template = active?.template ?? null;
     const draft = template ? drafts.get(followUp.id)?.find((item) => item.family === family) ?? null : null;
@@ -338,8 +371,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     // card fell back to an alternative without anyone choosing it.
     const chosen = Boolean(alternative && followUp.selectedFamily === active?.family);
     const heldNote = !heldByChoice || !active ? null : chosen
-      ? `Because you chose ${choiceOption(active.family, active.channel).label.toLowerCase()} instead of the plan’s ${channelLabel(planChannel)}, this one waits for you and won’t send automatically.`
-      : `The plan’s ${channelLabel(planChannel)} needs ${planChannel === "EMAIL" ? "an email address" : "a phone number"} this person doesn’t have, so this one waits for you and won’t send automatically.`;
+      ? `Because you chose ${channelWord(choiceOption(active.family, active.channel).label)} instead of the Mix’s ${channelWord(channelName(planChannel))}, this one waits for you and won’t send automatically.`
+      : `The Mix’s ${channelName(planChannel).toLowerCase()} needs ${planChannel === "EMAIL" ? "an email address" : "a phone number"} this person doesn’t have, so this one waits for you and won’t send automatically.`;
     const choice = isPending && active ? <FollowUpChannelChoice
       jumpId={followUp.id}
       contactName={followUp.contact.displayName}
@@ -351,14 +384,13 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const snippet = content.length > 150 ? `${content.slice(0, 147)}…` : content;
     const isNext = !compact && followUp.id === nextUp?.id;
     const recentEvents = eventsByFollowUp.get(followUp.id) ?? [];
-    const daysOverdue = calendarDaysOverdue(followUp.scheduledAt, today, timezone);
     const dueLabel = !isPending ? `Originally due ${formatDateTime(followUp.scheduledAt, displayPreferences)}` : followUp.scheduledAt < startToday
-      ? `${daysOverdue} day${daysOverdue === 1 ? "" : "s"} overdue`
+      ? overdueWords(followUp.scheduledAt)
       : followUp.scheduledAt < endToday
         ? `Today · ${formatDateTime(followUp.scheduledAt, displayPreferences)}`
         : formatDateTime(followUp.scheduledAt, displayPreferences);
-    const snoozeToDay = <form action={snoozeJumpAction} className="form-stack"><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value="custom" /><input type="hidden" name="returnTo" value={returnTo} /><div className="field"><span className="field-label">Choose a day</span><WhenField label="Choose a day" variant="inline" dateName="customDate" defaultDate={choicesFor(followUp).defaultDate} minDate={choicesFor(followUp).minDate} quickSelect={false} /></div><small className="muted-copy">Uses your default follow-up time in {timezone}.</small><button className="button" type="submit">Snooze to this day</button></form>;
-    const outcomeActions = <div className="review-outcome-actions"><JumpOutcomeButton jumpId={followUp.id} outcome="COMPLETED" className="button small" ariaLabel={`${directCall ? "Mark done" : "Mark sent"} for ${followUp.contact.displayName}`}><AppIcon name="check" />{directCall ? "Mark done" : "Mark sent"}</JumpOutcomeButton><Sheet trigger={<button className="button small" type="button" aria-label="Snooze"><AppIcon name="snooze" />Snooze</button>} title="Snooze follow-up"><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input name="jumpId" type="hidden" value={followUp.id} /><input name="preset" type="hidden" value={preset} /><input name="returnTo" type="hidden" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div>{snoozeToDay}</Sheet><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button small" ariaLabel="Skip Beat"><AppIcon name="skip" />Skip Beat</JumpOutcomeButton></div>;
+    const snoozeToDay = <form action={snoozeJumpAction} className="form-stack"><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value="custom" /><input type="hidden" name="returnTo" value={returnTo} /><div className="field"><span className="field-label">Choose a day</span><WhenField label="Choose a day" variant="inline" dateName="customDate" defaultDate={choicesFor(followUp).defaultDate} minDate={choicesFor(followUp).minDate} quickSelect={false} /></div><small className="muted-copy">Uses your usual follow-up time ({zoneLabel(timezone)}).</small><button className="button" type="submit">Snooze to this day</button></form>;
+    const outcomeActions = <div className="review-outcome-actions"><JumpOutcomeButton jumpId={followUp.id} outcome="COMPLETED" className="button small" ariaLabel={`${directCall ? "Mark done" : "Mark sent"} for ${followUp.contact.displayName}`}><AppIcon name="check" />{directCall ? "Mark done" : "Mark sent"}</JumpOutcomeButton><Sheet trigger={<button className="button small" type="button" aria-label="Snooze"><AppIcon name="snooze" />Snooze</button>} title="Snooze follow-up"><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label, at]) => <form action={snoozeJumpAction} key={preset}><input name="jumpId" type="hidden" value={followUp.id} /><input name="preset" type="hidden" value={preset} /><input name="returnTo" type="hidden" value={returnTo} /><button className="button" type="submit">{snoozeLabel(preset, label, at)}</button></form>)}</div>{snoozeToDay}</Sheet><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button small" ariaLabel="Skip Beat"><AppIcon name="skip" />Skip Beat</JumpOutcomeButton></div>;
     const deliveryStatus = failed && failure ? <>
       <div className="notice warning compact" data-delivery-failed={failure.kind}><p>{failure.text}</p><p>Tried {formatDateTime(failed.updatedAt, displayPreferences)}.</p></div>
       <p className="review-delivery-status" data-delivery-status="manual">Manual · you send</p>
@@ -391,29 +423,39 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
 
     const nextScheduled = followUp.contact.jumps.find(beat => beat.id !== followUp.id);
+    // What the follow-up is about: its reason, then its Mix. A one-time follow-up's Mix is never named (TDY-02).
+    const reason = followUp.reason?.trim() || null;
+    const mixShown = followUp.mix.source !== "ONE_TIME" && (!reason || reason.toLowerCase() !== followUp.mix.name.trim().toLowerCase());
+    const otherIds = others.map(other => other.id);
+    // On a person's shared card, each follow-up's Review and options name it as its "Also due" row does, with its reason
+    // when another of the person's follow-ups would read the same (JITM-10 §2.14).
+    const ownLabel = otherIds.length ? alsoDueLabel(followUp) : "";
+    const dueWhen = ownLabel ? `: ${ownLabel}${reason && others.some(other => alsoDueLabel(other) === ownLabel) ? ` (${reason})` : ""}` : "";
     return (
       <JumpWorkflowCard nextScheduledLabel={nextScheduled ? formatDateTime(nextScheduled.scheduledAt, displayPreferences) : undefined} jumpId={followUp.id} contactName={followUp.contact.displayName} revision={followUp.updatedAt.toISOString()} key={followUp.id}>
-        <article id={`jump-${followUp.id}`} className={`jump-card jump-task-card ${isNext ? "next-follow-up" : ""} ${isPending ? "" : "jump-task-complete"}`}>
+        <article id={`jump-${followUp.id}`} className={`jump-card jump-task-card ${isNext ? "next-follow-up" : ""} ${isPending ? "" : "jump-task-complete"}`} data-today-due={isPending && followUp.scheduledAt < endToday ? followUp.scheduledAt < startToday ? "overdue" : "today" : undefined}>
           <div className="jump-card-main"><span className="person-initials jump-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>
             {isNext && <span className="eyebrow">Next up</span>}
-            <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span title={dueLabel} className={isPending && followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{isPending && followUp.scheduledAt >= startToday && followUp.scheduledAt < endToday ? new Intl.DateTimeFormat(displayPreferences.locale, { timeZone: timezone, hour: "numeric", minute: "2-digit" }).format(followUp.scheduledAt) : dueLabel}</span><span className="channel-pill">{channelLabel(followUpChannel)}</span></div>
-            <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}{failure && <span className="jump-delivery-failed" data-delivery-failed={failure.kind}><AppIcon name="alert" />{failure.kind === "uncertain" ? "Send not confirmed" : "Automatic send failed"}</span>}<span>{followUp.mix.name}</span>{followUp.reason && followUp.reason.trim().toLowerCase() !== followUp.mix.name.trim().toLowerCase() && <span>{followUp.reason}</span>}</div>
+            <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span title={dueLabel} className={isPending && followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{isPending && followUp.scheduledAt >= startToday && followUp.scheduledAt < endToday ? timeToday(followUp.scheduledAt) : dueLabel}</span><span className="channel-pill">{channelName(followUpChannel)}</span></div>
+            <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}{failure && <span className="jump-delivery-failed" data-delivery-failed={failure.kind}><AppIcon name="alert" />{failure.kind === "uncertain" ? "Send not confirmed" : "Automatic send failed"}</span>}{reason && <span>{reason}</span>}{mixShown && <span>{followUp.mix.name}</span>}</div>
             <p className="jump-snippet">{snippet}</p>
+            {otherIds.length > 0 && <p className="jump-also-due-row">Also due: {alsoDueLabel(followUp)}</p>}
+            {later.length > 0 && <WhileAlsoDue jumpIds={later}><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="text-button jump-skip-earlier" ariaLabel={`Skip this ${channelWord(channelName(followUpChannel))} for ${followUp.contact.displayName}`}><AppIcon name="skip" />Skip this {channelWord(channelName(followUpChannel))}</JumpOutcomeButton></WhileAlsoDue>}
           </div>
 
           <div className="jump-primary-action">
-            {isPending && <Sheet className="follow-up-review-sheet" initiallyOpen={params.jump === followUp.id} desktopInitiallyOpen={isNext} trigger={<button className="button primary jump-channel-action" type="button" aria-label={`Review ${directCall ? "call" : "message"} for ${followUp.contact.displayName}`}><AppIcon name={directCall ? "phone" : followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={followUp.contact.displayName} accessibleTitle={`Follow up with ${followUp.contact.displayName}`} description={followUp.contact.journey?.stage.name ?? "Follow-up"} leading={<span className="review-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>}><div className="review-workspace"><div className="review-composer"><div className="review-mix-heading"><p className="review-mix-name">{followUp.mix.name}</p><small className={followUp.scheduledAt < startToday ? "review-due-late" : "muted-copy"}>{dueLabel}</small></div><ol className="review-beat-rhythm" aria-label="Pending Beats in this Mix occurrence">{reviewBeats.map(beat => <li key={beat.id} aria-current={beat.id === followUp.id ? "step" : undefined}><TodayLink href={`/jumps?jump=${encodeURIComponent(beat.id)}&range=all`} title={beat.reason}><i aria-hidden="true" /><time dateTime={beat.scheduledAt.toISOString()}>{formatDate(beat.scheduledAt, displayPreferences, { year: undefined })}</time></TodayLink></li>)}</ol>{editableAction}</div><aside className="review-person-context" aria-label={`About ${followUp.contact.displayName}`}><h3>Reach {followUp.contact.displayName}</h3>{phone && <p>{phone}</p>}{email && <p>{email}</p>}{followUp.contact.publicNotes && <><h3>Contact notes</h3><p className="conversation-note">{followUp.contact.publicNotes}</p></>}<Link className="inline-action" href={`/contacts/${followUp.contactId}`}>Open contact<AppIcon name="chevronRight" className="inline-action-icon" /></Link></aside></div></Sheet>}
+            {isPending && <Sheet className="follow-up-review-sheet" initiallyOpen={params.jump === followUp.id} desktopInitiallyOpen={isNext} trigger={<button className="button primary jump-channel-action" type="button" data-review-trigger aria-label={`Review ${directCall ? "call" : "message"} for ${followUp.contact.displayName}${dueWhen}`}><AppIcon name={directCall ? "phone" : followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={followUp.contact.displayName} accessibleTitle={`Follow up with ${followUp.contact.displayName}`} description={followUp.contact.journey?.stage.name ?? "Follow-up"} leading={<span className="review-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>}><div className="review-workspace"><div className="review-composer"><div className="review-mix-heading"><div><p className="review-mix-name">{mixShown ? followUp.mix.name : reason ?? "Follow-up"}</p>{mixShown && reason && <p className="review-reason">{reason}</p>}</div><small className={followUp.scheduledAt < startToday ? "review-due-late" : "muted-copy"}>{dueLabel}</small></div>{otherIds.length > 0 && <AlsoDueNote className="review-also-due" items={others.map(other => ({ jumpId: other.id, label: alsoDueLabel(other) }))} />}<ol className="review-beat-rhythm" aria-label="Follow-up dates in this Mix">{reviewBeats.map(beat => <li key={beat.id} aria-current={beat.id === followUp.id ? "step" : undefined}><TodayLink href={`/jumps?jump=${encodeURIComponent(beat.id)}&range=all`} title={beat.reason}><i aria-hidden="true" /><time dateTime={beat.scheduledAt.toISOString()}>{formatDate(beat.scheduledAt, displayPreferences, { year: undefined })}</time></TodayLink></li>)}</ol>{editableAction}</div><aside className="review-person-context" aria-label={`About ${followUp.contact.displayName}`}><h3>Reach {followUp.contact.displayName}</h3>{phone && <p>{phone}</p>}{email && <p>{email}</p>}{followUp.contact.publicNotes && <><h3>Contact notes</h3><p className="conversation-note">{followUp.contact.publicNotes}</p></>}<Link className="inline-action" href={`/contacts/${followUp.contactId}`}>Open contact<AppIcon name="chevronRight" className="inline-action-icon" /></Link></aside></div></Sheet>}
             <div className="jump-completion-actions">
               {!isPending && (followUp.completionMethod?.startsWith("automatic:")
                 ? <span className="jump-done-note" data-sent-automatically><AppIcon name="check" />Sent automatically</span>
                 : <JumpOutcomeButton jumpId={followUp.id} outcome="REOPENED" className="button small jump-done-action" ariaLabel={`Reopen follow-up with ${followUp.contact.displayName}`}><AppIcon name="undo" /><span>Reopen</span></JumpOutcomeButton>)}
               {isPending && <Sheet
-                trigger={<button className="button small" type="button" aria-label={`More options for ${followUp.contact.displayName}`}><AppIcon name="more" /></button>}
+                trigger={<button className="button small" type="button" aria-label={`More options for ${followUp.contact.displayName}${dueWhen}`}><AppIcon name="more" /></button>}
                 title={`Follow up with ${followUp.contact.displayName}`}
                 description="Move it to a better day, skip it, or stop this Mix."
               >
                 <div className="sheet-section"><h3>Already finished?</h3><JumpOutcomeButton jumpId={followUp.id} outcome="COMPLETED" className="button" ariaLabel={`Mark done for ${followUp.contact.displayName}`}><AppIcon name="check" /><span>Mark done</span></JumpOutcomeButton></div>
-                <div className="sheet-section"><h3><AppIcon name="snooze" className="sheet-heading-icon" />Snooze</h3><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value={preset} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button" type="submit">{label}</button></form>)}</div></div>
+                <div className="sheet-section"><h3><AppIcon name="snooze" className="sheet-heading-icon" />Snooze</h3><div className="sheet-actions">{choicesFor(followUp).presets.map(([preset, label, at]) => <form action={snoozeJumpAction} key={preset}><input type="hidden" name="jumpId" value={followUp.id} /><input type="hidden" name="preset" value={preset} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button" type="submit">{snoozeLabel(preset, label, at)}</button></form>)}</div></div>
                 {snoozeToDay}
                 <div className="sheet-danger-zone"><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="button" ariaLabel="Skip Beat"><AppIcon name="skip" /><span>Skip Beat</span></JumpOutcomeButton>{followUp.mix.source !== "ONE_TIME" && <ConfirmDialog trigger="Stop Mix…" title={`Stop ${followUp.mix.name} for ${followUp.contact.displayName}?`} description="Future follow-ups from this Mix will be removed. Completed history stays available." danger><form action={stopMixForContactAction}><input type="hidden" name="mixId" value={followUp.mixId} /><input type="hidden" name="contactId" value={followUp.contactId} /><input type="hidden" name="returnTo" value={returnTo} /><button className="button danger" type="submit">Stop Mix</button></form></ConfirmDialog>}</div>
                 {recentEvents.length > 0 && <details className="workflow-options"><summary>Recent activity</summary><div className="jump-action-history">{recentEvents.map(event => <span key={event.id}>{eventLabel(event.action)} · {formatDateTime(event.occurredAt, displayPreferences)}</span>)}</div></details>}
@@ -422,6 +464,18 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           </div>
         </article>
       </JumpWorkflowCard>
+    );
+  };
+
+  // Every due card sits in its person's group, so a follow-up left after the person's other one is recorded keeps its
+  // place, and its open review, when the list refreshes (D71). A follow-up offers to skip itself only while a later one
+  // is still due, so only those with a later one mount the offer (PERF-01).
+  const renderGroup = (group: typeof needsAttention) => {
+    const shared = group.length > 1;
+    return (
+      <div key={group[0].contactId} className={`jump-person-group${shared && !compact && group[0].id === nextUp?.id ? " next-follow-up-group" : ""}`} data-person-group={shared || undefined} role={shared ? "group" : undefined} aria-label={shared ? group[0].contact.displayName : undefined}>
+        {group.map((followUp, index) => renderCard(followUp, group.filter(other => other.id !== followUp.id), group.slice(index + 1).map(other => other.id)))}
+      </div>
     );
   };
 
@@ -445,8 +499,16 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       .catch(() => null)
     : null;
 
+  // Whether this view's Done grows by an outcome recorded here (CNT-03, CNT-05).
+  const doneCounts = doneGrowth({ range, status, priority }, { pending: pendingCount, pendingOnPage: pending.length, listedCompleted: completed.length, size: TODAY_PAGE_SIZE, previous: currentCursor?.direction === "before" });
+  // What the header says with nothing due; the live summary says the same once the last due follow-up is done.
+  const upcomingTotal = upcomingCount + (workflowAttention?.futureTotal ?? 0);
+  const zeroLine = !workflowAttention ? "Your next steps could not be checked." : workflowAttention.total ? `${workflowAttention.total} item${workflowAttention.total === 1 ? " needs" : "s need"} your input.` : workflowAttention.preparing || preparation.state !== "ready" ? "Your follow-up list is awaiting preparation." : upcomingTotal ? `${upcomingTotal.toLocaleString()} upcoming follow-up${upcomingTotal === 1 ? "" : "s"}.` : activeFilterCount ? "No open follow-ups in this view." : "You’re caught up.";
+
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
+      <TodayLiveCounts readAt={now.toISOString()} overdue={overdueCount} doneCounts={doneCounts} zero={zeroLine} initial={{ overdue: overdueCount - movedOverdue, today: attentionCount - overdueCount + movedOverdue, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
+      <TodayMomentum />
       <JumpReturnTray />
       <MixEndPrompt mixes={startableMixes} todayKey={logicalDateKey(logicalDateInTimezone(new Date(), timezone))} address={JSON.stringify(params)} viewOnly={Boolean(impersonation)} />
       {params.setupLater && <Notice type="success">Your setup answers are saved. <Link href="/onboarding">Return to setup</Link> whenever you’re ready.</Notice>}
@@ -456,7 +518,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {params.applied && <Notice type="success">Mix changes saved.</Notice>}
       {params.mixStopped && <Notice type="success">Mix stopped.</Notice>}
       {params.mixStopError && <Notice type="error">Mix could not be stopped.</Notice>}
-      {params.snoozed && <Notice type="success">Follow-up snoozed.</Notice>}
+      {params.snoozed && <Notice type="success">{/^\d{4}-\d{2}-\d{2}T\d{2}:\d{2}/.test(params.snoozed) && !Number.isNaN(Date.parse(params.snoozed)) ? `Snoozed until ${formatDateTime(params.snoozed, displayPreferences)}.` : "Follow-up snoozed."}</Notice>}
       {params.contactSaved === "1" && <Notice type="success">Contact saved. This follow-up now uses the new details.</Notice>}
       {params.verified === "1" && <Notice type="success">Your email is verified.</Notice>}
       {params.listReset && <Notice type="info">This part of the list changed. You’re back at the first follow-ups.</Notice>}
@@ -466,7 +528,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       <UrlErrorNotice params={params} viewer={session} />
 
       <header className="page-header today-page-header">
-        <div><h1 tabIndex={-1}>Today</h1><p>{attentionCount ? `${attentionCount.toLocaleString()} follow-up${attentionCount === 1 ? " needs" : "s need"} your attention${overdueCount ? ` · ${overdueCount.toLocaleString()} overdue` : ""}.` : !workflowAttention ? "Your next steps could not be checked." : workflowAttention.total ? `${workflowAttention.total} item${workflowAttention.total === 1 ? " needs" : "s need"} your input.` : workflowAttention.preparing || preparation.state !== "ready" ? "Your follow-up list is awaiting preparation." : (upcomingCount + (workflowAttention.futureTotal ?? 0)) ? `${(upcomingCount + (workflowAttention.futureTotal ?? 0)).toLocaleString()} upcoming follow-up${upcomingCount === 1 ? "" : "s"}.` : activeFilterCount ? "No open follow-ups in this view." : "You’re caught up."}</p>{(!workflowAttention || workflowAttention.total > 0) && <a className="text-button" href="#needs-your-input">Needs your input{workflowAttention ? ` · ${workflowAttention.total}` : ""}</a>}</div>
+        <div><h1 tabIndex={-1}>Today</h1><p>{attentionCount ? <LiveAttentionSummary /> : zeroLine}</p>{(!workflowAttention || workflowAttention.total > 0) && <a className="text-button" href="#needs-your-input">Needs your input{workflowAttention ? ` · ${workflowAttention.total}` : ""}</a>}</div>
         <div className="today-header-tools"><Sheet trigger={<button className={query ? "icon-button today-search-trigger active" : "icon-button today-search-trigger"} type="button" aria-label={query ? `Search: ${query}` : "Search Today"}><AppIcon name="search" /></button>} title="Search Today" description="Find a person, Mix, or reason.">
           <form action="/jumps" className="search-row" role="search"><label className="field"><span>Find a person, Mix, or reason</span><input type="search" name="q" autoFocus defaultValue={query} maxLength={160} placeholder="Search this follow-up view" /></label>{[...viewParams].filter(([name]) => name !== "q").map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}<button className="button primary" type="submit"><AppIcon name="search" />Search</button></form>
           {query && <TodayLink className="button" href={`/jumps?${new URLSearchParams([...viewParams].filter(([name]) => name !== "q"))}`}>Clear search</TodayLink>}
@@ -476,7 +538,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             <input type="hidden" name="q" value={query} /><input type="hidden" name="view" value={compact ? "compact" : "focus"} /><label className="field"><span>Priority</span><select name="priority" defaultValue={priority}><option value="all">All priorities</option><option value="overdue">Overdue commitments</option></select></label>
             <label className="field"><span>Dates</span><select name="range" defaultValue={range}><option value="due">Due now</option><option value="week">Next 7 days</option><option value="month">Next 30 days</option><option value="all">All dates</option></select></label>
             <label className="field"><span>Status</span><select name="status" defaultValue={status}><option value="all">Open and completed</option><option value="pending">Open</option><option value="done">Completed</option><option value="skipped">Skipped</option></select></label>
-            <label className="field"><span>How</span><select name="channel" defaultValue={channel}><option value="all">Any method</option>{channels.map((item) => <option key={item} value={item}>{channelLabel(item)}</option>)}</select></label>
+            <label className="field"><span>How</span><select name="channel" defaultValue={channel}><option value="all">Any method</option>{channels.map((item) => <option key={item} value={item}>{channelName(item)}</option>)}</select></label>
           </AutoSubmitForm>
 
       <nav className="page-actions" aria-label="Today layout"><TodayLink className="button small" aria-current={!compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "focus" })}`}>Focused work</TodayLink><TodayLink className="button small" aria-current={compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "compact" })}`}>Compact scan</TodayLink><TodayLink className="button small" href="/jumps?range=all&status=pending&priority=overdue&view=compact">Review overdue</TodayLink></nav>
@@ -492,17 +554,17 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           return <li key={item.id}><span className="invite-person"><strong>{name}</strong><small>{address}</small></span><Link className="button small primary" href={`/jumps?jump=${item.id}&range=all#jump-${item.id}`} aria-label={`Review and send the invitation to ${name}`}>Review and send</Link></li>;
         })}</ul>
       </section>}
-      {invitations && <section className="invite-strip" aria-label="Personal invitations"><AppIcon name="gift" /><p><strong>You have {invitations} invitation{invitations === 1 ? "" : "s"} to share.</strong></p><Link className="button small primary" href={INVITATIONS_PATH}>Invite people</Link></section>}
 
       {planLimitNotice && <div className="notice warning compact" data-plan-limit-skipped={planLimitNotice.skipped}><p>{planLimitNotice.skipped === 1 ? "1 person wasn’t" : `${planLimitNotice.skipped.toLocaleString("en-US")} people weren’t`} added to a Mix this week. Your {planLimitNotice.plan.name} plan has room for {planLimitNotice.plan.people.toLocaleString("en-US")} people with follow-ups on.</p><p>Once there’s room, resume the Mix from their contact page. <Link href="/account/billing">See plans</Link></p></div>}
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
-      {needsAttention.filter(item => item.scheduledAt < startToday).length > 0 && <section aria-labelledby="overdue-follow-ups"><div className="section-label urgent"><h2 id="overdue-follow-ups">Overdue</h2><span>{overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt < startToday).map(renderCard)}</div></section>}
-      {needsAttention.filter(item => item.scheduledAt >= startToday).length > 0 && <section aria-labelledby="today-follow-ups"><div className="section-label"><h2 id="today-follow-ups">Today</h2><span>{attentionCount - overdueCount}</span></div><div className="jump-list">{needsAttention.filter(item => item.scheduledAt >= startToday).map(renderCard)}</div></section>}
+      {overdueGroups.length > 0 && <LiveSection name="overdue" aria-labelledby="overdue-follow-ups"><div className="section-label urgent"><h2 id="overdue-follow-ups">Overdue</h2><span><LiveCount name="overdue" /></span></div><div className="jump-list">{overdueGroups.map(renderGroup)}</div></LiveSection>}
+      {todayGroups.length > 0 && <LiveSection name="today" aria-labelledby="today-follow-ups"><div className="section-label"><h2 id="today-follow-ups">Today</h2><span><LiveCount name="today" /></span></div><div className="jump-list">{todayGroups.map(renderGroup)}</div></LiveSection>}
       <WorkflowAttention attention={workflowAttention} />
+      {invitations && outcomeRecorded && <InvitationPrompt remaining={invitations} />}
       <QuietDaySuggestions locale={displayPreferences.locale} initial={quietDays} canResolve={!impersonation} compact />
       {noMixCount > 0 && <p className="today-no-mix-line"><AppIcon name="people" /><span>{noMixTodayLine(noMixCount)}</span><Link href="/contacts?mix=no-mix">Review</Link></p>}
-      <details className="today-queue-group" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Next 7 days" : "Upcoming"} <span>{(upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0)}</span></summary><UpcomingWorkflowCommitments attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(renderCard)}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
-      <details className="today-queue-group" open={status === "done" || status === "skipped" || pendingCount === 0 || undefined}><summary>Done <span>{doneSummaryCount(range, completed.length, completedTodayCount)}</span></summary>{completed.length ? <div className="jump-list">{completed.map(renderCard)}</div> : <TodayLink className="today-queue-link" href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
+      <details className="today-queue-group" data-today-section="upcoming" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Next 7 days" : "Upcoming"} <span><LiveCount name="upcoming" /></span></summary><UpcomingWorkflowCommitments attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(followUp => renderCard(followUp))}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
+      <details className="today-queue-group" open={status === "done" || status === "skipped" || pendingCount === 0 || undefined}><summary>Done <span><LiveCount name="done" /></span></summary>{completed.length ? <div className="jump-list">{completed.map(followUp => renderCard(followUp))}</div> : <TodayLink className="today-queue-link" href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
       {totalCount > 0 && <nav className="pagination-bar today-pagination" aria-label="Follow-up pages">
         <span role="status">Showing {ordered.length} of {totalCount.toLocaleString()} follow-up{totalCount === 1 ? "" : "s"} in this view.</span>
         <div className="page-actions">
@@ -510,11 +572,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           {list.next && <TodayLink className="button primary" href={pageHref("after", list.next)}>Next follow-ups</TodayLink>}
         </div>
       </nav>}
-      {!ordered.length && params.jump && <Notice type="info">{!exactRecord ? "This follow-up is unavailable. It may have been removed or belong to another account." : <>This follow-up is no longer pending{exactRecord.completionMethod ? `: ${exactRecord.completionMethod.replaceAll("_", " ")}` : "."} <Link href={exactRecord.workflowInstanceId ? `/journey?${new URLSearchParams({ contactId: exactRecord.contactId, work: exactRecord.workflowInstanceId })}` : `/contacts/${exactRecord.contactId}`}>Review its current context</Link>.</>}</Notice>}
+      {!ordered.length && params.jump && <Notice type="info">{!exactRecord ? "This follow-up is unavailable. It may have been removed or belong to another account." : <>{["This follow-up is no longer pending.", followUpEndedReason(exactRecord.completionMethod)].filter(Boolean).join(" ")} <Link href={exactRecord.workflowInstanceId ? `/journey?${new URLSearchParams({ contactId: exactRecord.contactId, work: exactRecord.workflowInstanceId })}` : `/contacts/${exactRecord.contactId}`}>Review its current context</Link>.</>}</Notice>}
       {!ordered.length && !params.jump && workflowAttention && !workflowAttention.total && !workflowAttention.preparing && preparation.state === "ready" && (activeFilterCount
         ? <EmptyState title="No follow-ups match these filters" description="Try clearing the filters to see what needs your attention today." actionHref="/jumps" actionLabel="Clear filters" />
         : <EmptyState title="Nothing due right now" description="A little hello goes a long way. Add a person and choose a follow-up date; your next action will appear here." actionHref="/contacts/new" actionLabel="Add a person" />)}
       {!ordered.length && <div className="page-actions"><TodayLink className="button" href="/jumps?range=month&status=pending">Review upcoming</TodayLink><Link className="button" href="/contacts">Schedule with an existing person</Link></div>}
+      </TodayLiveCounts>
     </TodayNavigation>
   );
 }

@@ -36,7 +36,7 @@ async function settle(instanceId: string, now = new Date()) {
 
 test("setup alternatives and finish later retain answers without installing unrelated work", async ({ page }) => {
   await page.goto("/onboarding");
-  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
+  await page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true }).click();
   await page.getByRole("radio", { name: /A complete Mega-Mix/ }).check();
   await page.getByLabel("Preferred communication", { exact: true }).selectOption("EMAIL");
   await page.getByLabel("Space between follow-ups", { exact: true }).selectOption("RELAXED");
@@ -50,8 +50,10 @@ test("setup alternatives and finish later retain answers without installing unre
   await expect(page.getByRole("radio", { name: /A complete Mega-Mix/ })).toBeChecked();
   await expect(page.getByLabel("Preferred communication", { exact: true })).toHaveValue("EMAIL");
   await expect(page.getByLabel("Space between follow-ups", { exact: true })).toHaveValue("RELAXED");
-  await page.getByRole("radio", { name: /^One person and one follow-up/ }).check();
-  await expect(page.getByRole("checkbox", { name: /Personal connections/ })).toBeVisible();
+  await page.getByRole("button", { name: "Start with one person and one follow-up instead" }).click();
+  await expect(page.getByRole("textbox", { name: "Name", exact: true })).toBeVisible();
+  // Business wording only: setup no longer asks about personal use (D85).
+  await expect(page.getByRole("checkbox", { name: /Personal connections/ })).toHaveCount(0);
 });
 
 test("chosen work survives adding a person and exposes its actual first follow-up", async ({ page }) => {
@@ -107,11 +109,20 @@ test("a requested callback stays future, becomes one daily action, and can be co
   await page.getByText("Record an update or choose a callback date", { exact: true }).click();
   await page.getByRole("combobox", { name: "What happened?", exact: true }).selectOption("CUSTOMER");
   const future = new Date(Date.now() + 7 * 86400000).toISOString().slice(0, 16); await page.getByLabel("Check-back date and time", { exact: true }).fill(future);
+  // A callback in New York, so Today has a city zone to name (DT-06).
+  await page.getByRole("button", { name: "Change timezone", exact: true }).click();
+  const zones = page.getByRole("dialog", { name: "Choose a timezone", exact: true });
+  await zones.getByRole("searchbox", { name: "Search timezones", exact: true }).fill("New York");
+  await zones.getByRole("button", { name: /^New York/ }).click();
   await page.getByRole("button", { name: "Review this update", exact: true }).click();
   await page.getByRole("button", { name: "Save update", exact: true }).click();
   await expect.poll(async () => workflowState((await prisma.mixWorkflowInstance.findUniqueOrThrow({ where: { id } })).state).commitments?.length).toBe(1);
   expect((await (await page.request.get(`/api/mix-workflow?contactId=${person.id}`)).json()).analytics.summary).toMatchObject({ waiting: 1, stopped: 0, current: 1 });
   await page.goto("/jumps"); await expect(page.getByText("Customer requested a callback", { exact: false })).toBeVisible();
+  // The check-back names its zone by city, never by its IANA name (DT-06).
+  const callback = page.locator(".contact-method-row").filter({ hasText: "Customer requested a callback" });
+  await expect(callback).toContainText("(New York time)");
+  await expect(callback).not.toContainText("America/");
   await expect(page.locator("#needs-your-input")).toBeHidden();
   const saved = await prisma.mixWorkflowInstance.findUniqueOrThrow({ where: { id } }), state = workflowState(saved.state); state.commitments![0].dueAt = new Date(Date.now() - 60000).toISOString();
   await prisma.mixWorkflowInstance.update({ where: { id }, data: { state: JSON.parse(JSON.stringify(state)) } });
@@ -144,7 +155,7 @@ test("changed screens retain themes, keyboard access and narrow-screen reflow", 
   await processWorkflowInstance(workspaceId, id, new Date(), { requestId: randomUUID(), businessUpdate: { kind: "WAIT", runId: workflowState(current.state).runs[0].id, scope: "SOURCE_MIX_REMAINDER", source: "CUSTOMER", dueAt: new Date(Date.now() + 1000).toISOString(), timezone: "UTC" } });
   const report: unknown[] = [];
   async function waitForScreen(name: string) {
-    const heading = page.getByRole("heading", { level: 1, name: name === "onboarding" ? "Jump in the mix." : name === "today" ? "Today" : name === "journey" ? "Journey" : "Help", exact: true, includeHidden: name === "journey" });
+    const heading = page.getByRole("heading", { level: 1, name: name === "onboarding" ? "Set up your first follow-up" : name === "today" ? "Today" : name === "journey" ? "Journey" : "Help", exact: true, includeHidden: name === "journey" });
     if (name === "journey") await expect(heading).toBeAttached();
     else await expect(heading).toBeVisible();
     await page.waitForLoadState("networkidle");

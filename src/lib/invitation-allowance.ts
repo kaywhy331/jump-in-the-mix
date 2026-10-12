@@ -19,3 +19,12 @@ export const invitationsLeft = cache(async function invitationsLeft(userId: stri
   const remaining = Math.max(0, REFERRAL_INVITE_LIMIT - user.referralInvitesIssued);
   return remaining > 0 ? remaining : null;
 });
+
+/**
+ * Whether the owner has recorded an outcome on Today: Mark sent or done, a call's result, or a reschedule, as activation
+ * counts them (JITM-01 §2.14). Skips, automatic sends and system completions don't count, and an outcome that was undone
+ * no longer does. Today's invitation prompt waits for the first one (JITM-09 §2.9, D72).
+ */
+export async function hasRecordedOutcome(workspaceId: string): Promise<boolean> {
+  return Boolean(await prisma.jump.findFirst({ where: { workspaceId, status: "DONE", completionMethod: { startsWith: "outcome:" } }, select: { id: true } }));
+}

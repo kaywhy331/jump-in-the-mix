@@ -68,6 +68,7 @@ type SearchParams = {
   groupsActiveSaved?: string;
   bulkAssigned?: string;
   bulkRemoved?: string;
+  bulkTag?: string;
   bulkArchived?: string;
   archivedContacts?: string;
   bulkRestored?: string;
@@ -258,6 +259,11 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   }) : "";
   const mixUndoNotice = params.mixUndone ? bulkMixUndoNotice({ mixName: startedMix?.name ?? "The Mix", ended: count(params.mixUndone), kept: count(params.mixUndoKept), dates: count(params.mixUndoDates), confirmed: count(params.mixUndoConfirmed) }) : "";
   const mixUndoId = /^[A-Za-z0-9_-]{1,64}$/.test(params.mixUndo ?? "") ? params.mixUndo : "";
+  // After a bulk tag change: the tag and how many people it changed (TRU-07).
+  const bulkTag = (params.bulkAssigned || params.bulkRemoved) && params.bulkTag ? await prisma.group.findFirst({ where: { id: params.bulkTag.slice(0, 120), workspaceId: workspace.id }, select: { name: true } }) : null;
+  const bulkTagNotice = (change: "added" | "removed", changed: number) => !bulkTag ? (change === "added" ? "Tag added." : "Tag removed.")
+    : changed ? `${bulkTag.name} ${change === "added" ? "added to" : "removed from"} ${changed === 1 ? "1 person" : `${changed.toLocaleString()} people`}.`
+    : change === "added" ? `Everyone you selected already had ${bulkTag.name}.` : `No one you selected had ${bulkTag.name}.`;
 
   const contactDtos: ContactBulkDto[] = contacts.map((contact) => {
     const summary = summaries.get(contact.id);
@@ -324,15 +330,15 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
 
   return (
     <div className="page contacts-page">
-      {params.stateUpdated && <Notice type="success">Journey stage updated.</Notice>}
+      {params.stateUpdated && <Notice type="success">Stage updated.</Notice>}
       {params.created && <Notice type="success">Contact added.</Notice>}
       {params.archived && <Notice type="success"><span className="notice-with-action">Contact archived.{params.archivedContact && <form action={restoreContactAction}><input type="hidden" name="contactId" value={params.archivedContact} /><input type="hidden" name="returnTo" value="/contacts" /><FormSubmitButton label="Undo" pendingLabel="Restoring…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {params.restored && <Notice type="success">Contact restored.</Notice>}
       {params.groupCreated && <Notice type="success">Tag created.</Notice>}
       {params.groupDeleted && <Notice type="success">Tag removed.</Notice>}
       {params.groupsActiveSaved && <Notice type="success">Tags saved.</Notice>}
-      {params.bulkAssigned && <Notice type="success">Tag added.</Notice>}
-      {params.bulkRemoved && <Notice type="success">Tag removed.</Notice>}
+      {params.bulkAssigned && <Notice type="success">{bulkTagNotice("added", count(params.bulkAssigned))}</Notice>}
+      {params.bulkRemoved && <Notice type="success">{bulkTagNotice("removed", count(params.bulkRemoved))}</Notice>}
       {params.bulkArchived && <Notice type="success"><span className="notice-with-action">Contacts archived.{bulkArchivedIds.length > 0 && <form action={restoreContactsAction}>{bulkArchivedIds.map(id => <input key={id} type="hidden" name="contactIds" value={id} />)}<FormSubmitButton label="Undo" pendingLabel="Restoring…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
       {params.bulkRestored && <Notice type="success">Contacts restored.</Notice>}
       {mixStartNotice && <Notice type="success"><span className="notice-with-action">{mixStartNotice}{mixUndoId && <form action={undoBulkMixStartAction}><input type="hidden" name="undoId" value={mixUndoId} /><input type="hidden" name="returnTo" value={listHref} /><FormSubmitButton label="Undo" pendingLabel="Undoing…" className="button small" icon={<AppIcon name="undo" />} /></form>}</span></Notice>}
@@ -342,7 +348,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       {params.viewSaved && <Notice type="success">View saved.</Notice>}
       {params.defaultViewSaved && <Notice type="success">Default view saved.</Notice>}
       {params.viewDeleted && <Notice type="success">View deleted.</Notice>}
-      {importBatchId && <Notice type={importBatch ? "info" : "error"}>{importBatch ? `Showing Contacts touched by the selected ${importBatch.status.toLowerCase()} import.` : "That import batch is unavailable in your personal data."}</Notice>}
+      {importBatchId && <Notice type={importBatch ? "info" : "error"}>{importBatch ? "Showing the people from this import." : "That import batch is unavailable in your personal data."}</Notice>}
       <UrlErrorNotice params={params} viewer={session} />
       <p className="sr-only" role="status" aria-live="polite">{resultMessage}</p>
       <div className="contacts-workspace"><section className="contacts-directory" aria-label="Contact directory">

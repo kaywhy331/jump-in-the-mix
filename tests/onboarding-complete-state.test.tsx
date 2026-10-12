@@ -7,7 +7,7 @@ vi.mock("next/link", () => ({ default: ({ href, children, ...props }: { href: st
 vi.mock("@/components/Logo", () => ({ Logo: () => null }));
 vi.mock("@/components/OnboardingForm", () => ({ OnboardingForm: () => createElement("div", { "data-onboarding-form": "" }) }));
 vi.mock("@/lib/auth", () => ({ requireWorkspace: mocks.workspace }));
-vi.mock("@/lib/display-preferences", () => ({ timezoneForUser: async () => "UTC" }));
+vi.mock("@/lib/display-preferences", () => ({ displayPreferencesForUser: async () => ({ locale: "en-US", timeZone: "UTC" }) }));
 vi.mock("@/lib/prisma", () => ({ prisma: { workspaceMarketingPreference: { findUnique: async () => null }, contact: { findMany: async () => [] }, workspacePreference: { findUnique: async () => null } } }));
 import OnboardingPage from "../src/app/onboarding/page";
 

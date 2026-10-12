@@ -7,6 +7,7 @@ import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { ViewOnlySupportNotice } from "@/components/ViewOnlySupportNotice";
 import { automaticEmailConfigured, automaticSmsConfigured } from "@/lib/automatic-delivery";
+import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { requireWorkspace } from "@/lib/auth";
 import { updateAutomationPreferencesFormAction } from "@/lib/notification-actions";
 import { prisma } from "@/lib/prisma";
@@ -15,9 +16,9 @@ import { BackLink } from "@/components/BackLink";
 export const metadata: Metadata = { title: "Sending to customers" };
 
 export default async function SendingSettingsPage({ searchParams }: { searchParams: Promise<{ automationSaved?: string; error?: string; at?: string; sig?: string }> }) {
-  const [params, { session, workspace, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
+  const [params, { session, user, workspace, impersonation }] = await Promise.all([searchParams, requireWorkspace()]);
   const viewOnly = Boolean(impersonation);
-  const automation = await prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id } });
+  const [automation, displayPreferences] = await Promise.all([prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id } }), displayPreferencesForUser(user.id)]);
   const automaticEmailAvailable = automaticEmailConfigured();
   const automaticSmsAvailable = automaticSmsConfigured();
   return <div className="page page--form sending-settings-page">
@@ -36,7 +37,7 @@ export default async function SendingSettingsPage({ searchParams }: { searchPara
           <label className="checkbox-card"><input type="checkbox" name="automationSmsEnabled" defaultChecked={automation?.smsEnabled ?? false} disabled={!automaticSmsAvailable} /><span><strong>Text</strong><small>{automaticSmsAvailable ? "Available" : "Not available yet"}</small></span></label>
         </div>
         <label className="field"><span>Time to review before sending</span><select name="reviewWindowMinutes" defaultValue={String(automation?.reviewWindowMinutes ?? 30)}><option value="15">15 minutes</option><option value="30">30 minutes</option><option value="60">1 hour</option><option value="240">4 hours</option><option value="1440">24 hours</option></select><small>The window starts no earlier than the scheduled time. Quiet hours still apply.</small></label>
-        <AutomaticSendPreview /><label className="checkbox-card automation-consent"><input type="checkbox" name="automationConsent" /><span><strong>I understand these messages send without a final tap</strong><small>I have reviewed my active Mixes, signatures, recipients, and consent obligations.</small></span></label>
+        <AutomaticSendPreview locale={displayPreferences.locale} /><label className="checkbox-card automation-consent"><input type="checkbox" name="automationConsent" /><span><strong>I understand these messages send without a final tap</strong><small>I have reviewed my active Mixes, signatures, recipients, and consent obligations.</small></span></label>
         <FormSubmitButton label="Save automatic sending" pendingLabel="Saving…" disabled={viewOnly} />
       </fieldset></ActionForm>
     </section>

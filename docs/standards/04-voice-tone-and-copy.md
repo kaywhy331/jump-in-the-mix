@@ -2,9 +2,9 @@
 id: JITM-04
 title: Voice, tone and copy
 status: active
-version: 1.0.2
+version: 1.1.0
 owner: Kevin
-last_reviewed: 2026-09-29
+last_reviewed: 2026-10-08
 applies_to: [copy, interface-text, email, help, public-pages, onboarding, ready-made-mixes, marketing, agents]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
@@ -73,7 +73,7 @@ Neighboring topics live elsewhere:
 
 **2.4** Headings, buttons and labels use sentence case; product names keep their capitals (JITM-05 §2). [PROPOSED]
 
-**2.5** Ready-made messages and drafts speak in the first person singular ("I", "my") and sign with the owner's placeholders. "We" is for the owner to choose when they really speak for a crew or business team; it is never the default. Interface instructions keep addressing the user as "you". [OWNER 2026-09-28 D23] [SOURCE docs/HOMEPAGE_CONTACT_DEMO.md:5]
+**2.5** Ready-made messages and drafts speak in the first person singular ("I", "my") and sign with the owner's placeholders. "We" is for the owner to choose when they really speak for a crew or business team; it is never the default. Interface instructions keep addressing the user as "you". The review request is the exception: it speaks with the business name (§2.37). [OWNER 2026-09-28 D23] [OWNER 2026-10-08 D84] [SOURCE docs/HOMEPAGE_CONTACT_DEMO.md:5]
 
 ### Microcopy
 
@@ -151,6 +151,12 @@ Neighboring topics live elsewhere:
 
 **2.36** Marketing copy SHOULD describe other products by category ("an estimating system", "an applicant-tracking system") rather than by brand. [PROPOSED]
 
+### Who is speaking
+
+**2.37** Pages and messages the owner's customers see MUST speak with the business name, never "we" or "I": the hosted lead form, the private review page and the review request ("How did Reed Painting do?", "so Reed Painting can reply"). [OWNER 2026-10-08 D84] When an account has no business name, they use the owner's display name. [PROPOSED]
+
+**2.38** Copy defaults to business wording. No "Personal connections" use option, no "people in my circle" or "your circle", and empty states name a business next step. Owners may still keep personal contacts; the product is not framed around them (JITM-02). [OWNER 2026-10-08 D85]
+
 ## 3. Canonical implementations
 
 - `src/components/EmptyState.tsx`: one line in the app-to-owner bubble plus one action.
@@ -187,8 +193,13 @@ Known deviations at 9f967bc. The copy batch (PR #96, merged 2026-09-29 as 65f2c9
 - The sending page's status card says "Automatic sending on" and "Your Mixes can send for you" whenever the saved preference is on, even when no automatic channel is available, as in production during the beta. The card below it says "Off during the beta" (`src/app/(app)/settings/sending/page.tsx:28,30`), against §2.28.
 - A copy of a ready-made Mix stores the library record's approach value, and the Mix editor shows it under "Internal approach (optional)" without the descriptive label the library shows (`src/lib/shared-mix-use-service.ts:85`; `src/components/MixEditor.tsx:216`; `src/lib/sales-approaches.ts:44-55`). Library records added before 2026-09-28 still store the retired labels, which name third-party methods, so copies made from them show those names, against §2.34.
 
+Known deviations at f23db11, from the UX audit of 2026-10-08 (`docs/UX_DESIGN_AUDIT_2026-10-08.md`):
+- The hosted lead form, the private review page and the review request say "we" ("How did we do?", "so we can respond"), and the review request's signature prints a doubled dash (`src/app/api/contacts/[contactId]/review-request/route.ts:44-52`), against §2.37 (VOI-01).
+- The invitation recipients receive says "the people in my circle", onboarding offers a personal use, and the Contacts empty state says "Make time for your circle" (`src/components/ContactsBulkWorkspace.tsx:244`), against §2.38 (VOI-02, VOI-04).
+
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.5 confirmed, with "you" for interface instructions (D23); §2.20 names deadlines (D14); §6 updated.
 - 1.0.2 — 2026-09-29 — Base 9f967bc. §6: the D14 copy batch is approved (O8) and merged (PR #96). The resolved question and the seven 9439fd6 deviations it fixed are removed. Three deviations found by the release review are added.
+- 1.1.0 — 2026-10-08 — Base f23db11. New §2.37: pages and messages the owner's customers see speak with the business name (D84), and §2.5 points to it for the review request. New §2.38: business wording by default (D85). §6 lists the deviations the UX audit found.

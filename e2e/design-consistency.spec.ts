@@ -74,15 +74,16 @@ test("Quick Add discard uses the app confirmation with Cancel first and focused"
 
 test("Do not contact asks in the app dialog and Cancel leaves it off", async ({ page }) => {
   await page.goto(`/contacts/${contactId}`);
-  const more = page.locator("#dates-and-mixes");
-  await more.locator("> summary").click();
-  await expect(more).toHaveAttribute("open", "");
-  const toggle = page.getByRole("checkbox", { name: /Do not contact/ });
-  await toggle.click({ force: true }); // stays unchecked until the dialog confirms
+  // Do not contact is in the profile's ••• menu (D77).
+  await page.getByRole("button", { name: /^More options for / }).click();
+  await page.getByRole("button", { name: "Do not contact", exact: true }).click();
   const prompt = page.getByRole("dialog", { name: /^Stop 0 pending follow-ups for this person\?/ });
   await expect(prompt).toBeVisible();
   await prompt.getByRole("button", { name: "Cancel", exact: true }).click();
-  await expect(toggle).not.toBeChecked();
+  await expect(page.getByRole("button", { name: "Do not contact", exact: true })).toBeVisible();
+  // Long enough for a wrongly sent save to land before reading.
+  await page.waitForTimeout(750);
+  expect(await prisma.contactRelationshipState.count({ where: { contactId, doNotContact: true } })).toBe(0);
 });
 
 test("Profile sheet uses flat destination rows", async ({ page }, info) => {

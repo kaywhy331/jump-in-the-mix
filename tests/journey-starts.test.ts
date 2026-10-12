@@ -30,7 +30,7 @@ describe("a realtor's first follow-up comes from the Real estate journey", () =>
   it("keeps the general list for business types without their own journey", () => {
     for (const type of ["Home services", "Insurance & finance", "Professional services", "Other", null]) {
       expect(journeyStartReasons(type)).toBeNull();
-      expect(onboardingReasons(["business"], type)[0]).toBe("Follow up about an estimate");
+      expect(onboardingReasons(["business"], type)[0]).toBe("Follow up about an estimate or quote");
     }
   });
 

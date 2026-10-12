@@ -204,3 +204,25 @@ test("Mega-Mixes reflow in both themes, work by keyboard and pass accessibility 
   await page.getByRole("button", { name: "Create Mega-Mix", exact: true }).press("Enter");
   await expect(page.getByRole("heading", { name: "Keyboard pipeline", exact: true })).toBeVisible();
 });
+
+test("reviewing a ready-made Mega-Mix setup with no edits warns of no unsaved changes (TRU-11)", async ({ page, context }) => {
+  const { workspaceId } = await owner(context, "Review-only owner");
+  // With Contact stages on, the review step offers the Mega-Mix's stage labels, ticked by default.
+  await prisma.journeyPreference.create({ data: { workspaceId } });
+  await prisma.journeyStage.create({ data: { workspaceId, name: "Lead", position: 0 } });
+  await page.goto("/templates/journeys?journey=contractor");
+  // On a phone the setup is a pane of its own, opened from the preview.
+  const review = page.getByRole("button", { name: "Review my setup", exact: true });
+  const setUp = page.getByRole("button", { name: "Set up this journey", exact: true });
+  await expect(review.or(setUp).first()).toBeVisible();
+  if (!await review.isVisible()) await setUp.click();
+  await review.click();
+  await expect(page.getByRole("checkbox", { name: /Add its stage labels/ })).toBeChecked();
+  await expect(page.getByText("Unsaved changes. Save before leaving this page.", { exact: true })).toHaveCount(0);
+  await page.getByRole("button", { name: "Edit preferences", exact: true }).click();
+  await page.getByRole("button", { name: "Review my setup", exact: true }).click();
+  await expect(page.getByText("Unsaved changes. Save before leaving this page.", { exact: true })).toHaveCount(0);
+  // Declining the stage labels is the owner's own change, so leaving would lose it (FRM-01).
+  await page.getByRole("checkbox", { name: /Add its stage labels/ }).uncheck();
+  await expect(page.getByText("Unsaved changes. Save before leaving this page.", { exact: true })).toBeVisible();
+});
