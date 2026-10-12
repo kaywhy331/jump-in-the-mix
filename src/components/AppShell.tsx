@@ -78,7 +78,7 @@ export function AppShell({
       <header className="mobile-app-header">
         <Logo />
         {impersonation ? endImpersonationForm : (
-          <div className="mobile-header-actions">{invitationsLeft && <Link className="mobile-invite-link" href={INVITATIONS_PATH} aria-label={`Invite people: ${invitationsLeftLabel(invitationsLeft)}`}><AppIcon name="gift" /><span className="invite-count" aria-hidden="true">{invitationsLeft}</span></Link>}<Link className="button small mobile-profile-link" href="/more" aria-label="More">{userName.slice(0, 1).toUpperCase()}</Link></div>
+          <div className="mobile-header-actions"><Link className="button small mobile-profile-link" href="/more" aria-label="More">{userName.slice(0, 1).toUpperCase()}</Link></div>
         )}
       </header>
       {impersonation && (
@@ -92,7 +92,7 @@ export function AppShell({
         </section>
       )}
       <main id="workspace-main" tabIndex={-1} className="app-main">{children}</main>
-      <div className="mobile-nav"><Nav moreBadge={invitationsLeft} quickAdd={!impersonation} /></div>
+      <div className="mobile-nav"><Nav quickAdd={!impersonation} /></div>
       {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} locale={displayPreferences.locale} />}
     </div>
   );
