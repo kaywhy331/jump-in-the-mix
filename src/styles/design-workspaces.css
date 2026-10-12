@@ -465,3 +465,31 @@
 @media (forced-colors: active) and (max-width: 767px) and (min-height: 481px) {
   .follow-up-review-sheet > .sheet-panel:not([data-review-bar-flows]) .review-action-bar { padding-top: 7px; border-top: 1px solid CanvasText; box-shadow: none; }
 }
+/* A row says what the follow-up is about on one line: its reason, then its Mix (TDY-02). A completed row's time
+   editor opens in that line, so completed rows still wrap. The review gives the reason under the Mix name. Only
+   Today's rows join their parts with " · ". */
+.today-page .jump-task-card:not(.jump-task-complete) .jump-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.today-page .jump-meta > span + span::before { content: " · "; }
+.review-reason, .review-also-due { margin: 2px 0 0; color: var(--text-2); font-size: .8125rem; }
+.review-also-due { margin-top: 8px; font-weight: 600; }
+/* One person's follow-ups due today share one card (D71). The earliest leads; each other one follows as an "Also due"
+   row with its own review and options. When the leader is recorded, the next row takes its place. */
+.jump-also-due-row { display: none; margin: 0; color: var(--text-2); font-size: .875rem; font-weight: 600; }
+.jump-person-group > [data-jump-workflow]:not(:first-child) .jump-also-due-row { display: block; }
+.today-page .jump-person-group > [data-jump-workflow]:not(:first-child) :is(.eyebrow, .jump-card-heading, .jump-meta, .jump-snippet, .jump-skip-earlier) { display: none; }
+.jump-person-group > [data-jump-workflow]:not(:first-child) .jump-person-avatar { visibility: hidden; }
+.jump-person-group > [data-jump-workflow]:not(:last-child) .jump-task-card { border-bottom: 0; }
+.today-page .jump-person-group > [data-jump-workflow]:not(:last-child) .jump-task-card { padding-bottom: 2px; }
+.today-page .jump-person-group > [data-jump-workflow]:not(:first-child) .jump-task-card { grid-template-columns: minmax(0, 1fr) auto; align-items: center; padding-top: 0; }
+.today-page .jump-person-group > [data-jump-workflow]:not(:first-child) .jump-primary-action { flex-direction: row; gap: 8px; }
+.jump-skip-earlier { display: inline-flex; align-items: center; gap: 6px; min-height: 36px; font-size: .875rem; }
+.jump-skip-earlier svg { width: 18px; height: 18px; }
+.jump-person-group.next-follow-up-group { border-radius: 14px; background: var(--violet-wash); }
+.jump-person-group.next-follow-up-group .jump-task-card { border-bottom: 0; background: transparent; }
+@media (max-width: 900px) {
+  .jump-skip-earlier { min-height: 44px; }
+}
+@media (max-width: 767px) {
+  .today-page .jump-person-group.next-follow-up-group { margin-bottom: 8px; border: 1px solid var(--violet-mark); border-radius: 16px; }
+  .today-page .jump-person-group.next-follow-up-group .jump-card.next-follow-up { margin: 0; border: 0; }
+}

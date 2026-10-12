@@ -13,6 +13,7 @@ import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { addDays, dateKeyOf } from "@/lib/when-picker";
 import type { MixEndQuestion } from "@/lib/mix-end-question";
 import { useConfirmationTarget } from "@/components/useConfirmationTarget";
+import { setFollowUpDue } from "@/components/useFollowUpDue";
 export type { OpenedJumpDetail } from "@/lib/opened-jump-state";
 
 type Outcome =
@@ -155,6 +156,17 @@ function focusAfterConfirmation(confirmation: HTMLElement | null, hadFocus = fal
   (document.querySelector<HTMLElement>(".follow-up-review-sheet[open] .sheet-header h2") ?? document.querySelector<HTMLElement>(".today-page-header h1"))?.focus({ preventScroll: true });
 }
 
+/**
+ * A quick action from Today's list leaves with its card, which drops focus to the page. Unless the owner has moved on,
+ * focus goes to the person's next row's Review, or else to the follow-up's Undo (JITM-10 §2.12, A11Y-02). In a review
+ * Today moves focus itself (D70).
+ */
+function focusAfterQuickAction(jumpId: string, group: HTMLElement | null): void {
+  const focused = document.activeElement;
+  if (focused && focused !== document.body) return;
+  (group?.querySelector<HTMLElement>("article.jump-card [data-review-trigger]") ?? document.querySelector<HTMLElement>(`[data-follow-up-undo][data-jump-workflow="${CSS.escape(jumpId)}"] button`))?.focus();
+}
+
 function formatNextFollowUp(value: string): string {
   return new Date(value).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
 }
@@ -215,6 +227,9 @@ export function JumpWorkflowCard({
   const hideTimer = useRef<number | null>(null);
   const latestRevision = useRef(revision), outcomeRevision = useRef(revision);
   useLayoutEffect(() => { latestRevision.current = revision; }, [revision]);
+  // The person's other card and reviews name this follow-up only while it's still due (D71).
+  useEffect(() => { setFollowUpDue(jumpId, state === "ACTIVE"); }, [jumpId, state]);
+  useEffect(() => () => setFollowUpDue(jumpId, null), [jumpId]);
   // On Today the confirmation shows inside the open review, so its Undo stays beside the owner's work (D70).
   const target = useConfirmationTarget(jumpId);
   const confirmationRef = useRef<HTMLDivElement>(null);
@@ -326,6 +341,9 @@ export function JumpOutcomeButton({
   const submit = async (completionOnly = false) => {
     if (!completionOnly && (choices.length || workflow.status !== "ready") && !showDecisions) { setShowDecisions(true); return; }
     if (confirmation && !(await confirm({ title: confirmation, description: "This updates the follow-up now.", confirmLabel: "Continue" }))) return;
+    const here = root.current;
+    const quickAction = outcome !== "REOPENED" && Boolean(here?.closest("article.jump-card") && !here?.closest(".follow-up-review-sheet") && here?.contains(document.activeElement));
+    const group = here?.closest<HTMLElement>(".jump-person-group") ?? null;
     setSaving(true);
     setError("");
     setNotice("");
@@ -342,6 +360,7 @@ export function JumpOutcomeButton({
         setNotice(copy);
         dispatchJumpState({ jumpId, status: result.status, notice: copy });
       }
+      if (quickAction) focusAfterQuickAction(jumpId, group);
     } catch (reason) {
       setError(reason instanceof Error ? reason.message : "The follow-up could not be updated.");
     } finally {

@@ -148,7 +148,7 @@
   .today-page .page-header p { display: block; margin-top: 2px; font-size: .8125rem; }
   .today-page .jump-snippet { display: -webkit-box; margin: 6px 0 0; overflow: hidden; color: var(--muted); font-size: .8125rem; -webkit-box-orient: vertical; -webkit-line-clamp: 2; }
   .today-page .jump-task-card { padding: 12px 0; }
-  .today-page .jump-card.next-follow-up { margin: 0 -8px 8px; padding: 14px; border: 1px solid var(--violet-mark); border-radius: 16px; }
+  .today-page .jump-card.next-follow-up { margin: 0 0 8px; padding: 14px; border: 1px solid var(--violet-mark); border-radius: 16px; }
   .jump-card.next-follow-up .jump-card-heading h3 { flex-basis: auto; }
   .jump-card.next-follow-up .jump-primary-action { display: flex; }
   .today-page .jump-completion-actions .jump-done-action { display: inline-flex; }
