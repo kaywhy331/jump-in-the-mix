@@ -131,7 +131,7 @@ test("the preview dates each Beat by the saved rules, as the started follow-up h
 test("a starter Mix the owner already has under that name is what the preview shows and the follow-up uses", async ({ page }) => {
   await account(page);
   const workspace = await prisma.workspace.findFirstOrThrow({ where: { ownerId: users.at(-1)! } });
-  const plan = starterPlanForReason("Home services", "Follow up about an estimate or quote")!;
+  const plan = starterPlanForReason("Home services", "An estimate or quote")!;
   const followUp = await prisma.dateType.findFirstOrThrow({ where: { scopeKey: "system", slug: "follow-up" } });
   // An earlier setup made this starter and the owner edited it; setup reuses it (ensureStarterMix).
   const template = await prisma.stepTemplate.create({ data: { workspaceId: workspace.id, name: `${plan.title} — Quote check-in`, channel: "SMS" } });

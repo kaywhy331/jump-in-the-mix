@@ -29,7 +29,7 @@ async function account() {
 
 function submission(requestId: string, extra: Record<string, string> = {}) {
   const data = new FormData();
-  for (const [key, value] of Object.entries({ requestId, useCase: "business", contactName: "Riley Retry", reason: "Reconnect with someone who went quiet", followUpDate: new Date().toISOString().slice(0, 10), timezone: "UTC", privateContext: "Synthetic private reminder", starterPreviewAvailable: "1", ...extra })) data.set(key, value);
+  for (const [key, value] of Object.entries({ requestId, useCase: "business", contactName: "Riley Retry", reason: "Someone who went quiet", followUpDate: new Date().toISOString().slice(0, 10), timezone: "UTC", privateContext: "Synthetic private reminder", starterPreviewAvailable: "1", ...extra })) data.set(key, value);
   return data;
 }
 

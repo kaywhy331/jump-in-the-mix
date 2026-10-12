@@ -12,7 +12,7 @@ describe("onboarding preview times", () => {
     const steps = starterPlanForReason("Home services", reason)!.steps.map(step => ({ anchor: "CALENDAR_DAY" as const, offsetMinutes: null, plannedAt: null, dayOffset: step.dayOffset, sendTimeMinutes: step.sendTimeMinutes }));
     return onboardingPreviewTimes(steps, "2026-10-10", "America/Chicago", rules).map(at => beatWhen(at, "America/Chicago", "en-US"));
   };
-  const estimate = "Follow up about an estimate or quote", afterJob = "Check in after the job";
+  const estimate = "An estimate or quote", afterJob = "After the job";
 
   it("keeps each Beat's own day and time without saved rules", () => {
     expect(when(estimate, DEFAULT_PERSONAL_SCHEDULING)).toEqual(["Sat, Oct 10 · 10:00 AM", "Thu, Oct 15 · 11:00 AM"]);

@@ -32,8 +32,8 @@ test("onboarding offers business follow-ups, keeps the business name, and starts
   // Business wording by default: setup no longer asks about personal use (D85), and offers one choice per starter (D73).
   await expect(page.getByRole("checkbox", { name: /Personal connections/ })).toHaveCount(0);
   const reason = page.getByLabel("What’s it about?");
-  await expect(reason.locator("option")).toHaveText(["Follow up about an estimate or quote", "Reconnect with someone who went quiet", "Check in after the job", "Ask for a review"]);
-  await reason.selectOption("Reconnect with someone who went quiet");
+  await expect(reason.locator("option")).toHaveText(["An estimate or quote", "Someone who went quiet", "After the job", "Ask for a review"]);
+  await reason.selectOption("Someone who went quiet");
   await expect(page.getByLabel("Mobile phone")).toBeVisible();
   await expect(page.getByRole("textbox", { name: "Email optional" })).toBeVisible();
   await page.getByText("Have a list? Import a file", { exact: true }).click();
@@ -43,7 +43,7 @@ test("onboarding offers business follow-ups, keeps the business name, and starts
   await page.getByRole("button", { name: "Refresh imported contacts" }).click();
   await page.getByLabel("Choose a saved person").selectOption(contact.id);
   await expect(page.getByRole("textbox", { name: "Business name optional" })).toHaveValue("Saved Business");
-  await expect(reason).toHaveValue("Reconnect with someone who went quiet");
+  await expect(reason).toHaveValue("Someone who went quiet");
   const accessibility = await axeInPage(page).include(".onboarding-card").analyze();
   expect(accessibility.violations.filter(item => ["serious", "critical"].includes(item.impact ?? ""))).toEqual([]);
   await page.screenshot({ path: `.artifacts/onboarding-${test.info().project.name}.png`, fullPage: true });
