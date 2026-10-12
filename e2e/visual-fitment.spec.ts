@@ -290,14 +290,12 @@ test("confirmation dialogs restore focus and accessibility preferences remain us
   await page.goto("/contacts");
   await page.locator(".contact-main").first().click();
   await expect(page).toHaveURL(/\/contacts\/[^/?]+$/);
-  await page.getByRole("button", { name: /^More options for / }).click();
-  const archiveTrigger = page.getByRole("button", { name: "Archive contact…" });
-  await archiveTrigger.click();
-  const archiveDialog = page.getByRole("dialog", { name: /Archive .+\?/ });
-  await expect(archiveDialog).toBeVisible();
+  const menuTrigger = page.getByRole("button", { name: /^More options for / });
+  await menuTrigger.click();
+  // Archive acts at once, with Undo on Contacts (D88), so the menu holds it directly.
+  await expect(page.getByRole("button", { name: "Archive contact", exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
-  await expect(archiveDialog).toBeHidden();
-  await expect(archiveTrigger).toBeFocused();
+  await expect(menuTrigger).toBeFocused();
 });
 
 test("Quick Add shortcuts continue into actionable contact journeys", async ({ page }, testInfo) => {
