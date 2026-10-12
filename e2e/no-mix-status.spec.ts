@@ -135,8 +135,8 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     await page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }).click();
     for (const person of list) await page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true }).check();
     const bar = page.getByRole("complementary", { name: "Actions for selected contacts" });
-    await bar.getByRole("button", { name: "Mix", exact: true }).click();
-    const sheet = page.getByRole("dialog", { name: "Mix for 2 people" });
+    await bar.getByRole("button", { name: "Add to a Mix", exact: true }).click();
+    const sheet = page.getByRole("dialog", { name: "Add 2 people to a Mix" });
     await Promise.all([page.waitForURL(/noMixNeeded=2/), sheet.getByRole("button", { name: "Mark No Mix needed", exact: true }).click()]);
     await expect(page.locator(".notice.success").filter({ hasText: "2 people are marked No Mix needed." })).toBeVisible();
     // They leave the No Mix list, and the filter is kept; the earlier notice is not.
@@ -152,7 +152,7 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     await page.getByRole("button", { name: "More contact tools" }).click();
     await page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }).click();
     for (const person of list) await page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true }).check();
-    await bar.getByRole("button", { name: "Mix", exact: true }).click();
+    await bar.getByRole("button", { name: "Add to a Mix", exact: true }).click();
     // The sheet words itself by how the chosen Mix starts (COPY-02): a fixed-date Mix asks for no start day,
     // and only a hand-started one says that anyone who finished it starts it again (D46).
     const choose = sheet.getByRole("combobox", { name: "Choose a Mix", exact: true });
@@ -209,8 +209,8 @@ test("the disabled Add to the Mix gives its reason to assistive technology (A11Y
     await page.getByRole("button", { name: "More contact tools" }).click();
     await page.getByRole("dialog", { name: "Contact tools" }).getByRole("button", { name: "Select contacts" }).click();
     for (const person of list) await page.getByRole("checkbox", { name: `Select ${person.displayName}`, exact: true }).check();
-    await page.getByRole("complementary", { name: "Actions for selected contacts" }).getByRole("button", { name: "Mix", exact: true }).click();
-    const add = page.getByRole("dialog", { name: "Mix for 2 people" }).getByRole("button", { name: "Add to the Mix", exact: true });
+    await page.getByRole("complementary", { name: "Actions for selected contacts" }).getByRole("button", { name: "Add to a Mix", exact: true }).click();
+    const add = page.getByRole("dialog", { name: "Add 2 people to a Mix" }).getByRole("button", { name: "Add to the Mix", exact: true });
     await expect(add).toBeDisabled();
     await expect(add).toHaveAccessibleDescription(`Remove ${list[1].displayName} because “Do not contact” is on.`);
   } finally {
@@ -265,9 +265,9 @@ test("the chip, the What's next sheet and the bulk Mix sheet work from the keybo
     await page.keyboard.press("Space");
     // Once ticked, the checkbox's name says what it will do next.
     await expect(page.getByRole("checkbox", { name: `Deselect ${person.displayName}`, exact: true })).toBeChecked();
-    await tabTo(page.getByRole("complementary", { name: "Actions for selected contacts" }).getByRole("button", { name: "Mix", exact: true }), 30);
+    await tabTo(page.getByRole("complementary", { name: "Actions for selected contacts" }).getByRole("button", { name: "Add to a Mix", exact: true }), 30);
     await page.keyboard.press("Enter");
-    const bulk = page.getByRole("dialog", { name: "Mix for 1 person" });
+    const bulk = page.getByRole("dialog", { name: "Add 1 person to a Mix" });
     await expect(bulk).toBeVisible();
     for (const control of [bulk.getByRole("combobox", { name: "Choose a Mix" }), bulk.getByLabel("Start on"), bulk.getByRole("button", { name: "Add to the Mix", exact: true }), bulk.getByRole("button", { name: "Mark No Mix needed", exact: true })]) await tabTo(control, 20);
     await Promise.all([page.waitForURL(/noMixNeeded=1/), page.keyboard.press("Enter")]);
