@@ -290,19 +290,20 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const upcoming = pending.filter((followUp) => followUp.scheduledAt >= endToday);
   const completed = ordered.filter((followUp) => completedStatuses.includes(followUp.status));
   const upcomingCount = pendingCount - attentionCount;
-  // One person's follow-ups due by the end of today share one card, led by the earliest; each keeps its own review,
-  // outcome and Undo (D71, JITM-09 §2.82). The card sits where the person's latest follow-up on this page is due, and the
-  // sections count the overdue follow-ups it moves under Today from this page too (CNT-01).
-  const { overdue: overdueGroups, today: todayGroups, moved: movedOverdue } = groupDueFollowUps(needsAttention, startToday);
-  // A person contacted today, by a follow-up recorded as done since midnight, has their follow-ups still due today say so
-  // and offer to skip them, so the owner doesn't contact them twice in a day (D98, JITM-09 §2.82).
   const duePeople = [...new Set(needsAttention.map(followUp => followUp.contactId))];
   // In the plain due view, a person's follow-up due today that sits on another page is still named on their card, with the
   // skip offer and the review's note; it keeps its own card and counts on its page (D97). Filters, search and a link to
   // one follow-up show what they keep, alone (#142, point 8).
   const plainDueView = range === "due" && status === "all" && channel === "all" && priority === "all" && !query && !params.jump;
   const elsewhere = plainDueView ? await readAlsoDueElsewhere(workspace.id, duePeople, needsAttention.map(followUp => followUp.id), endToday) : [];
+  // A person contacted today, by a follow-up done since midnight that reached them (TDY-01), has their follow-ups still due today say so
+  // and offer to skip them, so the owner doesn't contact them twice in a day (D98, JITM-09 §2.82). They also
+  // stay under Today, so a card doesn't move from under a review open on it (D99).
   const contactedAt = new Map((duePeople.length ? await prisma.jump.findMany({ where: { workspaceId: workspace.id, contactId: { in: duePeople }, status: { in: doneStatuses }, completedAt: { gte: startToday, lt: endToday }, OR: [{ completionMethod: null }, { completionMethod: { notIn: UNREACHED_COMPLETIONS } }] }, select: { contactId: true, completedAt: true }, orderBy: { completedAt: "asc" } }) : []).flatMap(item => item.completedAt ? [[item.contactId, item.completedAt] as const] : []));
+  // One person's follow-ups due by the end of today share one card, led by the earliest; each keeps its own review,
+  // outcome and Undo (D71, JITM-09 §2.82). The card sits where the person's latest follow-up on this page is due, and the
+  // sections count the overdue follow-ups it moves under Today from this page too (CNT-01).
+  const { overdue: overdueGroups, today: todayGroups, moved: movedOverdue } = groupDueFollowUps(needsAttention, startToday, new Set(contactedAt.keys()));
   const nextUp = overdueGroups[0]?.[0] ?? todayGroups[0]?.[0] ?? upcoming[0] ?? null;
   const activeFilterCount = Number(range !== "due") + Number(status !== "all") + Number(channel !== "all") + Number(Boolean(query)) + Number(priority !== "all") + Number(Boolean(params.jump));
 

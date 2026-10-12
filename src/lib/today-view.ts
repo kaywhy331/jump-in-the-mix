@@ -75,17 +75,18 @@ export function doneGrowth(view: { range: string; status: string; priority: stri
 /**
  * One person's follow-ups due by the end of today share one card, led by the earliest (D71, JITM-09 §2.82). `due` is the
  * page's due follow-ups in due order, and each group keeps that order. A group sits where its latest follow-up is due,
- * so the one left after the earlier is recorded stays in place; `moved` counts the overdue follow-ups that sit under
- * Today. Both come from the page alone: the sections adjust the view's totals by `moved`, so each section counts at
- * least the cards it shows, however the list is paged (CNT-01).
+ * so the one left after the earlier is recorded stays in place. A person `contacted` today stays under Today too, so the
+ * earlier follow-up left after the later one is recorded doesn't move, nor close a review open on it (D99, LIV-01).
+ * `moved` counts the overdue follow-ups that sit under Today. Both come from the page alone: the sections adjust the
+ * view's totals by `moved`, so each section counts at least the cards it shows, however the list is paged (CNT-01).
  */
-export function groupDueFollowUps<T extends { contactId: string; scheduledAt: Date }>(due: readonly T[], startToday: Date): { overdue: T[][]; today: T[][]; moved: number } {
+export function groupDueFollowUps<T extends { contactId: string; scheduledAt: Date }>(due: readonly T[], startToday: Date, contacted: ReadonlySet<string> = new Set()): { overdue: T[][]; today: T[][]; moved: number } {
   const people = new Map<string, T[]>();
   for (const followUp of due) people.set(followUp.contactId, [...(people.get(followUp.contactId) ?? []), followUp]);
   const overdue: T[][] = [], today: T[][] = [];
   let moved = 0;
   for (const group of people.values()) {
-    if (group[group.length - 1].scheduledAt < startToday) overdue.push(group);
+    if (group[group.length - 1].scheduledAt < startToday && !contacted.has(group[0].contactId)) overdue.push(group);
     else {
       today.push(group);
       moved += group.filter(followUp => followUp.scheduledAt < startToday).length;
