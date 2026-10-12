@@ -280,7 +280,11 @@ export function starterPlanForOnboarding(businessType: string | null | undefined
     };
   }
   const plansByReason: Record<string, string> = {
-    // The onboarding list offers one choice per distinct starter (D73); the older names stay for saved forms and answers.
+    // The onboarding list offers one choice per distinct starter, in short words that fit its closed drop-down (D73, D93);
+    // the older names stay for saved forms, answers and follow-ups.
+    "An estimate or quote": "plan_home_estimate",
+    "Someone who went quiet": "plan_generic_reconnect",
+    "After the job": "plan_home_job_done",
     "Follow up about an estimate or quote": "plan_home_estimate",
     "Reconnect with someone who went quiet": "plan_generic_reconnect",
     "Follow up about an estimate": "plan_home_estimate",
@@ -303,7 +307,7 @@ export function starterPlanForOnboarding(businessType: string | null | undefined
   return {
     ...plan,
     industry: businessPlan.industry,
-    ...(["Follow up about an estimate or quote", "Follow up about an estimate", "Follow up on a quote"].includes(reason) ? { description: "Check that the estimate arrived, then call five days later to answer questions." } : {}),
+    ...(["An estimate or quote", "Follow up about an estimate or quote", "Follow up about an estimate", "Follow up on a quote"].includes(reason) ? { description: "Check that the estimate arrived, then call five days later to answer questions." } : {}),
     ...(reviewOnly ? { title: "Review and referral follow-up", description: "Ask for a review, then follow up about referrals." } : {}),
     durationDays: plan.durationDays - firstOffset,
     steps: steps.map((step, index) => ({
