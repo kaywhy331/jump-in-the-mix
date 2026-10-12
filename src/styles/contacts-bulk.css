@@ -88,3 +88,6 @@
   .bulk-selection-count span { display: none; }
   .custom-field-row { grid-template-columns: 1fr; }
 }
+
+/* While selecting, a tap anywhere on a row ticks or unticks its person (D90). */
+.contact-select-row.selection-mode { cursor: pointer; }
