@@ -496,6 +496,29 @@ Question 4 of the same review needed no new decision: the Mix filter's first opt
 - **Confirms:** agent defaults 1–16 in `docs/MIX_STAGES_2026-10-07.md` as built, with default 15 as D62 and default 1's Everyone case as D66.
 - **Applied in:** PR #132 (D61, D62, D66; JITM-09 6.9.0). D63–D65 in the follow-up to #132. D67 and D68 are planned.
 
+### D69–D86 — UX, design and layout audit: the 18 questions (2026-10-08)
+
+- **Context:** the read-only UX, design and layout audit of 2026-10-08 (`docs/UX_DESIGN_AUDIT_2026-10-08.md`, PR #135) ended with 18 letter-answer questions, each with a recommended option. Kevin, on 2026-10-08: "I will go off you recommendations. please go ahead and implement." Every answer below is the recommended option (A). The product changes are tasks of their own; each cites its decision.
+- **D69 (Q1) — The review stars hotfix (TRU-01) ships now.** Kevin also approved one read-only check of the review ratings stored since 2026-09-04 (aggregate counts, no identities or feedback text). Whether to correct or flag those ratings is decided once the counts are known.
+- **D70 (Q2) — Today keeps momentum.** After each recorded outcome the next due follow-up opens by itself, on phones and desktop, and the Undo stays on screen. Counts update at once.
+- **D71 (Q3) — One person's follow-ups due the same day show as one card,** with "also due" for the other and a way to skip the earlier one.
+- **D72 (Q4) — One compact invitation prompt that the owner can dismiss,** shown only after the first recorded outcome. The desktop rail callout and the More row stay; the More badge and the tablet header gift go. This replaces the placements of 2026-09-27 (JITM-09 §2.9) and moves the Today strip out of the top of Today (JITM-09 §2.24).
+- **D73 (Q5) — Onboarding fits about two phone screens:** the person first, then a preview with real dates. Setting up a complete Mega-Mix becomes a secondary link.
+- **D74 (Q6) — Calendar shows appointments first.** Follow-ups become one summary row per day that links to Today.
+- **D75 (Q7) — Journey opens readable:** at 100% on desktop, scrolled to the first Mix, and in the list view by default on phones.
+- **D76 (Q8) — Placing people in Mixes in bulk is visible:** a "Select" control on the Contacts list, a No Mix strip with "Add these people to a Mix", and Mix as the main bulk action.
+- **D77 (Q9) — The contact profile gets one Mixes section** below the Next card and a profile "•••" menu (Edit, Ask for a review, Schedule a meeting, Do not contact, Archive). Notes and the next appointment move near the top.
+- **D78 (Q10) — Work that needs the owner shows on Today:** lead inquiries held for a match and visits waiting for an outcome appear under Needs your input, and the outcome step offers "Book a visit".
+- **D79 (Q11) — Times use the 12-hour clock with AM/PM, and time zones are named by city** ("New York time"), US-first.
+- **D80 (Q12) — Each Beat in the Mix editor gets Text / Email / Call tabs.** B-19 (the ready-made library folded into the Marketplace, D29) comes next.
+- **D81 (Q13) — Settings becomes one grouped hub.** Working hours and scheduling move out of Personal preferences into Settings, and the desktop gets one account control that holds Sign out and Plan and billing.
+- **D82 (Q14) — 44px targets and 13px text are MUST rules on every owner screen,** Calendar and Journey included, with an automated check.
+- **D83 (Q15) — The staff Overview becomes one ordered "This week" queue** (support, community reports, the waitlist wave, health, library changes), and "Customers" is the one name of the staff page for accounts.
+- **D84 (Q16) — Pages the owner's customers see speak with the business name** (the lead form, the private review page and the review request), never "we" or "I".
+- **D85 (Q17) — Business wording by default:** the "Personal connections" use option, "people in my circle" and the personal empty states go, and an import asks which stage new people join.
+- **D86 (Q18) — The audit is committed with its evidence and opened as a pull request** (#135).
+- **Applied in:** the standards in this pull request (JITM-04, JITM-05, JITM-07, JITM-08, JITM-09, JITM-10). The product changes follow in their own pull requests, starting with the TRU-01 hotfix.
+
 ## Still open
 
 The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).

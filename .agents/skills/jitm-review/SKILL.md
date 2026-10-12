@@ -36,7 +36,7 @@ Follow **WF-05** (`docs/standards/workflows/WF-05-review.md`). The rubric and th
 - **Truth:** sending and delivery language, and invented claims or data (JITM-00 §2.3, JITM-00 §2.4).
 - **Vocabulary and casing** (JITM-05 §2).
 - **Tokens, shared components, both themes and the viewport matrix** (JITM-06 §2, JITM-07 §5).
-- **Accessibility floor:** 44px targets and 13px text (exceptions: JITM-10 §2.1–§2.2), visible focus, 200% text (JITM-10 §2).
+- **Accessibility floor:** 44px targets and 13px text on every owner screen, Calendar and Journey included (MUST; exceptions: JITM-10 §2.1–§2.2; automated check: §2.21), visible focus, 200% text (JITM-10 §2).
 - **Tenancy, scheduling and idempotency** when behavior changes (JITM-11 §2).
 - **Tests compared with a baseline, and honest labels** (JITM-12 §2).
 - **Pull request hygiene:** branch name, commit subjects, template, NOT RUN list (JITM-13 §2).

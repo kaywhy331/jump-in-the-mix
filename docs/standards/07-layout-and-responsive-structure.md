@@ -2,9 +2,9 @@
 id: JITM-07
 title: Layout and responsive structure
 status: active
-version: 1.0.1
+version: 1.1.0
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-10-08
 applies_to: [ui, layout, navigation, responsive, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
@@ -112,11 +112,11 @@ Supporting values are 600 (small-phone spacing), 760 (the public menu and staff 
 
 **2.19** Journey is the account's Mix and Beat graph, not the export's stage circles. The page fills the width beside the rail. It uses the §2.13 panes as people, map and details, with a People / Map / Details switcher below 1200px. From 768 to 900px it keeps a compact page header. [OWNER 2026-09-28 D4] [OWNER 2026-09-21 docs/JOURNEY_THREE_PANES_2026-09-21.md:3] [SHIPPED 9439fd6 src/components/WorkflowJourney.module.css:1,67,80-81,145-170]
 
-**2.20** The Journey map is a scrollable, focusable region that fills the map pane: the viewport height less its header from 1700px, and half the screen height on phones. Zoom and Fit map controls sit above it, and the cursor shows an open hand when panning is ready and a closed hand while panning. How panning and refresh behave is JITM-09 §2. [OWNER 2026-09-28 D4] [SHIPPED 9439fd6 src/components/WorkflowJourney.module.css:162,172,241-243] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:229]
+**2.20** Journey opens readable: from 768px the map opens at 100% zoom, scrolled to the first numbered Mix, and Fit map is an explicit overview; on phones Journey opens in its list view, with the map one tap away. [OWNER 2026-10-08 D75] The Journey map is a scrollable, focusable region that fills the map pane: the viewport height less its header from 1700px, and half the screen height on phones. Zoom and Fit map controls sit above it, and the cursor shows an open hand when panning is ready and a closed hand while panning. How panning and refresh behave is JITM-09 §2. [OWNER 2026-09-28 D4] [SHIPPED 9439fd6 src/components/WorkflowJourney.module.css:162,172,241-243] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:229]
 
-**2.21** Calendar leads with the agenda. At 1099px and below the editor shows only when New event or Edit asks for it. From 1100px a 360px agenda sits beside the editor; from 1700px it is a 400px agenda, the editor and a 280px contact column. The workspace stops at 1672px. [SHIPPED 9439fd6 src/styles/design-details.css:153-160] [SHIPPED 9439fd6 src/styles/design-workspaces.css:327-337] [SOURCE docs/design/DESIGN_GUIDELINES.md:34]
+**2.21** Calendar leads with the agenda, and the agenda leads with appointments: the follow-ups due each day are one summary row linking to Today, never one row each (JITM-09 §2.62, D74). At 1099px and below the editor shows only when New event or Edit asks for it. From 1100px a 360px agenda sits beside the editor; from 1700px it is a 400px agenda, the editor and a 280px contact column. The workspace stops at 1672px. [SHIPPED 9439fd6 src/styles/design-details.css:153-160] [SHIPPED 9439fd6 src/styles/design-workspaces.css:327-337] [SOURCE docs/design/DESIGN_GUIDELINES.md:34]
 
-**2.22** More and Settings are flat, grouped destination rows within 960px. At 900px and below the rows are 56px, groups are separated by 10px `--surface` bands, descriptions hide, and Appearance and Sign out stay reachable above the bottom navigation. [SHIPPED 9439fd6 src/styles/design-system.css:150-159] [SHIPPED 9439fd6 src/styles/design-workspaces.css:26] [SOURCE docs/design/jump-in-the-mix-designs/screens/More.html:21 (grouped rows)] [SOURCE docs/design/DESIGN_GUIDELINES.md:39]
+**2.22** More and Settings are flat, grouped destination rows within 960px; Settings groups its rows under labels (JITM-09 §2.7, D81). At 900px and below the rows are 56px, groups are separated by 10px `--surface` bands, descriptions hide, and Appearance and Sign out stay reachable above the bottom navigation. [SHIPPED 9439fd6 src/styles/design-system.css:150-159] [SHIPPED 9439fd6 src/styles/design-workspaces.css:26] [SOURCE docs/design/jump-in-the-mix-designs/screens/More.html:21 (grouped rows)] [SOURCE docs/design/DESIGN_GUIDELINES.md:39]
 
 **2.23** Reading pages and focused forms use flat sections with top-border rows instead of cards, and a shared header and action row. [SHIPPED 9439fd6 src/styles/design-workspaces.css:24-31] [SOURCE docs/design/RESPONSIVE_AUDIT_2026-09-19.md:14-15]
 
@@ -191,6 +191,11 @@ Known deviations:
 - 126 of 195 width breakpoints in the CSS use values outside the shared set, and `max-width: 1100px` and `1200px` overlap the matching `min-width` rules at the boundary (drift baseline metric 12).
 - Preserving the desktop three-pane structure is part of the standing default in JITM-01 §2.24 (D20).
 
+Decided, not built (UX audit 2026-10-08, `docs/UX_DESIGN_AUDIT_2026-10-08.md`), at f23db11:
+- Journey opens fitted to the whole map, at 15% on a 390px phone, 21% at 1440px and 22% at 1920px, and the list view sits behind Options (`src/components/WorkflowJourney.tsx:215,231`; VIS-01), against §2.20 (D75).
+- The Calendar agenda lists every follow-up as its own row, so on a busy day the first appointment is about 1,950px down (LEN-04), against §2.21 (D74).
+- The Settings hub is one ungrouped list, 1,510px long on a phone (LEN-07), against §2.22 (D81).
+
 Question for Kevin:
 - **Printing:** no print stylesheet exists. Is printing Today or a profile a supported workflow?
 
@@ -198,3 +203,4 @@ Question for Kevin:
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §6 updated for D20 and D24.
+- 1.1.0 — 2026-10-08 — Base f23db11. §2.20 Journey opens at 100% from 768px and in the list view on phones (D75); §2.21 the Calendar agenda leads with appointments (D74); §2.22 Settings groups its rows (D81). §6 lists the three as decided, not built.
