@@ -48,7 +48,9 @@ export function Sheet({
   };
 
   useEffect(() => {
-    if (desktopInitiallyOpen && wide()) setMounted(true);
+    // The first follow-up's review opens docked on wide screens, unless another review is already there: one remounted by
+    // Undo leaves the review Today opened in place.
+    if (desktopInitiallyOpen && wide() && !document.querySelector(".follow-up-review-sheet[open]")) setMounted(true);
     if (!docked) return;
     const media = window.matchMedia(DOCKED_REVIEW_MEDIA);
     const adapt = () => {
@@ -124,6 +126,8 @@ export function Sheet({
             </div>
             <button className="icon-button" type="button" onClick={close} aria-label={`Close ${accessibleTitle ?? title}`}><AppIcon name="close" /></button>
           </header>
+          {/* Today shows follow-up confirmations here, each with its Undo, while this review is open (D70). */}
+          {docked && <div className="sheet-momentum" data-sheet-momentum />}
           <div className="sheet-body">{children}</div>
         </div>
       </dialog>}
