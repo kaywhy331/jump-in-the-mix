@@ -227,8 +227,14 @@ export function JumpWorkflowCard({
   const hideTimer = useRef<number | null>(null);
   const latestRevision = useRef(revision), outcomeRevision = useRef(revision);
   useLayoutEffect(() => { latestRevision.current = revision; }, [revision]);
-  // The person's other card and reviews name this follow-up only while it's still due (D71).
-  useEffect(() => { setFollowUpDue(jumpId, state === "ACTIVE"); }, [jumpId, state]);
+  // The person's other card and reviews name this follow-up only while it's still due (D71), and say they were contacted
+  // today once it's done (D98). A done card that hides after its Undo window stays done.
+  const recordedDone = useRef(false);
+  useEffect(() => {
+    if (state === "DONE") recordedDone.current = true;
+    else if (state !== "HIDDEN") recordedDone.current = false;
+    setFollowUpDue(jumpId, state === "ACTIVE", recordedDone.current);
+  }, [jumpId, state]);
   useEffect(() => () => setFollowUpDue(jumpId, null), [jumpId]);
   // On Today the confirmation shows inside the open review, so its Undo stays beside the owner's work (D70).
   const target = useConfirmationTarget(jumpId);
