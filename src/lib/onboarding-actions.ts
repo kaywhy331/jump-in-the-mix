@@ -88,7 +88,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
   // The example the person tried brings its own reason; any other choice must be one this business type offers.
   const suggested = starterChoice === "suggested" && business && scenario;
   const reason = suggested ? suggested.reason : value(formData, "reason") || onboardingReasons(uses, businessType)[0];
-  if (!suggested && !onboardingReasons(uses, businessType).includes(reason)) fail(path, "Choose a follow-up that fits your selected use.", session);
+  if (!suggested && !onboardingReasons(uses, businessType).includes(reason)) fail(path, "Choose what the first follow-up is about.", session);
   const followUpDate = value(formData, "followUpDate");
   const privateContext = value(formData, "privateContext").slice(0, 1000);
   const timezone = value(formData, "timezone");
@@ -196,7 +196,8 @@ export async function completeOnboardingFormAction(_previous: FormResult, data: 
   return recoverableFormAction(async () => {
     // The guard runs first so the refusal below has its viewer; inside this form action it comes back as the form's error.
     const { session } = await requireWritableWorkspace((message, viewer) => fail("/onboarding", message, viewer));
-    if (data.get("starterReviewed") !== "on" || data.get("starterPreviewAvailable") !== "1") fail("/onboarding", "Review your starter and its timing before continuing.", session);
+    // The person starts the follow-up from below its preview (D73), so the preview must have loaded.
+    if (data.get("starterPreviewAvailable") !== "1") fail("/onboarding", "The first follow-up’s preview hasn’t loaded yet. Try again in a moment.", session);
     await completeOnboardingAction(data);
   });
 }

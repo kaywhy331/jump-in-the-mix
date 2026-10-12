@@ -4,6 +4,11 @@ import { prisma } from "@/lib/prisma";
 import { starterPlanForBusinessType, starterPlanForMarketingScenario } from "@/lib/vertical-plan-library";
 import { starterPlanForReason } from "@/lib/journey-starts";
 
+/** The starter Mix onboarding reuses for a title, so its preview can show the Mix the follow-up will use. */
+export function existingStarterMixWhere(workspaceId: string, title?: string): Prisma.MixWhereInput {
+  return { workspaceId, source: "STARTER", status: { not: "ARCHIVED" }, ...(title ? { name: title } : {}) };
+}
+
 export async function ensureStarterMix(workspaceId: string, businessType?: string | null, reason?: string, marketingScenario?: string | null, transaction?: Prisma.TransactionClient) {
   const draft = marketingScenario ? starterPlanForMarketingScenario(marketingScenario) ?? starterPlanForReason(businessType, reason ?? "General follow-up") : reason ? starterPlanForReason(businessType, reason) : starterPlanForBusinessType(businessType);
   const prepare = async (tx: Prisma.TransactionClient) => {
@@ -11,7 +16,7 @@ export async function ensureStarterMix(workspaceId: string, businessType?: strin
     // Other callers take the same workspace lock before checking for an existing starter.
     await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspaceId} FOR NO KEY UPDATE`;
     const existing = await tx.mix.findFirst({
-      where: { workspaceId, source: "STARTER", status: { not: "ARCHIVED" }, ...((reason || marketingScenario) ? { name: draft.title } : {}) },
+      where: existingStarterMixWhere(workspaceId, (reason || marketingScenario) ? draft.title : undefined),
       orderBy: { createdAt: "asc" }
     });
     if (existing) return existing;

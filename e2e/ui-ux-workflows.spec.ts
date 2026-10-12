@@ -70,14 +70,13 @@ test("worked schedule uses weekend and quiet-hour rules while appointment offset
   expect(data.items.map((item: { at: string }) => item.at)).toEqual(["2026-09-21T15:00:00.000Z", "2026-09-19T16:30:00.000Z"]);
 });
 
-test("onboarding permits minimal details only after reviewing its actual starter", async ({ page }) => {
+test("onboarding permits minimal details once its actual starter is previewed", async ({ page }) => {
   const { workspace } = await member(page, false);
   await page.goto("/onboarding");
-  // Onboarding opens on its recommended start, one person and one follow-up (JITM-09 §2.20).
-  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
+  // Onboarding opens on its one-person start (JITM-09 §2.20, D73).
+  await expect(page.getByRole("button", { name: "Set up a whole pipeline instead", exact: true })).toBeVisible();
   await page.getByLabel("Name", { exact: true }).fill("Notes Only Person");
-  await page.getByRole("checkbox", { name: /I reviewed this Mix/ }).check();
-  await page.getByRole("button", { name: "Prepare my first follow-up" }).click();
+  await page.getByRole("button", { name: "Start Notes’s follow-up" }).click();
   await expect(page).toHaveURL(/\/jumps\?.*welcome=1/);
   await expect(page.getByText(/saved\. Add (an email address|a phone number)/)).toBeVisible();
   // Adding the missing details is the one next step; the optional Mega-Mix waits until the follow-up is ready.

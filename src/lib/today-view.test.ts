@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
-import { calendarDaysOverdue, doneSummaryCount, failedDeliveryNotice } from "@/lib/today-view";
+import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice, groupDueFollowUps } from "@/lib/today-view";
 
 const NEW_YORK = "America/New_York";
 
@@ -81,5 +81,98 @@ describe("doneSummaryCount", () => {
     expect(doneSummaryCount("week", 2, 7)).toBe(2);
     expect(doneSummaryCount("month", 0, 7)).toBe(0);
     expect(doneSummaryCount("all", 30, 7)).toBe(30);
+  });
+});
+
+describe("doneGrowth", () => {
+  const view = { range: "week", status: "all", priority: "all" };
+  const page = { pending: 0, pendingOnPage: 0, listedCompleted: 0, size: 30, previous: false };
+
+  it("grows the due view's Done with completed outcomes, never skipped ones", () => {
+    expect(doneGrowth({ ...view, range: "due" }, { ...page, pending: 45, pendingOnPage: 30 })).toEqual({ done: true, skipped: false });
+  });
+
+  it("grows a list's Done while every pending follow-up fits on the page", () => {
+    expect(doneGrowth(view, { ...page, pending: 29, pendingOnPage: 29 })).toEqual({ done: true, skipped: true });
+    expect(doneGrowth(view, { ...page, pending: 30, pendingOnPage: 30 })).toEqual({ done: true, skipped: true });
+    expect(doneGrowth(view, { ...page, pending: 31, pendingOnPage: 30 })).toEqual({ done: false, skipped: false });
+  });
+
+  it("grows it on a later page that already lists completed follow-ups", () => {
+    expect(doneGrowth(view, { ...page, pending: 45, pendingOnPage: 15, listedCompleted: 12 })).toEqual({ done: true, skipped: true });
+  });
+
+  it("grows it on a later page whose pending follow-ups leave room, before any completed one is listed", () => {
+    expect(doneGrowth(view, { ...page, pending: 45, pendingOnPage: 15 })).toEqual({ done: true, skipped: true });
+  });
+
+  it("keeps it on any Previous page, read back from a pending or a completed follow-up", () => {
+    expect(doneGrowth(view, { ...page, pending: 45, pendingOnPage: 15, previous: true })).toEqual({ done: false, skipped: false });
+    expect(doneGrowth(view, { ...page, pending: 12, pendingOnPage: 12, listedCompleted: 12, previous: true })).toEqual({ done: false, skipped: false });
+  });
+
+  it("follows the status filter, and doesn't grow when only overdue follow-ups are listed", () => {
+    expect(doneGrowth({ ...view, status: "pending" }, { ...page, pending: 3, pendingOnPage: 3 })).toEqual({ done: false, skipped: false });
+    expect(doneGrowth({ ...view, status: "done" }, { ...page, listedCompleted: 4 })).toEqual({ done: true, skipped: false });
+    expect(doneGrowth({ ...view, status: "skipped" }, { ...page, listedCompleted: 4 })).toEqual({ done: false, skipped: true });
+    expect(doneGrowth({ ...view, priority: "overdue" }, { ...page, pending: 3, pendingOnPage: 3 })).toEqual({ done: false, skipped: false });
+  });
+});
+
+describe("groupDueFollowUps", () => {
+  const startToday = new Date("2026-10-09T00:00:00.000Z");
+  const due = (id: string, contactId: string, hoursFromMidnight: number) => ({ id, contactId, scheduledAt: new Date(startToday.getTime() + hoursFromMidnight * 3_600_000) });
+  const ids = (groups: { id: string }[][]) => groups.map(group => group.map(item => item.id));
+
+  it("keeps one card per follow-up when each person has one, each in its own section", () => {
+    const result = groupDueFollowUps([due("a", "A", -30), due("b", "B", 2), due("c", "C", 5)], startToday);
+    expect(ids(result.overdue)).toEqual([["a"]]);
+    expect(ids(result.today)).toEqual([["b"], ["c"]]);
+    expect(result.moved).toBe(0);
+  });
+
+  it("puts a person's overdue and due-today follow-ups on one card under Today, led by the earlier", () => {
+    const result = groupDueFollowUps([due("text", "M", -24), due("p", "P", 1), due("call", "M", 3)], startToday);
+    expect(ids(result.overdue)).toEqual([]);
+    expect(ids(result.today)).toEqual([["text", "call"], ["p"]]);
+    expect(result.moved).toBe(1);
+  });
+
+  it("keeps three of one person's follow-ups in due order and counts both overdue ones as moved", () => {
+    const result = groupDueFollowUps([due("one", "M", -48), due("two", "M", -24), due("three", "M", 4)], startToday);
+    expect(ids(result.today)).toEqual([["one", "two", "three"]]);
+    expect(result.moved).toBe(2);
+  });
+
+  it("leaves a card whose follow-ups are all overdue under Overdue", () => {
+    const result = groupDueFollowUps([due("one", "M", -48), due("two", "M", -2)], startToday);
+    expect(ids(result.overdue)).toEqual([["one", "two"]]);
+    expect(ids(result.today)).toEqual([]);
+    expect(result.moved).toBe(0);
+  });
+
+  it("orders cards by their first follow-up", () => {
+    const result = groupDueFollowUps([due("a1", "A", -5), due("b1", "B", -4), due("b2", "B", 1), due("a2", "A", 2)], startToday);
+    expect(ids(result.today)).toEqual([["a1", "a2"], ["b1", "b2"]]);
+    expect(result.moved).toBe(2);
+  });
+
+  it("keeps an overdue follow-up under Overdue, and counted there, when the person's due-today one is on another page", () => {
+    // Page 1 holds only the overdue text; the call due today is the 31st follow-up, on page 2.
+    expect(groupDueFollowUps([due("text", "M", -24), due("p", "P", 1)], startToday)).toEqual({ overdue: [[expect.objectContaining({ id: "text" })]], today: [[expect.objectContaining({ id: "p" })]], moved: 0 });
+    expect(groupDueFollowUps([due("call", "M", 9)], startToday).moved).toBe(0);
+  });
+
+  it("lets every section count at least the cards it shows, wherever the pages break", () => {
+    const list = [due("m1", "M", -50), due("n1", "N", -26), due("m2", "M", -20), due("p1", "P", 1), due("n2", "N", 2), due("q1", "Q", 3), due("m3", "M", 6), due("p2", "P", 7)];
+    const overdueTotal = list.filter(item => item.scheduledAt < startToday).length;
+    const todayTotal = list.length - overdueTotal;
+    for (let start = 0; start < list.length; start++) {
+      for (let end = start + 1; end <= list.length; end++) {
+        const { overdue, today, moved } = groupDueFollowUps(list.slice(start, end), startToday);
+        expect(overdueTotal - moved).toBeGreaterThanOrEqual(overdue.flat().length);
+        expect(todayTotal + moved).toBeGreaterThanOrEqual(today.flat().length);
+      }
+    }
   });
 });

@@ -2,9 +2,9 @@
 id: JITM-08
 title: Interaction and UX patterns
 status: active
-version: 1.1.0
+version: 1.2.0
 owner: Kevin
-last_reviewed: 2026-10-06
+last_reviewed: 2026-10-08
 applies_to: [ui, interaction, forms, dialogs, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
@@ -52,9 +52,11 @@ Neighboring topics have their own homes:
 
 **2.3** The review keeps the available channels, Copy, Mark sent, Snooze and Skip visible. On a phone, a short message shows the handoff and the outcomes together without scrolling. Errors, missing methods, automatic-delivery holds and draft conflicts stay visible. [SOURCE docs/design/DESIGN_GUIDELINES.md:24,45] [SHIPPED 9439fd6 e2e/design-correction.spec.ts:229]
 
-**2.4** After an outcome, a status confirmation says what happened and when the next follow-up is due, and offers Undo for 10 seconds before it leaves. It is placed per JITM-07 §2.9 and never covers the last row. Which outcomes a card offers, and Reopen from Done, are JITM-09 §2. [SHIPPED 9439fd6 src/components/JumpWorkflow.tsx:214,240-256] [SHIPPED 9439fd6 src/styles/design-workspaces.css:256-259]
+**2.4** After an outcome, a status confirmation says what happened and when the next follow-up is due, and offers Undo for 10 seconds before it leaves. On Today it stays on screen while the next review opens (§2.36). It is placed per JITM-07 §2.9 and never covers the last row. Which outcomes a card offers, and Reopen from Done, are JITM-09 §2. [SHIPPED 9439fd6 src/components/JumpWorkflow.tsx:214,240-256] [SHIPPED 9439fd6 src/styles/design-workspaces.css:256-259]
 
 **2.5** Reversible actions act at once and offer Undo in their success notice, such as archiving a contact. Destructive or irreversible actions ask first (§2.7). [SOURCE docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:38] [SHIPPED 9439fd6 src/styles/phone-icons.css:30-32]
+
+**2.36** After an outcome on Today, the next due follow-up's review opens by itself, on phones and desktop, so working through the list takes the handoff and one outcome per person. The confirmation with its Undo (§2.4) stays on screen while the next review opens, and the list's counts and Done update at once; Undo puts the counts back. Opening the next review never sends, records or skips anything. [OWNER 2026-10-08 D70]
 
 ### Disabled with a reason
 
@@ -144,7 +146,7 @@ An untouched form never warns. A form counts as changed only once the person act
 
 Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21] [SHIPPED 9439fd6 src/app/(app)/jumps/loading.tsx:1] [SHIPPED 9439fd6 src/app/error.tsx:5-10] [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:120]
 
-**2.33** Live updates never disturb work in progress. While the owner edits, has an Undo open, selects a path or has focus in a form, incoming changes wait: Today keeps its list and says updates are waiting, and Journey pauses its refresh. An update never moves, closes or overwrites what the owner is working on. Journey's silent refresh is specified in JITM-09 §2. [SHIPPED 9439fd6 src/components/useTodayUpdates.ts:9-11] [SHIPPED 9439fd6 src/components/TodayNavigation.tsx:102-108] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:116] [OWNER 2026-09-28 D4]
+**2.33** Live updates never disturb work in progress. While the owner edits, has an Undo open, selects a path or has focus in a form, incoming changes wait: Today keeps its list and says updates are waiting, and Journey pauses its refresh. An update never moves, closes or overwrites what the owner is working on. The owner's own outcome is not an incoming change: it updates Today's counts at once (§2.36). Journey's silent refresh is specified in JITM-09 §2. [SHIPPED 9439fd6 src/components/useTodayUpdates.ts:9-11] [SHIPPED 9439fd6 src/components/TodayNavigation.tsx:102-108] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:116] [OWNER 2026-09-28 D4]
 
 ### Keyboard shortcuts
 
@@ -201,9 +203,11 @@ Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21]
 - An older record says filters apply without an Apply button (`docs/UX_WORKFLOW_OPTIMIZATION.md:13`); D9 supersedes it for the Mixes, Ready-made and Marketplace sheets.
 - **Refresh notices differ:** Journey refreshes silently every 15 seconds and on focus (JITM-09 §2), while Today shows "Updating your follow-up list…" when it refreshes on focus (`src/components/useTodayUpdates.ts:52-56`, `src/components/TodayNavigation.tsx:106`). Should Today be silent too?
 - `FormGuard`'s second native prompt (`src/components/FormGuard.tsx:45`) guards another form's submit, not navigation. It stays native because the decision is synchronous.
+- **Decided, not built (D70):** at f23db11, after an outcome Today returns to the list and the owner opens the next review by hand, and the header counts, section counts and Done stay unchanged until the 10-second Undo window ends (`src/lib/today-update-state.ts:5`; UX audit 2026-10-08, TRU-06), against §2.36.
 
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-29 — Base 9f967bc. §2.30: an untouched form never warns; changes count from the person's first action, and status-only fields carry `data-form-guard-ignore` (Kevin's go-ahead, 2026-09-29).
 - 1.1.0 — 2026-10-06 — Base 8bee3b1. §2.35 applies review, outcome and Undo to actions an owner's assistant takes through the connector, with calls in the owner's own voice and permission held in the assistant (D38, D39, D42, D43).
+- 1.2.0 — 2026-10-08 — Base f23db11. New §2.36: Today opens the next due follow-up after each outcome, with the Undo still on screen and counts updated at once (D70, the UX audit's answers); §2.4 and §2.33 point to it; §6 notes that it is not built yet.

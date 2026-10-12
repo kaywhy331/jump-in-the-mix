@@ -146,31 +146,29 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
 
   await signIn(page, email, password);
   await expect(page).toHaveURL(/\/onboarding/);
-  await expect(page.getByRole("heading", { name: "Jump in the mix." })).toBeVisible();
-  // The recommended start is one person and one follow-up (JITM-09 §2.20), so its form is already open.
-  await expect(page.getByRole("radio", { name: /^One person and one follow-up · Recommended/ })).toBeChecked();
-  // The business name sits in a closed disclosure on the one-person form (the Mega-Mix setup has its own field).
-  await page.getByText("Optional business details and signature").click();
-  await page.getByPlaceholder("Lee Plumbing").fill("Browser Test Plumbing");
+  await expect(page.getByRole("heading", { name: "Set up your first follow-up" })).toBeVisible();
+  // One person and one follow-up is the start (JITM-09 §2.20, D73), so its form is open, business name included (the
+  // hidden Mega-Mix setup has its own field).
+  await page.getByRole("textbox", { name: "Business name optional" }).fill("Browser Test Plumbing");
   await page.getByLabel("Name", { exact: true }).fill("Jordan First Win");
-  await page.getByLabel("Email recommended").fill("jordan-first-win@example.com");
-  await page.getByLabel("Phone recommended").fill("+1 (555) 010-0123");
-  // Onboarding asks for free text about the conversation rather than a fixed reason.
+  await page.getByRole("textbox", { name: "Email optional" }).fill("jordan-first-win@example.com");
+  await page.getByLabel("Mobile phone").fill("+1 (555) 010-0123");
+  // Onboarding takes a private note about the conversation as well as its reason.
+  await page.getByRole("button", { name: "Add a private note" }).click();
   await page.getByLabel("What should you remember?").fill("Follow up about an estimate");
   // Detected from the device, with no manual pick: the visible picker and its hidden field both say Denver.
   await expect(page.locator(".timezone-current:visible strong")).toHaveText("Denver");
   await expect(page.locator("#timezone")).toHaveValue("America/Denver");
-  // Exact, because the reason select's label text also contains "Follow up on a quote".
+  // Exact, so only the date's own label matches.
   const followUpInput = page.getByLabel("Follow up on", { exact: true });
   // The default date is today in Denver, not the UTC day.
   await expect(followUpInput).toHaveValue(dateInputInTimezone(new Date(), "America/Denver"));
   const followUpDate = dateInputInTimezone(new Date(Date.now() + 3 * 86_400_000), "America/Denver");
   await followUpInput.fill(followUpDate);
-  // The starter must be reviewed before it can be prepared.
-  await page.locator('input[name="starterReviewed"]').check();
+  // The follow-up starts from below its preview (D73).
   await Promise.all([
     page.waitForURL(/\/jumps\?.*welcome=1/),
-    page.getByRole("button", { name: "Prepare my first follow-up" }).click()
+    page.getByRole("button", { name: "Start Jordan’s follow-up" }).click()
   ]);
   await expect(page.getByText("Your first follow-up for Jordan First Win is ready.")).toBeVisible();
   // With the first follow-up ready, the welcome offers the Mega-Mix for the chosen business type as an optional next step.
