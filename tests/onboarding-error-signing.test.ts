@@ -43,8 +43,8 @@ describe("setup errors are signed for the person who sees them", () => {
     expect(viewerErrorMessage(params(location), owner)).toBe(UNVERIFIED_ERROR_MESSAGE);
   });
 
-  it("checks who is signed in before the form's own review check, which still comes back as the form's error", async () => {
-    await expect(completeOnboardingFormAction({}, form({ useCase: "business" }))).resolves.toEqual({ error: "Review your starter and its timing before continuing." });
+  it("checks who is signed in before the form's own preview check, which still comes back as the form's error", async () => {
+    await expect(completeOnboardingFormAction({}, form({ useCase: "business" }))).resolves.toEqual({ error: "The first follow-up’s preview hasn’t loaded yet. Try again in a moment." });
     expect(mocks.workspace).toHaveBeenCalledTimes(1);
     expect(mocks.marketing).not.toHaveBeenCalled();
     mocks.workspace.mockResolvedValue(context(staff, { id: "support-view" }));

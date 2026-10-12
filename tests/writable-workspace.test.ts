@@ -116,7 +116,7 @@ describe("guarded actions during a support view", () => {
   });
 
   it("finishing onboarding through its form shows the refusal as the form's error", async () => {
-    await expect(completeOnboardingFormAction({}, form({ useCase: "business", starterReviewed: "on", starterPreviewAvailable: "1" })))
+    await expect(completeOnboardingFormAction({}, form({ useCase: "business", starterPreviewAvailable: "1" })))
       .resolves.toEqual({ error: VIEW_ONLY_SUPPORT_MESSAGE });
     expect(state.databaseCalls).toEqual([]);
   });

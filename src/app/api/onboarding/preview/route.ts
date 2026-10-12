@@ -4,9 +4,11 @@ import { starterPlanForMarketingScenario } from "@/lib/vertical-plan-library";
 import { starterPlanForReason } from "@/lib/journey-starts";
 import { marketingScenarioId } from "@/lib/marketing-scenarios";
 import { onboardingReasons, onboardingUses } from "@/lib/onboarding-options";
+import { onboardingPreview } from "@/lib/onboarding-preview-schedule";
 
 export async function GET(request: Request) {
-  if (!await getCurrentSession()) return NextResponse.json({ error: "Sign in to preview your starter." }, { status: 401 });
+  const membership = (await getCurrentSession())?.user.memberships[0];
+  if (!membership) return NextResponse.json({ error: "Sign in to preview your starter." }, { status: 401 });
   const query = new URL(request.url).searchParams;
   const uses = onboardingUses(query.getAll("use"));
   const reason = query.get("reason") ?? "";
@@ -14,5 +16,7 @@ export async function GET(request: Request) {
   const businessType = uses.includes("business") ? (query.get("business") ?? "Other").slice(0, 120) : null;
   if (!uses.length || (!scenario && !onboardingReasons(uses, businessType).includes(reason))) return NextResponse.json({ error: "Choose a starting point." }, { status: 400 });
   const plan = scenario ? starterPlanForMarketingScenario(scenario) : starterPlanForReason(businessType, reason);
-  return NextResponse.json({ plan }, { headers: { "Cache-Control": "private, no-store" } });
+  // The chosen date and timezone date each Beat as the scheduler will (D73).
+  const preview = plan ? await onboardingPreview(membership.workspaceId, plan, query.get("date") ?? "", query.get("timezone") ?? "") : null;
+  return NextResponse.json({ preview }, { headers: { "Cache-Control": "private, no-store" } });
 }

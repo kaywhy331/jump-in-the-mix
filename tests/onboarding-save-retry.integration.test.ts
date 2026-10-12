@@ -29,7 +29,7 @@ async function account() {
 
 function submission(requestId: string, extra: Record<string, string> = {}) {
   const data = new FormData();
-  for (const [key, value] of Object.entries({ requestId, useCase: "personal", contactName: "Riley Retry", reason: "Check in with a friend", followUpDate: new Date().toISOString().slice(0, 10), timezone: "UTC", privateContext: "Synthetic private reminder", starterReviewed: "on", starterPreviewAvailable: "1", ...extra })) data.set(key, value);
+  for (const [key, value] of Object.entries({ requestId, useCase: "business", contactName: "Riley Retry", reason: "Reconnect with someone who went quiet", followUpDate: new Date().toISOString().slice(0, 10), timezone: "UTC", privateContext: "Synthetic private reminder", starterPreviewAvailable: "1", ...extra })) data.set(key, value);
   return data;
 }
 
@@ -142,7 +142,7 @@ describe.skipIf(!local)("onboarding save retries with PostgreSQL", () => {
   it("preserves review and view-only restrictions when a receipt already exists", async () => {
     const key = randomUUID();
     await result(submission(key));
-    expect(await result(submission(key, { starterReviewed: "" }))).toEqual({ error: "Review your starter and its timing before continuing." });
+    expect(await result(submission(key, { starterPreviewAvailable: "0" }))).toEqual({ error: "The first follow-up’s preview hasn’t loaded yet. Try again in a moment." });
     auth.context = { ...auth.context, impersonation: { id: "synthetic-support-view" } };
     expect(await result(submission(key))).toEqual({ error: VIEW_ONLY_SUPPORT_MESSAGE });
     expect((await counts()).contacts).toBe(1);
