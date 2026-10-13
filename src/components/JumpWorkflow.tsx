@@ -77,7 +77,7 @@ const UNREACHED_OUTCOMES = new Set<Outcome>(["NO_ANSWER", "WRONG_NUMBER"]);
 
 type SaveResult =
   | { recorded: true; response: OutcomeResponse }
-  | { recorded: false; status: "DONE" | "SKIPPED" };
+  | { recorded: false; status: "DONE" | "SKIPPED" | "PENDING" };
 
 /** Outcomes that finish the follow-up. A retry that finds it already finished counts as recorded, not as an error. */
 const FINISHING_OUTCOMES: ReadonlySet<Outcome> = new Set<Outcome>(["COMPLETED", "CONNECTED", "LEFT_VOICEMAIL", "NO_ANSWER", "WRONG_NUMBER", "RESCHEDULED", "SKIPPED"]);
@@ -118,8 +118,8 @@ export function outcomeRequestKey(jumpId: string, outcome: Outcome, details: Out
   return `${jumpId}:${outcome}:${stableHash(details)}${attemptId ? `:${attemptId}` : ""}`;
 }
 
-function alreadyRecordedCopy(status: "DONE" | "SKIPPED"): string {
-  return status === "SKIPPED" ? "Already skipped." : "Already marked done.";
+function alreadyRecordedCopy(status: "DONE" | "SKIPPED" | "PENDING"): string {
+  return status === "PENDING" ? "Already reopened." : status === "SKIPPED" ? "Already skipped." : "Already marked done.";
 }
 
 type OutcomeRequestIds = {
@@ -189,7 +189,8 @@ function dispatchJumpState(detail: JumpStateDetail): void {
 // The request id belongs to the logical attempt, not the call: a retry after a lost answer sends
 // the same id and gets the stored outcome back instead of a "no longer pending" refusal. When a
 // finishing outcome meets a follow-up that is already finished under another id, the caller learns
-// that instead of an error and moves the card on; nothing is then called "saved".
+// that instead of an error and moves the card on; nothing is then called "saved". So does an Undo or
+// Reopen that meets one already reopened, in another tab or on another device (UND-01).
 async function saveOutcome(
   jumpId: string,
   outcome: Outcome,
@@ -205,6 +206,7 @@ async function saveOutcome(
   });
   const payload = await response.json().catch(() => ({})) as OutcomePayload;
   if (response.status === 409 && FINISHING_OUTCOMES.has(outcome) && (payload.status === "DONE" || payload.status === "SKIPPED")) return { recorded: false, status: payload.status };
+  if (response.status === 409 && outcome === "REOPENED" && payload.status === "PENDING") return { recorded: false, status: payload.status };
   if (!response.ok) throw new Error(payload.error || "The follow-up outcome could not be saved.");
   const stored = payload as OutcomeResponse;
   dispatchJumpState({ jumpId, status: stored.status, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null, mixEnd: stored.mixEnd ?? null, origin, reached: stored.status === "DONE" && !UNREACHED_OUTCOMES.has(outcome) });
@@ -277,8 +279,10 @@ function HostedConfirmationItem({ entry }: { entry: HostedConfirmation }) {
     setError("");
     const key = outcomeRequestKey(jumpId, "REOPENED");
     try {
-      await saveOutcome(jumpId, "REOPENED", ids.claim(key));
+      const result = await saveOutcome(jumpId, "REOPENED", ids.claim(key));
       ids.release(key);
+      // Reopened already, elsewhere: the page hears it as this Undo's, so the card and its counts come back.
+      if (!result.recorded) dispatchJumpState({ jumpId, status: result.status });
       focusAfterConfirmation(confirmationRef.current, hadFocus);
       dropHostedConfirmation(jumpId);
     } catch (reason) {
@@ -446,8 +450,9 @@ export function JumpOutcomeButton({
       ids.release(key);
       setShowDecisions(false);
       if (!result.recorded) {
-        // Finished already, by an earlier request whose answer was lost or from another control.
-        // The card moves on and says so; the notice rides along because this button leaves with the card.
+        // Finished (or, for Reopen, reopened) already: by an earlier request whose answer was lost, from another
+        // control, or elsewhere. The card moves on and says so; the notice rides along because this button leaves with
+        // the card.
         const copy = alreadyRecordedCopy(result.status);
         setNotice(copy);
         dispatchJumpState({ jumpId, status: result.status, notice: copy });
