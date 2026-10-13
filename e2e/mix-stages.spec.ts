@@ -203,16 +203,18 @@ test("a tag added while a Mix is paused is reviewed when the Mix starts again, w
   await expect(page.getByText("Mix saved.")).toBeVisible();
   expect(await prisma.contactJourney.findUnique({ where: { contactId: fay.id } })).toMatchObject({ stageId: lead.id });
 
-  // The review preference is off for this owner, and Start Mix still opens the review, which counts Fay and Sam.
+  // The review preference is off for this owner, and Start Mix on the paused Mix still opens the review of turning it
+  // back on (#139's resume review), which names the tag added while paused and counts Fay and Sam.
   await page.goto(`/mixes?mix=${mix.id}`);
   await page.getByRole("button", { name: "Details", exact: true }).click();
   await page.locator("summary").filter({ hasText: "Manage Mix" }).click();
   await page.getByRole("button", { name: "Start Mix", exact: true }).click();
-  await page.getByRole("button", { name: "Review and start", exact: true }).click();
-  const dialog = page.getByRole("dialog", { name: "Start this Mix?" });
-  await expect(dialog.getByText("Starting moves 2 people to Prospect, including 1 now in another stage. Pausing, removing or stopping the Mix doesn’t move them back.")).toBeVisible();
+  await page.getByRole("button", { name: "Review and turn on", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Turn this Mix back on?" });
+  await expect(dialog.getByText("It also starts the people in the tag added while it was paused.")).toBeVisible();
+  await expect(dialog.getByText("Turning it back on moves 2 people to Prospect, including 1 now in another stage. Pausing, removing or stopping the Mix doesn’t move them back.")).toBeVisible();
   await capture(page, "stage-review-resume-390", "dialog[open]");
-  await dialog.getByRole("button", { name: "Start the Mix", exact: true }).click();
+  await dialog.getByRole("button", { name: "Turn it back on", exact: true }).click();
   await expect(page.getByText("Mix saved.")).toBeVisible();
   expect(await Promise.all([fay, sam].map(async person => (await prisma.contactJourney.findUnique({ where: { contactId: person.id } }))?.stageId))).toEqual([prospect.id, prospect.id]);
 });
