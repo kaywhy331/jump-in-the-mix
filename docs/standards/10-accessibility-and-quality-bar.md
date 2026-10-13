@@ -2,9 +2,9 @@
 id: JITM-10
 title: Accessibility and quality bar
 status: active
-version: 2.0.0
+version: 2.1.0
 owner: Kevin
-last_reviewed: 2026-10-08
+last_reviewed: 2026-10-12
 applies_to: [ui, accessibility, performance, app, public-pages, staff, release-qualification]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
@@ -48,12 +48,13 @@ Neighboring topics have their own homes:
 
 **2.1** Touch targets MUST be at least 44×44 CSS px. At 900px and below, every control on every owner screen, Calendar and Journey included, meets this, with at least 8px between neighbors. Default buttons are 44px tall at every width. Compact 32–36px controls are allowed only on desktop, for secondary actions in dense lists and on staff screens. Staff screens follow JITM-07 §2.14: compact on desktop, 44px rows at 760px and below. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:117] [SHIPPED 9439fd6 src/styles/phone-icons.css:55-75] [SHIPPED 9439fd6 src/styles/design-system.css:12] [OWNER 2026-09-28 D9]
 
-**2.2** Meaningful text MUST be at least 13px on every owner screen, Calendar and Journey included. Only three kinds of text may be smaller:
+**2.2** Meaningful text MUST be at least 13px on every owner screen, Calendar and Journey included. Only four kinds of text may be smaller:
 - phone bottom-navigation tab labels, at least 11px (shipped at 12px);
 - labels inside compact buttons and compact-rail labels, at least 12px;
+- labels under icons in a phone action bar, such as the Contacts bulk bar's "Mix", "Export" and "Archive", at least 12px, like the bottom navigation's (D92);
 - decorative or duplicated text hidden from assistive technology, such as a count badge whose number is in its link's name.
 
-[SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:116] [SHIPPED 9439fd6 e2e/visual-fitment.spec.ts:67-68] [SHIPPED 9439fd6 e2e/a2-css-checks.spec.ts:78-86] [SHIPPED 9439fd6 src/styles/design-workspaces.css:134,417] [SHIPPED 9439fd6 src/components/Nav.tsx:41]
+[SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:116] [SHIPPED 9439fd6 e2e/visual-fitment.spec.ts:67-68] [SHIPPED 9439fd6 e2e/a2-css-checks.spec.ts:78-86] [SHIPPED 9439fd6 src/styles/design-workspaces.css:134,417] [SHIPPED 9439fd6 src/components/Nav.tsx:41] [OWNER 2026-10-12 D92] [SHIPPED 4e78545 src/styles/contacts-bulk.css:74-76]
 
 **2.3** Screens MUST work at 200% text size, which is distinct from browser zoom. Nothing clips, overlaps or loses its action. Text containers use minimum heights, not fixed heights. [SOURCE docs/design/DESIGN_GUIDELINES.md:64] [SOURCE docs/design/DESIGN_STRESS_REVIEW_2026-09-20.md:15] [SOURCE docs/audit-2026-09-24/design-a11y-responsive.md:194] [SHIPPED 9439fd6 e2e/sheet-interactions.spec.ts:292-302]
 
@@ -166,3 +167,4 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.1.0 — 2026-09-28 — Base 61d4df4. §2.17 requires tap and keyboard access to hover content, with dismissal and persistence (D26).
 - 2.0.0 — 2026-10-08 — Base f23db11. §2.1 and §2.2 are MUST rules on every owner screen, Calendar and Journey included; new §2.21 requires an automated check of both floors (D82, the UX audit's answers). §6 adds the floor deviations the audit measured.
+- 2.1.0 — 2026-10-12 — Base 4e78545. §2.2: labels under icons in a phone action bar may be 12px, like the bottom navigation's (D92).
