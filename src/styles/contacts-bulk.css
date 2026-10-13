@@ -91,3 +91,6 @@
 
 /* While selecting, a tap anywhere on a row ticks or unticks its person (D90). */
 .contact-select-row.selection-mode { cursor: pointer; }
+/* While selecting, the name is plain text and the row itself takes the tap (D90), so the name's row-wide overlay, there for
+   its link, would only sit over the avatar and the summary. */
+.contact-select-row.selection-mode .contact-open::after { content: none; }
