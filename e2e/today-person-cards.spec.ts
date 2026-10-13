@@ -173,9 +173,10 @@ test.describe("on a phone", () => {
     await frames(page, 6);
     await expect(openReview(page)).toHaveCount(0);
     expect(await status(id.gwenText)).toBe("PENDING");
-    // She was contacted today, so her text says so and keeps its skip offer (D98); a fresh read says when.
+    // She was contacted today, so her text says so and keeps its skip offer (D98). The list reads again at once (D99),
+    // so the fresh read may already say when.
     const text = card(page, id.gwenText);
-    await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today$/ })).toBeVisible();
+    await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today( at \d{1,2}:\d{2} [AP]M)?$/ })).toBeVisible();
     await expect(text.getByRole("button", { name: "Skip this text for Gwen Group", exact: true })).toBeVisible();
     await page.reload(); await ready(page);
     await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today at \d{1,2}:\d{2} [AP]M$/ })).toBeVisible();

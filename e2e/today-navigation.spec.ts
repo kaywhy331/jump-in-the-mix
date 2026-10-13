@@ -93,8 +93,11 @@ test("completing earlier work and removing the anchor never skips untouched foll
     await markDone(page, id);
     await expect(page.locator(`#jump-${id}`)).toHaveCount(0);
   }
-  await prisma.jump.update({ where: { id: smsIds[29] }, data: { status: "CANCELED" } });
-  await next(page, smsIds[30]); expect(await ids(page)).toEqual(smsIds.slice(30, 60));
+  // The list reads again at once after each outcome (D99), so the page refills to 30, through the 32nd follow-up.
+  await expect.poll(() => ids(page)).toEqual(smsIds.slice(2, 32));
+  // Its last follow-up anchors "Next follow-ups"; removing it elsewhere still skips nothing.
+  await prisma.jump.update({ where: { id: smsIds[31] }, data: { status: "CANCELED" } });
+  await next(page, smsIds[32]); expect(await ids(page)).toEqual(smsIds.slice(32, 62));
   await expect(pager(page)).toContainText("Showing 30 of 320 follow-ups");
 });
 
