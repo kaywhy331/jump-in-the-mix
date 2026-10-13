@@ -2,9 +2,9 @@
 id: JITM-05
 title: Vocabulary and glossary
 status: active
-version: 2.2.0
+version: 2.2.1
 owner: Kevin
-last_reviewed: 2026-10-08
+last_reviewed: 2026-10-12
 applies_to: [copy, interface-text, help, public-pages, email, onboarding, customer-docs]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md, CONTRIBUTING.md#product-language]
 sources:
@@ -135,7 +135,7 @@ Say what the owner sees instead: "saved version", "this piece of work", "text, e
 
 ### Dates and times
 
-**2.19** Times use the 12-hour clock with AM/PM ("2:00 PM"). Time zones are named by a city ("New York time", "Chicago time"), and pickers list the US zones first. Copy that people see MUST NOT show an IANA zone name ("America/New_York"), an ISO date ("2026-10-09") or a 24-hour time. [OWNER 2026-10-08 D79] Dates show a short weekday and month ("Fri, Oct 9"), with the year only when it is not the current one, and every screen formats them through one shared display formatter in the account's locale and timezone (JITM-11 §2.15). [PROPOSED]
+**2.19** Times use the 12-hour clock with AM/PM ("2:00 PM"). Time zones are named by a city ("New York time", "Chicago time"), and pickers list the US zones first. Copy that people see MUST NOT show an IANA zone name ("America/New_York"), an ISO date ("2026-10-09") or a 24-hour time. [OWNER 2026-10-08 D79] Accounts with the en-GB or en-AU display locale use the 12-hour clock too. [OWNER 2026-10-09 docs/standards-audit-2026-09-28/OWNER_DECISIONS.md:550] Dates show a short weekday and month ("Fri, Oct 9"), with the year only when it is not the current one, and every screen formats them through one shared display formatter in the account's locale and timezone (JITM-11 §2.15). [PROPOSED]
 
 ## 3. Canonical implementations
 
@@ -171,7 +171,6 @@ grep -rnE "Important Date|[Cc]ampaign|\b[Cc]ue\b|[Tt]empo" src/app src/component
 ## 6. Open decisions and known deviations
 
 Open questions for Kevin:
-- Should accounts with the en-GB or en-AU display locale keep the 12-hour clock (§2.19, D79), or follow their locale's usual clock?
 - The account holder is a "member" in some standards (JITM-01 §2.8) and an "owner" in others (JITM-09 §2.17). Which word should copy use?
 - Should the glossary sheet appear on Today, the contact page and onboarding (§2.17)?
 - Please confirm the wording of the plain meanings in §2.2. The glossary sheet and Help adopted it in the copy batch (PR #96).
@@ -195,3 +194,4 @@ Known deviations, rechecked at 9f967bc after the copy batch (PR #96) and its cas
 - 2.1.1 — 2026-10-05 — Base 8bee3b1. §2.2: No Mix and No Mix needed are confirmed (D33) and name their implementation (docs/NO_MIX_STATUS_2026-10-05.md).
 - 2.1.2 — 2026-10-06 — Base a05b189. §2.3: the meaning of No Mix says that no Mix will remind you about them, since a one-time follow-up may still be on its way, and is tagged as Kevin's wording decision (D44); D33 confirmed the labels only. The row is in §2.3's table, which 2.1.0 and 2.1.1 cited as §2.2.
 - 2.2.0 — 2026-10-08 — Base f23db11. New §2.19: 12-hour times, city time-zone names, no IANA names, ISO dates or 24-hour times in copy (D79); the date format and the shared formatter are proposed. §6 adds the locale question and the audit's format deviations.
+- 2.2.1 — 2026-10-12 — Base 4e78545. §2.19: accounts with the en-GB or en-AU display locale use the 12-hour clock too (Kevin, 2026-10-09, PR #140); §6 drops the question.

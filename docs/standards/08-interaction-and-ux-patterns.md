@@ -2,9 +2,9 @@
 id: JITM-08
 title: Interaction and UX patterns
 status: active
-version: 1.2.0
+version: 2.0.0
 owner: Kevin
-last_reviewed: 2026-10-08
+last_reviewed: 2026-10-12
 applies_to: [ui, interaction, forms, dialogs, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
@@ -56,7 +56,7 @@ Neighboring topics have their own homes:
 
 **2.5** Reversible actions act at once and offer Undo in their success notice, such as archiving a contact. Destructive or irreversible actions ask first (§2.7). [SOURCE docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:38] [SHIPPED 9439fd6 src/styles/phone-icons.css:30-32]
 
-**2.36** After an outcome on Today, the next due follow-up's review opens by itself, on phones and desktop, so working through the list takes the handoff and one outcome per person. The confirmation with its Undo (§2.4) stays on screen while the next review opens, and the list's counts and Done update at once; Undo puts the counts back. Opening the next review never sends, records or skips anything. [OWNER 2026-10-08 D70]
+**2.36** After an outcome on Today, the next due follow-up's review opens by itself, on phones and desktop, so working through the list takes the handoff and one outcome per person. The confirmation with its Undo (§2.4) stays on screen while the next review opens, and the list's counts and Done update at once; Undo puts the counts back. Opening the next review never sends, records or skips anything. [OWNER 2026-10-08 D70] The next review opens after an outcome recorded in a review or in the return tray. It doesn't open after a quick action from the list; while another review, sheet or dialog is open or focus is in a field; while the return tray still asks about another follow-up or shows a notice, or Today says updates wait for message edits; after an outcome in Upcoming or Done; after an outcome that finished a Mix, where Today asks what's next for the person; after an "Already marked done" retry; or when the next due follow-up is past the loaded page. [OWNER 2026-10-09 docs/standards-audit-2026-09-28/OWNER_DECISIONS.md:550] [SHIPPED 4e78545 src/components/TodayMomentum.tsx:121] Confirmations and their Undo sit outside the list, so a refresh never takes them away and an Undo never holds the refresh. A refresh never closes an open review: a person contacted today stays under Today, so recording their later follow-up first leaves a review open on the earlier one in place (JITM-09 §2.82), and a card whose review is open keeps its place when a refresh brings another of the person's follow-ups onto the page. [OWNER 2026-10-12 D99] A notice that appears in a review scrolls into view, clear of the stuck action bar. [OWNER 2026-10-12 D100]
 
 ### Disabled with a reason
 
@@ -146,7 +146,7 @@ An untouched form never warns. A form counts as changed only once the person act
 
 Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21] [SHIPPED 9439fd6 src/app/(app)/jumps/loading.tsx:1] [SHIPPED 9439fd6 src/app/error.tsx:5-10] [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:120]
 
-**2.33** Live updates never disturb work in progress. While the owner edits, has an Undo open, selects a path or has focus in a form, incoming changes wait: Today keeps its list and says updates are waiting, and Journey pauses its refresh. An update never moves, closes or overwrites what the owner is working on. The owner's own outcome is not an incoming change: it updates Today's counts at once (§2.36). Journey's silent refresh is specified in JITM-09 §2. [SHIPPED 9439fd6 src/components/useTodayUpdates.ts:9-11] [SHIPPED 9439fd6 src/components/TodayNavigation.tsx:102-108] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:116] [OWNER 2026-09-28 D4]
+**2.33** Live updates never disturb work in progress. While the owner edits, selects a path or has focus in a form, incoming changes wait: Today keeps its list and says updates are waiting, and Journey pauses its refresh. On Today an open Undo doesn't hold them, since confirmations and their Undo sit outside the list (§2.36). An update never moves, closes or overwrites what the owner is working on. The owner's own outcome is not an incoming change: it updates Today's counts at once (§2.36). Journey's silent refresh is specified in JITM-09 §2. [SHIPPED 9439fd6 src/components/useTodayUpdates.ts:9-11] [SHIPPED 9439fd6 src/components/TodayNavigation.tsx:102-108] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:116] [OWNER 2026-09-28 D4] [OWNER 2026-10-12 D99]
 
 ### Keyboard shortcuts
 
@@ -203,7 +203,12 @@ Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21]
 - An older record says filters apply without an Apply button (`docs/UX_WORKFLOW_OPTIMIZATION.md:13`); D9 supersedes it for the Mixes, Ready-made and Marketplace sheets.
 - **Refresh notices differ:** Journey refreshes silently every 15 seconds and on focus (JITM-09 §2), while Today shows "Updating your follow-up list…" when it refreshes on focus (`src/components/useTodayUpdates.ts:52-56`, `src/components/TodayNavigation.tsx:106`). Should Today be silent too?
 - `FormGuard`'s second native prompt (`src/components/FormGuard.tsx:45`) guards another form's submit, not navigation. It stays native because the decision is synchronous.
-- **Decided, not built (D70):** at f23db11, after an outcome Today returns to the list and the owner opens the next review by hand, and the header counts, section counts and Done stay unchanged until the 10-second Undo window ends (`src/lib/today-update-state.ts:5`; UX audit 2026-10-08, TRU-06), against §2.36.
+- **D70 is built** (PR #141): the next review opens by itself and the counts update at once.
+- **Decided, not built (D99):** at 4e78545 Today holds its server reads while any Undo shows (`src/lib/today-update-state.ts:3-5`), so a Snooze or a channel change in the next review shows up to 10 seconds late (HLD-01, PR #141). Once the hold ends, recording a person's later follow-up first moves the earlier one's card to Overdue and closes a review open on it (LIV-01, PR #142). Both are against §2.33 and §2.36, and D99's task builds both.
+- **Decided, no task yet (D99):** a refresh that brings another of a person's follow-ups onto the page places their card by it (`src/lib/today-view.ts:76-94`), so the card can move out from under a review open on it and the review closes. This predates D99. Against §2.33 and §2.36.
+- **Decided, not built (D100):** on a phone the review's stuck bar can cover a notice that appears above it (LAY-07, PR #141), against §2.36. #141 saw it with a confirmation; that a draft conflict, the long-text warning or the automatic-delivery line would sit in the same place is INFERRED, since no fixture had one.
+- **Decided, not built (D88):** the contact profile's Archive asks first (`src/components/ContactProfile.tsx:226`), against §2.5.
+- **Decided, not built (D91):** the No Mix strip's "Mark No Mix needed" opens its sheet with focus on the sheet's button (`src/components/ContactsBulkWorkspace.tsx:149`), against §2.12.
 
 ## 7. Changelog
 
@@ -211,3 +216,4 @@ Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21]
 - 1.0.1 — 2026-09-29 — Base 9f967bc. §2.30: an untouched form never warns; changes count from the person's first action, and status-only fields carry `data-form-guard-ignore` (Kevin's go-ahead, 2026-09-29).
 - 1.1.0 — 2026-10-06 — Base 8bee3b1. §2.35 applies review, outcome and Undo to actions an owner's assistant takes through the connector, with calls in the owner's own voice and permission held in the assistant (D38, D39, D42, D43).
 - 1.2.0 — 2026-10-08 — Base f23db11. New §2.36: Today opens the next due follow-up after each outcome, with the Undo still on screen and counts updated at once (D70, the UX audit's answers); §2.4 and §2.33 point to it; §6 notes that it is not built yet.
+- 2.0.0 — 2026-10-12 — Base 4e78545. §2.33 changes meaning: on Today an open Undo no longer holds incoming changes, since confirmations and their Undo sit outside the list (D99). §2.36: when the next review opens and when it doesn't (D70's scope, confirmed 2026-10-09); a refresh never takes away a confirmation or closes an open review (D99); notices clear of the stuck bar (D100). §6: D70 is built; D88, D91, D99 and D100 are decided and not yet built, and a card's place when a refresh brings another of the person's follow-ups has no task yet.

@@ -2,9 +2,9 @@
 id: JITM-12
 title: Testing and verification
 status: active
-version: 1.0.1
+version: 2.0.0
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-10-12
 applies_to: [tests, e2e, checks, ci, screenshots, reports]
 supersedes: []
 sources:
@@ -97,9 +97,9 @@ PASS and FAIL describe a check's result; the label describes the evidence behind
 2. Serve them on separate ports with the CI environment.
 3. Run the specs against the candidate in small batches of five or six files.
 4. Rerun each failure alone, on both builds.
-5. Classify each failure: new (fails only on the candidate), pre-existing (fails the same way on the baseline), order-dependent (passes alone) or environmental (host tooling).
+5. Classify each failure: new (fails only on the candidate), pre-existing (fails the same way on the baseline), order-dependent (fails in its batch and passes every time alone), intermittent (both fails and passes when rerun alone on the same build) or environmental (host tooling). Run an intermittent failure alone five times on the candidate and five times on the baseline; when it fails more often on the candidate it counts as new. [OWNER 2026-10-12 D101]
 
-Nothing may fail only on the candidate. [OWNER 2026-09-28 D5] [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:74-77] [SOURCE docs/AUDIT_RELEASE_B_2026-09-25.md:70-77]
+Nothing new may fail: no failure only on the candidate, and no intermittent failure that fails more often on the candidate. [OWNER 2026-09-28 D5] [OWNER 2026-10-12 D101] [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:74-77] [SOURCE docs/AUDIT_RELEASE_B_2026-09-25.md:70-77]
 
 **2.15** Pre-existing failures are compared, not blamed. The record lists each by spec with its cause, marks it as not blocking, and schedules a test-only follow-up. [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:79-103]
 
@@ -184,3 +184,4 @@ Nothing may fail only on the candidate. [OWNER 2026-09-28 D5] [SOURCE docs/AUDIT
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.19 confirmed, with the check before committing evidence (D25); §6 updated for D13.
+- 2.0.0 — 2026-10-12 — Base 4e78545. §2.14 changes meaning: a fifth class, intermittent (both fails and passes when rerun alone on the same build), is run alone five times on each build, and one that fails more often on the candidate counts as new; the gate now reads "Nothing new may fail", so such a failure blocks like one only on the candidate (D101). Order-dependent now reads "passes every time alone".
