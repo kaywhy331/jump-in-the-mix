@@ -22,7 +22,10 @@ export function useTodayUpdates(children: ReactNode, viewKey: string, root: RefO
     if (incoming.current === committed.current) return;
     if (incoming.current.viewKey === committed.current.viewKey && root.current && todayUpdateBlocker(root.current)) return;
     committed.current = incoming.current;
-    setShown(incoming.current);
+    // As a transition, so React keeps the list on screen while the new one renders, instead of hiding it for a moment:
+    // hiding would drop the focus and scroll of a review open in it (D99, JITM-08 §2.33).
+    const next = incoming.current;
+    startTransition(() => setShown(next));
   }, [root]);
 
   useLayoutEffect(() => {
