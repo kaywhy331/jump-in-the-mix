@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderJumpSnapshot } from "../src/lib/jump-render";
 import { journeyStartReasons, starterPlanForJourneyStart, starterPlanForReason } from "../src/lib/journey-starts";
 import { megaMixById } from "../src/lib/mega-mixes";
-import { onboardingReasons } from "../src/lib/onboarding-options";
+import { contactMethodsHint, onboardingReasons } from "../src/lib/onboarding-options";
 import { validateLibraryContent } from "../src/lib/library-content";
 import { normalizeSharedMixSteps } from "../src/lib/shared-mix";
 
@@ -83,5 +83,16 @@ describe("a realtor's first follow-up comes from the Real estate journey", () =>
   it("falls back to the general library for a reason outside the journey", () => {
     expect(starterPlanForJourneyStart("Real estate", "Follow up about an estimate")).toBeNull();
     expect(starterPlanForReason("Home services", "Follow up about an estimate").id).toBe("plan_home_estimate");
+  });
+});
+
+describe("setup's contact hint (D103)", () => {
+  it("names what the first Beat needs: a mobile number for a text, an email address for an email, a phone number for a call", () => {
+    expect(contactMethodsHint("SMS")).toBe("A text needs a mobile number. You can add it later.");
+    expect(contactMethodsHint(null)).toBe("A text needs a mobile number. You can add it later.");
+    expect(contactMethodsHint("EMAIL")).toBe("An email needs an email address. You can add it later.");
+    expect(contactMethodsHint("PHONE_CALL")).toBe("A call needs a phone number. You can add it later.");
+    // Real estate's contract update begins with an email, the case #145's COPY-01 (b) found.
+    expect(starterPlanForReason("Real estate", "Update a client who is under contract").steps[0].channel).toBe("EMAIL");
   });
 });

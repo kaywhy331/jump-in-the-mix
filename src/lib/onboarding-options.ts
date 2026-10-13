@@ -21,3 +21,10 @@ export function onboardingReasons(uses: OnboardingUse[], businessType?: string |
   const journey = journeyStartReasons(businessType, suggestedScenario);
   return [...new Set(ONBOARDING_USES.filter(use => uses.includes(use.id)).flatMap(use => use.id === "business" && journey ? journey : [...use.reasons]))];
 }
+
+/** Setup's hint under the person's phone and email: what the first follow-up's first Beat needs (D103). */
+export function contactMethodsHint(firstChannel: string | null): string {
+  if (firstChannel === "EMAIL") return "An email needs an email address. You can add it later.";
+  if (firstChannel === "PHONE_CALL") return "A call needs a phone number. You can add it later.";
+  return "A text needs a mobile number. You can add it later.";
+}

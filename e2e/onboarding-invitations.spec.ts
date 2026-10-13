@@ -26,6 +26,17 @@ test.afterEach(async () => {
   await prisma.user.deleteMany({ where: { id: { in: users } } }); users.length = 0;
 });
 
+test("the contact hint names what the first Beat needs (D103)", async ({ page }) => {
+  await account(page);
+  await page.goto("/onboarding");
+  const hint = page.locator("#contact-methods-help");
+  await page.getByLabel("What’s it about?").selectOption("Someone who went quiet");
+  await expect(hint).toHaveText("A text needs a mobile number. You can add it later.");
+  await page.getByLabel("Type of business").selectOption("Real estate");
+  await page.getByLabel("What’s it about?").selectOption("Update a client who is under contract");
+  await expect(hint).toHaveText("An email needs an email address. You can add it later.");
+});
+
 test("onboarding offers business follow-ups, keeps the business name, and starts from an imported contact", async ({ page }) => {
   const { workspace } = await account(page);
   await page.goto("/onboarding");

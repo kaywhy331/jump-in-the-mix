@@ -13,7 +13,7 @@ import { LocalDateInput } from "@/components/LocalDateInput";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
 import { completeOnboardingFormAction, skipOnboardingAction } from "@/lib/onboarding-actions";
-import { onboardingReasons } from "@/lib/onboarding-options";
+import { onboardingReasons, contactMethodsHint } from "@/lib/onboarding-options";
 import { MegaMixSetup } from "@/components/MegaMixSetup";
 import { suggestedMegaMix } from "@/lib/mega-mixes";
 import type { JourneySetupValues } from "@/lib/journey-preferences";
@@ -113,7 +113,7 @@ export function OnboardingForm({ userName, industry, timezone, today, locale, sc
           <div className="field full"><label htmlFor="contactName">Name</label><input id="contactName" name="contactName" autoComplete="name" placeholder="Jordan Lee" required enterKeyHint="next" value={personName} onChange={event => setPersonName(event.target.value)} /></div>
           <div className="field"><label htmlFor="contactPhone">Mobile phone <small>optional</small></label><input id="contactPhone" name="contactPhone" inputMode="tel" autoComplete="tel" placeholder="(555) 555-0123" enterKeyHint="next" aria-describedby="contact-methods-help" /></div>
           <div className="field"><label htmlFor="contactEmail">Email <small>optional</small></label><input id="contactEmail" name="contactEmail" type="email" inputMode="email" autoComplete="email" enterKeyHint="next" aria-describedby="contact-methods-help" /></div>
-          <small id="contact-methods-help">{firstChannel === "EMAIL" ? "An email needs an email address. You can add it later." : firstChannel === "PHONE_CALL" ? "A call needs a phone number. You can add it later." : "A text needs a mobile number. You can add it later."}</small>
+          <small id="contact-methods-help">{contactMethodsHint(firstChannel)}</small>
         </div>}
         <details className="onboarding-import">
           <summary>Have a list? Import a file</summary>
