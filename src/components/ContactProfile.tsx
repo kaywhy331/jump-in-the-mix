@@ -42,7 +42,7 @@ const MONTHS = ["January", "February", "March", "April", "May", "June", "July", 
 
 export type ContactProfileSearchParams = {
   created?: string; followUpScheduled?: string; mixKept?: string; dateCreated?: string; dateUpdated?: string; dateDeleted?: string; mixAssigned?: string; mixStart?: string; mixRemoved?: string;
-  mixStopped?: string; mixResumed?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
+  mixStopped?: string; mixResumed?: string; mixResumedOff?: string; mixStopError?: string; mixResumeError?: string; updated?: string; inlineUpdated?: string;
   stateUpdated?: string; merged?: string; restored?: string; error?: string; at?: string; sig?: string;
   noMixNeeded?: string; noMixCleared?: string; noMixInMix?: string; noMixDnc?: string; noMixAlready?: string;
   dncOn?: string; dncOff?: string;
@@ -67,7 +67,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
         groupMemberships: { include: { group: true } },
         customFieldValues: { include: { definition: true }, orderBy: { definition: { name: "asc" } } },
         jumpDates: { where: { isActive: true }, include: { dateType: true }, orderBy: [{ dateValue: "asc" }, { month: "asc" }, { day: "asc" }] },
-        mixAssignments: { where: { isActive: true, contactId }, select: { id: true, mixId: true }, orderBy: { createdAt: "asc" } }
+        mixAssignments: { where: { isActive: true, contactId }, select: { id: true, mixId: true, assignmentKey: true }, orderBy: { createdAt: "asc" } }
       }
     }),
     prisma.dateType.findMany({ where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null }] }, orderBy: [{ isSystem: "asc" }, { name: "asc" }] }),
@@ -177,7 +177,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
   </>;
   const mixRowsView: ContactMixesRow[] = mixRows.map(row => {
     const status = contactMixRowStatus(row, now, displayPreferences), route = contactMixRowRoute(row);
-    return { mixId: row.mixId, name: row.name, status, route, summary: `${contactMixRowSummary(row, contact.displayName, now, displayPreferences)}${route ? ` ${route}.` : ""}`, assignmentId: row.assignmentId, hasTags: row.tags.length > 0, stopped: Boolean(row.stop), workIds: row.workIds };
+    return { mixId: row.mixId, name: row.name, status, route, summary: `${contactMixRowSummary(row, contact.displayName, now, displayPreferences)}${route ? ` ${route}.` : ""}`, assignmentId: row.assignmentId, everyoneStart: row.everyoneStart, hasTags: row.tags.length > 0, stopped: Boolean(row.stop), workIds: row.workIds };
   });
   // Opens it in Calendar's editor on its own day, as the agenda's links do. Synced calendar entries are never meetings.
   const meetingLink = nextMeeting && `/calendar?${new URLSearchParams({ edit: nextMeeting.id, date: logicalDateKey(logicalDateInTimezone(nextMeeting.startsAt, displayPreferences.timeZone)) })}#schedule-event`;
@@ -200,6 +200,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
       {query.mixRemoved && <Notice type="success">Mix removed.</Notice>}
       {query.mixStopped && <Notice type="success">Mix stopped.</Notice>}
       {query.mixResumed && <Notice type="success">Mix resumed.</Notice>}
+      {query.mixResumedOff && <Notice type="success">Mix resumed. It isn’t on, so nothing is prepared until you turn it on.</Notice>}
       {query.mixStopError && <Notice type="error">Mix could not be stopped.</Notice>}
       {query.mixResumeError && <Notice type="error">Mix could not be resumed.</Notice>}
       <UrlErrorNotice params={query} viewer={session} />

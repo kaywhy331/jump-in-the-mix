@@ -17,6 +17,9 @@ import { endLockedEnrollmentWorkflows, ENROLLMENT_REMOVED_REASON, ENROLLMENT_UND
 import type { WorkflowState } from "@/lib/mix-workflow-types";
 import { stageSetFrom, undoStageSet, type StageSet } from "@/lib/mix-stage";
 
+/** The reason on the stop that Remove writes for a place in a Mix for Everyone (D64). */
+const EVERYONE_PLACE_REMOVED_STOP = "mix.everyone.removed";
+
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
 }
@@ -282,24 +285,50 @@ export async function removeMixAssignmentAction(formData: FormData): Promise<voi
   if (impersonation) fail(contactId, "Administrator support sessions are view-only.", session);
   const assignment = await prisma.mixAssignment.findFirst({
     where: { id: assignmentId, workspaceId: workspace.id, contactId },
-    select: { id: true, mixId: true, startDate: true, createdAt: true, mix: { select: { triggerMode: true } }, appointmentBinding: { select: { id: true } } }
+    select: { id: true, mixId: true, assignmentKey: true, startDate: true, createdAt: true, mix: { select: { triggerMode: true } }, appointmentBinding: { select: { id: true } } }
   });
   if (!assignment) fail(contactId, "Mix assignment not found.", session);
+  // A place in a Mix for Everyone: removing it stops that Mix for the person, so no later save or resume puts them back
+  // in it (D64). Resume on their page brings it back.
+  const everyonePlace = assignment.assignmentKey.includes(":audience:");
   const keys = runKeys({ triggerMode: assignment.mix.triggerMode, startDate: assignment.startDate, createdAt: assignment.createdAt, ownerTimezone: await timezoneForWorkspace(workspace.id), bindingId: assignment.appointmentBinding?.id ?? null });
 
   await prisma.$transaction(async (tx) => {
+    // Removing an Everyone place waits for a Mix save in progress, which holds the business's row and re-syncs the
+    // places, and a later save waits for it, so neither undoes the other (LCK-04).
+    if (everyonePlace) await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR KEY SHARE`;
     // The run's Journey record, locked before its Beats in the Journey pass's order (UNDO-04).
     const journeys = await lockEnrollmentWorkflows(tx, { workspaceId: workspace.id, contactId, mixId: assignment.mixId, occurrencePrefixes: keys.triggers });
+    if (everyonePlace) {
+      // A stop, as Stop Mix writes it, and taken before any follow-up, in Stop Mix's and a stage exit's order (LCK-05). A
+      // stop the owner or the plan limit wrote is kept; one a stage wrote on exit becomes this one, as re-entering that
+      // stage would lift it (STOP-01).
+      await tx.mixStop.updateMany({ where: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, reason: "journey.stage.exit" }, data: { reason: EVERYONE_PLACE_REMOVED_STOP, stoppedByUserId: user.id, stoppedAt: new Date() } });
+      await tx.mixStop.upsert({
+        where: { workspaceId_mixId_contactId: { workspaceId: workspace.id, mixId: assignment.mixId, contactId } },
+        create: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, stoppedByUserId: user.id, reason: EVERYONE_PLACE_REMOVED_STOP },
+        update: {}
+      });
+    }
     await tx.mixAssignment.update({ where: { id: assignment.id }, data: { isActive: false } });
     // The run's follow-ups still to come end now, cancelled as reconciled as the scheduler's next pass would have
-    // done, so that pass brings back any row another enrollment of the person still wants.
+    // done, so that pass brings back any row another enrollment of the person still wants. Removing an Everyone place
+    // is a stop by every route (D64), so its run ends as the stop's: only Resume hands those rows back, and it keeps
+    // the ones already due out of automatic sending (D87, SEND-03).
     await tx.jump.updateMany({
       where: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, status: "PENDING", workflowManaged: false, appointmentBindingId: assignment.appointmentBinding?.id ?? null, ...occurrenceIn(keys.beats) },
-      data: { status: "CANCELED", completedAt: null, completionMethod: "reconciled" }
+      data: { status: "CANCELED", completedAt: null, completionMethod: everyonePlace ? "mix_stopped_for_contact" : "reconciled" }
     });
     // Its Journey record's run ends too, so Today, the morning email and Journey People don't ask about those Beats
     // and the record keeps no plan place; a later start of the same Mix and day picks it back up.
     const journeysEnded = await endLockedEnrollmentWorkflows(tx, journeys, ENROLLMENT_REMOVED_REASON, new Date());
+    // The stop ends the person's other follow-ups from this Mix too.
+    if (everyonePlace) {
+      await tx.jump.updateMany({
+        where: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, status: "PENDING" },
+        data: { status: "CANCELED", completedAt: null, completionMethod: "mix_stopped_for_contact" }
+      });
+    }
     await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId, mixId: assignment.mixId } } });
     await tx.auditLog.create({
       data: {
@@ -310,7 +339,7 @@ export async function removeMixAssignmentAction(formData: FormData): Promise<voi
         entityType: "MixAssignment",
         entityId: assignment.id,
         source: "contacts.detail",
-        metadata: { contactId, mixId: assignment.mixId, endedJourneyRecords: journeysEnded }
+        metadata: { contactId, mixId: assignment.mixId, endedJourneyRecords: journeysEnded, stopped: everyonePlace }
       }
     });
   }, { timeout: 30_000 });
