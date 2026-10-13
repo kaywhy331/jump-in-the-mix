@@ -135,7 +135,7 @@ Say what the owner sees instead: "saved version", "this piece of work", "text, e
 
 ### Dates and times
 
-**2.19** Times use the 12-hour clock with AM/PM ("2:00 PM"). Time zones are named by a city ("New York time", "Chicago time"), and pickers list the US zones first. Copy that people see MUST NOT show an IANA zone name ("America/New_York"), an ISO date ("2026-10-09") or a 24-hour time. [OWNER 2026-10-08 D79] Accounts with the en-GB or en-AU display locale use the 12-hour clock too. [OWNER 2026-10-09 docs/standards-audit-2026-09-28/OWNER_DECISIONS.md:550] Dates show a short weekday and month ("Fri, Oct 9"), with the year only when it is not the current one, and every screen formats them through one shared display formatter in the account's locale and timezone (JITM-11 §2.15). [PROPOSED]
+**2.19** Times use the 12-hour clock with AM/PM ("2:00 PM"). Time zones are named by a city ("New York time", "Chicago time"), and pickers list the US zones first. Copy that people see MUST NOT show an IANA zone name ("America/New_York"), an ISO date ("2026-10-09") or a 24-hour time. [OWNER 2026-10-08 D79] Accounts with the en-GB or en-AU display locale use the 12-hour clock too. [OWNER 2026-10-09 D111] Dates show a short weekday and month ("Fri, Oct 9"), with the year only when it is not the current one, and every screen formats them through one shared display formatter in the account's locale and timezone (JITM-11 §2.15). [PROPOSED]
 
 ## 3. Canonical implementations
 

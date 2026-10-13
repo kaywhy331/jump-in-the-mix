@@ -96,10 +96,10 @@ PASS and FAIL describe a check's result; the label describes the evidence behind
 1. Build the baseline and the candidate as production builds. The baseline is `origin/main` for a pull request, and the previous production commit for a release.
 2. Serve them on separate ports with the CI environment.
 3. Run the specs against the candidate in small batches of five or six files.
-4. Rerun each failure alone, on both builds.
-5. Classify each failure: new (fails only on the candidate), pre-existing (fails the same way on the baseline), order-dependent (fails in its batch and passes every time alone), intermittent (both fails and passes when rerun alone on the same build) or environmental (host tooling). Run an intermittent failure alone five times on the candidate and five times on the baseline; when it fails more often on the candidate it counts as new. [OWNER 2026-10-12 D101]
+4. Rerun each failure alone, twice on each build. A failure that both fails and passes in those runs is intermittent (step 5). [PROPOSED]
+5. Classify each failure: new (fails only on the candidate), pre-existing (fails the same way on the baseline), order-dependent (fails in its batch and passes every time alone), intermittent (both fails and passes when rerun alone on the same build) or environmental (host tooling). Run an intermittent failure alone five times on the candidate and five times on the baseline; when it fails more often on the candidate it counts as new. [PROPOSED]
 
-Nothing new may fail: no failure only on the candidate, and no intermittent failure that fails more often on the candidate. [OWNER 2026-09-28 D5] [OWNER 2026-10-12 D101] [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:74-77] [SOURCE docs/AUDIT_RELEASE_B_2026-09-25.md:70-77]
+Nothing may fail only on the candidate. [OWNER 2026-09-28 D5] [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:74-77] [SOURCE docs/AUDIT_RELEASE_B_2026-09-25.md:70-77] Nothing new may fail either: an intermittent failure that fails more often on the candidate blocks like one that fails only there. [PROPOSED]
 
 **2.15** Pre-existing failures are compared, not blamed. The record lists each by spec with its cause, marks it as not blocking, and schedules a test-only follow-up. [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:79-103]
 
@@ -184,4 +184,4 @@ Nothing new may fail: no failure only on the candidate, and no intermittent fail
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.19 confirmed, with the check before committing evidence (D25); §6 updated for D13.
-- 2.0.0 — 2026-10-12 — Base 4e78545. §2.14 changes meaning: a fifth class, intermittent (both fails and passes when rerun alone on the same build), is run alone five times on each build, and one that fails more often on the candidate counts as new; the gate now reads "Nothing new may fail", so such a failure blocks like one only on the candidate (D101). Order-dependent now reads "passes every time alone".
+- 2.0.0 — 2026-10-12 — Base 4e78545. §2.14 changes meaning: a fifth class, intermittent (both fails and passes when rerun alone on the same build), is run alone five times on each build, and one that fails more often on the candidate counts as new; the gate adds "Nothing new may fail", so such a failure blocks like one only on the candidate. Step 4 reruns each failure alone twice on each build, and order-dependent now reads "passes every time alone". All of it is D101, proposed and awaiting Kevin's confirmation.
