@@ -150,12 +150,14 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
     const observer = new ResizeObserver(consume); observer.observe(canvas);
     return () => observer.disconnect();
   }, [list, megaMix]);
-  // A person chosen after the map opened: once their work has loaded, go to it, once per choice, so neither a refresh
-  // nor the owner's own panning is undone (JITM-09 §2.59).
+  // A person chosen after the map opened: once their work has loaded, go to it, once per choice and view, so neither a
+  // refresh nor the owner's own panning is undone (JITM-09 §2.59). Phones switch to the list after the first render
+  // (D75), so the list gets its own reveal.
   const revealedFor = useRef("");
   useEffect(() => {
-    if (!contactId || !personFirstMixId || revealedFor.current === contactId) return;
-    revealedFor.current = contactId;
+    const key = `${contactId}:${list ? "list" : "map"}`;
+    if (!contactId || !personFirstMixId || revealedFor.current === key) return;
+    revealedFor.current = key;
     requestAnimationFrame(() => {
       const canvas = canvasRef.current, node = scrollTo.current.nodes.find(item => item.id === personFirstMixId);
       if (!list && canvas?.clientWidth && node) canvas.scrollTo({ left: Math.max(0, node.x * scrollTo.current.zoom - 24), top: Math.max(0, node.y * scrollTo.current.zoom - 24) });
