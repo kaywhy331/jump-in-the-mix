@@ -342,7 +342,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     return followUp.scheduledAt >= startToday ? `${name} at ${timeToday(followUp.scheduledAt)}` : `${name}, ${overdueWords(followUp.scheduledAt)}`;
   };
 
-  const renderCard = (followUp: (typeof ordered)[number], others: typeof needsAttention = [], later: string[] = [], otherPages: typeof elsewhere = []) => {
+  // `leads`: the card heads its person's group, so it carries the lines about the person (D97, D98) and a shared card says them once.
+  const renderCard = (followUp: (typeof ordered)[number], others: typeof needsAttention = [], later: string[] = [], otherPages: typeof elsewhere = [], leads = true) => {
     const snapshot = (followUp.renderedSnapshot ?? {}) as Snapshot;
     const { email, phone, dialTarget, planChannel, isPending, planTemplate, automaticForPlan, prepared, usable, recommended, active, followUpChannel } = variantsOf(followUp);
     // The small preview never connects separate runs of a reusable Mix. Keep the
@@ -452,7 +453,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             <p className="jump-snippet">{snippet}</p>
             {otherIds.length > 0 && <p className="jump-also-due-row">Also due: {alsoDueLabel(followUp)}</p>}
             {otherPages.map(item => <p key={item.id} className="jump-also-due-row" data-also-due-elsewhere>Also due: {alsoDueLabel(item)}</p>)}
-            {isPending && followUp.scheduledAt < endToday && <ContactedToday className="jump-also-due-row" jumpIds={otherIds} at={contactedAt.has(followUp.contactId) ? timeToday(contactedAt.get(followUp.contactId)!) : null} />}
+            {isPending && followUp.scheduledAt < endToday && <ContactedToday className="jump-also-due-row jump-contacted-today" jumpIds={otherIds} at={leads && contactedAt.has(followUp.contactId) ? timeToday(contactedAt.get(followUp.contactId)!) : null} />}
             {isPending && followUp.scheduledAt < endToday && (laterAnywhere.length > 0 || otherIds.length > 0 || contactedAt.has(followUp.contactId)) && <WhileAlsoDue jumpIds={laterAnywhere} doneIds={otherIds} contacted={contactedAt.has(followUp.contactId)}><JumpOutcomeButton jumpId={followUp.id} outcome="SKIPPED" className="text-button jump-skip-earlier" ariaLabel={`Skip this ${channelWord(channelName(followUpChannel))} for ${followUp.contact.displayName}`}><AppIcon name="skip" />Skip this {channelWord(channelName(followUpChannel))}</JumpOutcomeButton></WhileAlsoDue>}
           </div>
 
@@ -487,7 +488,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const shared = group.length > 1;
     return (
       <div key={group[0].contactId} className={`jump-person-group${shared && !compact && group[0].id === nextUp?.id ? " next-follow-up-group" : ""}`} data-person-group={shared || undefined} role={shared ? "group" : undefined} aria-label={shared ? group[0].contact.displayName : undefined}>
-        {group.map((followUp, index) => renderCard(followUp, group.filter(other => other.id !== followUp.id), group.slice(index + 1).map(other => other.id), index === 0 ? elsewhere.filter(item => item.contactId === followUp.contactId) : []))}
+        {group.map((followUp, index) => renderCard(followUp, group.filter(other => other.id !== followUp.id), group.slice(index + 1).map(other => other.id), index === 0 ? elsewhere.filter(item => item.contactId === followUp.contactId) : [], index === 0))}
       </div>
     );
   };

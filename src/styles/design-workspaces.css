@@ -475,6 +475,9 @@
    row with its own review and options. When the leader is recorded, the next row takes its place. */
 .jump-also-due-row { display: none; margin: 0; color: var(--text-2); font-size: .875rem; font-weight: 600; }
 .jump-person-group > [data-jump-workflow]:not(:first-child) .jump-also-due-row { display: block; }
+/* A follow-up due on another page (D97) and "Contacted today" (D98) are the person's own lines, so the leading card shows
+   them too; the server gives the time only to that card, so a shared card says it once. */
+.jump-also-due-row:is([data-also-due-elsewhere], .jump-contacted-today) { display: block; }
 .today-page .jump-person-group > [data-jump-workflow]:not(:first-child) :is(.eyebrow, .jump-card-heading, .jump-meta, .jump-snippet, .jump-skip-earlier) { display: none; }
 .jump-person-group > [data-jump-workflow]:not(:first-child) .jump-person-avatar { visibility: hidden; }
 .jump-person-group > [data-jump-workflow]:not(:last-child) .jump-task-card { border-bottom: 0; }
