@@ -175,7 +175,8 @@ export function MixEditor({
   // A mix that starts when the owner chooses can be on with no one enrolled: it is started from a
   // person's page or attached to a visit the owner picks on the calendar.
   // Turning a paused Mix back on needs no audience: it continues for the people already in it, as the server allows (MIX-02).
-  const canStart = triggerMode === "AFTER_MIX" ? Boolean(sourceMixId) : reviewKind === "resume" || (Boolean(audience.data) && (audienceChosen || triggerMode === "MANUAL_START" || reviewKind !== "start"));
+  // A resume needs no audience (MIX-02), but one that moves people to the Mix's stage waits for its count (D65, UX-11).
+  const canStart = triggerMode === "AFTER_MIX" ? Boolean(sourceMixId) : reviewKind === "resume" ? !stageCounted || Boolean(audience.data) : Boolean(audience.data) && (audienceChosen || triggerMode === "MANUAL_START" || reviewKind !== "start");
   const channels = [...new Set(sequence.map((item) => item.channel))];
 
   const updateStep = (index: number, patch: Partial<SequenceItem>) => setSequence((current) => current.map((item, itemIndex) => itemIndex === index ? { ...item, ...patch } : item));
