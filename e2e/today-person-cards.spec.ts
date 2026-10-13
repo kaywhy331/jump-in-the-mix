@@ -56,6 +56,8 @@ const headline = (page: Page) => page.locator(".today-page-header p").first();
 const sectionCount = (page: Page, section: "overdue" | "today") => page.locator(`[data-today-section="${section}"] .section-label span`);
 const gwen = (page: Page) => page.locator('[data-today-section="today"]').getByRole("group", { name: "Gwen Group", exact: true });
 const card = (page: Page, jumpId: string) => page.locator(`[data-jump-workflow="${jumpId}"]:not([data-follow-up-undo])`);
+/** A follow-up's card in a section. A person's card is a named group only while it holds two follow-ups. */
+const cardIn = (page: Page, section: "overdue" | "today", jumpId: string) => page.locator(`[data-today-section="${section}"] [data-jump-workflow="${jumpId}"]:not([data-follow-up-undo])`);
 const openReview = (page: Page) => page.locator(".follow-up-review-sheet[open]");
 const status = async (jumpId: string) => (await prisma.jump.findUniqueOrThrow({ where: { id: jumpId } })).status;
 const metaParts = (scope: Locator) => scope.locator(".jump-meta > span").allTextContents();
@@ -173,10 +175,11 @@ test.describe("on a phone", () => {
     await frames(page, 6);
     await expect(openReview(page)).toHaveCount(0);
     expect(await status(id.gwenText)).toBe("PENDING");
-    // She was contacted today, so her text says so and keeps its skip offer (D98). The list reads again at once (D99),
-    // so the fresh read may already say when.
+    // She was contacted today, so her text says so and keeps its skip offer (D98). The list reads again at once (D99): the
+    // read says when, and keeps her card under Today, where it was (LIV-01).
     const text = card(page, id.gwenText);
-    await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today( at \d{1,2}:\d{2} [AP]M)?$/ })).toBeVisible();
+    await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today at \d{1,2}:\d{2} [AP]M$/ })).toBeVisible();
+    await expect(cardIn(page, "today", id.gwenText)).toBeVisible();
     await expect(text.getByRole("button", { name: "Skip this text for Gwen Group", exact: true })).toBeVisible();
     await page.reload(); await ready(page);
     await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today at \d{1,2}:\d{2} [AP]M$/ })).toBeVisible();
@@ -204,6 +207,34 @@ test.describe("on a phone", () => {
       }, width)).toBe("inside");
     });
   }
+});
+
+test.describe("on a wider screen", () => {
+  test.beforeEach(async ({ page }, testInfo) => {
+    test.skip(testInfo.project.name !== "desktop-chromium", "The docked review shows from 768px.");
+    await page.setViewportSize({ width: 1440, height: 900 });
+  });
+
+  test("recording the later one as done leaves the earlier one's docked review open and in place, under Today (D99)", async ({ page }) => {
+    // With Oscar done, Gwen's text is Next up, so its review opens docked.
+    await prisma.jump.update({ where: { id: id.oscar }, data: { status: "DONE", completedAt: new Date(), completionMethod: "manual" } });
+    await page.goto("/jumps"); await ready(page);
+    const review = card(page, id.gwenText).locator(".follow-up-review-sheet[open]");
+    await expect(review).toBeVisible();
+    await review.evaluate(element => element.setAttribute("data-kept", ""));
+    // Her call, marked done from its "•••" options: a quick action, so focus goes to her text's row (D70).
+    await card(page, id.gwenCall).getByRole("button", { name: "More options for Gwen Group: Call at 12:02 AM", exact: true }).click();
+    await record(page, card(page, id.gwenCall).getByRole("button", { name: "Mark done for Gwen Group", exact: true }), id.gwenCall);
+    const trigger = card(page, id.gwenText).getByRole("button", { name: /^Review message for Gwen Group/ });
+    await expect(trigger).toBeFocused();
+    await trigger.evaluate(element => element.setAttribute("data-had-focus", ""));
+    // The list reads again at once (D99). The read says when she was contacted and keeps her card under Today, so the
+    // same review stays open, and focus stays where it was (LIV-01).
+    await expect(card(page, id.gwenText).locator(".jump-contacted-today")).toHaveText(/^Contacted today at \d{1,2}:\d{2} [AP]M$/);
+    await expect(cardIn(page, "today", id.gwenText).locator(".follow-up-review-sheet[open][data-kept]")).toBeVisible();
+    await expect(page.locator("[data-had-focus]")).toBeFocused();
+    expect(await status(id.gwenText)).toBe("PENDING");
+  });
 });
 
 test("a call with no answer or a wrong number doesn't count as contacting the person today (D98, TDY-01)", async ({ page }) => {

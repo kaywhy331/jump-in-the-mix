@@ -170,15 +170,17 @@ describe("groupDueFollowUps", () => {
     expect(result.moved).toBe(1);
   });
 
-  it("lets every section count at least the cards it shows, wherever the pages break", () => {
-    const list = [due("m1", "M", -50), due("n1", "N", -26), due("m2", "M", -20), due("p1", "P", 1), due("n2", "N", 2), due("q1", "Q", 3), due("m3", "M", 6), due("p2", "P", 7)];
+  it("lets every section count at least the cards it shows, wherever the pages break and whoever was contacted", () => {
+    const list = [due("m1", "M", -50), due("n1", "N", -26), due("m2", "M", -20), due("p1", "P", 1), due("n2", "N", 2), due("q1", "Q", 3), due("m3", "M", 6), due("p2", "P", 7), due("r1", "R", -10)];
     const overdueTotal = list.filter(item => item.scheduledAt < startToday).length;
     const todayTotal = list.length - overdueTotal;
-    for (let start = 0; start < list.length; start++) {
-      for (let end = start + 1; end <= list.length; end++) {
-        const { overdue, today, moved } = groupDueFollowUps(list.slice(start, end), startToday);
-        expect(overdueTotal - moved).toBeGreaterThanOrEqual(overdue.flat().length);
-        expect(todayTotal + moved).toBeGreaterThanOrEqual(today.flat().length);
+    for (const contacted of [new Set<string>(), new Set(["R"]), new Set(["M", "N"]), new Set(["M", "N", "P", "Q", "R"])]) {
+      for (let start = 0; start < list.length; start++) {
+        for (let end = start + 1; end <= list.length; end++) {
+          const { overdue, today, moved } = groupDueFollowUps(list.slice(start, end), startToday, contacted);
+          expect(overdueTotal - moved).toBeGreaterThanOrEqual(overdue.flat().length);
+          expect(todayTotal + moved).toBeGreaterThanOrEqual(today.flat().length);
+        }
       }
     }
   });
