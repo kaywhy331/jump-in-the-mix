@@ -295,3 +295,4 @@ None of these are part of this documentation-only change. Each item becomes its 
 - **B-17 (HIGH):** onboarding recommends one person and one follow-up, with Mega-Mix setup as an optional next step; observe whether testers prepare a first follow-up without help (D26g; JITM-09 §2.20).
 - **B-18 (MEDIUM):** a read-only inventory of the owner's primary checkout, with a cleanup proposal (D27; AGT-03).
 - **B-19 (MEDIUM):** fold the Ready-made mixes library into the Marketplace's Jump in the Mix section, keeping filters, previews, favorites and guided setup, redirecting the old entry and keeping setup links working (D29; JITM-09 §2.74).
+- **B-20 (LOW), added 2026-10-12:** on Today, keep a card whose review is open in place when a refresh brings another of that person's follow-ups onto the page. The card is placed by the person's latest follow-up on the page, so it moves and the review closes (D99's older case; JITM-08 §2.33, §2.36).
