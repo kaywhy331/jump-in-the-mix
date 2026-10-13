@@ -207,22 +207,19 @@ test.describe("live outcome updates", () => {
     await route.fulfill({ response, headers, body: await response.body() });
   }
 
-  test("Done and Skip refill the open page after Undo and preserve the filtered cursor", async ({ page }) => {
-    await page.clock.install();
+  test("Done and Skip refill the open page at once and keep the filtered cursor, with their Undo still on screen", async ({ page }) => {
     await visit(page, "/jumps?range=all&status=pending&channel=SMS"); await next(page, smsIds[30]);
     const location = page.url();
+    // The list reads again at once after an outcome (D99): the page refills while the Undo is still on screen.
     await markDone(page, smsIds[30]);
-    await expect(undoFor(page, smsIds[30])).toBeVisible();
-    await page.clock.runFor(8_000); await expect(undoFor(page, smsIds[30])).toBeVisible();
-    await expect(pager(page)).toContainText("Showing 30 of 321 follow-ups");
-    await page.clock.runFor(2_500);
     await expect(pager(page)).toContainText("Showing 30 of 320 follow-ups");
+    await expect(undoFor(page, smsIds[30])).toBeVisible();
     expect(await ids(page)).toEqual(smsIds.slice(31, 61)); expect(page.url()).toBe(location);
     await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
     const options = page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).filter({ hasText: "Move it to a better day" });
     await options.getByRole("button", { name: "Skip Beat", exact: true }).click(); await saveIfAsked(page, options, smsIds[31]);
-    await expect(undoFor(page, smsIds[31])).toBeVisible(); await page.clock.runFor(10_500);
     await expect(pager(page)).toContainText("Showing 30 of 319 follow-ups");
+    await expect(undoFor(page, smsIds[31])).toBeVisible();
     expect(await ids(page)).toEqual(smsIds.slice(32, 62)); expect(page.url()).toBe(location);
   });
 
