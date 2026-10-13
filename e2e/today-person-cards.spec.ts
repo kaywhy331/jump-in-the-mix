@@ -237,6 +237,17 @@ test.describe("on a wider screen", () => {
   });
 });
 
+test("a person contacted today stays under Today, except in the view of overdue follow-ups only (D99, PLC-02)", async ({ page }) => {
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { status: "DONE", completedAt: new Date(), completionMethod: "manual" } });
+  await page.goto("/jumps"); await ready(page);
+  await expect(cardIn(page, "today", id.gwenText)).toBeVisible();
+  // "Review overdue" lists overdue follow-ups only, so nothing there goes under a "Today" heading.
+  await page.goto("/jumps?range=all&status=pending&priority=overdue&view=compact"); await ready(page);
+  await expect(cardIn(page, "overdue", id.gwenText)).toBeVisible();
+  await expect(cardIn(page, "overdue", id.oscar)).toBeVisible();
+  await expect(page.locator('[data-today-section="today"]')).toHaveCount(0);
+});
+
 test("a call with no answer or a wrong number doesn't count as contacting the person today (D98, TDY-01)", async ({ page }) => {
   await page.goto("/jumps"); await ready(page);
   // Back from the phone app, the owner records that Gwen's call wasn't answered.
