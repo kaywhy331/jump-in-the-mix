@@ -223,6 +223,25 @@ test.describe("live outcome updates", () => {
     expect(await ids(page)).toEqual(smsIds.slice(32, 62)); expect(page.url()).toBe(location);
   });
 
+  test("the read after an outcome says \"Updating your follow-up list…\" only once it takes a second (D99)", async ({ page }) => {
+    await visit(page, "/jumps?status=pending");
+    let captured = false, release!: () => void;
+    const hold = new Promise<void>(resolve => { release = resolve; });
+    await page.route("**/jumps**", async route => {
+      if (!isRefresh(route.request())) return route.continue();
+      captured = true; await hold; await route.continue().catch(() => undefined);
+    });
+    try {
+      await markDone(page, smsIds[0]);
+      await expect.poll(() => captured).toBe(true);
+      // Most reads land within the second, so nothing moves the list down and back.
+      await expect(updates(page)).toHaveCount(0);
+      await expect(updates(page)).toContainText("Updating your follow-up list…");
+    } finally { release(); }
+    await expect(updates(page)).toHaveCount(0);
+    await expect(pager(page)).toContainText("Showing 30 of 322 follow-ups");
+  });
+
   test("a refresh already in flight waits for a newly created closed draft", async ({ page }) => {
     await page.clock.install(); await visit(page, "/jumps?status=pending");
     let captured = false, delivered = false, release!: () => void;
