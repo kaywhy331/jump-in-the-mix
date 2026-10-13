@@ -494,7 +494,7 @@ Question 4 of the same review needed no new decision: the Mix filter's first opt
 - **D67 — A stage's "Mix completed" rule following its Mix run from Journey waits for slice 4.**
 - **D68 — Every way of adding people will put them in the first stage at once,** as Add a contact does, in a later slice; D55 is replaced then.
 - **Confirms:** agent defaults 1–16 in `docs/MIX_STAGES_2026-10-07.md` as built, with default 15 as D62 and default 1's Everyone case as D66.
-- **Applied in:** PR #132 (D61, D62, D66; JITM-09 6.9.0). D63–D65 in the follow-up to #132. D67 and D68 are planned.
+- **Applied in:** PR #132 (D61, D62, D66; JITM-09 6.9.0). D63–D65 in the follow-up to #132 (PR #134, JITM-09 9.0.0, `docs/MIX_STAGES_FOLLOWUP_2026-10-08.md`); its five agent defaults are answered as D102 and D110. D67 and D68 are planned.
 
 ### D69–D86 — UX, design and layout audit: the 18 questions (2026-10-08)
 

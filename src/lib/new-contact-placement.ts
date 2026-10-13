@@ -82,31 +82,6 @@ export async function shareEveryoneMixes(tx: Tx, workspaceId: string): Promise<S
 }
 
 /**
- * People in a Mix by another route than its Everyone audience: their own enrollment (a start the owner made or a
- * visit), a shown tag the Mix runs for, or a Journey run of it (a Journey Start or connection, D60). An Everyone Mix
- * that comes back on leaves them where they are, as the placement does for newcomers (UX-04, UX-06).
- */
-export async function peopleInMixByOtherRoutes(tx: Tx, workspaceId: string, mixId: string): Promise<Set<string>> {
-  const hidden = (await tx.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
-  const assignments = await tx.mixAssignment.findMany({
-    where: { workspaceId, mixId, isActive: true, OR: [{ contactId: { not: null }, NOT: { assignmentKey: { contains: ":audience:" } } }, { groupId: { not: null, notIn: hidden } }] },
-    select: { contactId: true, group: { select: { memberships: { select: { contactId: true } } } } }
-  });
-  // A Journey Start or connection runs the Mix as Journey work, with no enrollment: an active run of it, in work that
-  // is going or paused, as the No Mix status counts it (§2.76). Legacy runs mirror the enrollments read above. The
-  // test runs in the database, so only the people come back (UX-07, PERF-02).
-  const journeys = await tx.$queryRaw<Array<{ contactId: string }>>`
-    SELECT DISTINCT i."contactId" FROM "MixWorkflowInstance" i
-    CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(i.state->'runs') = 'array' THEN i.state->'runs' ELSE '[]'::jsonb END) AS run
-    WHERE i."workspaceId" = ${workspaceId} AND i.status IN ('ACTIVE', 'PAUSED')
-      AND run->>'mixId' = ${mixId} AND run->>'status' = 'ACTIVE' AND COALESCE(run->>'legacy', 'false') <> 'true'`;
-  return new Set([
-    ...assignments.flatMap(assignment => assignment.contactId ? [assignment.contactId] : (assignment.group?.memberships ?? []).map(member => member.contactId)),
-    ...journeys.map(row => row.contactId)
-  ]);
-}
-
-/**
  * Puts people who were just added where the owner said new people go (JITM-09 §2.78, D34).
  *
  * One Mix can start for them from today, or from `start`: the one the owner chose for these people (`mixId`), or,

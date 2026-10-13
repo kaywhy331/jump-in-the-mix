@@ -189,6 +189,35 @@ export async function audienceStarts(tx: Tx, workspaceId: string, mixId: string,
 }
 
 /**
+ * People in a Mix by another route than its Everyone audience: their own enrollment (a start the owner made or a
+ * visit), a shown tag the Mix runs for, or a Journey run of it (a Journey Start or connection, D60). An Everyone Mix
+ * that comes back on leaves them where they are, as the placement does for newcomers (UX-04, UX-06). `tags` reads the
+ * tag route from those tags instead of the Mix's saved ones, for a count made before the save that sets them (UX-09).
+ */
+export async function peopleInMixByOtherRoutes(db: Pick<Tx, "contactGroupState" | "mixAssignment" | "contactGroupMembership" | "$queryRaw">, workspaceId: string, mixId: string, tags?: readonly string[]): Promise<Set<string>> {
+  const hidden = (await db.contactGroupState.findMany({ where: { workspaceId, isActive: false }, select: { groupId: true } })).map(state => state.groupId);
+  const assignments = await db.mixAssignment.findMany({
+    where: { workspaceId, mixId, isActive: true, OR: [{ contactId: { not: null }, NOT: { assignmentKey: { contains: ":audience:" } } }, ...tags ? [] : [{ groupId: { not: null, notIn: hidden } }]] },
+    select: { contactId: true, group: { select: { memberships: { select: { contactId: true } } } } }
+  });
+  const shownTags = tags?.filter(id => !hidden.includes(id)) ?? [];
+  const tagged = shownTags.length ? await db.contactGroupMembership.findMany({ where: { groupId: { in: shownTags }, group: { workspaceId } }, select: { contactId: true } }) : [];
+  // A Journey Start or connection runs the Mix as Journey work, with no enrollment: an active run of it, in work that
+  // is going or paused, as the No Mix status counts it (§2.76). Legacy runs mirror the enrollments read above. The
+  // test runs in the database, so only the people come back (UX-07, PERF-02).
+  const journeys = await db.$queryRaw<Array<{ contactId: string }>>`
+    SELECT DISTINCT i."contactId" FROM "MixWorkflowInstance" i
+    CROSS JOIN LATERAL jsonb_array_elements(CASE WHEN jsonb_typeof(i.state->'runs') = 'array' THEN i.state->'runs' ELSE '[]'::jsonb END) AS run
+    WHERE i."workspaceId" = ${workspaceId} AND i.status IN ('ACTIVE', 'PAUSED')
+      AND run->>'mixId' = ${mixId} AND run->>'status' = 'ACTIVE' AND COALESCE(run->>'legacy', 'false') <> 'true'`;
+  return new Set([
+    ...assignments.flatMap(assignment => assignment.contactId ? [assignment.contactId] : (assignment.group?.memberships ?? []).map(member => member.contactId)),
+    ...tagged.map(member => member.contactId),
+    ...journeys.map(row => row.contactId)
+  ]);
+}
+
+/**
  * Takes back the stage change one start made (UNDO-02), only while nothing has changed the person's stage since. The
  * previous stage comes back with its date and its own Mix, or a person who had no stage has none again. The history
  * entry the start wrote goes with it; the activity log keeps both lines.
@@ -286,8 +315,12 @@ export async function contactStageChoices(workspaceId: string, db: Pick<Tx, "jou
  * Everyone (`all`) moves only people with no stage yet, added before Contact stages were turned on (D66); a tag's
  * members move from any stage. `starting` is everyone the save starts, for the review's own count on a Mix already on
  * (COPY-02).
+ *
+ * `resume` counts a save that turns a paused Everyone Mix back on with Everyone still ticked (UX-09): Everyone then
+ * takes in the people it has no place for and who aren't in the Mix by another route, among them the tags the save
+ * keeps (`audienceGroupIds`), and moves those of them with no stage yet, as the save does.
  */
-export async function stageMovesForAudience(db: Pick<Tx, "journeyPreference" | "journeyStage" | "contactGroupState" | "mixStop" | "contact">, input: { workspaceId: string; stageId: string; all: boolean; groupIds: readonly string[]; mixId?: string | null }): Promise<{ moving: number; fromOtherStages: number; starting: number }> {
+export async function stageMovesForAudience(db: Pick<Tx, "journeyPreference" | "journeyStage" | "contactGroupState" | "mixStop" | "contact" | "mixAssignment" | "contactGroupMembership" | "$queryRaw">, input: { workspaceId: string; stageId: string; all: boolean; groupIds: readonly string[]; mixId?: string | null; resume?: boolean; audienceGroupIds?: readonly string[] }): Promise<{ moving: number; fromOtherStages: number; starting: number }> {
   const { workspaceId, stageId } = input;
   const [preference, stage, hidden, stops] = await Promise.all([
     db.journeyPreference.findUnique({ where: { workspaceId }, select: { enabled: true, enabledAt: true } }),
@@ -297,15 +330,20 @@ export async function stageMovesForAudience(db: Pick<Tx, "journeyPreference" | "
   ]);
   const hiddenIds = new Set(hidden.map(state => state.groupId));
   const groupIds = input.groupIds.filter(id => !hiddenIds.has(id));
-  if (!input.all && !groupIds.length) return { moving: 0, fromOtherStages: 0, starting: 0 };
+  const resumeMixId = input.resume && !input.all ? input.mixId ?? null : null;
+  if (!input.all && !groupIds.length && !resumeMixId) return { moving: 0, fromOtherStages: 0, starting: 0 };
   const tagged: Prisma.ContactWhereInput = groupIds.length ? { groupMemberships: { some: { groupId: { in: groupIds }, group: { workspaceId } } } } : { id: { in: [] } };
   const audience: Prisma.ContactWhereInput = { AND: [{ workspaceId, archivedAt: null }, input.all ? {} : tagged] };
   const starting = await db.contact.count({ where: audience });
   if (!preference?.enabled || !stage) return { moving: 0, fromOtherStages: 0, starting };
   // Everyone reaches only people with no stage who aren't new (D66); a tag reaches its members wherever they are.
-  const reached: Prisma.ContactWhereInput = input.all ? { OR: [tagged, { journey: { is: null }, createdAt: { lt: preference.enabledAt } }] } : tagged;
+  const noStageYet: Prisma.ContactWhereInput = { journey: { is: null }, createdAt: { lt: preference.enabledAt } };
+  // On a resume, Everyone reaches those of them it takes in then: no place in the Mix, and in it by no other route.
+  const elsewhere = resumeMixId ? await peopleInMixByOtherRoutes(db, workspaceId, resumeMixId, input.audienceGroupIds ?? []) : new Set<string>();
+  const intake: Prisma.ContactWhereInput | null = resumeMixId ? { AND: [noStageYet, { mixAssignments: { none: { workspaceId, mixId: resumeMixId, assignmentKey: { contains: ":audience:" } } } }, elsewhere.size ? { id: { notIn: [...elsewhere] } } : {}] } : null;
+  const reached: Prisma.ContactWhereInput = input.all ? { OR: [tagged, noStageYet] } : intake ? { OR: [tagged, intake] } : tagged;
   const where: Prisma.ContactWhereInput = { AND: [
-    audience,
+    { workspaceId, archivedAt: null },
     reached,
     { NOT: { relationshipState: { is: { doNotContact: true } } } },
     stops.length ? { id: { notIn: stops.map(stop => stop.contactId) } } : {},

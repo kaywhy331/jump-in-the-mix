@@ -8,12 +8,14 @@ import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 export type ContactMixRowInput = {
   /** The person's Mixes that still exist: not archived, and not a one-time follow-up. */
   mixes: Array<{ id: string; name: string; status: "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED" }>;
-  /** Their own active starts. */
-  starts: Array<{ assignmentId: string; mixId: string }>;
+  /** Their own active starts; `everyone` for a place in a Mix for Everyone, whose Remove stops the Mix for them (D64). */
+  starts: Array<{ assignmentId: string; mixId: string; everyone?: boolean }>;
   /** Shown tags of theirs that a Mix runs for. */
   tags: Array<{ mixId: string; tag: string }>;
-  /** `stageExit`: the stop a stage change writes on the old stage's Mix (src/lib/journey.ts), lifted again if they return. */
-  stops: Array<{ mixId: string; planLimit: boolean; stageExit: boolean }>;
+  /** `stageExit`: the stop a stage change writes on the old stage's Mix (src/lib/journey.ts), lifted again if they return.
+   * `everyonePlace`: they have a place in this Mix for Everyone that is off, which Resume gives back, whatever wrote the
+   * stop (src/lib/mix-stop-actions.ts). `removed`: Remove wrote the stop on that place (D64). */
+  stops: Array<{ mixId: string; planLimit: boolean; stageExit: boolean; everyonePlace?: boolean; removed?: boolean }>;
   /** The earliest pending Beat per Mix. */
   pending: Array<{ mixId: string; at: Date }>;
   /** Preparation still to run for them: in these Mixes, or (`all`) in any. */
@@ -24,10 +26,15 @@ export type ContactMixRowInput = {
 
 export type ContactMixRow = {
   mixId: string; name: string; mixStatus: ContactMixRowInput["mixes"][number]["status"];
-  /** Their own start, which Remove ends. */
+  /** Their own start, which Remove ends; `everyoneStart` when it is their place in a Mix for Everyone (D64). */
   assignmentId: string | null;
+  everyoneStart: boolean;
   tags: string[];
   stop: "stopped" | "plan-limit" | "stage-exit" | null;
+  /** The stop came from removing their Everyone place, and Resume gives that place back (D64). */
+  everyoneRemoved: boolean;
+  /** Resume gives back their place in this Mix for Everyone, whatever wrote the stop (COPY-02). */
+  everyonePlaceBack: boolean;
   nextBeatAt: Date | null;
   preparing: boolean;
   workIds: string[];
@@ -42,12 +49,12 @@ export function buildContactMixRows(input: ContactMixRowInput): ContactMixRow[] 
     const mix = input.mixes.find(item => item.id === mixId);
     if (!mix || mix.status === "ARCHIVED") return null;
     let found = rows.get(mixId);
-    if (!found) rows.set(mixId, found = { mixId, name: mix.name, mixStatus: mix.status, assignmentId: null, tags: [], stop: null, nextBeatAt: null, preparing: false, workIds: [], workPaused: false, workViaConnection: false });
+    if (!found) rows.set(mixId, found = { mixId, name: mix.name, mixStatus: mix.status, assignmentId: null, everyoneStart: false, tags: [], stop: null, everyoneRemoved: false, everyonePlaceBack: false, nextBeatAt: null, preparing: false, workIds: [], workPaused: false, workViaConnection: false });
     return found;
   };
-  for (const start of input.starts) { const found = row(start.mixId); if (found) found.assignmentId ??= start.assignmentId; }
+  for (const start of input.starts) { const found = row(start.mixId); if (found && !found.assignmentId) { found.assignmentId = start.assignmentId; found.everyoneStart = Boolean(start.everyone); } }
   for (const tag of input.tags) { const found = row(tag.mixId); if (found && !found.tags.includes(tag.tag)) found.tags.push(tag.tag); }
-  for (const stop of input.stops) { const found = row(stop.mixId); if (found) found.stop = stop.planLimit ? "plan-limit" : stop.stageExit ? "stage-exit" : "stopped"; }
+  for (const stop of input.stops) { const found = row(stop.mixId); if (found) { found.stop = stop.planLimit ? "plan-limit" : stop.stageExit ? "stage-exit" : "stopped"; found.everyoneRemoved = found.stop === "stopped" && Boolean(stop.everyonePlace && stop.removed); found.everyonePlaceBack = found.stop !== "plan-limit" && Boolean(stop.everyonePlace); } }
   for (const beat of input.pending) { const found = row(beat.mixId); if (found && (!found.nextBeatAt || beat.at < found.nextBeatAt)) found.nextBeatAt = beat.at; }
   for (const work of input.work) for (const run of work.runs) {
     const found = row(run.mixId);
@@ -92,9 +99,13 @@ export function contactMixRowSummary(row: ContactMixRow, name: string, now: Date
   if (row.stop) {
     // Resume brings back what the stop removed, for whatever still places them in the Mix: their start, a tag, or
     // their Journey work (src/lib/mix-stop-actions.ts). With nothing left, it only lifts the stop. A stage change's own
-    // cancellations never come back (src/lib/journey.ts), so Resume only lifts that stop too.
+    // cancellations never come back (src/lib/journey.ts), so Resume only lifts that stop too. A stop from removing their
+    // Everyone place gives that place back (D64), and with it their follow-ups once the Mix is on.
+    if (row.everyoneRemoved) return `Stopped for ${name} when you removed them from this Mix for Everyone, so saving or starting it again won’t add them back. Resuming gives them their place in it back${row.mixStatus !== "ACTIVE" ? ", and it prepares their follow-ups once the Mix is on" : ""}.`;
     const placed = row.stop !== "stage-exit" && Boolean(row.assignmentId || row.tags.length || row.workIds.length);
-    const resume = !placed ? "Resuming only lifts the stop: add them to the Mix to restart it."
+    // A place in the Mix for Everyone that is off comes back with Resume, whatever wrote the stop (COPY-02).
+    const resume = row.everyonePlaceBack ? `Resuming gives them their place in this Mix for Everyone back${row.mixStatus !== "ACTIVE" ? ", and it prepares their follow-ups once the Mix is on" : ""}.`
+      : !placed ? "Resuming only lifts the stop: add them to the Mix to restart it."
       : row.mixStatus !== "ACTIVE" ? "Resuming lets it prepare their follow-ups once the Mix is on."
       : !row.assignmentId && !row.tags.length && row.workPaused ? "Resuming brings back their follow-ups from it once their Journey work is resumed."
       : `Resuming brings back their follow-ups from it${row.assignmentId || !row.tags.length ? "" : " through the tag"}; any already due wait for you on Today.`;

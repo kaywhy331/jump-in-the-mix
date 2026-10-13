@@ -86,15 +86,27 @@ export async function resumeMixForContactAction(formData: FormData): Promise<voi
   // come back for the owner to send or skip on Today, never by automatic sending (JITM-09 §2.72, SEND-01).
   const now = new Date();
   const stoppedHere = { workspaceId: workspace.id, contactId, mixId, status: "CANCELED" as const, completionMethod: "mix_stopped_for_contact" };
-  const journeyRecords = [...new Set((await prisma.jump.findMany({ where: { ...stoppedHere, workflowManaged: true, workflowInstanceId: { not: null } }, select: { workflowInstanceId: true } })).map(jump => jump.workflowInstanceId!))];
-  await prisma.$transaction([
-    prisma.mixStop.delete({ where: { id: stop.id } }),
-    prisma.jump.updateMany({ where: { ...stoppedHere, scheduledAt: { lte: now } }, data: { manualOnly: true } }),
-    prisma.jump.updateMany({ where: { ...stoppedHere, workflowManaged: false }, data: { completionMethod: "reconciled" } }),
-    prisma.jump.updateMany({ where: { ...stoppedHere, workflowManaged: true }, data: { completionMethod: "workflow_held" } }),
-    ...journeyRecords.map(instanceId => prisma.job.create({ data: { workspaceId: workspace.id, task: "mix-workflow", payload: { instanceId } } })),
-    prisma.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId, mixId } } }),
-    prisma.auditLog.create({
+  const status = await prisma.$transaction(async (tx) => {
+    await tx.mixStop.delete({ where: { id: stop.id } });
+    // Someone removed from a Mix for Everyone was stopped in it (D64); resuming gives them their place back. Read under
+    // a share of the Mix's row, so a save that unticks Everyone at the same moment either finishes first or waits, and
+    // no place is left on a Mix that is no longer for Everyone (as placement does, REL-03).
+    const [mix] = await tx.$queryRaw<Array<{ triggerMode: string; status: string; everyone: boolean }>>`
+      SELECT "triggerMode", status::text AS status, ("audienceEveryone" AND status <> 'ARCHIVED' AND source <> 'ONE_TIME') AS everyone FROM "Mix" WHERE id = ${mixId} AND "workspaceId" = ${workspace.id} FOR SHARE`;
+    const everyone = mix?.everyone ? mix : null;
+    // A Mix the owner starts runs from today again; a date-based or fixed-date one follows its own dates.
+    if (everyone) await tx.mixAssignment.updateMany({
+      where: { workspaceId: workspace.id, mixId, contactId, assignmentKey: `${workspace.id}:${mixId}:audience:${contactId}`, isActive: false, contact: { archivedAt: null } },
+      data: { isActive: true, startDate: everyone.triggerMode === "MANUAL_START" ? new Date() : null }
+    });
+    // Read inside the transaction, after the stop is gone, so the Journey records match the Beats relabeled below.
+    const journeyRecords = [...new Set((await tx.jump.findMany({ where: { ...stoppedHere, workflowManaged: true, workflowInstanceId: { not: null } }, select: { workflowInstanceId: true } })).map(jump => jump.workflowInstanceId!))];
+    await tx.jump.updateMany({ where: { ...stoppedHere, scheduledAt: { lte: now } }, data: { manualOnly: true } });
+    await tx.jump.updateMany({ where: { ...stoppedHere, workflowManaged: false }, data: { completionMethod: "reconciled" } });
+    await tx.jump.updateMany({ where: { ...stoppedHere, workflowManaged: true }, data: { completionMethod: "workflow_held" } });
+    for (const instanceId of journeyRecords) await tx.job.create({ data: { workspaceId: workspace.id, task: "mix-workflow", payload: { instanceId } } });
+    await tx.job.create({ data: { workspaceId: workspace.id, task: "generate-jumps", payload: { contactId, mixId } } });
+    await tx.auditLog.create({
       data: {
         workspaceId: workspace.id,
         actorType: "USER",
@@ -105,7 +117,9 @@ export async function resumeMixForContactAction(formData: FormData): Promise<voi
         source: "user",
         metadata: { contactId }
       }
-    })
-  ]);
-  redirect(withFlag(returnTo, "mixResumed"));
+    });
+    return mix?.status ?? null;
+  });
+  // A paused Mix or a draft prepares nothing until it is on, so the notice says so (COPY-01).
+  redirect(withFlag(returnTo, status === "PAUSED" || status === "DRAFT" ? "mixResumedOff" : "mixResumed"));
 }

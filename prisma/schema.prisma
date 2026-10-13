@@ -565,6 +565,8 @@ model MixAssignment {
   startDate     DateTime?
   mode          AssignmentMode @default(SNAPSHOT)
   isActive      Boolean        @default(true)
+  // A tag added while its Mix was paused: its members move to the Mix's stage when the Mix resumes (JITM-09 §2.79, D65).
+  addedWhilePaused Boolean     @default(false)
   workspace     Workspace      @relation(fields: [workspaceId], references: [id], onDelete: Cascade)
   mix           Mix            @relation(fields: [mixId], references: [id], onDelete: Cascade)
   contact       Contact?       @relation(fields: [contactId], references: [id], onDelete: Cascade)
