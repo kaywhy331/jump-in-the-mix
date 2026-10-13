@@ -93,6 +93,8 @@ Clearing every mark is also safe. The only cost is that tags added before the ro
 
 ## Agent defaults for Kevin
 
+**Answered on 2026-10-12** (Kevin: "I will go off of what you recommend"; logged in #148): defaults 1, 2, 3 and 5 as built (D110), with #147's Resume bringing back the other routes' follow-ups that a start, a tag or Journey work still wants (D87); default 4 as the review recommended (D102): the release writes the missing stops, after reporting how many.
+
 1. **Ticking Everyone on a paused Mix works as before.** Everyone it covers at that save gets a place, so the resume neither moves them nor is reviewed; only people added later wait for the resume. D63 speaks of newcomers, and this keeps every other paused save as it was. *Should ticking Everyone while paused instead work like a tag added while paused (D65): people with no stage move at the resume, after the review?*
 2. **Resume after a Remove from an Everyone Mix gives the person's place back.** A Mix the owner starts restarts for them from today, and the run Remove ended picks up again when it is the same day. A date-based or fixed-date Mix follows its own dates. *Agreed?*
 3. **A tag given to a person while a Mix that runs for that tag is paused moves no one when the Mix resumes.** A tag given later moves people only while its Mix is on (§2.79). D65 covers tags added to the Mix, not people added to the tag. *Should the resume move them too, after the review?*
