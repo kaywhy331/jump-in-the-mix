@@ -134,7 +134,8 @@ test("\"Needs attention\" is shown in the danger colour only above 0", async ({ 
 });
 
 test("with a person chosen, the map opens on their first active Mix from 768px, and the phone list marks their Mixes (D96)", async ({ page }) => {
-  // Pia's Journey work runs in Papa, the sixth Mix made (A6), right of the map's first column and below the fold.
+  // Pia's Journey work runs in Papa, which follows Oscar in its journey (E2), right of the map's first column and below
+  // the fold.
   const pia = await prisma.contact.create({ data: { workspaceId, displayName: "Pia Papa", firstName: "Pia" } });
   const instance = await startWorkflowInstance({ workspaceId, contactId: pia.id, mixId: mixIds.Papa, requestId: randomUUID() });
   await processWorkflowInstance(workspaceId, instance, new Date());
@@ -146,7 +147,7 @@ test("with a person chosen, the map opens on their first active Mix from 768px, 
   // On a phone the list marks Pia's Mix, and only hers, and brings it into view.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/journey?contactId=${pia.id}`, { waitUntil: "networkidle" });
-  const papa = page.getByRole("button", { name: /^Mix A\d+\s*Papa follow-up/ });
+  const papa = page.getByRole("button", { name: /^Mix [A-Z]\d+\s*Papa follow-up/ });
   await expect(papa).toContainText("Pia Papa is here");
   await expect(papa).toBeInViewport();
   await expect(page.getByText("Pia Papa is here", { exact: true })).toHaveCount(1);

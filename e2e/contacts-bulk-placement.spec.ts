@@ -44,7 +44,8 @@ test("Select beside the list's tools enters selection, and Done leaves it", asyn
   // While selecting, the name is no link: a tap on it or anywhere else on the row ticks the person, and Space on the
   // checkbox does too (D90).
   await expect(page.getByRole("link", { name: "Avery Ames", exact: true })).toHaveCount(0);
-  await page.getByText("Avery Ames", { exact: true }).click();
+  // Scoped to the list: the profile docked beside it shows the same name as its heading.
+  await page.getByLabel("Contact directory").getByText("Avery Ames", { exact: true }).click();
   await expect(page.getByRole("checkbox", { name: "Deselect Avery Ames", exact: true })).toBeChecked();
   await page.locator(".contact-select-row").filter({ hasText: "Avery Ames" }).locator(".avatar").click();
   await expect(page.getByRole("checkbox", { name: "Select Avery Ames", exact: true })).not.toBeChecked();
