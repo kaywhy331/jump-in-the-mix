@@ -141,6 +141,13 @@ test("with a person chosen, the map opens on their first active Mix from 768px, 
   await processWorkflowInstance(workspaceId, instance, new Date());
   await prisma.job.updateMany({ where: { workspaceId, completedAt: null }, data: { completedAt: new Date() } });
   await page.setViewportSize({ width: 1440, height: 900 });
+  // Chosen after the map has opened on the first Mix: once their work has loaded, the map goes to it.
+  await page.goto("/journey", { waitUntil: "networkidle" });
+  await expect.poll(() => firstMixInView(page)).toBe("in view");
+  expect(await mixInView(page, mixIds.Papa)).not.toBe("in view");
+  await page.getByRole("button", { name: "View Pia Papa's journey", exact: true }).click();
+  await expect.poll(() => mixInView(page, mixIds.Papa)).toBe("in view");
+  // A link that names them opens there.
   await page.goto(`/journey?contactId=${pia.id}`, { waitUntil: "networkidle" });
   await expect(page.getByRole("button", { name: "Reset zoom to 100%", exact: true })).toHaveText("100%");
   await expect.poll(() => mixInView(page, mixIds.Papa)).toBe("in view");

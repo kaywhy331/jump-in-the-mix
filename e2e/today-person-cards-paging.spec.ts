@@ -60,6 +60,11 @@ test("an overdue follow-up stays under Overdue, counted there, when the person's
   await expect(today.locator(".section-label span")).toHaveText("30");
   await expect(today.locator("article.jump-card")).toHaveCount(29);
   await expect(page.locator(".today-page-header p").first()).toHaveText("31 follow-ups need your attention · 1 overdue.");
+  // Its review names the follow-up on the next page too (D97).
+  await overdue.getByRole("button", { name: /^Review message for Avery Across/ }).click();
+  await expect(page.locator(".follow-up-review-sheet[open] .review-also-due")).toHaveText("Also due: Text at 2:00 AM.");
+  // A phone's review covers the list; a docked one sits beside it.
+  await page.keyboard.press("Escape");
   // The next page holds Avery's other follow-up, on a card of its own.
   await page.getByRole("link", { name: "Next follow-ups", exact: true }).click();
   await expect(today.locator(".jump-card-heading h3")).toHaveText(["Avery Across"]);
