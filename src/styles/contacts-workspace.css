@@ -42,6 +42,8 @@
 .contact-row-summary > :first-child { flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-summary-separator { flex-shrink: 0; }
 .contact-missing-method { position: relative; z-index: 1; font-weight: 600; color: var(--violet-text); }
+/* While selecting, it's plain text, not the link to edit the person (D90), so it reads like the rest of the line. */
+span.contact-missing-method { font-weight: inherit; color: inherit; }
 .contact-row-summary > :is(.contact-no-mix, .contact-no-mix-needed) { flex-shrink: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-row-summary > .contact-no-mix { font-weight: 600; color: var(--status-warning-ink); }
 .contact-row-summary > .contact-no-mix-needed { color: var(--text-3); }

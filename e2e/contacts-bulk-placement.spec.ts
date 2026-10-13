@@ -58,6 +58,36 @@ test("Select beside the list's tools enters selection, and Done leaves it", asyn
   await expect(bar(page)).toHaveCount(0);
 });
 
+test("while selecting, \"Add phone or email\" is plain text and a row's checkbox shows its keyboard focus (D90)", async ({ page }) => {
+  // A person with neither a phone nor an email, for this test only.
+  const drew = await prisma.contact.create({ data: { workspaceId, displayName: "Drew Dale", firstName: "Drew" } });
+  try {
+    await page.goto("/contacts"); await ready(page);
+    const row = page.locator(".contact-select-row").filter({ hasText: "Drew Dale" });
+    const missing = row.locator(".contact-missing-method");
+    const style = () => missing.evaluate(element => ({ tag: element.tagName, color: getComputedStyle(element).color, weight: Number(getComputedStyle(element).fontWeight), line: getComputedStyle(element.parentElement!).color }));
+    await expect(missing).toHaveText("Add phone or email");
+    const link = await style();
+    await page.getByRole("button", { name: "Select", exact: true }).click();
+    const checkbox = page.getByRole("checkbox", { name: "Select Drew Dale", exact: true });
+    await expect(checkbox).toBeVisible();
+    // Outside selection it's the link to edit Drew; while selecting it's plain text in the line's own color and weight.
+    const plain = await style();
+    expect([link.tag, plain.tag]).toEqual(["A", "SPAN"]);
+    expect(plain.color).toBe(plain.line);
+    expect(plain.color).not.toBe(link.color);
+    expect(plain.weight).toBeLessThan(link.weight);
+    // The checkbox is transparent over its box, so the box shows where keyboard focus is.
+    const box = row.locator(".contact-select-control span");
+    expect(await box.evaluate(element => getComputedStyle(element).outlineStyle)).toBe("none");
+    await page.keyboard.press("Shift");
+    await checkbox.focus();
+    await expect.poll(() => box.evaluate(element => getComputedStyle(element).outlineStyle)).toBe("solid");
+  } finally {
+    await prisma.contact.deleteMany({ where: { id: drew.id } });
+  }
+});
+
 test("the No Mix strip selects this page and opens Add to a Mix, with no Mix chosen for the owner", async ({ page }) => {
   await page.goto("/contacts?mix=no-mix"); await ready(page);
   const strip = page.getByRole("group", { name: "3 people have No Mix." });
