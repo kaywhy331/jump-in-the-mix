@@ -152,10 +152,11 @@ test.describe("on a phone", () => {
     await card(page, id.gwenText).getByRole("button", { name: "Review message for Gwen Group: Text, 1 day overdue", exact: true }).click();
     await expect(openReview(page).locator(".review-also-due")).toHaveText("Also due: Call at 12:02 AM.");
     await record(page, openReview(page).getByRole("button", { name: "Mark sent for Gwen Group", exact: true }), id.gwenText);
-    // The call's own review opens next (D70), and with the text recorded it names nothing else.
+    // The call's own review opens next (D70). With the text recorded it names nothing else as due, and says Gwen was
+    // contacted today (D98).
     const callReview = card(page, id.gwenCall).locator(".follow-up-review-sheet[open]");
     await expect(callReview).toBeVisible();
-    await expect(callReview.locator(".review-also-due")).toHaveCount(0);
+    await expect(callReview.locator(".review-also-due")).toHaveText(["Contacted today"]);
     await expect(callReview.locator(`[data-follow-up-undo][data-jump-workflow="${id.gwenText}"]`)).toBeVisible();
     expect(await status(id.gwenCall)).toBe("PENDING");
   });
