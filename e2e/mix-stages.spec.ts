@@ -178,6 +178,78 @@ test("ticking Everyone on an active Mix that names a stage says who moves before
   expect(await Promise.all([...people, eve].map(async person => (await prisma.contactJourney.findUnique({ where: { contactId: person.id } }))?.stageId))).toEqual([lead.id, prospect.id, prospect.id]);
 });
 
+test("a tag added while a Mix is paused is reviewed when the Mix starts again, with the people Everyone takes in (D65, UX-09)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto("/settings/journey");
+  await page.getByRole("button", { name: "Use these starting stages", exact: true }).click();
+  await expect(page.getByText("Contact stages saved.")).toBeVisible();
+  const [lead, prospect] = await prisma.journeyStage.findMany({ where: { workspaceId }, orderBy: { position: "asc" } });
+  // Fay is in a stage and in the tag the owner adds while the Mix is paused. Sam was added before stages, has none and
+  // has no place in the Mix yet, so Everyone takes him in when it starts again (D66).
+  const fay = await prisma.contact.create({ data: { workspaceId, displayName: "Fay Referred" } });
+  await prisma.contactJourney.create({ data: { workspaceId, contactId: fay.id, stageId: lead.id } });
+  const referrals = await prisma.group.create({ data: { workspaceId, name: "Referrals" } });
+  await prisma.contactGroupMembership.create({ data: { contactId: fay.id, groupId: referrals.id } });
+  const sam = await prisma.contact.create({ data: { workspaceId, displayName: "Sam Restored", createdAt: new Date(Date.now() - 86_400_000) } });
+  const mix = await mixWithBeat("Monthly tips");
+  await prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED", audienceEveryone: true, stageId: prospect.id } });
+
+  // Adding the tag while the Mix stays paused moves no one yet.
+  await page.goto(`/mixes?mix=${mix.id}&view=edit`);
+  await page.locator("summary").filter({ hasText: "Name and start" }).click();
+  await expect(page.getByRole("combobox", { name: "After saving", exact: true })).toHaveValue("PAUSED");
+  await page.getByRole("checkbox", { name: /Referrals/ }).check();
+  await page.getByRole("button", { name: "Save Mix", exact: true }).click();
+  await expect(page.getByText("Mix saved.")).toBeVisible();
+  expect(await prisma.contactJourney.findUnique({ where: { contactId: fay.id } })).toMatchObject({ stageId: lead.id });
+
+  // The review preference is off for this owner, and Start Mix on the paused Mix still opens the review of turning it
+  // back on (#139's resume review), which names the tag added while paused and counts Fay and Sam.
+  await page.goto(`/mixes?mix=${mix.id}`);
+  await page.getByRole("button", { name: "Details", exact: true }).click();
+  await page.locator("summary").filter({ hasText: "Manage Mix" }).click();
+  await page.getByRole("button", { name: "Start Mix", exact: true }).click();
+  await page.getByRole("button", { name: "Review and turn on", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Turn this Mix back on?" });
+  await expect(dialog.getByText("It also starts the people in the tag added while it was paused.")).toBeVisible();
+  await expect(dialog.getByText("Turning it back on moves 2 people to Prospect, including 1 now in another stage. Pausing, removing or stopping the Mix doesn’t move them back.")).toBeVisible();
+  await capture(page, "stage-review-resume-390", "dialog[open]");
+  await dialog.getByRole("button", { name: "Turn it back on", exact: true }).click();
+  await expect(page.getByText("Mix saved.")).toBeVisible();
+  expect(await Promise.all([fay, sam].map(async person => (await prisma.contactJourney.findUnique({ where: { contactId: person.id } }))?.stageId))).toEqual([prospect.id, prospect.id]);
+});
+
+test("Remove on a paused Everyone Mix says it stops the Mix for the person, and Resume brings it back (D64, UX-10)", async ({ page }) => {
+  await page.setViewportSize({ width: 390, height: 844 });
+  // The Mix is paused: it still offers Resume once Rae is removed (UX-10).
+  const mix = await mixWithBeat("Monthly tips");
+  await prisma.mix.update({ where: { id: mix.id }, data: { audienceEveryone: true, status: "PAUSED" } });
+  const rae = await prisma.contact.create({ data: { workspaceId, displayName: "Rae Removed" } });
+  await prisma.mixAssignment.create({ data: { workspaceId, mixId: mix.id, contactId: rae.id, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${mix.id}:audience:${rae.id}`, startDate: new Date() } });
+
+  // The profile's Mixes section has a row per Mix with its own menu (D77, JITM-09 §2.32).
+  const row = page.getByRole("region", { name: "Mixes", exact: true }).getByRole("listitem").filter({ has: page.getByText("Monthly tips", { exact: true }) });
+  await page.goto(`/contacts/${rae.id}`);
+  await row.getByRole("button", { name: "Options for Monthly tips: Mix paused", exact: true }).click();
+  await page.getByRole("dialog", { name: "Monthly tips", exact: true }).getByRole("button", { name: "Remove from this Mix…", exact: true }).click();
+  const dialog = page.getByRole("dialog", { name: "Remove Rae Removed from Monthly tips?" });
+  await expect(dialog.getByText("This Mix is for Everyone, so removing stops it for Rae Removed: its follow-ups still to come are removed, and saving or starting the Mix again won’t add them back, but you can resume it here. Completed history stays.")).toBeVisible();
+  await capture(page, "remove-everyone-390", "dialog[open]");
+  await dialog.getByRole("button", { name: "Remove", exact: true }).click();
+  await expect(page.getByText("Mix removed.")).toBeVisible();
+  expect(await prisma.mixStop.count({ where: { workspaceId, mixId: mix.id, contactId: rae.id } })).toBe(1);
+
+  // The row reads Stopped, its menu says Resume gives Rae her place back once the paused Mix is on (UX-10, COPY-01), and
+  // Resume does.
+  await row.getByRole("button", { name: "Options for Monthly tips: Stopped", exact: true }).click();
+  const menu = page.getByRole("dialog", { name: "Monthly tips", exact: true });
+  await expect(menu.getByText("Stopped for Rae Removed when you removed them from this Mix for Everyone, so saving or starting it again won’t add them back. Resuming gives them their place in it back, and it prepares their follow-ups once the Mix is on.", { exact: true })).toBeVisible();
+  await menu.getByRole("button", { name: "Resume for Rae Removed", exact: true }).click();
+  await expect(page.getByText("Mix resumed. It isn’t on, so nothing is prepared until you turn it on.", { exact: true })).toBeVisible();
+  await expect(row).toContainText("Mix paused");
+  expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { assignmentKey: `${workspaceId}:${mix.id}:audience:${rae.id}` } })).isActive).toBe(true);
+});
+
 test("the stage choices fit 320px with 200% text and work from the keyboard (EVD-01)", async ({ page }) => {
   await page.setViewportSize({ width: 320, height: 700 });
   await page.addInitScript(() => document.addEventListener("DOMContentLoaded", () => { const style = document.createElement("style"); style.textContent = "html { font-size: 200% !important; }"; document.head.append(style); }));

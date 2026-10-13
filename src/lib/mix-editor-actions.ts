@@ -1,7 +1,6 @@
 "use server";
 
 import { activeMixLimitRefusal } from "@/lib/plan-limits";
-import { peopleInMixByOtherRoutes } from "@/lib/new-contact-placement";
 import { randomUUID } from "node:crypto";
 import { MAX_STEP_OFFSET_DAYS, validateStepTiming } from "@/lib/step-timing";
 import type { Channel, MixStatus, MixTriggerMode } from "@/generated/prisma/client";
@@ -17,7 +16,7 @@ import { prisma } from "@/lib/prisma";
 import { readWorkflowDefinition, saveWorkflowConfiguration } from "@/lib/mix-workflow";
 import { refreshSharesOf } from "@/lib/marketplace-service";
 import { startDraftMix } from "@/lib/mix-start";
-import { audienceStarts, setStagesFromMixStarts } from "@/lib/mix-stage";
+import { audienceStarts, peopleInMixByOtherRoutes, setStagesFromMixStarts } from "@/lib/mix-stage";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { UserFacingError } from "@/lib/user-facing-error";
@@ -239,13 +238,15 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   const assignAllContacts = formData.get("assignAllContacts") === "on";
   // A save that starts people on a Mix that names a Contact stage moves them to that stage, so it is reviewed first
   // whatever the review preference says: turning the Mix on starts its whole audience (UX-01), and on one already on,
-  // ticking Everyone or adding a tag starts everyone they cover (UX-02).
+  // ticking Everyone or adding a tag starts everyone they cover (UX-02). Turning a paused one back on starts the tags
+  // added while it was paused, after the same review (D65).
   const turningOn = status === "ACTIVE" && (!existingMix || existingMix.status === "DRAFT");
   const resuming = status === "ACTIVE" && existingMix?.status === "PAUSED";
   const activeAssignments = (existingMix?.assignments ?? []).filter((assignment) => assignment.isActive);
   const hadEveryone = Boolean(existingMix?.audienceEveryone || activeAssignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:")));
-  const widens = status === "ACTIVE" && ((assignAllContacts && !hadEveryone) || groupIds.some((groupId) => !activeAssignments.some((assignment) => assignment.groupId === groupId)));
-  if ((turningOn ? assignAllContacts || groupIds.length > 0 : widens) && (stageId === undefined ? existingMix?.stageId : stageId) && value(formData, "activationConfirmed", 4) !== "1") fail(path, turningOn ? "Review who moves to the Mix’s stage before turning it on." : "Review who moves to the Mix’s stage before adding them.", session);
+  const addedWhilePaused = (groupId: string) => resuming && activeAssignments.some((assignment) => assignment.groupId === groupId && assignment.addedWhilePaused);
+  const widens = status === "ACTIVE" && ((assignAllContacts && !hadEveryone) || groupIds.some((groupId) => !activeAssignments.some((assignment) => assignment.groupId === groupId) || addedWhilePaused(groupId)));
+  if ((turningOn ? assignAllContacts || groupIds.length > 0 : widens) && (stageId === undefined ? existingMix?.stageId : stageId) && value(formData, "activationConfirmed", 4) !== "1") fail(path, turningOn ? "Review who moves to the Mix’s stage before turning it on." : resuming ? "Review who moves to the Mix’s stage before turning it back on." : "Review who moves to the Mix’s stage before adding them.", session);
   // Changing when a Mix that is on starts reschedules everyone it covers: "When I start it" starts them all at once, and a
   // new date or trigger moves their follow-ups (MIX-03).
   const retriggers = status === "ACTIVE" && (existingMix?.status === "ACTIVE" || existingMix?.status === "PAUSED") && !afterMix && (assignAllContacts || groupIds.length > 0)
@@ -269,7 +270,6 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
     ? (await prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null }, select: { id: true } })).map((contact) => contact.id)
     : [];
   const mixId = existingMix?.id ?? randomUUID();
-  const existingAssignmentByKey = new Map((existingMix?.assignments ?? []).map((assignment) => [assignment.assignmentKey, assignment]));
   const now = new Date();
   const durationDays = Math.max(...parsedOffsets) - Math.min(...parsedOffsets);
 
@@ -283,6 +283,9 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
         const current = await tx.mix.findUnique({ where: { id: mixId }, select: { updatedAt: true } });
         if (!current || current.updatedAt.getTime() !== Date.parse(openedAt)) throw new MixChangedElsewhere(MIX_CHANGED_ELSEWHERE);
       }
+      // The Mix's places as they are now, under the lock, so a Remove that finished after the editor's read stays a
+      // removal (LCK-04).
+      const existingAssignmentByKey = new Map((existingMix ? await tx.mixAssignment.findMany({ where: { workspaceId: workspace.id, mixId, mode: "DYNAMIC" } }) : []).map((assignment) => [assignment.assignmentKey, assignment]));
       if (status === "ACTIVE") {
         const limit = await activeMixLimitRefusal(workspace.id, existingMix ? { mixIds: [mixId] } : { newUnits: 1 }, tx);
         if (limit) throw new UserFacingError(limit);
@@ -368,27 +371,38 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
 
       await tx.mixAssignment.updateMany({ where: { workspaceId: workspace.id, mixId, mode: "DYNAMIC" }, data: { isActive: false } });
       // The Mix starts at this save for the people its audience newly takes in, or for all of them when the save turns
-      // on a draft. Resuming a paused Mix starts no one again.
+      // on a draft. Resuming a paused Mix starts no one again, apart from the tags added while it was paused (D65) and
+      // the people Everyone takes in then.
       const starting: string[] = [];
       for (const groupId of groupIds) {
         const assignmentKey = `${workspace.id}:${mixId}:group:${groupId}`;
         const existing = existingAssignmentByKey.get(assignmentKey);
         const startDate = triggerMode === "MANUAL_START" ? freshStart ? now : existing?.startDate ?? now : null;
-        const saved = await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, groupId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
-        if (turningOn || !existing?.isActive) starting.push(saved.id);
+        // A tag added by a save that leaves the Mix paused starts its members when the Mix is turned back on, and moves
+        // them to its stage then (D65). Another save of the paused Mix keeps the mark; any other save of the tag clears it,
+        // so a mark left from before the Mix last ran (after a rollback, RBK-01) never survives a pause.
+        const added = !existing?.isActive;
+        const pausedAddition = status === "PAUSED" && (added || (existingMix?.status === "PAUSED" && Boolean(existing?.addedWhilePaused)));
+        const saved = await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, groupId, mode: "DYNAMIC", startDate, addedWhilePaused: pausedAddition }, update: { isActive: true, startDate, mode: "DYNAMIC", addedWhilePaused: pausedAddition } });
+        if (turningOn || added || addedWhilePaused(groupId)) starting.push(saved.id);
       }
       // Resuming leaves out people in the Mix by another route, as the placement does (UX-04, UX-06).
       const elsewhere = resuming && hadEveryone ? await peopleInMixByOtherRoutes(tx, workspace.id, mixId) : new Set<string>();
+      // Someone stopped in the Mix, such as someone the owner removed from Everyone, gets no place back (D64).
+      const stopped = assignAllContacts && existingMix ? new Set((await tx.mixStop.findMany({ where: { workspaceId: workspace.id, mixId }, select: { contactId: true } })).map((stop) => stop.contactId)) : new Set<string>();
       for (const contactId of allContactIds) {
         const assignmentKey = `${workspace.id}:${mixId}:audience:${contactId}`;
         const existing = existingAssignmentByKey.get(assignmentKey);
+        // A paused Everyone Mix takes in no newcomers, even from a save: they get their place when it is turned back on
+        // (D63, D58).
+        if (status === "PAUSED" && hadEveryone && !existing) continue;
+        if (stopped.has(contactId) && !existing?.isActive) continue;
         const startDate = triggerMode === "MANUAL_START" ? freshStart ? now : existing?.startDate ?? now : null;
         const saved = await tx.mixAssignment.upsert({ where: { assignmentKey }, create: { assignmentKey, workspaceId: workspace.id, mixId, contactId, mode: "DYNAMIC", startDate }, update: { isActive: true, startDate, mode: "DYNAMIC" } });
         // Only a save that turns the Mix on or newly ticks Everyone starts Everyone, as its review says. Resuming a paused
         // one starts the people it had no place for and who aren't in it by another route (a tag, their own start, a
-        // visit or a Journey run), as Resume on the Mixes list does. A "Keep paused" save gives the people added during the
-        // pause a place, so a resume after one doesn't move them (UX-04; D63 will stop that save placing them). Re-saving an Everyone Mix re-syncs its
-        // places, and that moves no one: not someone the owner removed, nor someone another route put in it (UX-03).
+        // visit or a Journey run), as Resume on the Mixes list does. Re-saving an Everyone Mix re-syncs its places, and
+        // that moves no one: not someone another route put in it (UX-03).
         if (turningOn || (!hadEveryone && !existing?.isActive) || (resuming && !existing && !elsewhere.has(contactId))) starting.push(saved.id);
       }
       // A Mix that names a Contact stage sets it for the people it starts now (JITM-09 §2.79); changing the stage

@@ -15,6 +15,7 @@ import { processWorkflowInstance, startWorkflowInstance } from "../src/lib/mix-w
 import { installMegaMix } from "../src/lib/mega-mix-service";
 import { initialJourneySetup } from "../src/lib/journey-preferences";
 import { resumeMixForContactAction, stopMixForContactAction } from "../src/lib/mix-stop-actions";
+import { removeMixAssignmentAction } from "../src/lib/contact-mix-actions";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 const day = 86_400_000;
@@ -102,6 +103,37 @@ describe.skipIf(!local).sequential("Stop and Resume for one person", () => {
     // automatic delivery passes over manual-only rows (src/lib/automatic-delivery.ts). The later Beat sends as before.
     const flags = await prisma.jump.findMany({ where: { workspaceId, contactId: someone, status: "PENDING" }, orderBy: { scheduledAt: "asc" }, select: { scheduledAt: true, manualOnly: true } });
     expect(flags.map(row => [row.scheduledAt < new Date(), row.manualOnly])).toEqual([[true, true], [false, false]]);
+  });
+
+  it("keeps a due Beat that Resume brings back after a Remove from Everyone out of automatic sending (SEND-03, D87)", async () => {
+    // A date-based Mix for Everyone: its Beats follow the person's date, not their place's start, so Resume brings back
+    // the run that Remove ended, with its dates. Remove is a stop by every route (D64), so that run ends as the stop's.
+    const dateType = await prisma.dateType.create({ data: { workspaceId, scopeKey: workspaceId, name: `Move-in ${suffix}`, slug: `move-in-${suffix}` } });
+    const template = await prisma.stepTemplate.create({ data: { workspaceId, name: `Move-in text ${suffix}`, channel: "SMS", versions: { create: { version: 1, body: "Settling in?" } } }, include: { versions: true } });
+    const mix = await prisma.mix.create({ data: { workspaceId, name: `Move-in note ${suffix}`, status: "ACTIVE", triggerMode: "DATE_TRIGGERED", dateTypeId: dateType.id, audienceEveryone: true } });
+    await prisma.mixStep.create({ data: { mixId: mix.id, stepVersionId: template.versions[0].id, dayOffset: 0, sortOrder: 1 } });
+    const mover = await person("Mover");
+    // Moved in two days ago, so the Beat on the day is two days late.
+    const movedIn = new Date(Date.now() - 2 * day).toISOString().slice(0, 10);
+    await prisma.jumpDate.create({ data: { workspaceId, contactId: mover, dateTypeId: dateType.id, timezone: "UTC", recurrence: "NONE", dateValue: new Date(`${movedIn}T12:00:00Z`) } });
+    const place = await prisma.mixAssignment.create({ data: { workspaceId, mixId: mix.id, contactId: mover, mode: "DYNAMIC", assignmentKey: `${workspaceId}:${mix.id}:audience:${mover}`, startDate: null } });
+    await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId: mover, mixId: mix.id } } });
+    await prepareQueued();
+    const before = await pending(mover);
+    expect(before).toHaveLength(1);
+    expect(before[0].scheduledAt.getTime()).toBeLessThan(Date.now());
+    expect((await redirected(removeMixAssignmentAction(fields({ assignmentId: place.id, contactId: mover })))).search).toBe("?mixRemoved=1");
+    expect(await pending(mover)).toEqual([]);
+    expect(await prisma.jump.findUniqueOrThrow({ where: { id: before[0].id }, select: { completionMethod: true } })).toEqual({ completionMethod: "mix_stopped_for_contact" });
+    // While stopped, a preparation pass brings nothing back.
+    await prisma.job.create({ data: { workspaceId, task: "generate-jumps", payload: { contactId: mover, mixId: mix.id } } });
+    await prepareQueued();
+    expect(await pending(mover)).toEqual([]);
+    expect((await resume(mover, mix.id)).search).toBe("?mixResumed=1");
+    await prepareQueued();
+    // The Beat comes back with its date, for the owner to send or skip on Today: automatic delivery passes over
+    // manual-only rows (src/lib/automatic-delivery.ts), as after Stop then Resume.
+    expect(await prisma.jump.findMany({ where: { workspaceId, contactId: mover, status: "PENDING" }, select: { id: true, scheduledAt: true, manualOnly: true } })).toEqual([{ ...before[0], manualOnly: true }]);
   });
 
   it("brings back the Beats a tag runs for them", async () => {
