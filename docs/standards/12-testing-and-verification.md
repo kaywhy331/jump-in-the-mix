@@ -180,6 +180,7 @@ A fifth class, intermittent: a failure that both fails and passes when rerun alo
   - `staff-permissions.spec.ts:64` under CI's MFA-off group (`:341`);
   - the `staff-access` bootstrap tests on a shared database (§2.16);
   - `mega-mix-pipelines` phone screenshot timeout (`docs/APPEARANCE_INVITATIONS_RELEASE_2026-09-27.md:38`).
+- **A failure seen only in batch (STD-02).** #151's docking race never failed alone, yet failed in 2 of 11 batch runs on the candidate against 0 of 9 on the base, and #151 counted it as new. §2.14 calls a failure that passes every time alone order-dependent, which doesn't block. Should one that fails more often in batch on the candidate count as new? Question for Kevin.
 - The hosted load-fixture suite exits at start on the local build host, for environmental reasons (`docs/BETA_READINESS_AUDIT_2026-09-26.md:347`).
 
 ## 7. Changelog
@@ -187,4 +188,4 @@ A fifth class, intermittent: a failure that both fails and passes when rerun alo
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.19 confirmed, with the check before committing evidence (D25); §6 updated for D13.
 - 2.0.0 — 2026-10-12 — Base 4e78545. §2.14 changes meaning: a fifth class, intermittent (both fails and passes when rerun alone on the same build), told apart from an order-dependent failure by two reruns alone on each build, then run alone five times on each build; one that fails more often on the candidate counts as new and blocks, since nothing new may fail. This addition is D101, tagged [PROPOSED] until Kevin confirms it; steps 1–5 and the D5 gate are unchanged.
-- 2.0.1 — 2026-10-13 — Base 4d5c307. §2.14's intermittent class is Kevin's (D101).
+- 2.0.1 — 2026-10-13 — Base 4d5c307. §2.14's intermittent class is Kevin's (D101). §6 asks how a failure seen only in batch counts (#151's docking race).
