@@ -342,29 +342,29 @@ test.describe("live outcome updates", () => {
     } finally { release(); }
   });
 
-  test("a record reopened elsewhere before refresh does not remain hidden", async ({ page }) => {
-    await page.clock.install(); await visit(page, "/jumps?status=pending");
-    let refreshes = 0;
-    let refreshedBody: string | undefined;
+  test("a record reopened elsewhere after its outcome comes back on the next read", async ({ page }) => {
+    await visit(page, "/jumps?status=pending");
     // Keep the server response before passing it to Next's streaming reader.
     // Chromium can release the consumed body before response.text() reads it.
+    let refreshedBody: string | undefined;
     await page.route("**/jumps**", async route => {
       if (!isRefresh(route.request())) return route.continue();
       const response = await route.fetch();
       refreshedBody = await response.text();
       await deliverFetched(route, response);
     });
-    page.on("request", request => { if (new URL(request.url()).pathname === "/jumps" && isRefresh(request)) refreshes++; });
+    const outcomeRead = page.waitForResponse(response => new URL(response.url()).pathname === "/jumps" && isRefresh(response.request()));
     await markDone(page, smsIds[0]);
     await expect(undoFor(page, smsIds[0])).toBeVisible();
+    // The list reads again at once, with the Undo still on screen (D99): nothing holds it.
+    expect((await outcomeRead).status()).toBe(200);
+    await expect(page.locator(`#jump-${smsIds[0]}`)).toHaveCount(0);
+    await expect(undoFor(page, smsIds[0])).toBeVisible();
+    // Reopened elsewhere afterwards, the follow-up comes back on the next read, with its new revision.
     const reopened = await prisma.jump.update({ where: { id: smsIds[0] }, data: { status: "PENDING", completedAt: null, completionMethod: null } });
-    // Starting a read before React commits Undo can buffer a stale completion
-    // and incorrectly acknowledge the outcome before this reopening.
-    expect(refreshes).toBe(0);
-    const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === "/jumps" && isRefresh(response.request()));
-    await page.clock.runFor(10_500);
-    const response = await refreshed;
-    expect(response.status()).toBe(200);
+    const nextRead = page.waitForResponse(response => new URL(response.url()).pathname === "/jumps" && isRefresh(response.request()));
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    expect((await nextRead).status()).toBe(200);
     expect(refreshedBody).toContain(`"revision":"${reopened.updatedAt.toISOString()}"`);
     await expect(page.locator(`#jump-${smsIds[0]}`)).toBeVisible();
     await expect(page.locator(".jump-card")).toHaveCount(30);
