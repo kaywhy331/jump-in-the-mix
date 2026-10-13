@@ -108,8 +108,10 @@ test("skipping the earlier one leaves the later one in place as the person's car
   await expect.poll(() => status(id.gwenText)).toBe("SKIPPED");
   const call = card(page, id.gwenCall);
   // A quick action from the list opens no review (D70); the call now leads Gwen's card, under Today, with its heading.
-  await expect(gwen(page).locator("[data-jump-workflow]")).toHaveCount(1);
-  await expect(gwen(page).locator(".follow-up-review-sheet[open]")).toHaveCount(0);
+  // The list reads again at once (D99), and a card with one follow-up is no group, so it's found by its section.
+  await expect(cardIn(page, "today", id.gwenCall)).toBeVisible();
+  await expect(page.locator(`[data-today-section] [data-jump-workflow="${id.gwenText}"]:not([data-follow-up-undo])`)).toHaveCount(0);
+  await expect(cardIn(page, "today", id.gwenCall).locator(".follow-up-review-sheet[open]")).toHaveCount(0);
   await expect(call.getByRole("heading", { name: "Gwen Group" })).toBeVisible();
   await expect(call.locator(".jump-also-due-row")).toBeHidden();
   await expect(call.getByRole("button", { name: /^Skip this/ })).toHaveCount(0);
