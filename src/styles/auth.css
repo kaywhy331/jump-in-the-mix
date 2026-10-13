@@ -89,6 +89,9 @@
 .onboarding-one-person .form-grid.onboarding-pair > .field.full { grid-column: 1 / -1; }
 @media (min-width: 601px) { .onboarding-one-person .form-grid.onboarding-pair { grid-template-columns: repeat(2, minmax(0, 1fr)); } }
 @media (max-width: 600px) { .first-win-onboarding h1 { font-size: 1.75rem; } .onboarding-one-person .onboarding-step-card { gap: 10px; padding: 12px; } .onboarding-one-person.form-stack { gap: 12px; } }
+/* At 400px and under, the card and its sections give side padding to the fields, so a reason's whole label shows in the
+   closed drop-down at 320px (D93): "Someone who went quiet" needs 186px. */
+@media (max-width: 400px) { .first-win-onboarding.onboarding-card { padding-inline: 12px; } .onboarding-one-person .onboarding-step-card { padding-inline: 8px; } }
 /* The timezone on one line: its label, the city and Change. */
 .first-win-onboarding .onboarding-timezone .timezone-current { display: grid; grid-template-columns: minmax(0, 1fr) auto; align-items: center; gap: 8px; min-height: 48px; padding-block: 2px; }
 .onboarding-timezone .timezone-current > span { display: flex; flex-wrap: wrap; align-items: baseline; column-gap: 6px; min-width: 0; }
