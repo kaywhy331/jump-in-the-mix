@@ -312,10 +312,12 @@ export async function removeMixAssignmentAction(formData: FormData): Promise<voi
     }
     await tx.mixAssignment.update({ where: { id: assignment.id }, data: { isActive: false } });
     // The run's follow-ups still to come end now, cancelled as reconciled as the scheduler's next pass would have
-    // done, so that pass brings back any row another enrollment of the person still wants.
+    // done, so that pass brings back any row another enrollment of the person still wants. Removing an Everyone place
+    // is a stop by every route (D64), so its run ends as the stop's: only Resume hands those rows back, and it keeps
+    // the ones already due out of automatic sending (D87, SEND-03).
     await tx.jump.updateMany({
       where: { workspaceId: workspace.id, mixId: assignment.mixId, contactId, status: "PENDING", workflowManaged: false, appointmentBindingId: assignment.appointmentBinding?.id ?? null, ...occurrenceIn(keys.beats) },
-      data: { status: "CANCELED", completedAt: null, completionMethod: "reconciled" }
+      data: { status: "CANCELED", completedAt: null, completionMethod: everyonePlace ? "mix_stopped_for_contact" : "reconciled" }
     });
     // Its Journey record's run ends too, so Today, the morning email and Journey People don't ask about those Beats
     // and the record keeps no plan place; a later start of the same Mix and day picks it back up.
