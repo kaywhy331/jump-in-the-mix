@@ -28,3 +28,15 @@ export function contactMethodsHint(firstChannel: string | null): string {
   if (firstChannel === "PHONE_CALL") return "A call needs a phone number. You can add it later.";
   return "A text needs a mobile number. You can add it later.";
 }
+
+/** The general reasons' names before D93, which a setup form opened before the change can still send. */
+const EARLIER_REASONS: Record<string, string> = {
+  "Follow up about an estimate or quote": "An estimate or quote",
+  "Reconnect with someone who went quiet": "Someone who went quiet",
+  "Check in after the job": "After the job"
+};
+
+/** A reason as setup offers it now: an earlier name becomes its short label, so an older form still starts (D93). */
+export function currentReason(reason: string): string {
+  return EARLIER_REASONS[reason] ?? reason;
+}

@@ -2,7 +2,7 @@ import { describe, expect, it } from "vitest";
 import { renderJumpSnapshot } from "../src/lib/jump-render";
 import { journeyStartReasons, starterPlanForJourneyStart, starterPlanForReason } from "../src/lib/journey-starts";
 import { megaMixById } from "../src/lib/mega-mixes";
-import { contactMethodsHint, onboardingReasons } from "../src/lib/onboarding-options";
+import { contactMethodsHint, currentReason, onboardingReasons } from "../src/lib/onboarding-options";
 import { validateLibraryContent } from "../src/lib/library-content";
 import { normalizeSharedMixSteps } from "../src/lib/shared-mix";
 
@@ -94,5 +94,17 @@ describe("setup's contact hint (D103)", () => {
     expect(contactMethodsHint("PHONE_CALL")).toBe("A call needs a phone number. You can add it later.");
     // Real estate's contract update begins with an email, the case #145's COPY-01 (b) found.
     expect(starterPlanForReason("Real estate", "Update a client who is under contract").steps[0].channel).toBe("EMAIL");
+  });
+});
+
+describe("setup's earlier reason names (D93)", () => {
+  it("still start: each becomes its short label, which setup offers and which prepares the same starter", () => {
+    const offered = onboardingReasons(["business"], "Home services");
+    for (const [earlier, short] of [["Follow up about an estimate or quote", "An estimate or quote"], ["Reconnect with someone who went quiet", "Someone who went quiet"], ["Check in after the job", "After the job"]]) {
+      expect(currentReason(earlier)).toBe(short);
+      expect(offered).toContain(currentReason(earlier));
+      expect(starterPlanForReason("Home services", earlier).title).toBe(starterPlanForReason("Home services", short).title);
+    }
+    expect(currentReason("Ask for a review")).toBe("Ask for a review");
   });
 });
