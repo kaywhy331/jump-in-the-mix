@@ -4,10 +4,10 @@ import { startTransition, useCallback, useEffect, useLayoutEffect, useRef, useSt
 import { useRouter } from "next/navigation";
 import { todayUpdateBlocker } from "@/lib/today-update-state";
 
-type UpdateState = "draft" | "undo" | "offline" | "refreshing" | "retry" | null;
+type UpdateState = "draft" | "offline" | "refreshing" | "retry" | null;
 
-/** Retain the committed list while an edit or Undo is active, even if a server
- * response was already in flight when the owner started interacting. */
+/** Retain the committed list while the owner edits a message or keeps a draft, even if a server response was already in
+ * flight when they started (JITM-08 §2.33). An Undo doesn't hold it: confirmations sit outside the list (D99). */
 export function useTodayUpdates(children: ReactNode, viewKey: string, root: RefObject<HTMLDivElement | null>) {
   const router = useRouter();
   const [shown, setShown] = useState({ children, viewKey });
@@ -22,7 +22,10 @@ export function useTodayUpdates(children: ReactNode, viewKey: string, root: RefO
     if (incoming.current === committed.current) return;
     if (incoming.current.viewKey === committed.current.viewKey && root.current && todayUpdateBlocker(root.current)) return;
     committed.current = incoming.current;
-    setShown(incoming.current);
+    // As a transition, so React keeps the list on screen while the new one renders, instead of hiding it for a moment:
+    // hiding would drop the focus and scroll of a review open in it (D99, JITM-08 §2.33).
+    const next = incoming.current;
+    startTransition(() => setShown(next));
   }, [root]);
 
   useLayoutEffect(() => {
@@ -66,7 +69,7 @@ export function useTodayUpdates(children: ReactNode, viewKey: string, root: RefO
       if (!detail?.jumpId || !["PENDING", "DONE", "SKIPPED"].includes(detail.status ?? "")) return;
       changed.current = true; version.current++;
       if (flight.current?.failed) { flight.current = null; clearTimeout(timeout.current); }
-      // Let the outcome component commit its Undo marker first.
+      // After the event's other listeners have committed.
       schedule();
     };
     const onWorkflow = () => { changed.current = true; version.current++; schedule(); };
@@ -76,7 +79,7 @@ export function useTodayUpdates(children: ReactNode, viewKey: string, root: RefO
     check.current = schedule;
     const observer = new MutationObserver(schedule);
     observer.observe(document.documentElement, { subtree: true, childList: true, attributes: true,
-      attributeFilter: ["data-follow-up-draft", "data-follow-up-editing", "data-follow-up-undo", "inert"] });
+      attributeFilter: ["data-follow-up-draft", "data-follow-up-editing", "inert"] });
     window.addEventListener("jitm:jump-state", onOutcome);
     window.addEventListener("online", schedule);
     document.addEventListener("visibilitychange", schedule);

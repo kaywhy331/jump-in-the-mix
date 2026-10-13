@@ -4,6 +4,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { createContext, useContext, useEffect, useId, useRef, useState, type ReactNode } from "react";
 import { useTodayUpdates } from "@/components/useTodayUpdates";
+import { FollowUpConfirmations } from "@/components/JumpWorkflow";
 import { openSheet } from "@/lib/sheet-layout";
 import { AppIcon } from "@/components/AppIcon";
 
@@ -28,6 +29,16 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
   const [destination, setDestination] = useState<string | null>(null);
   const titleId = useId(), descriptionId = useId();
   const { content, updateState, retry } = useTodayUpdates(children, viewKey, root);
+  // A read follows every outcome (D99), and most land within a second. Saying "Updating your follow-up list…" only for a
+  // slower one keeps the list from moving down and back after each outcome, and screen readers from hearing it each time.
+  const [slowRead, setSlowRead] = useState(false);
+  useEffect(() => {
+    setSlowRead(false);
+    if (updateState !== "refreshing") return;
+    const timer = setTimeout(() => setSlowRead(true), 1_000);
+    return () => clearTimeout(timer);
+  }, [updateState]);
+  const notice = updateState === "refreshing" && !slowRead ? null : updateState;
   const blocked = (href: string) => {
     if (!root.current?.querySelector('[data-follow-up-draft="true"]')) return false;
     setDestination(href);
@@ -101,13 +112,15 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     {/* Confirmations go in the inner list, and an end-of-Mix question after it, so the order on screen is also the order
         for keyboard and screen-reader users (A11Y-03). */}
     <div id="follow-up-confirmations" className="follow-up-confirmations" aria-label="Recent follow-up results"><div id="follow-up-undos" className="follow-up-undos" /></div>
-    {updateState && updateState !== "undo" && <aside className="notice info" aria-label="Today updates" data-today-notice={updateState === "refreshing" ? undefined : true}>
-      <p role="status">{updateState === "draft" ? "There are updates for this list. Finish or discard your message edits to show them."
-        : updateState === "offline" ? "Your progress is saved. Reconnect to update this list."
-        : updateState === "retry" ? "Your progress is saved. We couldn’t update this list. Try again when you’re ready."
+    {/* Outside the list, so a fresh read of it never takes a confirmation or its Undo away (D99). */}
+    <FollowUpConfirmations />
+    {notice && <aside className="notice info" aria-label="Today updates" data-today-notice={notice === "refreshing" ? undefined : true}>
+      <p role="status">{notice === "draft" ? "There are updates for this list. Finish or discard your message edits to show them."
+        : notice === "offline" ? "Your progress is saved. Reconnect to update this list."
+        : notice === "retry" ? "Your progress is saved. We couldn’t update this list. Try again when you’re ready."
         : "Updating your follow-up list…"}</p>
-      {updateState === "draft" && <button className="button" type="button" onClick={keepEditing}>Return to message edits</button>}
-      {updateState === "retry" && <button className="button" type="button" onClick={retry}>Update list</button>}
+      {notice === "draft" && <button className="button" type="button" onClick={keepEditing}>Return to message edits</button>}
+      {notice === "retry" && <button className="button" type="button" onClick={retry}>Update list</button>}
     </aside>}
     {content}
     <div className="today-review-placeholder"><h2>One conversation at a time.</h2><p>Choose a follow-up to review its message and next step.</p></div>

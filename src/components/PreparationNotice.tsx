@@ -11,7 +11,7 @@ import styles from "./PreparationNotice.module.css";
 export function PreparationNotice({ initial, contactId, canRetry = true, deferWhileEditing = false }: { initial: PreparationStatus; contactId?: string; canRetry?: boolean; deferWhileEditing?: boolean }) {
   const router = useRouter();
   const [ready, setReady] = useState(false);
-  const [deferred, setDeferred] = useState<"draft" | "undo" | null>(null);
+  const [deferred, setDeferred] = useState<"draft" | null>(null);
   const [status, setStatus] = useState(initial);
   const [attempt, setAttempt] = useState({ number: 0, retry: false });
   const [error, setError] = useState("");
@@ -94,7 +94,7 @@ export function PreparationNotice({ initial, contactId, canRetry = true, deferWh
       startTransition(() => router.refresh());
     };
     const observer = new MutationObserver(update);
-    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-follow-up-draft", "data-follow-up-editing", "data-follow-up-undo"] });
+    observer.observe(document.body, { subtree: true, childList: true, attributes: true, attributeFilter: ["data-follow-up-draft", "data-follow-up-editing"] });
     update();
     return () => observer.disconnect();
   }, [deferred, router]);
@@ -113,7 +113,7 @@ export function PreparationNotice({ initial, contactId, canRetry = true, deferWh
     : status.state === "failed" ? "Follow-ups need another try"
     : status.state === "delayed" ? "Follow-ups are taking longer to prepare"
     : "Preparing your follow-ups…";
-  const description = error || (deferred === "draft" ? "Finish or discard your message edits to show the updated list. Your draft stays here." : deferred === "undo" ? "Your list will update when the Undo time finishes."
+  const description = error || (deferred === "draft" ? "Finish or discard your message edits to show the updated list. Your draft stays here."
     : complete ? "Your latest saved changes have been checked."
     : status.state === "failed" ? "Your changes are saved. Try preparing follow-ups again for your business."
     : status.state === "delayed" ? "Your changes are saved. You can keep working and check again shortly."
@@ -121,7 +121,7 @@ export function PreparationNotice({ initial, contactId, canRetry = true, deferWh
   return <aside className={`notice ${complete ? "success" : "info"} ${styles.notice}`} aria-label="Follow-up preparation">
     <div role="status" aria-live="polite" aria-atomic="true"><strong>{title}</strong><p>{description}</p></div>
     <div className={styles.actions}>
-      {deferred === "undo" ? null : deferred === "draft" ? <button type="button" className="button small" onClick={returnToDraft}>Return to draft</button>
+      {deferred === "draft" ? <button type="button" className="button small" onClick={returnToDraft}>Return to draft</button>
         : complete ? <button type="button" className="button small" onClick={() => setDismissed(true)}>Dismiss</button>
         : <>
           {signedOut && <Link className="button small" href="/login" target="_blank" rel="noopener noreferrer">Sign in in a new tab</Link>}

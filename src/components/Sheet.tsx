@@ -82,6 +82,9 @@ export function Sheet({
     // an editor mounted preserves its draft; it must not reopen a closed sheet.
     if (mounted && !openedOnce.current) {
       openedOnce.current = true;
+      // Docking the first follow-up's review was decided after mounting, while the pane was free. A review the owner
+      // opened since then keeps the pane: this one stays closed rather than close theirs.
+      if (!requestedOpen.current && docked && document.querySelector(".follow-up-review-sheet[open]")) return;
       show(!requestedOpen.current);
     }
   }, [mounted]);

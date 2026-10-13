@@ -2,8 +2,8 @@
 import { AppIcon } from "@/components/AppIcon";
 import { WorkflowChoicesStatus, WorkflowOutcomeFields, useWorkflowChoices } from "@/components/WorkflowOutcomeFields";
 
-import type { ReactNode } from "react";
-import { useEffect, useLayoutEffect, useMemo, useRef, useState } from "react";
+import type { ReactNode, Ref } from "react";
+import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, useSyncExternalStore } from "react";
 import { createPortal, flushSync } from "react-dom";
 import styles from "@/components/JumpWorkflow.module.css";
 import { useBrowserScope } from "@/components/BrowserAccountBoundary";
@@ -77,7 +77,7 @@ const UNREACHED_OUTCOMES = new Set<Outcome>(["NO_ANSWER", "WRONG_NUMBER"]);
 
 type SaveResult =
   | { recorded: true; response: OutcomeResponse }
-  | { recorded: false; status: "DONE" | "SKIPPED" };
+  | { recorded: false; status: "DONE" | "SKIPPED" | "PENDING" };
 
 /** Outcomes that finish the follow-up. A retry that finds it already finished counts as recorded, not as an error. */
 const FINISHING_OUTCOMES: ReadonlySet<Outcome> = new Set<Outcome>(["COMPLETED", "CONNECTED", "LEFT_VOICEMAIL", "NO_ANSWER", "WRONG_NUMBER", "RESCHEDULED", "SKIPPED"]);
@@ -118,8 +118,8 @@ export function outcomeRequestKey(jumpId: string, outcome: Outcome, details: Out
   return `${jumpId}:${outcome}:${stableHash(details)}${attemptId ? `:${attemptId}` : ""}`;
 }
 
-function alreadyRecordedCopy(status: "DONE" | "SKIPPED"): string {
-  return status === "SKIPPED" ? "Already skipped." : "Already marked done.";
+function alreadyRecordedCopy(status: "DONE" | "SKIPPED" | "PENDING"): string {
+  return status === "PENDING" ? "Already reopened." : status === "SKIPPED" ? "Already skipped." : "Already marked done.";
 }
 
 type OutcomeRequestIds = {
@@ -178,9 +178,8 @@ function formatNextFollowUp(value: string): string {
 }
 
 function dispatchJumpState(detail: JumpStateDetail): void {
-  // Refresh observers must see the committed Undo control before their queued
-  // checks run. An async outcome event otherwise leaves a gap before React
-  // paints, allowing an early read to become stale during the Undo window.
+  // Listeners' updates commit before this returns, so the card has left the list and its confirmation and Undo are on
+  // screen when the caller moves focus (A11Y-02).
   flushSync(() => {
     window.dispatchEvent(new CustomEvent<JumpStateDetail>("jitm:jump-state", { detail }));
   });
@@ -189,7 +188,8 @@ function dispatchJumpState(detail: JumpStateDetail): void {
 // The request id belongs to the logical attempt, not the call: a retry after a lost answer sends
 // the same id and gets the stored outcome back instead of a "no longer pending" refusal. When a
 // finishing outcome meets a follow-up that is already finished under another id, the caller learns
-// that instead of an error and moves the card on; nothing is then called "saved".
+// that instead of an error and moves the card on; nothing is then called "saved". So does an Undo or
+// Reopen that meets one already reopened, in another tab or on another device (UND-01).
 async function saveOutcome(
   jumpId: string,
   outcome: Outcome,
@@ -205,10 +205,96 @@ async function saveOutcome(
   });
   const payload = await response.json().catch(() => ({})) as OutcomePayload;
   if (response.status === 409 && FINISHING_OUTCOMES.has(outcome) && (payload.status === "DONE" || payload.status === "SKIPPED")) return { recorded: false, status: payload.status };
+  if (response.status === 409 && outcome === "REOPENED" && payload.status === "PENDING") return { recorded: false, status: payload.status };
   if (!response.ok) throw new Error(payload.error || "The follow-up outcome could not be saved.");
   const stored = payload as OutcomeResponse;
   dispatchJumpState({ jumpId, status: stored.status, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null, mixEnd: stored.mixEnd ?? null, origin, reached: stored.status === "DONE" && !UNREACHED_OUTCOMES.has(outcome) });
   return { recorded: true, response: stored };
+}
+
+type HostedConfirmation = { jumpId: string; status: "DONE" | "SKIPPED"; contactName: string; notice: string; nextFollowUpAt: string | null; nextScheduledLabel?: string };
+
+/** A recorded outcome's confirmation: what happened, for whom, what comes next, and its Undo. */
+function ConfirmationView({ ref, entry, undoing, error, onUndo }: { ref: Ref<HTMLDivElement>; entry: HostedConfirmation; undoing: boolean; error: string; onUndo: () => void }) {
+  return (
+    <div ref={ref} className={styles.cardWrapper} data-jump-workflow={entry.jumpId} data-follow-up-undo="true">
+      <div className={styles.completedPlaceholder} role="status">
+        <span>
+          <strong>{entry.status === "SKIPPED" ? "Follow-up skipped" : "Follow-up completed"}</strong>
+          {entry.notice && <small>{entry.notice}</small>}
+          <small>{entry.contactName} · you can undo this for a moment</small>
+          {entry.nextFollowUpAt ? <small>Next follow-up: {formatNextFollowUp(entry.nextFollowUpAt)}</small> : entry.nextScheduledLabel && <small>Next scheduled: {entry.nextScheduledLabel}</small>}
+        </span>
+        <button className="button small" type="button" onClick={onUndo} disabled={undoing}>{undoing ? "Restoring…" : "Undo"}</button>
+      </div>
+      {error && <p className={styles.error} role="alert">{error}</p>}
+    </div>
+  );
+}
+
+// Today holds each confirmation and its Undo in one list outside the follow-up list, so a fresh read of that list can't
+// take it away, and the list no longer waits for an Undo window to end before it updates (D99, JITM-08 §2.36).
+const hostedConfirmations = new Map<string, HostedConfirmation>();
+const hostedListeners = new Set<() => void>();
+let hostedVersion = 0;
+function hostedChanged(): void { hostedVersion += 1; for (const listener of hostedListeners) listener(); }
+function subscribeHosted(listener: () => void): () => void { hostedListeners.add(listener); return () => { hostedListeners.delete(listener); }; }
+function hostConfirmation(entry: HostedConfirmation): void { hostedConfirmations.set(entry.jumpId, entry); hostedChanged(); }
+function dropHostedConfirmation(jumpId: string): void { if (hostedConfirmations.delete(jumpId)) hostedChanged(); }
+
+/** Today's confirmations, each where `useConfirmationTarget` puts it: in the open review, or in Today's floating stack. */
+export function FollowUpConfirmations() {
+  useEffect(() => {
+    // A follow-up reopened on this page, by its Undo or a Reopen, takes its confirmation with it.
+    const onState = (event: Event) => { const detail = (event as CustomEvent<JumpStateDetail>).detail; if (detail?.jumpId && detail.status === "PENDING") dropHostedConfirmation(detail.jumpId); };
+    window.addEventListener("jitm:jump-state", onState);
+    return () => { window.removeEventListener("jitm:jump-state", onState); hostedConfirmations.clear(); hostedChanged(); };
+  }, []);
+  useSyncExternalStore(subscribeHosted, () => hostedVersion, () => 0);
+  return <>{[...hostedConfirmations.values()].map(entry => <HostedConfirmationItem key={entry.jumpId} entry={entry} />)}</>;
+}
+
+function HostedConfirmationItem({ entry }: { entry: HostedConfirmation }) {
+  const { jumpId } = entry;
+  const [undoing, setUndoing] = useState(false);
+  const [error, setError] = useState("");
+  const ids = useOutcomeRequestIds();
+  const target = useConfirmationTarget(jumpId);
+  const confirmationRef = useRef<HTMLDivElement>(null);
+  const hideTimer = useRef<number | null>(null);
+  const leave = useCallback(() => { focusAfterConfirmation(confirmationRef.current); dropHostedConfirmation(jumpId); }, [jumpId]);
+  useEffect(() => {
+    hideTimer.current = window.setTimeout(leave, 10_000);
+    return () => { if (hideTimer.current) window.clearTimeout(hideTimer.current); };
+  }, [leave]);
+  const undo = async () => {
+    // A pressed Undo is disabled while it saves, which drops its focus; remember where the owner was.
+    const hadFocus = Boolean(confirmationRef.current?.contains(document.activeElement));
+    if (hideTimer.current) window.clearTimeout(hideTimer.current);
+    setUndoing(true);
+    setError("");
+    const key = outcomeRequestKey(jumpId, "REOPENED");
+    try {
+      const result = await saveOutcome(jumpId, "REOPENED", ids.claim(key));
+      ids.release(key);
+      // Reopened already, elsewhere: the page hears it as this Undo's, so the card and its counts come back.
+      if (!result.recorded) dispatchJumpState({ jumpId, status: result.status });
+      focusAfterConfirmation(confirmationRef.current, hadFocus);
+      dropHostedConfirmation(jumpId);
+    } catch (reason) {
+      // Back on the Undo, to try again. It is enabled first: a disabled button can't take focus.
+      flushSync(() => {
+        setError(reason instanceof Error ? reason.message : "The follow-up could not be reopened.");
+        setUndoing(false);
+      });
+      if (hadFocus && focusIsFree(confirmationRef.current)) confirmationRef.current?.querySelector("button")?.focus();
+      hideTimer.current = window.setTimeout(leave, 10_000);
+    } finally {
+      setUndoing(false);
+    }
+  };
+  const view = <ConfirmationView ref={confirmationRef} entry={entry} undoing={undoing} error={error} onUndo={undo} />;
+  return target ? createPortal(view, target) : null;
 }
 
 export function JumpWorkflowCard({
@@ -224,29 +310,14 @@ export function JumpWorkflowCard({
   revision: string;
   children: ReactNode;
 }) {
-  const [state, setState] = useState<"ACTIVE" | "DONE" | "SKIPPED" | "HIDDEN">("ACTIVE");
-  const [notice, setNotice] = useState("");
-  const [nextFollowUpAt, setNextFollowUpAt] = useState<string | null>(null);
-  const [undoing, setUndoing] = useState(false);
-  const [error, setError] = useState("");
-  const ids = useOutcomeRequestIds();
-  const hideTimer = useRef<number | null>(null);
+  const [state, setState] = useState<"ACTIVE" | "HIDDEN">("ACTIVE");
   const latestRevision = useRef(revision), outcomeRevision = useRef(revision);
   useLayoutEffect(() => { latestRevision.current = revision; }, [revision]);
   // The person's other card and reviews name this follow-up only while it's still due (D71), and say they were contacted
-  // today once it's done (D98). A done card that hides after its Undo window stays done.
-  const recordedDone = useRef(false), reached = useRef(false);
-  useEffect(() => {
-    if (state === "DONE") recordedDone.current = reached.current;
-    else if (state !== "HIDDEN") recordedDone.current = false;
-    setFollowUpDue(jumpId, state === "ACTIVE", recordedDone.current);
-  }, [jumpId, state]);
+  // today once it's done (D98).
+  const recordedDone = useRef(false);
+  useEffect(() => { setFollowUpDue(jumpId, state === "ACTIVE", recordedDone.current); }, [jumpId, state]);
   useEffect(() => () => setFollowUpDue(jumpId, null), [jumpId]);
-  // On Today the confirmation shows inside the open review, so its Undo stays beside the owner's work (D70).
-  const target = useConfirmationTarget(jumpId);
-  const confirmationRef = useRef<HTMLDivElement>(null);
-  // A pressed Undo is disabled while it saves, which drops its focus; remember where the owner was.
-  const undoHadFocus = useRef(false);
   useEffect(() => {
     // A fresh server read may show completion, or a later reopening by someone
     // else. Accept it after Undo without remounting untouched form controls.
@@ -257,69 +328,24 @@ export function JumpWorkflowCard({
     const onState = (event: Event) => {
       const detail = (event as CustomEvent<JumpStateDetail>).detail;
       if (!detail || detail.jumpId !== jumpId) return;
-      if (hideTimer.current) window.clearTimeout(hideTimer.current);
       if (detail.status === "PENDING") {
-        focusAfterConfirmation(confirmationRef.current, undoHadFocus.current);
-        undoHadFocus.current = false;
-        setNotice("");
+        recordedDone.current = false;
         setState("ACTIVE");
         return;
       }
       outcomeRevision.current = latestRevision.current;
-      reached.current = detail.status === "DONE" && detail.reached === true;
-      setNotice(detail.notice ?? "");
-      setNextFollowUpAt(detail.nextFollowUpAt ?? null);
-      setState(detail.status);
-      hideTimer.current = window.setTimeout(() => { focusAfterConfirmation(confirmationRef.current); setState("HIDDEN"); }, 10_000);
+      // Only a done outcome that reached the person counts as contacting them today (D98, TDY-01).
+      recordedDone.current = detail.status === "DONE" && detail.reached === true;
+      // The confirmation and its Undo show outside the list, so the card leaves the list now. A fresh read that still
+      // lists it (one already on its way), or lists it again after a reopening elsewhere, brings it back (D99).
+      hostConfirmation({ jumpId, status: detail.status, contactName, notice: detail.notice ?? "", nextFollowUpAt: detail.nextFollowUpAt ?? null, nextScheduledLabel });
+      setState("HIDDEN");
     };
     window.addEventListener("jitm:jump-state", onState);
-    return () => {
-      window.removeEventListener("jitm:jump-state", onState);
-      if (hideTimer.current) window.clearTimeout(hideTimer.current);
-    };
-  }, [jumpId]);
-
-  const undo = async () => {
-    undoHadFocus.current = Boolean(confirmationRef.current?.contains(document.activeElement));
-    if (hideTimer.current) window.clearTimeout(hideTimer.current);
-    setUndoing(true);
-    setError("");
-    const key = outcomeRequestKey(jumpId, "REOPENED");
-    try {
-      await saveOutcome(jumpId, "REOPENED", ids.claim(key));
-      ids.release(key);
-    } catch (reason) {
-      // Back on the Undo, to try again. It is enabled first: a disabled button can't take focus.
-      flushSync(() => {
-        setError(reason instanceof Error ? reason.message : "The follow-up could not be reopened.");
-        setUndoing(false);
-      });
-      if (undoHadFocus.current && focusIsFree(confirmationRef.current)) confirmationRef.current?.querySelector("button")?.focus();
-      undoHadFocus.current = false;
-      hideTimer.current = window.setTimeout(() => { focusAfterConfirmation(confirmationRef.current); setState("HIDDEN"); }, 10_000);
-    } finally {
-      setUndoing(false);
-    }
-  };
+    return () => window.removeEventListener("jitm:jump-state", onState);
+  }, [jumpId, contactName, nextScheduledLabel]);
 
   if (state === "HIDDEN") return null;
-  if (state !== "ACTIVE") {
-    const confirmation = (
-      <div ref={confirmationRef} className={styles.cardWrapper} data-jump-workflow={jumpId} data-follow-up-undo="true">
-        <div className={styles.completedPlaceholder} role="status">
-          <span>
-            <strong>{state === "SKIPPED" ? "Follow-up skipped" : "Follow-up completed"}</strong>
-            {notice && <small>{notice}</small>}
-            <small>{contactName} · you can undo this for a moment</small>
-            {nextFollowUpAt ? <small>Next follow-up: {formatNextFollowUp(nextFollowUpAt)}</small> : nextScheduledLabel && <small>Next scheduled: {nextScheduledLabel}</small>}
-          </span>
-          <button className="button small" type="button" onClick={undo} disabled={undoing}>{undoing ? "Restoring…" : "Undo"}</button>
-        </div>
-        {error && <p className={styles.error} role="alert">{error}</p>}
-      </div>
-    );
-    return target ? createPortal(confirmation, target) : confirmation;
-  }
   return <div className={styles.cardWrapper} data-jump-workflow={jumpId}>{children}</div>;
 }
 
@@ -367,8 +393,9 @@ export function JumpOutcomeButton({
       ids.release(key);
       setShowDecisions(false);
       if (!result.recorded) {
-        // Finished already, by an earlier request whose answer was lost or from another control.
-        // The card moves on and says so; the notice rides along because this button leaves with the card.
+        // Finished (or, for Reopen, reopened) already: by an earlier request whose answer was lost, from another
+        // control, or elsewhere. The card moves on and says so; the notice rides along because this button leaves with
+        // the card.
         const copy = alreadyRecordedCopy(result.status);
         setNotice(copy);
         dispatchJumpState({ jumpId, status: result.status, notice: copy });

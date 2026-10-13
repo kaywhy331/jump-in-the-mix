@@ -93,8 +93,11 @@ test("completing earlier work and removing the anchor never skips untouched foll
     await markDone(page, id);
     await expect(page.locator(`#jump-${id}`)).toHaveCount(0);
   }
-  await prisma.jump.update({ where: { id: smsIds[29] }, data: { status: "CANCELED" } });
-  await next(page, smsIds[30]); expect(await ids(page)).toEqual(smsIds.slice(30, 60));
+  // The list reads again at once after each outcome (D99), so the page refills to 30, through the 32nd follow-up.
+  await expect.poll(() => ids(page)).toEqual(smsIds.slice(2, 32));
+  // Its last follow-up anchors "Next follow-ups"; removing it elsewhere still skips nothing.
+  await prisma.jump.update({ where: { id: smsIds[31] }, data: { status: "CANCELED" } });
+  await next(page, smsIds[32]); expect(await ids(page)).toEqual(smsIds.slice(32, 62));
   await expect(pager(page)).toContainText("Showing 30 of 320 follow-ups");
 });
 
@@ -204,23 +207,39 @@ test.describe("live outcome updates", () => {
     await route.fulfill({ response, headers, body: await response.body() });
   }
 
-  test("Done and Skip refill the open page after Undo and preserve the filtered cursor", async ({ page }) => {
-    await page.clock.install();
+  test("Done and Skip refill the open page at once and keep the filtered cursor, with their Undo still on screen", async ({ page }) => {
     await visit(page, "/jumps?range=all&status=pending&channel=SMS"); await next(page, smsIds[30]);
     const location = page.url();
+    // The list reads again at once after an outcome (D99): the page refills while the Undo is still on screen.
     await markDone(page, smsIds[30]);
-    await expect(undoFor(page, smsIds[30])).toBeVisible();
-    await page.clock.runFor(8_000); await expect(undoFor(page, smsIds[30])).toBeVisible();
-    await expect(pager(page)).toContainText("Showing 30 of 321 follow-ups");
-    await page.clock.runFor(2_500);
     await expect(pager(page)).toContainText("Showing 30 of 320 follow-ups");
+    await expect(undoFor(page, smsIds[30])).toBeVisible();
     expect(await ids(page)).toEqual(smsIds.slice(31, 61)); expect(page.url()).toBe(location);
     await page.getByRole("button", { name: "More options for Queue person 032", exact: true }).click();
     const options = page.getByRole("dialog", { name: "Follow up with Queue person 032", exact: true }).filter({ hasText: "Move it to a better day" });
     await options.getByRole("button", { name: "Skip Beat", exact: true }).click(); await saveIfAsked(page, options, smsIds[31]);
-    await expect(undoFor(page, smsIds[31])).toBeVisible(); await page.clock.runFor(10_500);
     await expect(pager(page)).toContainText("Showing 30 of 319 follow-ups");
+    await expect(undoFor(page, smsIds[31])).toBeVisible();
     expect(await ids(page)).toEqual(smsIds.slice(32, 62)); expect(page.url()).toBe(location);
+  });
+
+  test("the read after an outcome says \"Updating your follow-up list…\" only once it takes a second (D99)", async ({ page }) => {
+    await visit(page, "/jumps?status=pending");
+    let captured = false, release!: () => void;
+    const hold = new Promise<void>(resolve => { release = resolve; });
+    await page.route("**/jumps**", async route => {
+      if (!isRefresh(route.request())) return route.continue();
+      captured = true; await hold; await route.continue().catch(() => undefined);
+    });
+    try {
+      await markDone(page, smsIds[0]);
+      await expect.poll(() => captured).toBe(true);
+      // Most reads land within the second, so nothing moves the list down and back.
+      await expect(updates(page)).toHaveCount(0);
+      await expect(updates(page)).toContainText("Updating your follow-up list…");
+    } finally { release(); }
+    await expect(updates(page)).toHaveCount(0);
+    await expect(pager(page)).toContainText("Showing 30 of 322 follow-ups");
   });
 
   test("a refresh already in flight waits for a newly created closed draft", async ({ page }) => {
@@ -342,33 +361,45 @@ test.describe("live outcome updates", () => {
     } finally { release(); }
   });
 
-  test("a record reopened elsewhere before refresh does not remain hidden", async ({ page }) => {
-    await page.clock.install(); await visit(page, "/jumps?status=pending");
-    let refreshes = 0;
-    let refreshedBody: string | undefined;
+  test("a record reopened elsewhere after its outcome comes back on the next read", async ({ page }) => {
+    await visit(page, "/jumps?status=pending");
     // Keep the server response before passing it to Next's streaming reader.
     // Chromium can release the consumed body before response.text() reads it.
+    let refreshedBody: string | undefined;
     await page.route("**/jumps**", async route => {
       if (!isRefresh(route.request())) return route.continue();
       const response = await route.fetch();
       refreshedBody = await response.text();
       await deliverFetched(route, response);
     });
-    page.on("request", request => { if (new URL(request.url()).pathname === "/jumps" && isRefresh(request)) refreshes++; });
+    const outcomeRead = page.waitForResponse(response => new URL(response.url()).pathname === "/jumps" && isRefresh(response.request()));
     await markDone(page, smsIds[0]);
     await expect(undoFor(page, smsIds[0])).toBeVisible();
+    // The list reads again at once, with the Undo still on screen (D99): nothing holds it.
+    expect((await outcomeRead).status()).toBe(200);
+    await expect(page.locator(`#jump-${smsIds[0]}`)).toHaveCount(0);
+    await expect(undoFor(page, smsIds[0])).toBeVisible();
+    // Reopened elsewhere afterwards, the follow-up comes back on the next read, with its new revision.
     const reopened = await prisma.jump.update({ where: { id: smsIds[0] }, data: { status: "PENDING", completedAt: null, completionMethod: null } });
-    // Starting a read before React commits Undo can buffer a stale completion
-    // and incorrectly acknowledge the outcome before this reopening.
-    expect(refreshes).toBe(0);
-    const refreshed = page.waitForResponse(response => new URL(response.url()).pathname === "/jumps" && isRefresh(response.request()));
-    await page.clock.runFor(10_500);
-    const response = await refreshed;
-    expect(response.status()).toBe(200);
+    const nextRead = page.waitForResponse(response => new URL(response.url()).pathname === "/jumps" && isRefresh(response.request()));
+    await page.evaluate(() => window.dispatchEvent(new Event("focus")));
+    expect((await nextRead).status()).toBe(200);
     expect(refreshedBody).toContain(`"revision":"${reopened.updatedAt.toISOString()}"`);
     await expect(page.locator(`#jump-${smsIds[0]}`)).toBeVisible();
     await expect(page.locator(".jump-card")).toHaveCount(30);
     await expect(pager(page)).toContainText("Showing 30 of 323 follow-ups");
+    // Its confirmation is still on screen. Its Undo is refused, the follow-up being pending already, and that counts as
+    // reopened: the confirmation leaves at once, where a failed Undo would keep it, with its error, for 10 seconds, and the
+    // page reads again, as after any reopening (UND-01).
+    await expect(undoFor(page, smsIds[0])).toBeVisible();
+    const undone = page.waitForResponse(response => new URL(response.url()).pathname === `/api/jumps/${smsIds[0]}/outcome`);
+    const undoRead = page.waitForResponse(response => new URL(response.url()).pathname === "/jumps" && isRefresh(response.request()));
+    await undoFor(page, smsIds[0]).click();
+    expect((await undone).status()).toBe(409);
+    await expect(page.locator(`[data-follow-up-undo][data-jump-workflow="${smsIds[0]}"]`)).toHaveCount(0, { timeout: 3_000 });
+    expect((await undoRead).status()).toBe(200);
+    await expect(page.locator(`#jump-${smsIds[0]}`)).toBeVisible();
+    expect((await prisma.jump.findUniqueOrThrow({ where: { id: smsIds[0] } })).status).toBe("PENDING");
   });
 
   test("completed cards remain visible in history after the Undo window", async ({ page }) => {
