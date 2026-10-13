@@ -205,6 +205,35 @@ test.describe("on a phone", () => {
   }
 });
 
+test("a call with no answer or a wrong number doesn't count as contacting the person today (D98, TDY-01)", async ({ page }) => {
+  await page.goto("/jumps"); await ready(page);
+  // Back from the phone app, the owner records that Gwen's call wasn't answered.
+  await page.evaluate(({ jumpId, contactName }) => {
+    const scope = document.querySelector<HTMLElement>("[data-browser-scope]")!.dataset.browserScope!;
+    const detail = { scope, jumpId, contactName, channel: "PHONE_CALL", openedAt: Date.now() };
+    sessionStorage.setItem(`jitm:private:${scope}:opened-jump`, JSON.stringify(detail));
+    window.dispatchEvent(new CustomEvent("jitm:jump-opened", { detail }));
+  }, { jumpId: id.gwenCall, contactName: "Gwen Group" });
+  await page.getByLabel("Finish follow-up with Gwen Group").filter({ visible: true }).getByRole("button", { name: "No answer", exact: true }).click();
+  await expect.poll(async () => (await prisma.jump.findUniqueOrThrow({ where: { id: id.gwenCall } })).completionMethod).toBe("outcome:no_answer");
+  const text = card(page, id.gwenText);
+  const contacted = text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today/ });
+  await frames(page, 6);
+  await expect(text).toBeVisible();
+  await expect(contacted).toHaveCount(0);
+  // A fresh read says the same, and so does a wrong number; a connected call counts.
+  await page.reload(); await ready(page);
+  await expect(text).toBeVisible();
+  await expect(contacted).toHaveCount(0);
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { completionMethod: "outcome:wrong_number" } });
+  await page.reload(); await ready(page);
+  await expect(text).toBeVisible();
+  await expect(contacted).toHaveCount(0);
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { completionMethod: "outcome:connected" } });
+  await page.reload(); await ready(page);
+  await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today at \d{1,2}:\d{2} [AP]M$/ })).toBeVisible();
+});
+
 test("a row says the reason, then the Mix, on one line; a one-time follow-up never names its hidden Mix", async ({ page }) => {
   await page.goto("/jumps"); await ready(page);
   const lead = card(page, id.gwenText);

@@ -112,6 +112,8 @@ type SearchParams = {
 
 const pendingStatuses: JumpStatus[] = ["PENDING"];
 const doneStatuses: JumpStatus[] = ["DONE"];
+/** Done outcomes that didn't reach the person, so they don't count as contacting them today (D98, TDY-01). */
+const UNREACHED_COMPLETIONS = ["outcome:no_answer", "outcome:wrong_number"];
 const completedStatuses: JumpStatus[] = [...doneStatuses, "SKIPPED"];
 const channels: Channel[] = ["SMS", "EMAIL", "PHONE_CALL", "VOICEMAIL", "WHATSAPP"];
 
@@ -300,7 +302,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   // one follow-up show what they keep, alone (#142, point 8).
   const plainDueView = range === "due" && status === "all" && channel === "all" && priority === "all" && !query && !params.jump;
   const elsewhere = plainDueView ? await readAlsoDueElsewhere(workspace.id, duePeople, needsAttention.map(followUp => followUp.id), endToday) : [];
-  const contactedAt = new Map((duePeople.length ? await prisma.jump.findMany({ where: { workspaceId: workspace.id, contactId: { in: duePeople }, status: { in: doneStatuses }, completedAt: { gte: startToday, lt: endToday } }, select: { contactId: true, completedAt: true }, orderBy: { completedAt: "asc" } }) : []).flatMap(item => item.completedAt ? [[item.contactId, item.completedAt] as const] : []));
+  const contactedAt = new Map((duePeople.length ? await prisma.jump.findMany({ where: { workspaceId: workspace.id, contactId: { in: duePeople }, status: { in: doneStatuses }, completedAt: { gte: startToday, lt: endToday }, OR: [{ completionMethod: null }, { completionMethod: { notIn: UNREACHED_COMPLETIONS } }] }, select: { contactId: true, completedAt: true }, orderBy: { completedAt: "asc" } }) : []).flatMap(item => item.completedAt ? [[item.contactId, item.completedAt] as const] : []));
   const nextUp = overdueGroups[0]?.[0] ?? todayGroups[0]?.[0] ?? upcoming[0] ?? null;
   const activeFilterCount = Number(range !== "due") + Number(status !== "all") + Number(channel !== "all") + Number(Boolean(query)) + Number(priority !== "all") + Number(Boolean(params.jump));
 
