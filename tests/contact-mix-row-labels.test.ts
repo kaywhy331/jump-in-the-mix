@@ -103,7 +103,7 @@ describe("the profile's Mixes rows (D77)", () => {
     const rows = buildContactMixRows(input({
       mixes: [mix("a", "Monthly tips"), mix("b", "Seasonal offers", "PAUSED"), mix("c", "Welcome")],
       starts: [{ assignmentId: "place-a", mixId: "a", everyone: true }, { assignmentId: "start-c", mixId: "c" }],
-      stops: [{ mixId: "b", planLimit: false, stageExit: false, everyonePlace: true }]
+      stops: [{ mixId: "b", planLimit: false, stageExit: false, everyonePlace: true, removed: true }]
     }));
     const byName = Object.fromEntries(rows.map(row => [row.name, row]));
     expect(byName["Monthly tips"]).toMatchObject({ everyoneStart: true, everyoneRemoved: false });
@@ -111,10 +111,25 @@ describe("the profile's Mixes rows (D77)", () => {
     expect(byName["Seasonal offers"]).toMatchObject({ stop: "stopped", everyoneRemoved: true, assignmentId: null });
     expect(contactMixRowStatus(byName["Seasonal offers"], now, preferences).label).toBe("Stopped");
     expect(contactMixRowSummary(byName["Seasonal offers"], "Rae", now, preferences)).toBe("Stopped for Rae when you removed them from this Mix for Everyone, so saving or starting it again won’t add them back. Resuming gives them their place in it back, and it prepares their follow-ups once the Mix is on.");
-    const running = buildContactMixRows(input({ mixes: [mix("b", "Seasonal offers")], stops: [{ mixId: "b", planLimit: false, stageExit: false, everyonePlace: true }] }))[0];
+    const running = buildContactMixRows(input({ mixes: [mix("b", "Seasonal offers")], stops: [{ mixId: "b", planLimit: false, stageExit: false, everyonePlace: true, removed: true }] }))[0];
     expect(contactMixRowSummary(running, "Rae", now, preferences)).toBe("Stopped for Rae when you removed them from this Mix for Everyone, so saving or starting it again won’t add them back. Resuming gives them their place in it back.");
-    // The plan limit's and a stage change's stops keep their own sentences, whatever the reader passed.
-    const others = buildContactMixRows(input({ mixes: [mix("d", "Lead nurture"), mix("e", "Quote check-in")], stops: [{ mixId: "d", planLimit: false, stageExit: true, everyonePlace: true }, { mixId: "e", planLimit: true, stageExit: false, everyonePlace: true }] }));
-    expect(others.map(row => row.everyoneRemoved)).toEqual([false, false]);
+    // The plan limit's and a stage change's stops keep their own sentences; a stage change's says what Resume gives back.
+    const others = buildContactMixRows(input({ mixes: [mix("d", "Lead nurture"), mix("e", "Quote check-in")], stops: [{ mixId: "d", planLimit: false, stageExit: true, everyonePlace: true, removed: true }, { mixId: "e", planLimit: true, stageExit: false, everyonePlace: true, removed: true }] }));
+    expect(others.map(row => [row.everyoneRemoved, row.everyonePlaceBack])).toEqual([[false, true], [false, false]]);
+    expect(contactMixRowSummary(others[0], "Rae", now, preferences)).toBe("Ended when Rae’s stage changed. It starts again if they return to that stage. Resuming gives them their place in this Mix for Everyone back.");
+    expect(contactMixRowSummary(others[1], "Rae", now, preferences)).toBe("Not started for Rae: your plan’s people limit was reached.");
+  });
+
+  it("says Resume gives back an Everyone place that is off, whatever wrote the stop (COPY-02)", () => {
+    // Stop, then Remove on the same place, keeps the owner's stop beside a place that is off; Resume gives it back.
+    const [owners] = buildContactMixRows(input({ mixes: [mix("b", "Seasonal offers")], stops: [{ mixId: "b", planLimit: false, stageExit: false, everyonePlace: true, removed: false }] }));
+    expect(owners).toMatchObject({ stop: "stopped", everyoneRemoved: false, everyonePlaceBack: true });
+    expect(contactMixRowSummary(owners, "Rae", now, preferences)).toBe("Stopped for Rae. Resuming gives them their place in this Mix for Everyone back.");
+    const [paused] = buildContactMixRows(input({ mixes: [mix("b", "Seasonal offers", "PAUSED")], stops: [{ mixId: "b", planLimit: false, stageExit: false, everyonePlace: true }] }));
+    expect(contactMixRowSummary(paused, "Rae", now, preferences)).toBe("Stopped for Rae. Resuming gives them their place in this Mix for Everyone back, and it prepares their follow-ups once the Mix is on.");
+    // Remove's own stop with no place left to give back (the Mix is no longer for Everyone) says only what Resume does.
+    const [gone] = buildContactMixRows(input({ mixes: [mix("b", "Seasonal offers")], stops: [{ mixId: "b", planLimit: false, stageExit: false, everyonePlace: false, removed: true }] }));
+    expect(gone).toMatchObject({ everyoneRemoved: false, everyonePlaceBack: false });
+    expect(contactMixRowSummary(gone, "Rae", now, preferences)).toBe("Stopped for Rae. Resuming only lifts the stop: add them to the Mix to restart it.");
   });
 });
