@@ -801,9 +801,9 @@ describe.skipIf(!local).sequential("a Mix sets the Contact stage its people are 
       expect(resumed.searchParams.get("mixResumed")).toBe("1");
       expect([await prisma.mixStop.count({ where: { workspaceId, mixId: tips.id, contactId: rae } }), (await placeOf(tips.id, rae))?.isActive]).toEqual([0, true]);
       expect((await placeOf(tips.id, rae))!.startDate!.getTime()).toBeGreaterThanOrEqual(resumedAt.getTime() - 1000);
-      // Resume also hands back what the stop removed by other routes, for the scheduler to revive what a start or tag
-      // still wants (D87, TRU-02).
-      expect(await prisma.jump.findUniqueOrThrow({ where: { id: other.id }, select: { status: true, completionMethod: true } })).toEqual({ status: "CANCELED", completionMethod: "reconciled" });
+      // Resume also hands back what the stop removed by other routes: this Journey run's follow-up goes to the Journey
+      // pass, which revives it while the run still wants it (D87, TRU-02).
+      expect(await prisma.jump.findUniqueOrThrow({ where: { id: other.id }, select: { status: true, completionMethod: true } })).toEqual({ status: "CANCELED", completionMethod: "workflow_held" });
     });
 
     it("a tag added while the Mix is paused moves its members when it is turned back on, after a review (D65)", async () => {
