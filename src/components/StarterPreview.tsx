@@ -22,10 +22,10 @@ function When({ at, timezone, locale }: { at: string | null; timezone: string; l
 
 /**
  * The first follow-up as onboarding will start it, filled in from the form, with each Beat dated by the scheduler from the
- * chosen day (JITM-09 §2.20, D73). `onAvailable` tells the form whether there is a follow-up to start; `children` follow
- * the message (the signature).
+ * chosen day (JITM-09 §2.20, D73). `onAvailable` tells the form whether there is a follow-up to start, and
+ * `onFirstChannel` which channel its first Beat uses; `children` follow the message (the signature).
  */
-export function StarterPreview({ reason, businessType, scenarioId, details, firstDate, timezone, locale, onAvailable, children }: { reason: string; businessType: string; scenarioId?: string; details: OnboardingPreviewDetails; firstDate: string; timezone: string; locale: string; onAvailable: (available: boolean) => void; children?: ReactNode }) {
+export function StarterPreview({ reason, businessType, scenarioId, details, firstDate, timezone, locale, onAvailable, onFirstChannel, children }: { reason: string; businessType: string; scenarioId?: string; details: OnboardingPreviewDetails; firstDate: string; timezone: string; locale: string; onAvailable: (available: boolean) => void; onFirstChannel?: (channel: string | null) => void; children?: ReactNode }) {
   const params = new URLSearchParams({ reason, business: businessType, use: "business" });
   if (scenarioId) params.set("scenario", scenarioId);
   const planKey = params.toString();
@@ -51,6 +51,8 @@ export function StarterPreview({ reason, businessType, scenarioId, details, firs
   const available = Boolean(preview) && dated && failed !== key;
   useEffect(() => { onAvailable(available); }, [available, onAvailable]);
   const [first, ...later] = preview?.steps ?? [];
+  // The form's contact hint names what the first Beat needs: a mobile number for a text, an email address for an email.
+  useEffect(() => { onFirstChannel?.(first?.channel ?? null); }, [first?.channel, onFirstChannel]);
   const person = details.firstName.trim();
   return <section className="onboarding-preview" aria-label="Preview of the first follow-up">
     <h2>{person ? `${person}’s first follow-up` : "Their first follow-up"}</h2>

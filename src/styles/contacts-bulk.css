@@ -6,6 +6,9 @@
 .contact-select-control input { position: absolute; z-index: 2; inset: 0; width: 100%; height: 100%; margin: 0; opacity: 0; cursor: pointer; }
 .contact-select-control span { width: 28px; height: 28px; display: grid; place-items: center; border: 2px solid var(--field-border); border-radius: 9px; background: var(--raised); color: var(--on-violet); font-weight: 900; }
 .contact-select-control input:checked + span { background: var(--brand); border-color: var(--brand); }
+/* The checkbox is transparent over its box, so the box shows the keyboard focus. While selecting, the checkbox is the
+   row's keyboard stop (D90). */
+.contact-select-control input:focus-visible + span { outline: 3px solid var(--focus); outline-offset: 3px; }
 
 .bulk-contact-bar { position: fixed; z-index: 45; left: max(18px, calc(250px + 18px)); right: 18px; bottom: 18px; max-width: 1120px; margin: 0 auto; display: flex; align-items: center; gap: 8px; padding: 10px; border: 1px solid var(--line); border-radius: 17px; background: color-mix(in srgb, var(--raised) 97%, transparent); box-shadow: var(--shadow); backdrop-filter: blur(14px); }
 /* The count keeps its width beside the actions, which wrap instead (901px to about 1250px). */
@@ -88,3 +91,9 @@
   .bulk-selection-count span { display: none; }
   .custom-field-row { grid-template-columns: 1fr; }
 }
+
+/* While selecting, a tap anywhere on a row ticks or unticks its person (D90). */
+.contact-select-row.selection-mode { cursor: pointer; }
+/* While selecting, the name is plain text and the row itself takes the tap (D90), so the name's row-wide overlay, there for
+   its link, would only sit over the avatar and the summary. */
+.contact-select-row.selection-mode .contact-open::after { content: none; }

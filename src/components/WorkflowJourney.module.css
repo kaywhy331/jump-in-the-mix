@@ -256,3 +256,7 @@
 .listPeople button{min-height:44px;padding:0;border:0;background:none;color:var(--violet-text);font:inherit;cursor:pointer}
 .listPeople button span{color:var(--text-3)}
 .listPeople [data-status=attention]{color:var(--danger);font-weight:600}
+
+/* With a person chosen, the list marks the Mixes their work is in (D96). */
+.list article[data-person-here]{border-left:4px solid var(--violet-mark);padding-left:12px}
+.listHeading .personHere{color:var(--violet-text);font-weight:600}

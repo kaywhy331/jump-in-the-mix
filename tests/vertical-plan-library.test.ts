@@ -75,7 +75,10 @@ describe("ready-made vertical plans", () => {
   });
 
   it.each([
+    ["After the job", "Is everything working"],
+    // The older names still lead to the same starters, for saved forms and follow-ups (D93).
     ["Check in after the job", "Is everything working"],
+    ["Someone who went quiet", "just checking in"],
     ["Ask for a review", "leave a quick review"],
     ["Reconnect", "just checking in"],
     ["General follow-up", "just checking in"]

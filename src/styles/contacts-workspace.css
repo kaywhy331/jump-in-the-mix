@@ -42,6 +42,8 @@
 .contact-row-summary > :first-child { flex-shrink: 0; max-width: 45%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-summary-separator { flex-shrink: 0; }
 .contact-missing-method { position: relative; z-index: 1; font-weight: 600; color: var(--violet-text); }
+/* While selecting, it's plain text, not the link to edit the person (D90), so it reads like the rest of the line. */
+span.contact-missing-method { font-weight: inherit; color: inherit; }
 .contact-row-summary > :is(.contact-no-mix, .contact-no-mix-needed) { flex-shrink: 0; max-width: 100%; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .contact-row-summary > .contact-no-mix { font-weight: 600; color: var(--status-warning-ink); }
 .contact-row-summary > .contact-no-mix-needed { color: var(--text-3); }
@@ -159,7 +161,7 @@
 .contact-menu-list > form > button, .contact-menu-list > button { display: flex; align-items: center; justify-content: flex-start; gap: 12px; width: 100%; min-width: 0; min-height: 48px; padding: 12px 4px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: transparent; color: var(--text); font: inherit; font-size: .875rem; font-weight: 500; text-align: left; overflow-wrap: anywhere; cursor: pointer; }
 .contact-menu-list > :is(a, button) > svg, .contact-menu-list > form > button > svg { width: 20px; height: 20px; flex: 0 0 auto; color: var(--text-2); }
 .contact-menu-list > button:disabled, .contact-menu-list > form > button:disabled { color: var(--text-3); cursor: not-allowed; }
-.contact-menu-list > button.is-danger, .contact-menu-list > button.is-danger > svg { color: var(--danger); }
+.contact-menu-list > button.is-danger, .contact-menu-list > button.is-danger > svg, .contact-menu-list > form > button.is-danger, .contact-menu-list > form > button.is-danger > svg { color: var(--danger); }
 .contact-menu-list > .field-error { margin: 4px 0 8px; color: var(--danger); font-size: .8125rem; }
 .contact-menu-list > .review-request-ready { margin: 12px 0; }
 .contact-mix-work { display: grid; gap: 12px; margin-top: 20px; }

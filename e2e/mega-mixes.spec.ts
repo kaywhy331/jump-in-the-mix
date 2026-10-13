@@ -41,7 +41,8 @@ test("browse a whole journey, install it once, open its actual map and editable 
   expect(await prisma.mixAssignment.count({ where: { workspaceId } })).toBe(0);
   expect(await prisma.jump.count({ where: { workspaceId } })).toBe(0);
   await page.getByRole("link", { name: "Open my Journey", exact: true }).click();
-  await expect(page.getByRole("heading", { name: "Journey map", exact: true })).toBeVisible();
+  // The middle pane is headed like its tab, Mixes, as a list or a map (D95).
+  await expect(page.getByRole("heading", { name: "Mixes", exact: true, level: 2 })).toBeVisible();
   await expect(page.getByText("Estimate follow-up", { exact: true }).first()).toBeVisible();
   const map = await prisma.mixWorkflow.findUniqueOrThrow({ where: { workspaceId } });
   expect((map.configuration as { rules: unknown[] }).rules).toHaveLength(13);

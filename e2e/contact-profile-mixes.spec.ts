@@ -108,7 +108,7 @@ test("the profile menu holds Edit, Ask for a review, Schedule a meeting, Do not 
   const menu = page.getByRole("dialog", { name: "Marcus Reed" });
   await expect(menu).toBeVisible();
   const items = menu.locator(".contact-menu-list").locator(":scope > a, :scope > button, :scope > form > button");
-  await expect(items).toHaveText(["Edit contact", "Ask for a review", "Schedule a meeting", "Do not contact", "Archive contact…"]);
+  await expect(items).toHaveText(["Edit contact", "Ask for a review", "Schedule a meeting", "Do not contact", "Archive contact"]);
   await expect(menu.getByRole("link", { name: "Edit contact" })).toHaveAttribute("href", `/contacts/${person.id}/edit`);
   await expect(menu.getByRole("link", { name: "Schedule a meeting" })).toHaveAttribute("href", `/calendar?contact=${person.id}`);
   expect(await axe(page, "dialog[open]")).toEqual([]);
@@ -118,13 +118,13 @@ test("the profile menu holds Edit, Ask for a review, Schedule a meeting, Do not 
   await page.keyboard.press("Escape");
   await expect(menu).toBeHidden();
   await expect(trigger).toBeFocused();
-  // Archive asks first, Cancel focused, and archives on confirmation.
+  // Archive acts at once, and Contacts says so with Undo, which brings Marcus back (D88, JITM-08 §2.5).
   await trigger.click();
-  await menu.getByRole("button", { name: "Archive contact…" }).click();
-  const confirm = page.getByRole("dialog", { name: "Archive Marcus Reed?" });
-  await expect(confirm.getByRole("button", { name: "Cancel" })).toBeFocused();
-  await Promise.all([page.waitForURL(/archived=1/), confirm.getByRole("button", { name: "Archive contact", exact: true }).click()]);
+  await Promise.all([page.waitForURL(/archived=1/), menu.getByRole("button", { name: "Archive contact", exact: true }).click()]);
   expect((await prisma.contact.findUniqueOrThrow({ where: { id: person.id } })).archivedAt).not.toBeNull();
+  await expect(page.getByText("Contact archived.", { exact: false })).toBeVisible();
+  await Promise.all([page.waitForURL(/restored=1/), page.getByRole("button", { name: "Undo", exact: true }).click()]);
+  expect((await prisma.contact.findUniqueOrThrow({ where: { id: person.id } })).archivedAt).toBeNull();
 });
 
 test("Do not contact from the menu asks first and keeps the person's other preferences, and Priority keeps it on", async ({ page }) => {

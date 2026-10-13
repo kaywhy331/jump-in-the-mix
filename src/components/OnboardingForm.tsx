@@ -13,7 +13,7 @@ import { LocalDateInput } from "@/components/LocalDateInput";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
 import { completeOnboardingFormAction, skipOnboardingAction } from "@/lib/onboarding-actions";
-import { onboardingReasons } from "@/lib/onboarding-options";
+import { onboardingReasons, contactMethodsHint } from "@/lib/onboarding-options";
 import { MegaMixSetup } from "@/components/MegaMixSetup";
 import { suggestedMegaMix } from "@/lib/mega-mixes";
 import type { JourneySetupValues } from "@/lib/journey-preferences";
@@ -68,6 +68,8 @@ export function OnboardingForm({ userName, industry, timezone, today, locale, sc
   const [followUpDate, setFollowUpDate] = useState(today);
   const [previewReady, setPreviewReady] = useState(false);
   const onPreviewAvailable = useCallback((available: boolean) => setPreviewReady(available), []);
+  const [firstChannel, setFirstChannel] = useState<string | null>(null);
+  const onFirstChannel = useCallback((channel: string | null) => setFirstChannel(channel), []);
   const scenario = marketingScenario(scenarioId);
   // A business type with its own journey, such as Real estate, offers that journey's first follow-ups.
   const reasons = onboardingReasons(["business"], businessType, scenario ? scenario.id : null);
@@ -111,7 +113,7 @@ export function OnboardingForm({ userName, industry, timezone, today, locale, sc
           <div className="field full"><label htmlFor="contactName">Name</label><input id="contactName" name="contactName" autoComplete="name" placeholder="Jordan Lee" required enterKeyHint="next" value={personName} onChange={event => setPersonName(event.target.value)} /></div>
           <div className="field"><label htmlFor="contactPhone">Mobile phone <small>optional</small></label><input id="contactPhone" name="contactPhone" inputMode="tel" autoComplete="tel" placeholder="(555) 555-0123" enterKeyHint="next" aria-describedby="contact-methods-help" /></div>
           <div className="field"><label htmlFor="contactEmail">Email <small>optional</small></label><input id="contactEmail" name="contactEmail" type="email" inputMode="email" autoComplete="email" enterKeyHint="next" aria-describedby="contact-methods-help" /></div>
-          <small id="contact-methods-help">A text needs a mobile number. You can add it later.</small>
+          <small id="contact-methods-help">{contactMethodsHint(firstChannel)}</small>
         </div>}
         <details className="onboarding-import">
           <summary>Have a list? Import a file</summary>
@@ -141,7 +143,7 @@ export function OnboardingForm({ userName, industry, timezone, today, locale, sc
           <div className="field onboarding-timezone"><TimezonePicker defaultValue={timezone} onChange={setSelectedTimezone} confirmDetection={timezone === "UTC"} label="Your timezone" /></div>
         </div>
       </fieldset>
-      <StarterPreview reason={selected === "suggested" ? scenario?.reason ?? reasons[0] : selected} businessType={businessType} scenarioId={selected === "suggested" ? scenario?.id : undefined} details={{ firstName, lastName, company: businessName, smsSignature: signature, ownerName: userName }} firstDate={followUpDate} timezone={selectedTimezone} locale={locale} onAvailable={onPreviewAvailable}>{signatureControl}</StarterPreview>
+      <StarterPreview reason={selected === "suggested" ? scenario?.reason ?? reasons[0] : selected} businessType={businessType} scenarioId={selected === "suggested" ? scenario?.id : undefined} details={{ firstName, lastName, company: businessName, smsSignature: signature, ownerName: userName }} firstDate={followUpDate} timezone={selectedTimezone} locale={locale} onAvailable={onPreviewAvailable} onFirstChannel={onFirstChannel}>{signatureControl}</StarterPreview>
       <FormSubmitButton label={firstName ? `Start ${firstName}’s follow-up` : "Start the follow-up"} pendingLabel="Starting the follow-up…" disabled={!previewReady} describedBy={previewReady ? undefined : "starter-preview-status"} />
       <div className="skip-setup-form onboarding-alternatives"><button className="text-button" type="submit" formAction={skipOnboardingAction} formNoValidate>Skip for now</button><button type="button" className="text-button" onClick={() => switchTo("journey")}>Set up a whole pipeline instead</button></div>
     </ActionForm></div>

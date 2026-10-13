@@ -4,7 +4,7 @@ import { prisma } from "../src/lib/prisma";
 import { axeInPage } from "./axe-in-page";
 
 // Placing people in Mixes in bulk is visible on the Contacts list (JITM-09 §2.81, D76): a Select control beside the
-// list's tools, a strip on the No Mix filter with "Add these people to a Mix" and "Mark No Mix needed", and Add to a Mix
+// list's tools, a strip on the No Mix filter with "Add these 3 to a Mix" (the count of the page's people, D89) and "Mark No Mix needed", and Add to a Mix
 // as the main bulk action.
 test.skip(!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? ""), "Disposable local database only");
 test.use({ screenshot: "off", video: "off", trace: "off" });
@@ -41,20 +41,58 @@ test("Select beside the list's tools enters selection, and Done leaves it", asyn
   await page.goto("/contacts"); await ready(page);
   await page.getByRole("button", { name: "Select", exact: true }).click();
   await expect(page.getByRole("checkbox", { name: "Select Avery Ames", exact: true })).toBeVisible();
-  // In selection mode a tap on a name toggles that person instead of opening the profile.
-  await page.getByRole("link", { name: "Avery Ames", exact: true }).click();
+  // While selecting, the name is no link: a tap on it or anywhere else on the row ticks the person, and Space on the
+  // checkbox does too (D90).
+  await expect(page.getByRole("link", { name: "Avery Ames", exact: true })).toHaveCount(0);
+  // Scoped to the list: the profile docked beside it shows the same name as its heading.
+  await page.getByLabel("Contact directory").getByText("Avery Ames", { exact: true }).click();
+  await expect(page.getByRole("checkbox", { name: "Deselect Avery Ames", exact: true })).toBeChecked();
+  await page.locator(".contact-select-row").filter({ hasText: "Avery Ames" }).locator(".avatar").click();
+  await expect(page.getByRole("checkbox", { name: "Select Avery Ames", exact: true })).not.toBeChecked();
+  await page.getByRole("checkbox", { name: "Select Avery Ames", exact: true }).press("Space");
   await expect(page.getByRole("checkbox", { name: "Deselect Avery Ames", exact: true })).toBeChecked();
   expect(new URL(page.url()).pathname).toBe("/contacts");
   await page.getByRole("button", { name: "Done", exact: true }).click();
   await expect(page.getByRole("checkbox", { name: /Select Avery Ames/ })).toBeHidden();
+  await expect(page.getByRole("link", { name: "Avery Ames", exact: true })).toBeVisible();
   await expect(bar(page)).toHaveCount(0);
+});
+
+test("while selecting, \"Add phone or email\" is plain text and a row's checkbox shows its keyboard focus (D90)", async ({ page }) => {
+  // A person with neither a phone nor an email, for this test only.
+  const drew = await prisma.contact.create({ data: { workspaceId, displayName: "Drew Dale", firstName: "Drew" } });
+  try {
+    await page.goto("/contacts"); await ready(page);
+    const row = page.locator(".contact-select-row").filter({ hasText: "Drew Dale" });
+    const missing = row.locator(".contact-missing-method");
+    const style = () => missing.evaluate(element => ({ tag: element.tagName, color: getComputedStyle(element).color, weight: Number(getComputedStyle(element).fontWeight), line: getComputedStyle(element.parentElement!).color }));
+    await expect(missing).toHaveText("Add phone or email");
+    const link = await style();
+    await page.getByRole("button", { name: "Select", exact: true }).click();
+    const checkbox = page.getByRole("checkbox", { name: "Select Drew Dale", exact: true });
+    await expect(checkbox).toBeVisible();
+    // Outside selection it's the link to edit Drew; while selecting it's plain text in the line's own color and weight.
+    const plain = await style();
+    expect([link.tag, plain.tag]).toEqual(["A", "SPAN"]);
+    expect(plain.color).toBe(plain.line);
+    expect(plain.color).not.toBe(link.color);
+    expect(plain.weight).toBeLessThan(link.weight);
+    // The checkbox is transparent over its box, so the box shows where keyboard focus is.
+    const box = row.locator(".contact-select-control span");
+    expect(await box.evaluate(element => getComputedStyle(element).outlineStyle)).toBe("none");
+    await page.keyboard.press("Shift");
+    await checkbox.focus();
+    await expect.poll(() => box.evaluate(element => getComputedStyle(element).outlineStyle)).toBe("solid");
+  } finally {
+    await prisma.contact.deleteMany({ where: { id: drew.id } });
+  }
 });
 
 test("the No Mix strip selects this page and opens Add to a Mix, with no Mix chosen for the owner", async ({ page }) => {
   await page.goto("/contacts?mix=no-mix"); await ready(page);
   const strip = page.getByRole("group", { name: "3 people have No Mix." });
   await expect(strip).toBeVisible();
-  await strip.getByRole("button", { name: "Add these people to a Mix", exact: true }).click();
+  await strip.getByRole("button", { name: "Add these 3 to a Mix", exact: true }).click();
   await expect(sheet(page)).toBeVisible();
   const choose = sheet(page).getByRole("combobox", { name: "Choose a Mix", exact: true });
   await expect(choose).toHaveValue("");
@@ -91,9 +129,11 @@ test("lists for choosing one person, for a note or a date, offer no Select and n
 test("Mark No Mix needed from the strip lands on that choice in the sheet", async ({ page }) => {
   await page.goto("/contacts?mix=no-mix"); await ready(page);
   await page.getByRole("button", { name: "Mark No Mix needed", exact: true }).click();
+  // The sheet opens on its heading, as every sheet does, with Mark No Mix needed in view (D91, JITM-08 §2.12).
+  await expect(sheet(page).getByRole("heading", { name: "Add 3 people to a Mix" })).toBeFocused();
   const confirm = sheet(page).getByRole("button", { name: "Mark No Mix needed", exact: true });
-  await expect(confirm).toBeFocused();
-  await Promise.all([page.waitForURL(/noMixNeeded=3/), page.keyboard.press("Enter")]);
+  await expect(confirm).toBeInViewport();
+  await Promise.all([page.waitForURL(/noMixNeeded=3/), confirm.click()]);
   await expect(page.getByRole("group", { name: /have No Mix/ })).toHaveCount(0);
 });
 

@@ -1,7 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
-import { saveWorkflowConfiguration } from "../src/lib/mix-workflow";
+import { processWorkflowInstance, saveWorkflowConfiguration, startWorkflowInstance } from "../src/lib/mix-workflow";
 import { emptyWorkflow, type WorkflowRule } from "../src/lib/mix-workflow-types";
 
 // Journey opens readable (JITM-07 §2.20, D75): from 768px the map opens at 100%, scrolled to the first numbered Mix,
@@ -9,7 +9,7 @@ import { emptyWorkflow, type WorkflowRule } from "../src/lib/mix-workflow-types"
 test.skip(!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? ""), "Requires isolated local fixtures.");
 test.use({ screenshot: "off", video: "off", trace: "off", serviceWorkers: "block" });
 test.setTimeout(120_000);
-let workspaceId: string, userId: string, firstMixId: string;
+let workspaceId: string, userId: string, firstMixId: string, mixIds: Record<string, string>;
 const token = randomUUID();
 test.beforeAll(async () => {
   userId = (await prisma.user.create({ data: { email: `journey-readable-${randomUUID()}@example.invalid`, name: "Journey owner", emailVerifiedAt: new Date() } })).id;
@@ -26,7 +26,7 @@ test.beforeAll(async () => {
     await prisma.mixStep.create({ data: { mixId: mix.id, stepVersionId: template.versions[0].id, dayOffset: 0, sortOrder: 0 } });
     ids[name] = mix.id;
   }
-  firstMixId = ids.Mike;
+  firstMixId = ids.Mike; mixIds = ids;
   const next = (from: string, to: string): WorkflowRule => ({ id: randomUUID(), name: `Continue to ${to}`, source: { mixId: ids[from], stepId: null }, mode: "PARALLEL", enabled: true, join: null, routes: [{ id: randomUUID(), label: "After completion", when: "FINISHED", outcome: "", delayMinutes: 0, target: { mixId: ids[to], stepId: null }, maxVisits: null, replace: false }] });
   await prisma.$transaction(db => saveWorkflowConfiguration(db, workspaceId, { ...emptyWorkflow(), rules: [next("Oscar", "Papa"), next("Papa", "Quebec")] }, 0, userId));
 });
@@ -41,14 +41,16 @@ const canvas = (page: Page) => page.getByRole("region", { name: /^Scrollable jou
 const showAs = (page: Page, name: "Map" | "List") => page.getByRole("group", { name: "Show the journey as" }).getByRole("button", { name, exact: true });
 const firstRow = (page: Page) => page.getByRole("button", { name: /^Mix A1\s*Mike follow-up/ });
 /** The first numbered Mix's card starts inside the map's scrolled view and on screen, above a phone's tab bar. */
-async function firstMixInView(page: Page) {
+async function firstMixInView(page: Page) { return mixInView(page, firstMixId); }
+/** A Mix's card starts inside the map's scrolled view and on screen, above a phone's tab bar. */
+async function mixInView(page: Page, mixId: string) {
   return canvas(page).evaluate((element, id) => {
     const node = element.querySelector(`[data-workflow-node="${id}"]`);
     if (!node) return "missing";
     const view = element.getBoundingClientRect(), box = node.getBoundingClientRect();
     const tabBar = document.querySelector(".mobile-nav")?.getBoundingClientRect(), bottom = Math.min(view.bottom, innerHeight, tabBar && tabBar.height ? tabBar.top : innerHeight);
     return box.top >= Math.max(view.top, 0) && box.left >= view.left && box.top + 40 <= bottom && box.left < view.right ? "in view" : `out of view ${JSON.stringify([view.top, bottom, box.top])}`;
-  }, firstMixId);
+  }, mixId);
 }
 
 test("from 768px the map opens at 100%, scrolled to the first numbered Mix, and Fit map is the overview", async ({ page }) => {
@@ -102,7 +104,7 @@ test("choosing a Mix in the list shows its details, by touch and by keyboard", a
   const details = page.getByRole("complementary", { name: "Journey details" });
   await expect(details.getByRole("heading", { name: "Details", exact: true })).toBeFocused();
   await expect(details.getByRole("heading", { name: /Mike follow-up/ })).toBeVisible();
-  await page.getByRole("navigation", { name: "Journey workspace panels" }).getByRole("button", { name: "Map", exact: true }).click();
+  await page.getByRole("navigation", { name: "Journey workspace panels" }).getByRole("button", { name: "Mixes", exact: true }).click();
   await expect(firstRow(page)).toHaveAttribute("aria-pressed", "true");
 });
 
@@ -111,7 +113,7 @@ test("a tablet that opens on Details shows the map at 100% on the first numbered
   await page.goto("/journey?touchpoint=quiet-days", { waitUntil: "networkidle" });
   const panels = page.getByRole("navigation", { name: "Journey workspace panels" });
   await expect(panels.getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-pressed", "true");
-  await panels.getByRole("button", { name: "Map", exact: true }).click();
+  await panels.getByRole("button", { name: "Mixes", exact: true }).click();
   await expect(canvas(page)).toBeVisible();
   await expect(page.getByRole("button", { name: "Reset zoom to 100%", exact: true })).toHaveText("100%");
   await expect.poll(() => firstMixInView(page)).toBe("in view");
@@ -129,4 +131,31 @@ test("\"Needs attention\" is shown in the danger colour only above 0", async ({ 
   await page.reload({ waitUntil: "networkidle" });
   await expect(strip.locator('button[data-status="attention"] strong')).toHaveText("2");
   expect(await colour("attention")).not.toBe(await colour(""));
+});
+
+test("with a person chosen, the map opens on their first active Mix from 768px, and the phone list marks their Mixes (D96)", async ({ page }) => {
+  // Pia's Journey work runs in Papa, which follows Oscar in its journey (E2), right of the map's first column and below
+  // the fold.
+  const pia = await prisma.contact.create({ data: { workspaceId, displayName: "Pia Papa", firstName: "Pia" } });
+  const instance = await startWorkflowInstance({ workspaceId, contactId: pia.id, mixId: mixIds.Papa, requestId: randomUUID() });
+  await processWorkflowInstance(workspaceId, instance, new Date());
+  await prisma.job.updateMany({ where: { workspaceId, completedAt: null }, data: { completedAt: new Date() } });
+  await page.setViewportSize({ width: 1440, height: 900 });
+  // Chosen after the map has opened on the first Mix: once their work has loaded, the map goes to it.
+  await page.goto("/journey", { waitUntil: "networkidle" });
+  await expect.poll(() => firstMixInView(page)).toBe("in view");
+  expect(await mixInView(page, mixIds.Papa)).not.toBe("in view");
+  await page.getByRole("button", { name: "View Pia Papa's journey", exact: true }).click();
+  await expect.poll(() => mixInView(page, mixIds.Papa)).toBe("in view");
+  // A link that names them opens there.
+  await page.goto(`/journey?contactId=${pia.id}`, { waitUntil: "networkidle" });
+  await expect(page.getByRole("button", { name: "Reset zoom to 100%", exact: true })).toHaveText("100%");
+  await expect.poll(() => mixInView(page, mixIds.Papa)).toBe("in view");
+  // On a phone the list marks Pia's Mix, and only hers, and brings it into view.
+  await page.setViewportSize({ width: 390, height: 844 });
+  await page.goto(`/journey?contactId=${pia.id}`, { waitUntil: "networkidle" });
+  const papa = page.getByRole("button", { name: /^Mix [A-Z]\d+\s*Papa follow-up/ });
+  await expect(papa).toContainText("Pia Papa is here");
+  await expect(papa).toBeInViewport();
+  await expect(page.getByText("Pia Papa is here", { exact: true })).toHaveCount(1);
 });

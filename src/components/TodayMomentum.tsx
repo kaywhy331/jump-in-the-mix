@@ -206,6 +206,15 @@ export function TodayMomentum() {
       });
     };
     document.addEventListener("focusin", onFocus);
+    // A notice that appears in the review once it's open, such as a draft conflict, a held send or a channel error, comes
+    // into view: the panel's scroll padding keeps it clear of the stuck bar (D100, LAY-07). Notices the review opens with
+    // are already where the owner starts reading.
+    const notices = new MutationObserver(records => {
+      for (const record of records) for (const node of record.addedNodes) {
+        const notice = node instanceof HTMLElement ? (node.matches(".notice") ? node : node.querySelector<HTMLElement>(".notice")) : null;
+        if (notice && panel?.contains(notice) && !bar?.contains(notice)) requestAnimationFrame(() => { if (notice.isConnected) notice.scrollIntoView({ block: "nearest", behavior: "instant" }); });
+      }
+    });
     const watchBar = () => {
       const next = document.querySelector<HTMLElement>(".follow-up-review-sheet[open]:modal .review-action-bar");
       // The message's bubble is what the owner sees, and it draws the field's focus ring.
@@ -215,6 +224,8 @@ export function TodayMomentum() {
       for (const element of [bar, panel, field]) if (element) barSizes.unobserve(element);
       bar = next; panel = next?.closest<HTMLElement>(".sheet-panel") ?? null; field = nextField;
       for (const element of [bar, panel, field]) if (element) barSizes.observe(element);
+      notices.disconnect();
+      if (panel) notices.observe(panel, { subtree: true, childList: true });
     };
     const sync = () => {
       watchBar();
@@ -267,7 +278,7 @@ export function TodayMomentum() {
     return () => {
       window.removeEventListener("jitm:jump-state", onState);
       document.removeEventListener("focusin", onFocus);
-      cancelAnimationFrame(frame); changes.disconnect(); sizes.disconnect(); barSizes.disconnect();
+      cancelAnimationFrame(frame); changes.disconnect(); sizes.disconnect(); barSizes.disconnect(); notices.disconnect();
       if (slot) slot.style.minHeight = "";
       setOpenReviewSlot(null);
     };

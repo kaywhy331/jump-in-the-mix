@@ -67,7 +67,13 @@ export type JumpStateDetail = {
   /** Where the owner recorded it: in a review, or in the tray after returning from their app. Today opens the next
    * review only after those, not after a quick action from the list (D70). */
   origin?: "review" | "tray";
+  /** A done outcome that reached the person. A call with no answer or a wrong number didn't, so it doesn't count as
+   * contacting them today (D98, TDY-01). Unset when this device doesn't know the outcome. */
+  reached?: boolean;
 };
+
+/** Done outcomes that didn't reach the person (D98). The page's read leaves out the same ones. */
+const UNREACHED_OUTCOMES = new Set<Outcome>(["NO_ANSWER", "WRONG_NUMBER"]);
 
 type SaveResult =
   | { recorded: true; response: OutcomeResponse }
@@ -201,7 +207,7 @@ async function saveOutcome(
   if (response.status === 409 && FINISHING_OUTCOMES.has(outcome) && (payload.status === "DONE" || payload.status === "SKIPPED")) return { recorded: false, status: payload.status };
   if (!response.ok) throw new Error(payload.error || "The follow-up outcome could not be saved.");
   const stored = payload as OutcomeResponse;
-  dispatchJumpState({ jumpId, status: stored.status, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null, mixEnd: stored.mixEnd ?? null, origin });
+  dispatchJumpState({ jumpId, status: stored.status, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null, mixEnd: stored.mixEnd ?? null, origin, reached: stored.status === "DONE" && !UNREACHED_OUTCOMES.has(outcome) });
   return { recorded: true, response: stored };
 }
 
@@ -227,8 +233,14 @@ export function JumpWorkflowCard({
   const hideTimer = useRef<number | null>(null);
   const latestRevision = useRef(revision), outcomeRevision = useRef(revision);
   useLayoutEffect(() => { latestRevision.current = revision; }, [revision]);
-  // The person's other card and reviews name this follow-up only while it's still due (D71).
-  useEffect(() => { setFollowUpDue(jumpId, state === "ACTIVE"); }, [jumpId, state]);
+  // The person's other card and reviews name this follow-up only while it's still due (D71), and say they were contacted
+  // today once it's done (D98). A done card that hides after its Undo window stays done.
+  const recordedDone = useRef(false), reached = useRef(false);
+  useEffect(() => {
+    if (state === "DONE") recordedDone.current = reached.current;
+    else if (state !== "HIDDEN") recordedDone.current = false;
+    setFollowUpDue(jumpId, state === "ACTIVE", recordedDone.current);
+  }, [jumpId, state]);
   useEffect(() => () => setFollowUpDue(jumpId, null), [jumpId]);
   // On Today the confirmation shows inside the open review, so its Undo stays beside the owner's work (D70).
   const target = useConfirmationTarget(jumpId);
@@ -254,6 +266,7 @@ export function JumpWorkflowCard({
         return;
       }
       outcomeRevision.current = latestRevision.current;
+      reached.current = detail.status === "DONE" && detail.reached === true;
       setNotice(detail.notice ?? "");
       setNextFollowUpAt(detail.nextFollowUpAt ?? null);
       setState(detail.status);

@@ -152,10 +152,11 @@ test.describe("on a phone", () => {
     await card(page, id.gwenText).getByRole("button", { name: "Review message for Gwen Group: Text, 1 day overdue", exact: true }).click();
     await expect(openReview(page).locator(".review-also-due")).toHaveText("Also due: Call at 12:02 AM.");
     await record(page, openReview(page).getByRole("button", { name: "Mark sent for Gwen Group", exact: true }), id.gwenText);
-    // The call's own review opens next (D70), and with the text recorded it names nothing else.
+    // The call's own review opens next (D70). With the text recorded it names nothing else as due, and says Gwen was
+    // contacted today (D98).
     const callReview = card(page, id.gwenCall).locator(".follow-up-review-sheet[open]");
     await expect(callReview).toBeVisible();
-    await expect(callReview.locator(".review-also-due")).toHaveCount(0);
+    await expect(callReview.locator(".review-also-due")).toHaveText(["Contacted today"]);
     await expect(callReview.locator(`[data-follow-up-undo][data-jump-workflow="${id.gwenText}"]`)).toBeVisible();
     expect(await status(id.gwenCall)).toBe("PENDING");
   });
@@ -172,6 +173,15 @@ test.describe("on a phone", () => {
     await frames(page, 6);
     await expect(openReview(page)).toHaveCount(0);
     expect(await status(id.gwenText)).toBe("PENDING");
+    // She was contacted today, so her text says so and keeps its skip offer (D98); a fresh read says when.
+    const text = card(page, id.gwenText);
+    await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today$/ })).toBeVisible();
+    await expect(text.getByRole("button", { name: "Skip this text for Gwen Group", exact: true })).toBeVisible();
+    await page.reload(); await ready(page);
+    await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today at \d{1,2}:\d{2} [AP]M$/ })).toBeVisible();
+    await expect(text.getByRole("button", { name: "Skip this text for Gwen Group", exact: true })).toBeVisible();
+    await text.getByRole("button", { name: "Review message for Gwen Group", exact: true }).click();
+    await expect(openReview(page).locator(".review-also-due").filter({ hasText: /^Contacted today at / })).toBeVisible();
   });
 
   for (const width of [320, 390]) {
@@ -193,6 +203,35 @@ test.describe("on a phone", () => {
       }, width)).toBe("inside");
     });
   }
+});
+
+test("a call with no answer or a wrong number doesn't count as contacting the person today (D98, TDY-01)", async ({ page }) => {
+  await page.goto("/jumps"); await ready(page);
+  // Back from the phone app, the owner records that Gwen's call wasn't answered.
+  await page.evaluate(({ jumpId, contactName }) => {
+    const scope = document.querySelector<HTMLElement>("[data-browser-scope]")!.dataset.browserScope!;
+    const detail = { scope, jumpId, contactName, channel: "PHONE_CALL", openedAt: Date.now() };
+    sessionStorage.setItem(`jitm:private:${scope}:opened-jump`, JSON.stringify(detail));
+    window.dispatchEvent(new CustomEvent("jitm:jump-opened", { detail }));
+  }, { jumpId: id.gwenCall, contactName: "Gwen Group" });
+  await page.getByLabel("Finish follow-up with Gwen Group").filter({ visible: true }).getByRole("button", { name: "No answer", exact: true }).click();
+  await expect.poll(async () => (await prisma.jump.findUniqueOrThrow({ where: { id: id.gwenCall } })).completionMethod).toBe("outcome:no_answer");
+  const text = card(page, id.gwenText);
+  const contacted = text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today/ });
+  await frames(page, 6);
+  await expect(text).toBeVisible();
+  await expect(contacted).toHaveCount(0);
+  // A fresh read says the same, and so does a wrong number; a connected call counts.
+  await page.reload(); await ready(page);
+  await expect(text).toBeVisible();
+  await expect(contacted).toHaveCount(0);
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { completionMethod: "outcome:wrong_number" } });
+  await page.reload(); await ready(page);
+  await expect(text).toBeVisible();
+  await expect(contacted).toHaveCount(0);
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { completionMethod: "outcome:connected" } });
+  await page.reload(); await ready(page);
+  await expect(text.locator(".jump-also-due-row").filter({ hasText: /^Contacted today at \d{1,2}:\d{2} [AP]M$/ })).toBeVisible();
 });
 
 test("a row says the reason, then the Mix, on one line; a one-time follow-up never names its hidden Mix", async ({ page }) => {

@@ -12,7 +12,7 @@ import { splitContactName } from "@/lib/quick-add-capture";
 import { ensureStarterMix } from "@/lib/starter-mix";
 import { buildEmailInputs, buildPhoneInputs } from "@/lib/contact-input";
 import { DEFAULT_PHONE_REGION, canonicalPhoneKey, workspacePhoneRegion } from "@/lib/phone-number";
-import { onboardingUses, onboardingReasons } from "@/lib/onboarding-options";
+import { onboardingUses, onboardingReasons, currentReason } from "@/lib/onboarding-options";
 import { storedMarketingScenario } from "@/lib/marketing-scenarios";
 import { placeNewContacts } from "@/lib/new-contact-placement";
 
@@ -87,7 +87,7 @@ export async function completeOnboardingAction(formData: FormData): Promise<void
   const starterChoice = value(formData, "starterChoice");
   // The example the person tried brings its own reason; any other choice must be one this business type offers.
   const suggested = starterChoice === "suggested" && business && scenario;
-  const reason = suggested ? suggested.reason : value(formData, "reason") || onboardingReasons(uses, businessType)[0];
+  const reason = suggested ? suggested.reason : currentReason(value(formData, "reason")) || onboardingReasons(uses, businessType)[0];
   if (!suggested && !onboardingReasons(uses, businessType).includes(reason)) fail(path, "Choose what the first follow-up is about.", session);
   const followUpDate = value(formData, "followUpDate");
   const privateContext = value(formData, "privateContext").slice(0, 1000);

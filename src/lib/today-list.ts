@@ -85,6 +85,19 @@ export function followUpPhone(
 /** Cursor values describe an ordering position, never a workspace or authority.
  * Open work precedes completed history; both groups sort by time and stable ID.
  * Fill from one group before reading the next, including boundary-spanning pages. */
+/**
+ * The follow-ups of a page's people that are due by the end of today but not on the page, read as the page reads its own,
+ * so a person's card names them in "Also due" and keeps its skip offer (D97, JITM-09 §2.82). Bounded by the page's people
+ * and by a page's size.
+ */
+export async function readAlsoDueElsewhere(workspaceId: string, contactIds: string[], onPage: string[], endToday: Date) {
+  if (!contactIds.length) return [];
+  return prisma.jump.findMany({
+    where: { workspaceId, contactId: { in: contactIds }, status: "PENDING", scheduledAt: { lt: endToday }, id: { notIn: onPage } },
+    select, orderBy: [{ scheduledAt: "asc" }, { id: "asc" }], take: TODAY_PAGE_SIZE
+  });
+}
+
 export async function readTodayPage(workspaceId: string, filters: Prisma.JumpWhereInput, input: { after?: unknown; before?: unknown } = {}, groupFilters: GroupFilters = {}) {
   const after = parseTodayCursor(input.after);
   const before = after ? null : parseTodayCursor(input.before);
