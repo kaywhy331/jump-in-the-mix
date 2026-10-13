@@ -2,9 +2,9 @@
 id: JITM-12
 title: Testing and verification
 status: active
-version: 2.0.0
+version: 2.0.1
 owner: Kevin
-last_reviewed: 2026-10-12
+last_reviewed: 2026-10-13
 applies_to: [tests, e2e, checks, ci, screenshots, reports]
 supersedes: []
 sources:
@@ -101,7 +101,7 @@ PASS and FAIL describe a check's result; the label describes the evidence behind
 
 Nothing may fail only on the candidate. [OWNER 2026-09-28 D5] [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:74-77] [SOURCE docs/AUDIT_RELEASE_B_2026-09-25.md:70-77]
 
-A fifth class, intermittent: a failure that both fails and passes when rerun alone on the same build, where an order-dependent one passes every time alone. To tell them apart, step 4 reruns each failure alone twice on each build. An intermittent failure is then run alone five times on the candidate and five times on the baseline; when it fails more often on the candidate it counts as new, and nothing new may fail. [PROPOSED]
+A fifth class, intermittent: a failure that both fails and passes when rerun alone on the same build, where an order-dependent one passes every time alone. To tell them apart, step 4 reruns each failure alone twice on each build. An intermittent failure is then run alone five times on the candidate and five times on the baseline; when it fails more often on the candidate it counts as new, and nothing new may fail. [OWNER 2026-10-13 D101]
 
 **2.15** Pre-existing failures are compared, not blamed. The record lists each by spec with its cause, marks it as not blocking, and schedules a test-only follow-up. [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:79-103]
 
@@ -187,3 +187,4 @@ A fifth class, intermittent: a failure that both fails and passes when rerun alo
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.19 confirmed, with the check before committing evidence (D25); §6 updated for D13.
 - 2.0.0 — 2026-10-12 — Base 4e78545. §2.14 changes meaning: a fifth class, intermittent (both fails and passes when rerun alone on the same build), told apart from an order-dependent failure by two reruns alone on each build, then run alone five times on each build; one that fails more often on the candidate counts as new and blocks, since nothing new may fail. This addition is D101, tagged [PROPOSED] until Kevin confirms it; steps 1–5 and the D5 gate are unchanged.
+- 2.0.1 — 2026-10-13 — Base 4d5c307. §2.14's intermittent class is Kevin's (D101).

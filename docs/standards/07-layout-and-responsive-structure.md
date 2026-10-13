@@ -2,9 +2,9 @@
 id: JITM-07
 title: Layout and responsive structure
 status: active
-version: 1.2.0
+version: 1.3.0
 owner: Kevin
-last_reviewed: 2026-10-12
+last_reviewed: 2026-10-13
 applies_to: [ui, layout, navigation, responsive, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
@@ -112,7 +112,7 @@ Supporting values are 600 (small-phone spacing), 760 (the public menu and staff 
 
 **2.19** Journey is the account's Mix and Beat graph, not the export's stage circles. The page fills the width beside the rail. It uses the §2.13 panes as people, map and details, with a People / Mixes / Details switcher below 1200px; the middle tab shows the Mixes as a list or a map. [OWNER 2026-10-12 D95] From 768 to 900px it keeps a compact page header. [OWNER 2026-09-28 D4] [OWNER 2026-09-21 docs/JOURNEY_THREE_PANES_2026-09-21.md:3] [SHIPPED 9439fd6 src/components/WorkflowJourney.module.css:1,67,80-81,145-170]
 
-**2.20** Journey opens readable: from 768px the map opens at 100% zoom, scrolled to the first numbered Mix, and Fit map is an explicit overview; on phones Journey opens in its list view, with the map one tap away. [OWNER 2026-10-08 D75] [SHIPPED 4e78545 src/components/WorkflowJourney.tsx:33-38] With a person chosen, Journey goes to their work: from 768px the map opens on their first active Mix; on phones the list marks their Mixes. [OWNER 2026-10-12 D96] The phone list also scrolls to the first of them. [PROPOSED] The Journey map is a scrollable, focusable region that fills the map pane: the viewport height less its header from 1700px, and half the screen height on phones. Zoom and Fit map controls sit above it, and the cursor shows an open hand when panning is ready and a closed hand while panning. How panning and refresh behave is JITM-09 §2. [OWNER 2026-09-28 D4] [SHIPPED 9439fd6 src/components/WorkflowJourney.module.css:162,172,241-243] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:229]
+**2.20** Journey opens readable: from 768px the map opens at 100% zoom, scrolled to the first numbered Mix, and Fit map is an explicit overview; on phones Journey opens in its list view, with the map one tap away. [OWNER 2026-10-08 D75] [SHIPPED 4e78545 src/components/WorkflowJourney.tsx:33-38] With a person chosen, Journey goes to their work: from 768px the map opens on their first active Mix; on phones the list marks their Mixes. [OWNER 2026-10-12 D96] The phone list also scrolls to the first of them. [OWNER 2026-10-13 D117] [SHIPPED 4d5c307 src/components/WorkflowJourney.tsx:164] A person's Mixes include those their Mix starts and follow-ups are in, not only those their Journey work is in. [OWNER 2026-10-13 D121] The Journey map is a scrollable, focusable region that fills the map pane: the viewport height less its header from 1700px, and half the screen height on phones. Zoom and Fit map controls sit above it, and the cursor shows an open hand when panning is ready and a closed hand while panning. How panning and refresh behave is JITM-09 §2. [OWNER 2026-09-28 D4] [SHIPPED 9439fd6 src/components/WorkflowJourney.module.css:162,172,241-243] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:229]
 
 **2.21** Calendar leads with the agenda, and the agenda leads with appointments: the follow-ups due each day are one summary row linking to Today, never one row each (JITM-09 §2.62, D74). At 1099px and below the editor shows only when New event or Edit asks for it. From 1100px a 360px agenda sits beside the editor; from 1700px it is a 400px agenda, the editor and a 280px contact column. The workspace stops at 1672px. [SHIPPED 9439fd6 src/styles/design-details.css:153-160] [SHIPPED 9439fd6 src/styles/design-workspaces.css:327-337] [SOURCE docs/design/DESIGN_GUIDELINES.md:34]
 
@@ -193,9 +193,9 @@ Known deviations:
 
 Built: §2.20's opening at 100% from 768px and in the list view on phones (D75, PR #143).
 
-Decided, not built (D95, D96; `docs/standards-audit-2026-09-28/OWNER_DECISIONS.md`), at 4e78545:
-- The pane tabs read People / Map / Details, so "Map" names the tab and one of its two views (`src/components/WorkflowJourney.tsx:243`), against §2.19 (D95). The pane's heading, "Journey map" (`src/components/WorkflowJourney.tsx:251`), also shows over the list; D95's task settles it.
-- With a person chosen, the map stays where it is from 768px, and the phone list doesn't mark their Mixes (JRC-15), against §2.20 (D96).
+Built: §2.19's tabs and pane heading (D95) and §2.20's person (D96, D117), in PR #150, `prod-2026-10-13-4d5c307`.
+
+Decided, not built (D121, backlog B-21): with a person chosen, Journey marks only the Mixes their Journey work is in, so in an account with no Journey connection it marks none of the Mixes whose rows count them (JRN-03 in PR #150), against §2.20.
 
 Decided, not built (UX audit 2026-10-08, `docs/UX_DESIGN_AUDIT_2026-10-08.md`), at f23db11:
 - The Calendar agenda lists every follow-up as its own row, so on a busy day the first appointment is about 1,950px down (LEN-04), against §2.21 (D74).
@@ -210,3 +210,4 @@ Question for Kevin:
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §6 updated for D20 and D24.
 - 1.1.0 — 2026-10-08 — Base f23db11. §2.20 Journey opens at 100% from 768px and in the list view on phones (D75); §2.21 the Calendar agenda leads with appointments (D74); §2.22 Settings groups its rows (D81). §6 lists the three as decided, not built.
 - 1.2.0 — 2026-10-12 — Base 4e78545. §2.19: the pane tabs below 1200px read People / Mixes / Details (D95). §2.20: with a person chosen, Journey goes to their work (D96); the phone list's scroll to the first of their Mixes is proposed. §6: D75 is built; D95 and D96 are decided and not yet built.
+- 1.3.0 — 2026-10-13 — Base 4d5c307. §2.20: the phone list's scroll is Kevin's (D117), and a person's Mixes include those their Mix starts and follow-ups are in (D121, not built). §6: D95 and D96 are built (PR #150).
