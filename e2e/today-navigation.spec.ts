@@ -369,6 +369,18 @@ test.describe("live outcome updates", () => {
     await expect(page.locator(`#jump-${smsIds[0]}`)).toBeVisible();
     await expect(page.locator(".jump-card")).toHaveCount(30);
     await expect(pager(page)).toContainText("Showing 30 of 323 follow-ups");
+    // Its confirmation is still on screen. Its Undo is refused, the follow-up being pending already, and that counts as
+    // reopened: the confirmation leaves at once, where a failed Undo would keep it, with its error, for 10 seconds, and the
+    // page reads again, as after any reopening (UND-01).
+    await expect(undoFor(page, smsIds[0])).toBeVisible();
+    const undone = page.waitForResponse(response => new URL(response.url()).pathname === `/api/jumps/${smsIds[0]}/outcome`);
+    const undoRead = page.waitForResponse(response => new URL(response.url()).pathname === "/jumps" && isRefresh(response.request()));
+    await undoFor(page, smsIds[0]).click();
+    expect((await undone).status()).toBe(409);
+    await expect(page.locator(`[data-follow-up-undo][data-jump-workflow="${smsIds[0]}"]`)).toHaveCount(0, { timeout: 3_000 });
+    expect((await undoRead).status()).toBe(200);
+    await expect(page.locator(`#jump-${smsIds[0]}`)).toBeVisible();
+    expect((await prisma.jump.findUniqueOrThrow({ where: { id: smsIds[0] } })).status).toBe("PENDING");
   });
 
   test("completed cards remain visible in history after the Undo window", async ({ page }) => {
