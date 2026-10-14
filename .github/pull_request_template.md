@@ -14,6 +14,7 @@
 
 Label each item VERIFIED (how), INFERRED (from what), NOT RUN (why) or BLOCKED (by what), per JITM-12 §2.1.
 
+- [ ] Hosted checks green: CI, Security and Docker build (JITM-12 §2.12)
 - [ ] `npm run standards:check` (when docs/standards, skills or AGENTS.md changed)
 - [ ] Typecheck, unit tests and the relevant browser suites, compared with an origin/main baseline for failures that already exist (JITM-12)
 - [ ] Production build
