@@ -2,7 +2,7 @@
 id: JITM-13
 title: Git, PR and review
 status: active
-version: 1.0.2
+version: 1.1.0
 owner: Kevin
 last_reviewed: 2026-10-14
 applies_to: [git, worktrees, branches, commits, pull-requests, reviews]
@@ -96,7 +96,7 @@ Example: `feat/journey-map-navigation-20260928`. [OWNER 2026-09-28 D10]
 
 ### Review and merge
 
-**2.18** Pull requests are reviewed through WF-05 and scored with the rubric in JITM-17 §2. A pull request is ready to merge only when the verdict is Approve, or when Kevin accepts the open findings. [OWNER 2026-09-28 O6] [PROPOSED]
+**2.18** Pull requests are reviewed through WF-05 and scored with the rubric in JITM-17 §2. A pull request is ready to merge only when the verdict is Approve, or when Kevin accepts the open findings. [OWNER 2026-09-28 O6] [PROPOSED] Its hosted checks are green too (JITM-12 §2.12). [OWNER 2026-10-14 D122]
 
 **2.19** Pull requests are merged with a merge commit. Squash and rebase merges MUST NOT be used: tags and records point at merge commits, and squashing rewrites authorship. Who may merge: JITM-16 §2.5. [OWNER 2026-09-28 D10] [PROPOSED] [SOURCE docs/audit-2026-09-24/tests-quality-process.md:169]
 
@@ -141,4 +141,4 @@ Example: `feat/journey-map-navigation-20260928`. [OWNER 2026-09-28 D10]
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.17–§2.19 point to JITM-16 §2.5 for who merges (D30).
-- 1.0.2 — 2026-10-14 — Base 6630e49. §6: the repository is public and Actions runs again (D122), so branch protection is a question for Kevin.
+- 1.1.0 — 2026-10-14 — Base 6630e49. §2.18: a pull request also needs its hosted checks green to merge (D122). §6: the repository is public and Actions runs again, so branch protection is a question for Kevin.

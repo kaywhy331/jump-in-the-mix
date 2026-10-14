@@ -2,9 +2,9 @@
 id: WF-06
 title: Production release
 status: active
-version: 2.0.0
+version: 3.0.0
 owner: Kevin
-last_reviewed: 2026-10-12
+last_reviewed: 2026-10-14
 standards: [JITM-12, JITM-13, JITM-14, JITM-15, JITM-16]
 skills: [jitm-release]
 ---
@@ -24,7 +24,7 @@ skills: [jitm-release]
    **Gate:** the task asks for a release, and the candidate is on `main`.
 2. **Prepare the workspace.** Create a fresh worktree at the candidate commit, never a shared checkout. Run the committed release script and runbook in `scripts/release/` (JITM-14 §2.10); until they exist, adapt the previous release's scripts. Receipts and logs go in a new directory under the git-ignored `.artifacts/`, never in Git.
 3. **Verify the candidate locally.** Run tier 3 (JITM-12 §2.11) against a build of the previous production commit (JITM-12 §2.14).
-   **Gate:** nothing new fails (JITM-12 §2.14): no failure only on the candidate, and no intermittent failure that fails more often on the candidate.
+   **Gate:** nothing new fails (JITM-12 §2.14): no failure only on the candidate, no intermittent failure that fails more often on the candidate, and no failure seen only in batch that fails more often in its batch on the candidate.
 4. **Run the read-only preflight.** Confirm that:
    - the target is right: both service names and ids, the domain and the commit each runs (JITM-14 §2.3);
    - both services are live on the previous commit, with auto-deploy off;
@@ -96,3 +96,4 @@ skills: [jitm-release]
 - 1.0.0 — 2026-09-28 — Initial version, codifying the release sequence practiced since 2026-09-21.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. The committed release script (D18), the backup in every release (D17) and merge authorization (D30).
 - 2.0.0 — 2026-10-12 — Base 4e78545. Step 3's gate follows JITM-12 2.0.0: nothing new fails, so an intermittent failure that fails more often on the candidate blocks too (D101, proposed).
+- 3.0.0 — 2026-10-14 — Base 6630e49. Step 3's gate follows JITM-12 3.0.0: a failure seen only in batch that fails more often in its batch on the candidate blocks too (D123).
