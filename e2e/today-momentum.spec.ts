@@ -85,6 +85,80 @@ async function record(page: Page, button: Locator, id: string) {
   if (await decisions.isVisible()) await decisions.getByRole("button", { name: "Save outcome", exact: true }).click();
 }
 const markSent = (page: Page, review: Locator, name: string, id: string) => record(page, review.getByRole("button", { name: `Mark sent for ${name}`, exact: true }), id);
+
+test.describe("confirmation and rail layout", () => {
+  // Playwright cannot reliably intercept a request owned by a service worker. These checks inject an Undo failure.
+  test.use({ serviceWorkers: "block" });
+  for (const theme of ["light", "dark"] as const) {
+    test(`a failed Undo stays inside its confirmation with readable padding in ${theme} (B-22)`, async ({ page }, testInfo) => {
+      await page.addInitScript(value => localStorage.setItem("jitm-appearance", value), theme);
+      await page.route(`**/api/jumps/${ids[0]}/outcome`, async route => {
+        if (route.request().postDataJSON().outcome !== "REOPENED") return route.continue();
+        await route.fulfill({ status: 503, contentType: "application/json", body: JSON.stringify({ error: "The follow-up could not be reopened. Try Undo again." }) });
+      });
+      await page.goto("/jumps"); await ready(page);
+      if (testInfo.project.name === "mobile-chromium") {
+        await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+        await markSent(page, openReview(page), names[0], ids[0]);
+      } else {
+        const card = page.locator(`#jump-${ids[0]}`);
+        await card.getByRole("button", { name: /^More options for/ }).click();
+        await record(page, card.getByRole("button", { name: /^Mark done for/ }), ids[0]);
+      }
+      const confirmation = confirmationOf(page.locator("body"), ids[0]);
+      const rejected = page.waitForResponse(response => response.url().endsWith(`/api/jumps/${ids[0]}/outcome`) && response.status() === 503);
+      await confirmation.getByRole("button", { name: "Undo", exact: true }).click();
+      await rejected;
+      const error = confirmation.getByRole("alert");
+      await expect(error).toContainText("Try Undo again");
+      if (process.env.JITM_LAYOUT_CAPTURE) await page.screenshot({ path: `${process.env.JITM_LAYOUT_CAPTURE}/${testInfo.project.name}-${theme}-undo-error.png` });
+      const box = (await confirmation.boundingBox())!, text = (await error.boundingBox())!;
+      expect(text.x - box.x).toBeGreaterThanOrEqual(12);
+      expect(box.x + box.width - text.x - text.width).toBeGreaterThanOrEqual(12);
+      expect(box.y + box.height - text.y - text.height).toBeGreaterThanOrEqual(12);
+      const undo = (await confirmation.getByRole("button", { name: "Undo", exact: true }).boundingBox())!;
+      expect(undo.width).toBeGreaterThanOrEqual(44); expect(undo.height).toBeGreaterThanOrEqual(44);
+      await expect(confirmation.getByRole("button", { name: "Undo", exact: true })).toBeFocused();
+      await page.unroute(`**/api/jumps/${ids[0]}/outcome`);
+      await confirmation.getByRole("button", { name: "Undo", exact: true }).click();
+      await expect.poll(() => status(ids[0])).toBe("PENDING");
+    });
+
+    test(`the compact Profile control fits and opens from the keyboard in ${theme} (D82)`, async ({ page }, testInfo) => {
+      test.skip(testInfo.project.name !== "desktop-chromium", "The compact rail is checked at explicit desktop widths.");
+      await page.addInitScript(value => localStorage.setItem("jitm-appearance", value), theme);
+      await page.goto("/jumps"); await ready(page);
+      for (const width of [901, 1194, 1279, 1280]) {
+        await page.setViewportSize({ width, height: 600 });
+        const profile = page.locator(".account-sidebar-actions").getByRole("button", { name: "Profile", exact: true });
+        await page.locator(".sidebar .logo").focus();
+        for (let step = 0; step < 16 && !await profile.evaluate(element => element === document.activeElement); step += 1) await page.keyboard.press("Tab");
+        await expect(profile).toBeFocused();
+        await expect(profile).toBeInViewport({ ratio: 1 });
+        const geometry = await profile.evaluate(element => {
+          const box = element.getBoundingClientRect(), rail = element.closest(".sidebar")!.getBoundingClientRect();
+          const node = [...element.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent?.includes("Profile"))!;
+          const range = document.createRange(); range.selectNodeContents(node);
+          return { width: box.width, height: box.height, inside: box.left >= rail.left && box.right <= rail.right, lines: [...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0).length };
+        });
+        expect(geometry.width).toBeGreaterThanOrEqual(44); expect(geometry.height).toBeGreaterThanOrEqual(44);
+        expect(geometry.inside).toBe(true); expect(geometry.lines).toBeLessThanOrEqual(1);
+        if (process.env.JITM_LAYOUT_CAPTURE) await page.screenshot({ path: `${process.env.JITM_LAYOUT_CAPTURE}/rail-${theme}-${width}.png` });
+        await page.keyboard.press("Enter");
+        const sheet = page.getByRole("dialog", { name: "Profile and settings", exact: true, includeHidden: true });
+        await expect(sheet).toBeVisible();
+        // Native focus restoration precedes React's close handler. Let that event finish before tabbing at the next width.
+        await sheet.evaluate(element => {
+          element.removeAttribute("data-close-settled");
+          element.addEventListener("close", () => queueMicrotask(() => element.setAttribute("data-close-settled", "")), { once: true });
+        });
+        await page.keyboard.press("Escape");
+        await expect(sheet).toHaveAttribute("data-close-settled", "");
+        await expect(profile).toBeFocused();
+      }
+    });
+  }
+});
 /** A person whose only Beat is due today in a one-Beat Mix, so recording it ends the Mix and Today asks what's next. */
 async function mixEndPerson(name: string, phone: string) {
   const contact = await prisma.contact.create({ data: { workspaceId, displayName: name, phones: { create: { phone, normalized: phone, isPrimary: true } } } });
@@ -153,6 +227,34 @@ async function returnFromApp(page: Page, id: string, name: string) {
 
 test.describe("on a phone", () => {
   test.beforeEach(({}, testInfo) => { test.skip(testInfo.project.name !== "mobile-chromium", "The phone review is a modal sheet."); });
+
+  for (const theme of ["light", "dark"] as const) {
+    test(`two confirmations leave the message and actions usable at 320×568 in ${theme} (B-22)`, async ({ page }, testInfo) => {
+      await page.addInitScript(value => localStorage.setItem("jitm-appearance", value), theme);
+      await page.setViewportSize({ width: 320, height: 568 });
+      await page.goto("/jumps"); await ready(page);
+      await page.getByRole("button", { name: `Review message for ${names[0]}`, exact: true }).click();
+      await markSent(page, openReview(page), names[0], ids[0]);
+      await markSent(page, openReview(page), names[1], ids[1]);
+      const review = openReview(page);
+      await expect(review.locator("[data-follow-up-undo]")).toHaveCount(2);
+      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      if (process.env.JITM_LAYOUT_CAPTURE) await page.screenshot({ path: `${process.env.JITM_LAYOUT_CAPTURE}/${testInfo.project.name}-${theme}-two-confirmations.png` });
+      const message = (await review.locator(".speech-bubble--compose").boundingBox())!;
+      const bar = (await review.locator(".review-action-bar").boundingBox())!;
+      expect(bar.y, "The actions must not cover the message when the confirmation stack fills the sheet").toBeGreaterThanOrEqual(message.y + message.height);
+      await review.getByRole("textbox", { name: "Your message", exact: true }).focus();
+      await expectUncovered(page);
+      await review.locator(".review-action-bar").scrollIntoViewIfNeeded();
+      await review.getByRole("link", { name: `Open text for ${names[2]}`, exact: true }).focus();
+      await expectUncovered(page);
+      for (const control of [review.getByRole("link", { name: `Open text for ${names[2]}`, exact: true }), review.getByRole("button", { name: `Mark sent for ${names[2]}`, exact: true }), review.getByRole("button", { name: "Skip Beat", exact: true })]) {
+        const box = (await control.boundingBox())!;
+        expect(box.y).toBeGreaterThanOrEqual(0); expect(box.y + box.height).toBeLessThanOrEqual(568);
+      }
+      if (process.env.JITM_LAYOUT_CAPTURE) await page.screenshot({ path: `${process.env.JITM_LAYOUT_CAPTURE}/${testInfo.project.name}-${theme}-two-confirmations-actions.png` });
+    });
+  }
 
   test("an outcome in a review opens the next due one, with the confirmation and its Undo inside it", async ({ page }) => {
     await page.goto("/jumps"); await ready(page);
@@ -348,6 +450,7 @@ test.describe("on a phone", () => {
 
   test("at 200% text on a 375×667 phone, outcome choices too tall for a stuck bar make it scroll with the review, choices in view", async ({ page }) => {
     await page.setViewportSize({ width: 375, height: 667 });
+    await page.clock.install();
     // The Mix's next step is checked slowly, so "Mark sent" opens the outcome choices first (the existing fallback).
     await page.route(url => url.pathname === "/api/mix-workflow", async route => { await new Promise(resolve => setTimeout(resolve, 4_000)); await route.continue(); });
     await page.goto("/jumps"); await ready(page);
@@ -357,9 +460,14 @@ test.describe("on a phone", () => {
     const next = openReview(page);
     await expect(confirmationOf(next, ids[0])).toBeVisible();
     const panel = next.locator(".sheet-panel");
-    // Today has measured this review's bar, and it sticks before the tap.
+    // At enlarged text the confirmation needs the flowing bar too. Once it expires, the message fits above a stuck bar.
+    await expect(panel).toHaveAttribute("data-review-bar-flows", "");
+    await next.getByRole("textbox", { name: "Your message", exact: true }).focus();
+    await expectUncovered(page);
+    await page.clock.runFor(10_500);
+    await expect(confirmationOf(next, ids[0])).toHaveCount(0);
     await expect.poll(() => panel.evaluate(element => (element as HTMLElement).style.getPropertyValue("--review-bar-height"))).not.toBe("");
-    expect(await next.locator(".review-action-bar").evaluate(bar => getComputedStyle(bar).position)).toBe("sticky");
+    await expect.poll(() => next.locator(".review-action-bar").evaluate(bar => getComputedStyle(bar).position)).toBe("sticky");
     const tapped = next.getByRole("button", { name: `Mark sent for ${names[1]}`, exact: true });
     await tapped.click();
     await expect(next.getByRole("group", { name: "Record journey outcome" })).toBeVisible();

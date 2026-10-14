@@ -218,16 +218,16 @@ type HostedConfirmation = { jumpId: string; status: "DONE" | "SKIPPED"; contactN
 function ConfirmationView({ ref, entry, undoing, error, onUndo }: { ref: Ref<HTMLDivElement>; entry: HostedConfirmation; undoing: boolean; error: string; onUndo: () => void }) {
   return (
     <div ref={ref} className={styles.cardWrapper} data-jump-workflow={entry.jumpId} data-follow-up-undo="true">
-      <div className={styles.completedPlaceholder} role="status">
-        <span>
+      <div className={styles.completedPlaceholder}>
+        <span role="status">
           <strong>{entry.status === "SKIPPED" ? "Follow-up skipped" : "Follow-up completed"}</strong>
           {entry.notice && <small>{entry.notice}</small>}
           <small>{entry.contactName} · you can undo this for a moment</small>
           {entry.nextFollowUpAt ? <small>Next follow-up: {formatNextFollowUp(entry.nextFollowUpAt)}</small> : entry.nextScheduledLabel && <small>Next scheduled: {entry.nextScheduledLabel}</small>}
         </span>
         <button className="button small" type="button" onClick={onUndo} disabled={undoing}>{undoing ? "Restoring…" : "Undo"}</button>
+        {error && <p className={styles.confirmationError} role="alert">{error}</p>}
       </div>
-      {error && <p className={styles.error} role="alert">{error}</p>}
     </div>
   );
 }
