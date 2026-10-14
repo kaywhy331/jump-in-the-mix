@@ -152,10 +152,10 @@ export function TodayMomentum() {
       slot.style.minHeight = tallest ? `${tallest}px` : "";
     });
     // A phone review's sheet pads its scrolling by the height of its action bar, which stays at the bottom. When the header
-    // and the bar would take more than half the sheet, or the room between them can't hold the message, as with large text
+    // and the bar would take more than half the sheet, or the room left after confirmations can't hold the message, as with large text
     // or on a short screen, the bar scrolls with the review instead, so no field is caught between the two (JITM-07 §2.26,
     // LAY-06). Sticking changes no sizes (the bar keeps its padding), so the choice can't feed back on itself (LAY-08).
-    let bar: HTMLElement | null = null, panel: HTMLElement | null = null, field: HTMLElement | null = null;
+    let bar: HTMLElement | null = null, panel: HTMLElement | null = null, field: HTMLElement | null = null, confirmations: HTMLElement | null = null;
     // Each bar's height with no outcome choices open, kept while the review is closed and reopened (LAY-09), and the bars
     // whose choices are open, so opened choices are brought into view once.
     const restingHeights = new WeakMap<HTMLElement, number>();
@@ -204,7 +204,8 @@ export function TodayMomentum() {
       const opening = Boolean(choices) && !choicesOpen.has(bar);
       if (choices) choicesOpen.add(bar);
       const resting = restingHeights.get(bar) ?? height;
-      const flows = header + resting > panel.clientHeight / 2 || panel.clientHeight - header - height < (field?.getBoundingClientRect().height ?? 0) + 24;
+      const confirmed = confirmations?.getBoundingClientRect().height ?? 0;
+      const flows = header + resting > panel.clientHeight / 2 || panel.clientHeight - header - height - confirmed < (field?.getBoundingClientRect().height ?? 0) + 24;
       const started = flows && !panel.hasAttribute("data-review-bar-flows");
       panel.toggleAttribute("data-review-bar-flows", flows);
       const sheet = panel;
@@ -240,10 +241,12 @@ export function TodayMomentum() {
       // The message's bubble is what the owner sees, and it draws the field's focus ring.
       const message = next?.closest(".sheet-panel")?.querySelector<HTMLElement>("textarea") ?? null;
       const nextField = message?.closest<HTMLElement>(".speech-bubble--compose") ?? message;
-      if (next === bar && nextField === field) return;
-      for (const element of [bar, panel, field]) if (element) barSizes.unobserve(element);
-      bar = next; panel = next?.closest<HTMLElement>(".sheet-panel") ?? null; field = nextField;
-      for (const element of [bar, panel, field]) if (element) barSizes.observe(element);
+      const nextConfirmations = next?.closest(".sheet-panel")?.querySelector<HTMLElement>("[data-sheet-momentum]") ?? null;
+      if (next === bar && nextField === field && nextConfirmations === confirmations) return;
+      for (const element of [bar, panel, field, confirmations]) if (element) barSizes.unobserve(element);
+      bar = next; panel = next?.closest<HTMLElement>(".sheet-panel") ?? null; field = nextField; confirmations = nextConfirmations;
+      // A confirmation can grow (including an Undo error) or expire without resizing the sheet or the message.
+      for (const element of [bar, panel, field, confirmations]) if (element) barSizes.observe(element);
       notices.disconnect();
       if (panel) notices.observe(panel, { subtree: true, childList: true });
     };

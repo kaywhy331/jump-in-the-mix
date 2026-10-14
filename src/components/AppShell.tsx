@@ -57,7 +57,7 @@ export function AppShell({
           <div className="account-sidebar-actions">
             {impersonation ? endImpersonationForm : (
               <Sheet
-                trigger={<button className="button small" type="button"><AppIcon name="profile" />Profile</button>}
+                trigger={<button className="button small sidebar-profile-trigger" type="button" aria-label="Profile"><AppIcon name="profile" />Profile</button>}
                 title="Profile and settings"
                 description={`Signed in as ${userName}`}
                 className="profile-sheet"
