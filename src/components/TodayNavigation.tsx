@@ -7,6 +7,7 @@ import { useTodayUpdates } from "@/components/useTodayUpdates";
 import { FollowUpConfirmations } from "@/components/JumpWorkflow";
 import { openSheet } from "@/lib/sheet-layout";
 import { AppIcon } from "@/components/AppIcon";
+import { TodayReviewPlacement } from "@/components/TodayReviewPlacement";
 
 const DraftGuard = createContext<(href: string) => boolean>(() => false);
 // A route transition can mount a new page instance. Keep this data-free focus
@@ -97,7 +98,7 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     return () => { cancelled = true; observer.disconnect(); cancelAnimationFrame(frame); };
   }, [viewKey]);
 
-  return <DraftGuard.Provider value={blocked}><div ref={root} className="page today-page" data-today-view={viewKey} onSubmitCapture={event => {
+  return <TodayReviewPlacement root={root} viewKey={viewKey}><DraftGuard.Provider value={blocked}><div ref={root} className="page today-page" data-today-view={viewKey} onSubmitCapture={event => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement) || form.method.toLowerCase() !== "get" || form.target === "_blank") return;
     const target = new URL(form.action, location.href);
@@ -131,5 +132,5 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
         <button type="button" className="button danger" onClick={discardAndContinue}>Discard edits and continue</button>
       </div>
     </dialog>
-  </div></DraftGuard.Provider>;
+  </div></DraftGuard.Provider></TodayReviewPlacement>;
 }

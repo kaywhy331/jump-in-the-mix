@@ -63,6 +63,114 @@ const status = async (jumpId: string) => (await prisma.jump.findUniqueOrThrow({ 
 const metaParts = (scope: Locator) => scope.locator(".jump-meta > span").allTextContents();
 /** Waits `count` animation frames. Today opens the next review two frames after an outcome, and it mounts a frame later. */
 const frames = (page: Page, count: number) => page.evaluate(left => new Promise<void>(resolve => { const step = (n: number) => n ? requestAnimationFrame(() => step(n - 1)) : resolve(); step(left); }), count);
+
+/** Keep a DOM identity and keyboard focus marker: reopening a replacement sheet is not a retained review. */
+async function keepGwensReview(page: Page) {
+  await card(page, id.gwenText).getByRole("button", { name: /^Review message for Gwen Group/ }).click();
+  const review = card(page, id.gwenText).locator(".follow-up-review-sheet[open]");
+  await expect(review).toBeVisible();
+  await review.evaluate(element => element.setAttribute("data-kept-review", ""));
+  await review.getByRole("button", { name: "Close Follow up with Gwen Group", exact: true }).focus();
+  return review;
+}
+
+async function refreshToday(page: Page) {
+  await page.evaluate(() => window.dispatchEvent(new Event("jitm:workflow-updated")));
+}
+
+test("an arriving follow-up keeps an overdue review in place, with fresh counts, until it closes (B-20)", async ({ page }) => {
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { status: "CANCELED" } });
+  await page.goto("/jumps"); await ready(page);
+  await keepGwensReview(page);
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { status: "PENDING" } });
+  await refreshToday(page);
+  await expect(cardIn(page, "overdue", id.gwenCall)).toBeAttached();
+  const review = cardIn(page, "overdue", id.gwenText).locator(".follow-up-review-sheet[open][data-kept-review]");
+  await expect(review).toBeVisible();
+  await expect(review.getByRole("button", { name: "Close Follow up with Gwen Group", exact: true })).toBeFocused();
+  await expect(sectionCount(page, "overdue")).toHaveText("3");
+  await expect(sectionCount(page, "today")).toHaveText("2");
+  await expect(headline(page)).toHaveText("5 follow-ups need your attention · 2 overdue.");
+  await review.getByRole("button", { name: "Close Follow up with Gwen Group", exact: true }).click();
+  await expect(cardIn(page, "today", id.gwenText)).toBeVisible();
+  await expect(openReview(page)).toHaveCount(0);
+  await expect(card(page, id.gwenText).getByRole("button", { name: /^Review message for Gwen Group/ })).toBeFocused();
+  await expect(sectionCount(page, "overdue")).toHaveText("1");
+  await expect(sectionCount(page, "today")).toHaveText("4");
+  // An explicit review still opens after the pin was released.
+  await card(page, id.gwenText).getByRole("button", { name: /^Review message for Gwen Group/ }).click();
+  await expect(openReview(page)).toBeVisible();
+});
+
+test("contact recorded elsewhere and then undone never reparents the open review (PLC-01)", async ({ page }) => {
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { status: "CANCELED" } });
+  await page.goto("/jumps"); await ready(page);
+  await keepGwensReview(page);
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { status: "DONE", completedAt: new Date(midnight.getTime() + 60_000), completionMethod: "manual" } });
+  await refreshToday(page);
+  await expect(card(page, id.gwenText).locator(".jump-contacted-today")).toHaveText("Contacted today at 12:01 AM");
+  await expect(cardIn(page, "overdue", id.gwenText).locator(".follow-up-review-sheet[open][data-kept-review]")).toBeVisible();
+  await expect(sectionCount(page, "overdue")).toHaveText("2");
+  await expect(sectionCount(page, "today")).toHaveText("2");
+  await openReview(page).getByRole("button", { name: "Close Follow up with Gwen Group", exact: true }).click();
+  await expect(cardIn(page, "today", id.gwenText)).toBeVisible();
+  await keepGwensReview(page);
+  // Undoing the contact elsewhere returns the later follow-up to pending; cancel it here to model a different page
+  // whose only remaining card for this person is the overdue one (PLC-01 b).
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { status: "CANCELED", completedAt: null, completionMethod: null } });
+  await refreshToday(page);
+  await expect(card(page, id.gwenText).locator(".jump-contacted-today")).toHaveCount(0);
+  await expect(cardIn(page, "today", id.gwenText).locator(".follow-up-review-sheet[open][data-kept-review]")).toBeVisible();
+  await expect(sectionCount(page, "overdue")).toHaveText("1");
+  await expect(sectionCount(page, "today")).toHaveText("3");
+});
+
+test("recording an outcome from a held review releases it and keeps the next review, counts and Undo working", async ({ page }) => {
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { status: "CANCELED" } });
+  await page.goto("/jumps"); await ready(page);
+  await keepGwensReview(page);
+  await prisma.jump.update({ where: { id: id.gwenCall }, data: { status: "PENDING" } });
+  await refreshToday(page);
+  await expect(cardIn(page, "overdue", id.gwenCall)).toBeAttached();
+  await record(page, openReview(page).getByRole("button", { name: "Mark sent for Gwen Group", exact: true }), id.gwenText);
+  await expect.poll(() => status(id.gwenText)).toBe("DONE");
+  await expect(cardIn(page, "today", id.gwenCall).locator(".follow-up-review-sheet[open]")).toBeVisible();
+  await expect(sectionCount(page, "overdue")).toHaveText("1");
+  await expect(sectionCount(page, "today")).toHaveText("3");
+  await expect(headline(page)).toHaveText("4 follow-ups need your attention · 1 overdue.");
+  await page.locator(`[data-follow-up-undo][data-jump-workflow="${id.gwenText}"]`).getByRole("button", { name: "Undo", exact: true }).click();
+  await expect.poll(() => status(id.gwenText)).toBe("PENDING");
+  await expect(sectionCount(page, "today")).toHaveText("4");
+  await expect(headline(page)).toHaveText("5 follow-ups need your attention · 2 overdue.");
+});
+
+for (const change of ["skipped", "no answer", "wrong number", "snoozed"] as const) {
+  test(`a later follow-up ${change} elsewhere leaves the earlier review open under Today (PLC-01)`, async ({ page }) => {
+    await page.goto("/jumps"); await ready(page);
+    await keepGwensReview(page);
+    const scheduledAt = new Date(midnight.getTime() + 2 * 60_000);
+    try {
+      await prisma.jump.update({ where: { id: id.gwenCall }, data: change === "snoozed"
+        ? { scheduledAt: new Date(midnight.getTime() + 2 * 86_400_000) }
+        : { status: change === "skipped" ? "SKIPPED" : "DONE", completedAt: new Date(midnight.getTime() + 60_000), completionMethod: change === "skipped" ? "manual" : `outcome:${change === "no answer" ? "no_answer" : "wrong_number"}` } });
+      await refreshToday(page);
+      await expect(page.locator(`[data-today-section="today"] [data-jump-workflow="${id.gwenCall}"]`)).toHaveCount(0);
+      const review = cardIn(page, "today", id.gwenText).locator(".follow-up-review-sheet[open][data-kept-review]");
+      await expect(review).toBeVisible();
+      await expect(review.getByRole("button", { name: "Close Follow up with Gwen Group", exact: true })).toBeFocused();
+      await expect(sectionCount(page, "overdue")).toHaveText("1");
+      await expect(sectionCount(page, "today")).toHaveText("3");
+      await expect(headline(page)).toHaveText("4 follow-ups need your attention · 2 overdue.");
+      await review.getByRole("button", { name: "Close Follow up with Gwen Group", exact: true }).click();
+      await expect(cardIn(page, "overdue", id.gwenText)).toBeVisible();
+      await expect(openReview(page)).toHaveCount(0);
+      await expect(sectionCount(page, "overdue")).toHaveText("2");
+      await expect(sectionCount(page, "today")).toHaveText("2");
+    } finally {
+      await prisma.jump.update({ where: { id: id.gwenCall }, data: { scheduledAt } });
+    }
+  });
+}
 /** Records an outcome. A tap before the review has checked the Mix's next step asks to save once it has (existing). */
 async function record(page: Page, button: Locator, jumpId: string) {
   await button.click();
