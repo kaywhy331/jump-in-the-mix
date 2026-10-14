@@ -87,7 +87,7 @@
     "fflate": "0.8.3",
     "jose": "6.2.11",
     "libphonenumber-js": "1.13.13",
-    "next": "16.3.6",
+    "next": "16.3.8",
     "node-ical": "0.27.1",
     "pg": "8.16.3",
     "qrcode": "1.5.4",
@@ -124,13 +124,14 @@
     "mysql2": "3.24.3",
     "nanoid": "3.3.18",
     "postcss": "8.5.28",
-    "sharp": "0.35.4"
+    "sharp": "0.35.5",
+    "source-map-js": "1.2.2"
   },
   "allowScripts": {
     "prisma@7.10.0": true,
     "@prisma/engines@7.10.0": true,
     "esbuild@0.25.12": true,
     "esbuild@0.28.1": true,
-    "sharp@0.35.4": true
+    "sharp@0.35.5": true
   }
 }
