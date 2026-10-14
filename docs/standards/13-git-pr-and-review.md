@@ -2,9 +2,9 @@
 id: JITM-13
 title: Git, PR and review
 status: active
-version: 1.0.1
+version: 1.0.2
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-10-14
 applies_to: [git, worktrees, branches, commits, pull-requests, reviews]
 supersedes: [CONTRIBUTING.md#branch-and-commit-conventions]
 sources:
@@ -129,11 +129,11 @@ Example: `feat/journey-map-navigation-20260928`. [OWNER 2026-09-28 D10]
 
 ## 6. Open decisions and known deviations
 
-- The repository is private and cannot carry branch protection. There are no CODEOWNERS or hooks, and enforcement is advisory (D8; `docs/FULL_AUDIT_2026-09-24.md:10`).
+- The repository became public on 2026-10-13, so branch protection is available. `main` has none yet, and there are no CODEOWNERS or hooks, so enforcement is advisory (D8; `docs/FULL_AUDIT_2026-09-24.md:10`). Kevin: require the hosted checks of JITM-12 §2.12 (D122) on `main`?
 - About one in five recent commit subjects exceeds 72 characters. History stays as it is (§2.6).
 - One audit report reached `main` as a local merge (`a57520c`) rather than through a pull request, against §2.12.
 - About 115 remote branches remain, including historical `agent/`, `codex/` and `backup/` prefixes. Kevin: prune merged branches, or keep them?
-- GitHub Actions does not run on pull requests while billing is blocked; evidence comes from local runs (JITM-12 §2.12).
+- GitHub Actions runs on pull requests again since 2026-10-13, and a pull request merges with its hosted checks green (JITM-12 §2.12, D122).
 - `CONTRIBUTING.md:28-44` still shows the old conventions and needs the one-line supersession banner (JITM-15 §2.13).
 - Commits carry a personal-domain author address; the hygiene review suggests a GitHub no-reply address (`docs/PUBLIC_REPOSITORY_HYGIENE.md:15`). Kevin: switch, or keep?
 
@@ -141,3 +141,4 @@ Example: `feat/journey-map-navigation-20260928`. [OWNER 2026-09-28 D10]
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.17–§2.19 point to JITM-16 §2.5 for who merges (D30).
+- 1.0.2 — 2026-10-14 — Base 6630e49. §6: the repository is public and Actions runs again (D122), so branch protection is a question for Kevin.
