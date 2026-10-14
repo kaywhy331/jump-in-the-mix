@@ -1,14 +1,17 @@
 "use client";
 
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import type { JumpStateDetail } from "@/components/JumpWorkflow";
 import { setOpenReviewSlot } from "@/components/useConfirmationTarget";
+import { useTodayReviewPlacement } from "@/components/TodayReviewPlacement";
+import { placeTodayGroups, type TodayDueGroup } from "@/lib/today-review-placement";
 
 type Section = "overdue" | "today" | "upcoming";
 type Counts = Record<Section | "done", number>;
 type Moved = { section: Section; overdue: boolean; skipped: boolean };
 
-const CountsContext = createContext<{ counts: Counts; overdue: number; zero: string } | null>(null);
+type DueGroup = TodayDueGroup & { content: ReactNode };
+const CountsContext = createContext<{ counts: Counts; overdue: number; zero: string; groups: { overdue: DueGroup[]; today: DueGroup[] } } | null>(null);
 const DUE_CARDS = '[data-today-section="overdue"] [data-jump-workflow], [data-today-section="today"] [data-jump-workflow]';
 // The card's own Review button; the review's "open your app" link records a handoff and is never clicked.
 const REVIEW_TRIGGER = ".sheet-trigger > [data-review-trigger]";
@@ -35,7 +38,9 @@ function isOverdue(jumpId: string): boolean {
  * server would show with nothing due. The sections count the follow-ups they show; `overdue`, for the header, counts
  * every overdue one, including one on a person's card under Today (D71).
  */
-export function TodayLiveCounts({ initial, overdue, readAt, doneCounts, zero, children }: { initial: Counts; overdue: number; readAt: string; doneCounts: { done: boolean; skipped: boolean }; zero: string; children: ReactNode }) {
+export function TodayLiveCounts({ initial, overdue, readAt, doneCounts, zero, dueGroups, children }: { initial: Counts; overdue: number; readAt: string; doneCounts: { done: boolean; skipped: boolean }; zero: string; dueGroups: DueGroup[]; children: ReactNode }) {
+  const { pin } = useTodayReviewPlacement();
+  const groups = useMemo(() => placeTodayGroups(dueGroups, pin), [dueGroups, pin]);
   const key = `${readAt}:${initial.overdue}:${initial.today}:${initial.upcoming}:${initial.done}:${overdue}`;
   const [moved, setMoved] = useState<{ key: string; items: Map<string, Moved> }>({ key, items: new Map() });
   const items = useMemo(() => moved.key === key ? moved.items : new Map<string, Moved>(), [moved, key]);
@@ -63,16 +68,31 @@ export function TodayLiveCounts({ initial, overdue, readAt, doneCounts, zero, ch
     return () => window.removeEventListener("jitm:jump-state", onState);
   }, [key]);
   const value = useMemo(() => {
-    const counts = { ...initial };
+    const counts = { ...initial, overdue: initial.overdue + groups.overdueAdjustment, today: initial.today - groups.overdueAdjustment };
+    const sections = new Map(groups.overdue.flatMap(group => group.jumpIds.map(id => [id, "overdue"] as const)));
+    const todayIds = new Set(groups.today.flatMap(group => group.jumpIds));
     let overdueLeft = overdue;
-    for (const item of items.values()) {
-      counts[item.section] = Math.max(0, counts[item.section] - 1);
+    for (const [jumpId, item] of items) {
+      // A closed review releases its pin before the outcome's fresh read. Subtract from the card's current placement,
+      // rather than the section it occupied when the outcome was recorded.
+      const section = sections.get(jumpId) ?? (todayIds.has(jumpId) ? "today" : item.section);
+      counts[section] = Math.max(0, counts[section] - 1);
       if (item.overdue) overdueLeft = Math.max(0, overdueLeft - 1);
       if (item.skipped ? doneCounts.skipped : doneCounts.done) counts.done += 1;
     }
-    return { counts, overdue: overdueLeft, zero };
-  }, [initial, overdue, items, doneCounts.done, doneCounts.skipped, zero]);
+    return { counts, overdue: overdueLeft, zero, groups };
+  }, [initial, overdue, items, doneCounts.done, doneCounts.skipped, zero, groups]);
   return <CountsContext.Provider value={value}>{children}</CountsContext.Provider>;
+}
+
+/** The same keyed card stays under the same section throughout its open review, even when the server regroups it. */
+export function TodayDueSections() {
+  const live = useContext(CountsContext);
+  if (!live) return null;
+  return <>{(["overdue", "today"] as const).map(name => live.groups[name].length > 0 && <LiveSection key={name} name={name} aria-labelledby={`${name}-follow-ups`}>
+    <div className={`section-label${name === "overdue" ? " urgent" : ""}`}><h2 id={`${name}-follow-ups`}>{name === "overdue" ? "Overdue" : "Today"}</h2><span><LiveCount name={name} /></span></div>
+    <div className="jump-list">{live.groups[name].map(group => <Fragment key={group.contactId}>{group.content}</Fragment>)}</div>
+  </LiveSection>)}</>;
 }
 
 /** One of Today's live counts. */

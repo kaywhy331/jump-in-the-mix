@@ -7,6 +7,7 @@ import { useTodayUpdates } from "@/components/useTodayUpdates";
 import { FollowUpConfirmations } from "@/components/JumpWorkflow";
 import { openSheet } from "@/lib/sheet-layout";
 import { AppIcon } from "@/components/AppIcon";
+import { TodayReviewPlacement } from "@/components/TodayReviewPlacement";
 
 const DraftGuard = createContext<(href: string) => boolean>(() => false);
 // A route transition can mount a new page instance. Keep this data-free focus
@@ -28,7 +29,7 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
   const previousKey = useRef(viewKey);
   const [destination, setDestination] = useState<string | null>(null);
   const titleId = useId(), descriptionId = useId();
-  const { content, updateState, retry } = useTodayUpdates(children, viewKey, root);
+  const { content, contentViewKey, updateState, retry } = useTodayUpdates(children, viewKey, root);
   // A read follows every outcome (D99), and most land within a second. Saying "Updating your follow-up list…" only for a
   // slower one keeps the list from moving down and back after each outcome, and screen readers from hearing it each time.
   const [slowRead, setSlowRead] = useState(false);
@@ -97,7 +98,9 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     return () => { cancelled = true; observer.disconnect(); cancelAnimationFrame(frame); };
   }, [viewKey]);
 
-  return <DraftGuard.Provider value={blocked}><div ref={root} className="page today-page" data-today-view={viewKey} onSubmitCapture={event => {
+  // The list can still show the previous view while its replacement commits. Scope the review state to that
+  // displayed list, so its open sheet cannot consume the destination's explicit request to open a review.
+  return <TodayReviewPlacement root={root} viewKey={contentViewKey}><DraftGuard.Provider value={blocked}><div ref={root} className="page today-page" data-today-view={viewKey} onSubmitCapture={event => {
     const form = event.target;
     if (!(form instanceof HTMLFormElement) || form.method.toLowerCase() !== "get" || form.target === "_blank") return;
     const target = new URL(form.action, location.href);
@@ -131,5 +134,5 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
         <button type="button" className="button danger" onClick={discardAndContinue}>Discard edits and continue</button>
       </div>
     </dialog>
-  </div></DraftGuard.Provider>;
+  </div></DraftGuard.Provider></TodayReviewPlacement>;
 }

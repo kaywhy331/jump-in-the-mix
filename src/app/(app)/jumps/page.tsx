@@ -28,6 +28,7 @@ import { todayBriefing } from "@/lib/today-briefing";
 import { PreparationNotice } from "@/components/PreparationNotice";
 import { Sheet } from "@/components/Sheet";
 import { TodayLink, TodayNavigation } from "@/components/TodayNavigation";
+import { TodayReviewSheet } from "@/components/TodayReviewPlacement";
 import { WhenField } from "@/components/WhenPicker";
 import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
@@ -47,7 +48,7 @@ import { planLimits, recentPlanLimitSkips } from "@/lib/plan-limits";
 import { readPreparationStatus } from "@/lib/preparation";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
 import { snoozeChoices, type SnoozePreset } from "@/lib/snooze-schedule";
-import { LiveAttentionSummary, LiveCount, LiveSection, TodayLiveCounts, TodayMomentum } from "@/components/TodayMomentum";
+import { LiveAttentionSummary, LiveCount, TodayDueSections, TodayLiveCounts, TodayMomentum } from "@/components/TodayMomentum";
 import { AlsoDueNote, ContactedToday, WhileAlsoDue } from "@/components/AlsoDue";
 import { TODAY_PAGE_SIZE, followUpPhone, parseTodayCursor, readAlsoDueElsewhere, readTodayPage } from "@/lib/today-list";
 import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice, groupDueFollowUps } from "@/lib/today-view";
@@ -462,7 +463,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           </div>
 
           <div className="jump-primary-action">
-            {isPending && <Sheet className="follow-up-review-sheet" initiallyOpen={params.jump === followUp.id} desktopInitiallyOpen={isNext} trigger={<button className="button primary jump-channel-action" type="button" data-review-trigger aria-label={`Review ${directCall ? "call" : "message"} for ${followUp.contact.displayName}${dueWhen}`}><AppIcon name={directCall ? "phone" : followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={followUp.contact.displayName} accessibleTitle={`Follow up with ${followUp.contact.displayName}`} description={followUp.contact.journey?.stage.name ?? "Follow-up"} leading={<span className="review-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>}><div className="review-workspace"><div className="review-composer"><div className="review-mix-heading"><div><p className="review-mix-name">{mixShown ? followUp.mix.name : reason ?? "Follow-up"}</p>{mixShown && reason && <p className="review-reason">{reason}</p>}</div><small className={followUp.scheduledAt < startToday ? "review-due-late" : "muted-copy"}>{dueLabel}</small></div><AlsoDueNote className="review-also-due" items={[...others, ...otherPages].map(other => ({ jumpId: other.id, label: alsoDueLabel(other) }))} />{followUp.scheduledAt < endToday && <ContactedToday className="review-also-due" jumpIds={otherIds} at={contactedAt.has(followUp.contactId) ? timeToday(contactedAt.get(followUp.contactId)!) : null} />}<ol className="review-beat-rhythm" aria-label="Follow-up dates in this Mix">{reviewBeats.map(beat => <li key={beat.id} aria-current={beat.id === followUp.id ? "step" : undefined}><TodayLink href={`/jumps?jump=${encodeURIComponent(beat.id)}&range=all`} title={beat.reason}><i aria-hidden="true" /><time dateTime={beat.scheduledAt.toISOString()}>{formatDate(beat.scheduledAt, displayPreferences, { year: undefined })}</time></TodayLink></li>)}</ol>{editableAction}</div><aside className="review-person-context" aria-label={`About ${followUp.contact.displayName}`}><h3>Reach {followUp.contact.displayName}</h3>{phone && <p>{phone}</p>}{email && <p>{email}</p>}{followUp.contact.publicNotes && <><h3>Contact notes</h3><p className="conversation-note">{followUp.contact.publicNotes}</p></>}<Link className="inline-action" href={`/contacts/${followUp.contactId}`}>Open contact<AppIcon name="chevronRight" className="inline-action-icon" /></Link></aside></div></Sheet>}
+            {isPending && <TodayReviewSheet className="follow-up-review-sheet" initiallyOpen={params.jump === followUp.id} desktopInitiallyOpen={isNext} trigger={<button className="button primary jump-channel-action" type="button" data-review-trigger aria-label={`Review ${directCall ? "call" : "message"} for ${followUp.contact.displayName}${dueWhen}`}><AppIcon name={directCall ? "phone" : followUpChannel === "EMAIL" ? "email" : "message"} /><span>Review</span></button>} title={followUp.contact.displayName} accessibleTitle={`Follow up with ${followUp.contact.displayName}`} description={followUp.contact.journey?.stage.name ?? "Follow-up"} leading={<span className="review-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>}><div className="review-workspace"><div className="review-composer"><div className="review-mix-heading"><div><p className="review-mix-name">{mixShown ? followUp.mix.name : reason ?? "Follow-up"}</p>{mixShown && reason && <p className="review-reason">{reason}</p>}</div><small className={followUp.scheduledAt < startToday ? "review-due-late" : "muted-copy"}>{dueLabel}</small></div><AlsoDueNote className="review-also-due" items={[...others, ...otherPages].map(other => ({ jumpId: other.id, label: alsoDueLabel(other) }))} />{followUp.scheduledAt < endToday && <ContactedToday className="review-also-due" jumpIds={otherIds} at={contactedAt.has(followUp.contactId) ? timeToday(contactedAt.get(followUp.contactId)!) : null} />}<ol className="review-beat-rhythm" aria-label="Follow-up dates in this Mix">{reviewBeats.map(beat => <li key={beat.id} aria-current={beat.id === followUp.id ? "step" : undefined}><TodayLink href={`/jumps?jump=${encodeURIComponent(beat.id)}&range=all`} title={beat.reason}><i aria-hidden="true" /><time dateTime={beat.scheduledAt.toISOString()}>{formatDate(beat.scheduledAt, displayPreferences, { year: undefined })}</time></TodayLink></li>)}</ol>{editableAction}</div><aside className="review-person-context" aria-label={`About ${followUp.contact.displayName}`}><h3>Reach {followUp.contact.displayName}</h3>{phone && <p>{phone}</p>}{email && <p>{email}</p>}{followUp.contact.publicNotes && <><h3>Contact notes</h3><p className="conversation-note">{followUp.contact.publicNotes}</p></>}<Link className="inline-action" href={`/contacts/${followUp.contactId}`}>Open contact<AppIcon name="chevronRight" className="inline-action-icon" /></Link></aside></div></TodayReviewSheet>}
             <div className="jump-completion-actions">
               {!isPending && (followUp.completionMethod?.startsWith("automatic:")
                 ? <span className="jump-done-note" data-sent-automatically><AppIcon name="check" />Sent automatically</span>
@@ -491,11 +492,19 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const renderGroup = (group: typeof needsAttention) => {
     const shared = group.length > 1;
     return (
-      <div key={group[0].contactId} className={`jump-person-group${shared && !compact && group[0].id === nextUp?.id ? " next-follow-up-group" : ""}`} data-person-group={shared || undefined} role={shared ? "group" : undefined} aria-label={shared ? group[0].contact.displayName : undefined}>
+      <div key={group[0].contactId} className={`jump-person-group${shared && !compact && group[0].id === nextUp?.id ? " next-follow-up-group" : ""}`} data-today-contact={group[0].contactId} data-person-group={shared || undefined} role={shared ? "group" : undefined} aria-label={shared ? group[0].contact.displayName : undefined}>
         {group.map((followUp, index) => renderCard(followUp, group.filter(other => other.id !== followUp.id), group.slice(index + 1).map(other => other.id), index === 0 ? elsewhere.filter(item => item.contactId === followUp.contactId) : [], index === 0))}
       </div>
     );
   };
+
+  // Keep the original due order across both sections, so holding a review's section never changes which person is
+  // next when earlier work leaves or a follow-up arrives from another page.
+  const dueOrder = new Map(needsAttention.map((item, index) => [item.id, index]));
+  const dueGroups = [
+    ...overdueGroups.map(group => ({ contactId: group[0].contactId, section: "overdue" as const, jumpIds: group.map(item => item.id), content: renderGroup(group) })),
+    ...todayGroups.map(group => ({ contactId: group[0].contactId, section: "today" as const, jumpIds: group.map(item => item.id), content: renderGroup(group) }))
+  ].sort((left, right) => dueOrder.get(left.jumpIds[0])! - dueOrder.get(right.jumpIds[0])!);
 
   const firstFollowUp = params.firstContact ? followUps.find(followUp => followUp.contact.displayName === params.firstContact) : undefined;
   const firstNeedsEmail = firstFollowUp?.stepVersion.stepTemplate.channel === "EMAIL";
@@ -525,7 +534,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
-      <TodayLiveCounts readAt={now.toISOString()} overdue={overdueCount} doneCounts={doneCounts} zero={zeroLine} initial={{ overdue: overdueCount - movedOverdue, today: attentionCount - overdueCount + movedOverdue, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
+      <TodayLiveCounts dueGroups={dueGroups} readAt={now.toISOString()} overdue={overdueCount} doneCounts={doneCounts} zero={zeroLine} initial={{ overdue: overdueCount - movedOverdue, today: attentionCount - overdueCount + movedOverdue, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
       <TodayMomentum />
       <JumpReturnTray />
       <MixEndPrompt mixes={startableMixes} todayKey={logicalDateKey(logicalDateInTimezone(new Date(), timezone))} address={JSON.stringify(params)} viewOnly={Boolean(impersonation)} />
@@ -575,8 +584,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
       {planLimitNotice && <div className="notice warning compact" data-plan-limit-skipped={planLimitNotice.skipped}><p>{planLimitNotice.skipped === 1 ? "1 person wasn’t" : `${planLimitNotice.skipped.toLocaleString("en-US")} people weren’t`} added to a Mix this week. Your {planLimitNotice.plan.name} plan has room for {planLimitNotice.plan.people.toLocaleString("en-US")} people with follow-ups on.</p><p>Once there’s room, resume the Mix from their contact page. <Link href="/account/billing">See plans</Link></p></div>}
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
-      {overdueGroups.length > 0 && <LiveSection name="overdue" aria-labelledby="overdue-follow-ups"><div className="section-label urgent"><h2 id="overdue-follow-ups">Overdue</h2><span><LiveCount name="overdue" /></span></div><div className="jump-list">{overdueGroups.map(renderGroup)}</div></LiveSection>}
-      {todayGroups.length > 0 && <LiveSection name="today" aria-labelledby="today-follow-ups"><div className="section-label"><h2 id="today-follow-ups">Today</h2><span><LiveCount name="today" /></span></div><div className="jump-list">{todayGroups.map(renderGroup)}</div></LiveSection>}
+      <TodayDueSections />
       <WorkflowAttention attention={workflowAttention} />
       {invitations && outcomeRecorded && <InvitationPrompt remaining={invitations} />}
       <QuietDaySuggestions locale={displayPreferences.locale} initial={quietDays} canResolve={!impersonation} compact />

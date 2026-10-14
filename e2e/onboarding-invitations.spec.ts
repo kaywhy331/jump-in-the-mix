@@ -131,9 +131,21 @@ test("three mixed-channel invitations become Today reminders with single-use lin
   }
   // "Review and send" opens that invitation's message, ready for the handoff.
   await page.goto("/jumps");
-  await page.getByRole("link", { name: /^Review and send the invitation to / }).first().click();
+  const reviewInvitation = page.getByRole("link", { name: /^Review and send the invitation to / }).first();
+  const invitationHref = await reviewInvitation.getAttribute("href");
+  const reminderId = new URL(invitationHref!, page.url()).searchParams.get("jump");
+  await reviewInvitation.focus();
+  await expect(reviewInvitation).toBeFocused();
+  await reviewInvitation.press("Enter");
   await expect(page).toHaveURL(/[?&]jump=/);
-  await expect(page.getByLabel("Your message").filter({ visible: true }).first()).toHaveValue(/\/register\?invite=[A-Za-z0-9_-]{43}/);
+  const invitationReview = page.locator(`[data-jump-workflow="${reminderId}"] .follow-up-review-sheet[open]`);
+  await expect(invitationReview).toBeVisible();
+  await expect(page.locator(".follow-up-review-sheet[open]")).toHaveCount(1);
+  await expect(invitationReview.getByLabel("Your message")).toHaveValue(/\/register\?invite=[A-Za-z0-9_-]{43}/);
+  for (const theme of ["light", "dark"]) {
+    await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
+    await page.screenshot({ path: `.artifacts/invitations-review-${theme}-${test.info().project.name}.png` });
+  }
   const textInvite = invites.find(invite => invite.recipientPhone)!;
   const link = (textInvite.reminder!.renderedSnapshot as { body: string }).body.match(/http[^\s]+\/register\?invite=[A-Za-z0-9_-]{43}/)![0];
   const guest = await page.context().browser()!.newPage();

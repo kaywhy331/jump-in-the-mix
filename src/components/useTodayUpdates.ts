@@ -97,5 +97,5 @@ export function useTodayUpdates(children: ReactNode, viewKey: string, root: RefO
   }, [applyIncoming, root, router]);
 
   const retry = () => { flight.current = null; clearTimeout(timeout.current); check.current(); };
-  return { content: shown.children, updateState, retry };
+  return { content: shown.children, contentViewKey: shown.viewKey, updateState, retry };
 }
