@@ -18,7 +18,7 @@ VERIFIED-CODE:
 
 Implementation assumptions: the existing multiple-confirmation behavior follows D70/JITM-08 §2.36; the export illustrates a single floating toast. Crowded phone reviews use the established flowing-action pattern, with vertical scrolling to reach the handoff and outcomes. Compact account controls follow the icon pattern in JITM-07 §2.5. No new capability, copy, data mutation, dependency or standard is introduced.
 
-## Verification
+## Initial verification on b48fe4c
 
 VERIFIED-RUNTIME: the unchanged baseline production build on port 3115 failed all eight applicable new layout checks in both themes (four other executions were project-specific skips). Failed Undo text had zero horizontal padding; Profile wrapped onto two lines; at 320×568, the action bar began at y468.59 while the message ended at y620.59. Baseline logs and synthetic captures are retained.
 
@@ -40,18 +40,33 @@ VERIFIED-RUNTIME / VERIFIED-DOC visual comparison: the selected captures preserv
 
 Evidence stays private in the task worktree's `.artifacts/verification/`: `check.log`, `typecheck-final.log`, `browser-affected.log`, `momentum-final.log`, `profile-final-repeat.log`, baseline and failed-attempt logs, `visual-results.json`, `candidate-screenshots/`, `screenshots/` and `references/`. `full-check-source-digest.json` and `verified-source-digest.json` show that only the browser fixture changed after the full check; all final source/test hashes were checked against the committed files.
 
+## Hosted CI follow-up
+
+VERIFIED-RUNTIME: [CI run 38621090043](https://github.com/kaywhy331/jump-in-the-mix/actions/runs/38621090043) on `b48fe4c` reported 811 passing browser cases, 272 skips, two failures and one case that passed on retry. The dependency audit, secret scan and three image jobs passed. This follow-up changes two browser fixtures and this record; application source is unchanged.
+
+- VERIFIED-CODE / VERIFIED-RUNTIME: `mix-next-step.spec.ts:183` still treated `role=status` as the whole confirmation card, although the new separate success/error regions put it on the words. Its nested-span lookup failed twice locally and passed twice on the unchanged `c942ebf` build. An explicit visibility assertion on that same old selector made the diagnostic fail at the existing 10-second assertion limit instead of the 120-second test limit. The corrected test locates the outer confirmation and its status text separately, preserving both adjacency assertions. Five corrected repetitions passed.
+- VERIFIED-RUNTIME: `contacts-bulk-placement.spec.ts:184` measured zero visible controls at 320px. The first CI snapshot shows Loading contacts; its retry snapshot shows the three expected controls. The original case passed twice, then five more times, on both candidate and baseline builds. INFERRED: it measured retained hidden content during navigation. The fixture now waits for the summary to be visible before measuring it; the requirements for three controls, 44px height and 8px separation are unchanged. Five corrected repetitions passed. The CI timing failure was not reproduced locally, so these passes are not proof of its exact cause.
+- VERIFIED-RUNTIME: `preparation.spec.ts:112` received the preparation-check error instead of the delayed message in CI, then passed on retry. It passed twice, then five more times, on each local build. The cause is unconfirmed; neither the preparation implementation nor its test was changed. This remains an intermittent-check follow-up, not a claimed fix or a baseline exception.
+
+VERIFIED-RUNTIME: a fresh `npm ci --no-audit --no-fund` and `npm run check` passed on a new, migrated loopback database, which was removed afterward. Static validation, typecheck, 314 test files (2,442 tests passed; 75 skipped) and the production build passed. On that build, `npx playwright test e2e/mix-next-step.spec.ts e2e/contacts-bulk-placement.spec.ts e2e/preparation.spec.ts --retries=0` passed **41 cases**, with **five project-specific skips** and **zero failures** across desktop and phone Chromium. This includes the preparation case on both projects; it does not establish the cause of the earlier CI failure.
+
+VERIFIED-CODE: application source matches `b48fe4c` exactly. The earlier visual evidence therefore covers the same application implementation; this follow-up did not change presentation. The two fixture changes preserve the original geometry thresholds and use the existing assertion timeout.
+
+Evidence is retained in `.artifacts/verification/ci-38621090043-failed.log`, `ci-38621090043.zip`, `ci-contexts/`, `ci-followup-{candidate,baseline}-initial.log`, `ci-timing-{candidate,baseline}-repeat.log`, `ci-layout-corrected-repeat.log`, `ci-followup-npm-ci.log`, `ci-followup-check.log` and `ci-followup-browser-final.log`. `ci-followup-source-digest.json` covers all eight source/test files in the final PR. Hosted checks on the updated commit are reported separately in the PR.
+
 ## WF-05 review
 
 Verdict: **Approve for this scoped change**. No new finding above LOW. This is a self-review, not independent acceptance or release approval.
 
-Scores (0–3, JITM-17 §2.12): constitution 3; concept 3; brand 3; vocabulary 3; design system 3; responsive layout 2; interaction 3; IA/workflows 3; accessibility 2; engineering 3; testing/evidence 3; Git/PR 3; documents 3; agent conduct 3. Layout/accessibility retain the existing visual follow-ups and physical-device coverage gap. Copy strategy, positioning and release execution are outside this diff.
+Scores (0–3, JITM-17 §2.12): constitution 3; concept 3; brand 3; vocabulary 3; design system 3; responsive layout 2; interaction 3; IA/workflows 3; accessibility 2; engineering 3; testing/evidence 2; Git/PR 3; documents 3; agent conduct 3. Layout/accessibility retain the existing visual follow-ups and physical-device coverage gap. Testing retains the unconfirmed preparation timing failure below. Copy strategy, positioning and release execution are outside this diff.
 
 | ID | Rule | Finding and evidence | Label | Severity | Fix direction |
 |---|---|---|---|---|---|
 | VIS-01 | JITM-07 §2.9; JITM-08 §2.4 | The existing centered floating stack can cover workspace content; the baseline and candidate desktop Undo captures retain this placement. The failed alert itself is now contained. | VERIFIED-RUNTIME | LOW, existing | Keep the separate floating-stack placement follow-up. |
 | VIS-02 | JITM-07 §2.3; JITM-10 §2.3 | At doubled phone text, the shared Close icon is below its circular background's center, also recorded in B-22's earlier inspection. The shared header styles are unchanged; target access remains intact. | VERIFIED-RUNTIME, VERIFIED-CODE | LOW, existing | Address the shared enlarged-header alignment separately. |
+| TST-01 | JITM-12 §§2.4, 2.14 | The preparation polling case failed once in CI and passed its retry, seven isolated runs per build, and the final affected suite on both projects. Its cause remains unconfirmed. | VERIFIED-RUNTIME | LOW, unresolved test reliability | Keep the failed CI evidence; inspect request/clock timing if the case recurs. Do not call the retry or local repetitions a fix. |
 
-Reviewed the confirmation observer's cleanup and geometry in `src/components/TodayMomentum.tsx:134`, separate status/alert regions in `src/components/JumpWorkflow.tsx:218`, scoped target styles in `src/components/JumpWorkflow.module.css:35`, and Profile naming in `src/components/AppShell.tsx:60`. No owner decision or new standard is needed.
+Reviewed the confirmation observer's cleanup and geometry in `src/components/TodayMomentum.tsx:134`, separate status/alert regions in `src/components/JumpWorkflow.tsx:218`, scoped target styles in `src/components/JumpWorkflow.module.css:35`, and Profile naming in `src/components/AppShell.tsx:60`. The CI follow-up also checks the semantic status locator in `e2e/mix-next-step.spec.ts:187` and visible-list precondition in `e2e/contacts-bulk-placement.spec.ts:189`; all original size/spacing assertions remain. No owner decision or new standard is needed.
 
 Existing visual follow-ups outside this scope include floating confirmations covering workspace content and vertical scrolling to lower actions at the 768px boundary. This change does not claim to resolve the entire visual backlog.
 
