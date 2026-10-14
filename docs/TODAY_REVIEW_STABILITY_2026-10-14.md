@@ -26,7 +26,7 @@ WF-02 and WF-04, using `jitm-ui-change` and `jitm-feature`; reviewed through WF-
 
 Implementation detail: the hold changes only the person's section, preserving the server's due order as other people arrive or leave. A removed, completed or filtered-out reviewed follow-up is not retained as a stale actionable card.
 
-## Verification
+## Initial verification on d00a2ec
 
 VERIFIED-RUNTIME, using fresh migrated loopback databases (`jitm_design_today_review_20261014` initially, and `jitm_design_today_review_final_20261014` for the final full check) and the CI environment:
 
@@ -44,6 +44,20 @@ VERIFIED-RUNTIME / VERIFIED-DOC visual inspection: compared all seven widths in 
 
 Local evidence is in `.artifacts/verification/` in the task worktree: `check-final.log`, `unit-targeted-final.log`, `browser-affected-final.log`, `baseline-build.log`, both `baseline-regression*.log` files, `draft-order-*.log`, the initial failed `browser-affected.log`, `visual-results.json`, `visual-narrow-results.json`, `screenshots/`, `references/` and `standards.log`. Source/test hashes in `verified-source-digest.json` tie the final verification to the committed implementation; no implementation or test changed after that run.
 
+## Invitation navigation follow-up
+
+VERIFIED-RUNTIME: [CI run 38612064910](https://github.com/kaywhy331/jump-in-the-mix/actions/runs/38612064910) on `d00a2ec` failed `onboarding-invitations.spec.ts:68` on desktop, including its retry. The browser step had 821 passes and 268 skips; the separate dependency audit, secret scan and three image jobs passed. Clicking an invitation's Review and send link changed the URL but left its message closed. Two isolated local repeats failed the same way, while two repeats on the separately built `c942ebf` baseline passed. This was a new regression, not a baseline exception (JITM-12 §2.14).
+
+VERIFIED-CODE: `useTodayUpdates` retains the previous list while the destination commits. `TodayReviewPlacement` had received the destination's view key before it received that destination's content; its observer could therefore assign the old open sheet to the new view and consume the new opening request. The hook now returns the displayed content's view key with its children, and `TodayNavigation` passes that matching key to the placement provider. Navigation's existing draft protection and focus handling stay intact. This restores the invitation review required by JITM-09 §2.18 without changing its workflow.
+
+VERIFIED-RUNTIME: the rebuilt correction passed two isolated invitation runs on each browser project (four passes). The regression assertion now targets the exact invitation selected and requires exactly one open review. The final fixture also uses keyboard activation and captures the opened review in both themes. No timeout or assertion was relaxed.
+
+VERIFIED-RUNTIME: after the correction, `npm ci --no-audit --no-fund` and `npm run check` passed again on a fresh, migrated loopback database. Static checks, typecheck, 315 test files (2,450 tests passed; 75 skipped) and the production build passed. The same six-file browser command listed above passed again: **121 passes, 39 skips, zero failures**. The complete `onboarding-invitations.spec.ts` then passed twice on both projects: **12 passes, zero skips or failures**. That is 127 unique passing browser cases across seven files, plus six repeat executions. Retries were disabled throughout.
+
+VERIFIED-RUNTIME / VERIFIED-DOC: regenerated the seven-width light/dark screenshot matrix on the corrected build. All 14 states retained the original review and focus, with zero horizontal overflow, automated WCAG violations or page errors, and 48×44px Close targets. At 320px and 200% text, all four message/action targets were visible, focused and unobscured in both themes. Inspected phone, tablet and desktop captures against the same supplied references; the existing composition and visual carry-over remain. Four additional invitation captures show the selected email review in both themes on desktop and phone. Desktop invitation links retain their existing anchor scroll position, which can put the review header above the captured viewport. No new layout or copy is claimed.
+
+Final follow-up evidence: `.artifacts/verification/invitation-{npm-ci,check,browser-affected,onboarding-final,visual}.log`, `invitation-visual-results.json`, `invitation-screenshots/`, and `.artifacts/invitations-review-*.png`. The two candidate failures, two baseline passes and four initial correction passes are in `invitation-candidate-initial.log`, `invitation-baseline.log` and `invitation-corrected.log`. `invitation-verified-source-digest.json` covers all ten source/test files in the final PR. Hosted checks on the corrected commit are reported in the PR; the failed earlier CI run is not treated as passing.
+
 ## WF-05 review
 
 Verdict: **Approve for this change**, self-review, not independent acceptance. No new finding above LOW. This does not approve a release or resolve the earlier visual backlog.
@@ -54,7 +68,7 @@ Scores (0–3, JITM-17 §2.12): constitution 3; concept 3; brand 3; vocabulary 3
 |---|---|---|---|---|---|
 | VIS-01 | JITM-07 §2.3 | Profile wraps in the compact rail at 1194px in both captured themes; the October 13 release already lists this issue for D82. The rail and its styles are unchanged. | VERIFIED-RUNTIME, VERIFIED-DOC | LOW, existing | Keep in the D82 visual follow-up. |
 
-The review checked the fresh-record requirement in `src/lib/today-review-placement.ts:8`, workspace/view scoping and focus restoration in `src/components/TodayReviewPlacement.tsx:13`, due ordering in `src/app/(app)/jumps/page.tsx:503`, and count/section consistency in `src/components/TodayMomentum.tsx:41`. The final browser cases exercise those paths together with drafts, navigation, outcomes and Undo. No new standard or owner decision is needed.
+The review checked the fresh-record requirement in `src/lib/today-review-placement.ts:8`, workspace/view scoping and focus restoration in `src/components/TodayReviewPlacement.tsx:13`, due ordering in `src/app/(app)/jumps/page.tsx:503`, and count/section consistency in `src/components/TodayMomentum.tsx:41`. The follow-up review also checked that `useTodayUpdates.ts:100` returns the displayed key with its content and `TodayNavigation.tsx:101` uses that pair for review placement. The final browser cases exercise those paths together with drafts, navigation, outcomes, Undo and invitation entry. The invitation regression is corrected with no remaining finding above LOW. No new standard or owner decision is needed.
 
 ## Rollout
 
@@ -63,6 +77,6 @@ Needs a normal application release after review and merge. No migration, depende
 ## NOT RUN
 
 - Physical phones, VoiceOver, TalkBack, Firefox and WebKit: outside the available local Chromium/device coverage; emulation is not physical qualification.
-- Full unrelated browser suites, gated staff/admin/admission/email/voice flows and Lighthouse: this task changes Today only and no public page.
-- CI jobs outside this task's affected checks: populated migration/rollback and backup/restore rehearsals, restored-database runtime qualification, hosted fixture/restricted-runtime qualification, load/worker qualification, optional scheduler packaging, production dependency audit, secret scanning and container image builds. No schema, dependency, worker, security or deployment configuration changed.
+- On the corrected source, full unrelated browser suites, gated staff/admin/admission/email/voice flows and Lighthouse were not run locally: this task changes Today review navigation and no public page.
+- On the corrected source, populated migration/rollback and backup/restore rehearsals, restored-database runtime qualification, hosted fixture/restricted-runtime qualification, load/worker qualification, optional scheduler packaging, dependency audit, secret scanning and container image builds were not run locally. No corresponding schema, dependency, worker, security or deployment configuration changed. Earlier hosted results remain separate from current-source evidence.
 - Production release and live customer checks: outside this implementation task.
