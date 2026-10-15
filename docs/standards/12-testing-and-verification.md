@@ -2,9 +2,9 @@
 id: JITM-12
 title: Testing and verification
 status: active
-version: 2.0.1
+version: 3.0.0
 owner: Kevin
-last_reviewed: 2026-10-13
+last_reviewed: 2026-10-14
 applies_to: [tests, e2e, checks, ci, screenshots, reports]
 supersedes: []
 sources:
@@ -60,7 +60,7 @@ PASS and FAIL describe a check's result; the label describes the evidence behind
 
 **2.5** Agents MUST NOT loosen a check to make it pass: no longer timeouts to hide a failing selector, no longer health thresholds to hide missed worker ticks, no disabled assertions. Fix the cause or report FAIL. [SOURCE docs/IMPLEMENTATION_REPORT_2026-09-05.md:55] [SOURCE docs/FREE_TESTING.md:11]
 
-**2.6** Evidence classes stay separate in every report: local runs, a local production build, the deployed production smoke, emulation and physical devices. Emulation never qualifies a physical-device row, and no one marks a device row passed without performing it on that device (JITM-10 §2). [SOURCE docs/HOMEPAGE_RELEASE_AND_ROLLBACK_2026-09-10.md:31,39] [SOURCE docs/MANUAL_DEVICE_QUALIFICATION.md:3]
+**2.6** Evidence classes stay separate in every report: local runs, hosted CI, a local production build, the deployed production smoke, emulation and physical devices. Emulation never qualifies a physical-device row, and no one marks a device row passed without performing it on that device (JITM-10 §2). [SOURCE docs/HOMEPAGE_RELEASE_AND_ROLLBACK_2026-09-10.md:31,39] [SOURCE docs/MANUAL_DEVICE_QUALIFICATION.md:3]
 
 **2.7** Every report ends with a NOT RUN list, even when it holds only "None". [SOURCE docs/BETA_READINESS_AUDIT_2026-09-26.md:359-373] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:59-61]
 
@@ -86,7 +86,7 @@ PASS and FAIL describe a check's result; the label describes the evidence behind
 
 **2.11** Tier 3, for a release candidate, is the pre-release verification that replaced staging: a local production build of the candidate, tier 1 and every tier 2 row the release touches, and the desktop browser suite (phone too when layout changed), all compared with the baseline (§2.14). The post-deploy smoke follows in JITM-14 §2. [OWNER 2026-09-28 D5] [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:61-73]
 
-**2.12** GitHub Actions has been blocked by billing, so CI runs locally, with the environment of the `validate` job in `.github/workflows/ci.yml`. The practiced set is Vitest, `validate:static`, the typecheck, the build, the dependency audit, gitleaks, and the Playwright desktop and phone groups on a freshly seeded database. A record MUST name every CI job that was not run, with NOT RUN and the reason; the usual gaps are the migration and restore rehearsals, load qualification, the packaged-server suites, Lighthouse and the image builds. [OWNER 2026-09-28 D8] [SOURCE docs/APPEARANCE_INVITATIONS_RELEASE_2026-09-27.md:31-38] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:30-38]
+**2.12** Hosted CI is the merge gate: a pull request merges with its GitHub Actions checks green, which are CI's `validate` job, the Security workflow and the Docker build. Local runs cover what CI doesn't, such as phone screenshots (§2.18) and a release's smoke, and stand in for CI when Actions is down. [OWNER 2026-10-14 D122] A release's tier 3 stays local (§2.11, D5). A local stand-in runs with the environment of the `validate` job in `.github/workflows/ci.yml`: Vitest, `validate:static`, the typecheck, the build, the dependency audit, gitleaks, and the Playwright desktop and phone groups on a freshly seeded database. A record MUST then name every CI job that was not run, with NOT RUN and the reason; the usual gaps are the migration and restore rehearsals, load qualification, the packaged-server suites, Lighthouse and the image builds. [OWNER 2026-09-28 D8] [SOURCE docs/APPEARANCE_INVITATIONS_RELEASE_2026-09-27.md:31-38] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:30-38]
 
 **2.13** A run limited to the affected suites is acceptable when the record says what was left out and why, for example "phone project not rerun: no layout change". [SOURCE docs/AUDIT_RELEASE_B11_2026-09-25.md:61] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:38]
 
@@ -97,11 +97,13 @@ PASS and FAIL describe a check's result; the label describes the evidence behind
 2. Serve them on separate ports with the CI environment.
 3. Run the specs against the candidate in small batches of five or six files.
 4. Rerun each failure alone, on both builds.
-5. Classify each failure: new (fails only on the candidate), pre-existing (fails the same way on the baseline), order-dependent (passes alone) or environmental (host tooling).
+5. Classify each failure: new (fails only on the candidate), pre-existing (fails the same way on the baseline), order-dependent (passes alone, and for a failure seen only in batch, not worse in its batch on the candidate: below) or environmental (host tooling).
 
 Nothing may fail only on the candidate. [OWNER 2026-09-28 D5] [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:74-77] [SOURCE docs/AUDIT_RELEASE_B_2026-09-25.md:70-77]
 
 A fifth class, intermittent: a failure that both fails and passes when rerun alone on the same build, where an order-dependent one passes every time alone. To tell them apart, step 4 reruns each failure alone twice on each build. An intermittent failure is then run alone five times on the candidate and five times on the baseline; when it fails more often on the candidate it counts as new, and nothing new may fail. [OWNER 2026-10-13 D101]
+
+A failure seen only in batch, one that passes every time alone, is not yet order-dependent. Its batch, the same spec files in the same order, is run several more times on the candidate and on the baseline; when it fails more often on the candidate it counts as new, and nothing new may fail. [OWNER 2026-10-14 D123] The comparison is between those reruns: the run that found the failure isn't counted. [OWNER 2026-10-14 D124] Several means five runs on each build, as for the intermittent class's runs alone. [PROPOSED]
 
 **2.15** Pre-existing failures are compared, not blamed. The record lists each by spec with its cause, marks it as not blocking, and schedules a test-only follow-up. [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:79-103]
 
@@ -169,7 +171,8 @@ A fifth class, intermittent: a failure that both fails and passes when rerun alo
 
 ## 6. Open decisions and known deviations
 
-- **CI is not a working gate.** The `validate` job hits its 60-minute cap (`.github/workflows/ci.yml:18-21`) and Actions is billing-blocked (`docs/APPEARANCE_INVITATIONS_RELEASE_2026-09-27.md:31`). Kevin will restore Actions for CI and the broader smoke checks (D13); until then, local runs (§2.12) are the gate.
+- **Hosted CI runs again** since the repository became public on 2026-10-13. Actions had been blocked by billing for most of the time since 2026-09-27; it ran from about 2026-10-01 to 2026-10-05 (D13, D122). The `validate` job's cap is now 100 minutes (`.github/workflows/ci.yml:18-20`); its first full run after the restoration, on #154, took 73 minutes.
+- **Open for Kevin, D122's details:** may a pull request merge when its only red checks fail the same way on `main`, a failure of `main` itself? Should a docs-only pull request wait for CI's full run, about 73 minutes? Does tier 1 (§2.9) still run locally before every pull request, now that CI runs it too?
 - **Screenshot policy.** Kevin confirmed §2.19 (D25). `docs/MANUAL_DEVICE_QUALIFICATION.md:5` still carries an older no-image instruction and needs a banner.
 - **Release baseline.** D5 names an `origin/main` baseline. A release candidate is `origin/main` itself, so §2.14 compares a release with the previous production commit instead; pull requests still compare with `origin/main`.
 - **Pre-release lists differ.** `npm run check`, `CONTRIBUTING.md:17-24`, `docs/LOCAL_TESTING.md:22-37` and `ci.yml` each list different checks. §2.9–§2.12 now govern.
@@ -180,7 +183,6 @@ A fifth class, intermittent: a failure that both fails and passes when rerun alo
   - `staff-permissions.spec.ts:64` under CI's MFA-off group (`:341`);
   - the `staff-access` bootstrap tests on a shared database (§2.16);
   - `mega-mix-pipelines` phone screenshot timeout (`docs/APPEARANCE_INVITATIONS_RELEASE_2026-09-27.md:38`).
-- **A failure seen only in batch (STD-02).** #151's docking race never failed alone, yet failed in 2 of 11 batch runs on the candidate against 0 of 9 on the base, and #151 counted it as new. §2.14 calls a failure that passes every time alone order-dependent, which doesn't block. Should one that fails more often in batch on the candidate count as new? Question for Kevin.
 - The hosted load-fixture suite exits at start on the local build host, for environmental reasons (`docs/BETA_READINESS_AUDIT_2026-09-26.md:347`).
 
 ## 7. Changelog
@@ -189,3 +191,4 @@ A fifth class, intermittent: a failure that both fails and passes when rerun alo
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.19 confirmed, with the check before committing evidence (D25); §6 updated for D13.
 - 2.0.0 — 2026-10-12 — Base 4e78545. §2.14 changes meaning: a fifth class, intermittent (both fails and passes when rerun alone on the same build), told apart from an order-dependent failure by two reruns alone on each build, then run alone five times on each build; one that fails more often on the candidate counts as new and blocks, since nothing new may fail. This addition is D101, tagged [PROPOSED] until Kevin confirms it; steps 1–5 and the D5 gate are unchanged.
 - 2.0.1 — 2026-10-13 — Base 4d5c307. §2.14's intermittent class is Kevin's (D101). §6 asks how a failure seen only in batch counts (#151's docking race).
+- 3.0.0 — 2026-10-14 — Base 6630e49. §2.12 changes meaning: hosted CI is the merge gate again, and local runs cover what CI doesn't or stand in when Actions is down (D122). §2.14 changes meaning: a failure seen only in batch is run in its batch several more times on each build, five as proposed, and counts as new when it fails more often on the candidate (D123). §2.12 keeps a release's tier 3 local (D5). §2.6 adds hosted CI as an evidence class, and §2.14's step 5 points to the batch rule; the batch comparison counts only the reruns (D124). §6: Actions runs again, the batch question is answered, and three details of D122 are questions for Kevin.

@@ -27,7 +27,7 @@ JITM-00 §2 defines precedence between these standards, the design export, shipp
 | JITM-09 | [Information architecture and user workflows](09-information-architecture-and-user-workflows.md) | Routes, navigation labels, the canonical user workflows |
 | JITM-10 | [Accessibility and quality bar](10-accessibility-and-quality-bar.md) | Targets, text size, contrast, keyboard, zoom, performance, devices |
 | JITM-11 | [Engineering architecture](11-engineering-architecture.md) | Next.js rules, structure, tenancy, scheduling, data, security, cost |
-| JITM-12 | [Testing and verification](12-testing-and-verification.md) | Suites, baselines, visual protocol, local CI, evidence labels |
+| JITM-12 | [Testing and verification](12-testing-and-verification.md) | Suites, baselines, visual protocol, the CI gate, evidence labels |
 | JITM-13 | [Git, PR and review](13-git-pr-and-review.md) | Worktrees, branches, commits, pull requests, merging |
 | JITM-14 | [Release and environments](14-release-and-environments.md) | Environments, release sequence, tags, records, rollback, free plan |
 | JITM-15 | [Documentation and decision records](15-documentation-and-decision-records.md) | Document types, naming, decisions, supersession, labels |
