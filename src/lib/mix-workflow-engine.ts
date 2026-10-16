@@ -84,6 +84,8 @@ export type WorkflowObservation = { visitId: string; status: WorkflowVisit["stat
 export function observeWorkflow(state: WorkflowState, observations: WorkflowObservation[]): void {
   for (const observation of observations) {
     const visit = state.visits.find(item => item.id === observation.visitId);
+    // A delayed pass cannot rewrite an ended run. An explicit restart reopens it first.
+    if (visit && state.runs.find(run => run.id === visit.runId)?.status === "CANCELED") continue;
     if (!visit || (visit.status === "CANCELED" && !["DONE", "SKIPPED"].includes(observation.status))) continue;
     if (terminal(visit) && !["DONE", "SKIPPED"].includes(observation.status)) {
       const run = state.runs.find(item => item.id === visit.runId)!;
