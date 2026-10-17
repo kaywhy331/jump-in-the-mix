@@ -1,5 +1,6 @@
 # No Mix, visits and invitations checkpoint — October 16, 2026
 
+> Decision update — 2026-10-17: Kevin confirmed the eight PR #125 defaults (D125), chose the existing visit membership behavior (D126), and retained TRU-09 as his staff-console publication handoff (D127). The open-input statements below are historical; current rules are JITM-09 §2.19 and §2.76–§2.77.
 Status: partial implementation; owner decisions and invitation publication remain unresolved. This is a local candidate, not a release. No merge, push, publication, customer message, production data change or provider configuration change was performed. The two code fixes are in `889d665` and `a1753bd`; the final receipt and file hashes are in the private `.artifacts/jitm05-20261016/HANDOFF.md`.
 
 ## Scope and authority

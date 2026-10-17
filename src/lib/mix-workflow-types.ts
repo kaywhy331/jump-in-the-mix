@@ -63,7 +63,7 @@ export type WorkflowState = {
   updates?: WorkflowUpdateRecord[];
   pendingBusinessUpdate?: { requestId: string; input: WorkflowBusinessUpdate; recordedAt: string };
   pendingChoices?: Array<{ requestId: string; visitId: string; sourceCompletedAt: string; decisions: Array<{ ruleId: string; outcome: string }> }>;
-  context?: { timezone: string; appointmentBindingId: string | null; calendarEntryId?: string; completionCutoff?: string; occurrenceKey?: string; admissionAlias?: string; enrollmentEnded?: EnrollmentEnded };
+  context?: { timezone: string; appointmentBindingId: string | null; calendarEntryId?: string; completionCutoff?: string; occurrenceKey?: string; admissionAlias?: string; enrollment?: { id: string; updatedAt: string }; enrollmentEnded?: EnrollmentEnded };
 };
 /** What an ended enrollment took out of its run, so a later start of the same occurrence can put it back (src/lib/enrollment-workflow.ts). */
 export type EnrollmentEnded = {

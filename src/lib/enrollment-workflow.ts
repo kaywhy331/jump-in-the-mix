@@ -90,7 +90,7 @@ export function reopenEnrollmentRun(state: WorkflowState, status: string): strin
  * with a business update (see `workflowTookUpdate`). Lock them before touching their Beats, in the order the Journey
  * pass takes its own locks.
  */
-export async function lockEnrollmentWorkflows(tx: Tx, input: { workspaceId: string; contactId: string; mixId: string; occurrencePrefixes: string[] }): Promise<Array<{ id: string; status: string; state: Prisma.JsonValue }>> {
+export async function lockEnrollmentWorkflows(tx: Tx, input: { workspaceId: string; contactId: string; mixId: string; occurrencePrefixes: string[]; startedBy?: { id: string; updatedAt: string; since: Date } }): Promise<Array<{ id: string; status: string; state: Prisma.JsonValue }>> {
   if (!input.occurrencePrefixes.length) return [];
   return tx.$queryRaw<Array<{ id: string; status: string; state: Prisma.JsonValue }>>`
     SELECT w.id, w.status, w.state FROM "MixWorkflowInstance" w
@@ -98,6 +98,11 @@ export async function lockEnrollmentWorkflows(tx: Tx, input: { workspaceId: stri
       AND jsonb_typeof(w.state -> 'runs') = 'array'
       AND EXISTS (SELECT 1 FROM jsonb_array_elements(w.state -> 'runs') r WHERE r ->> 'mixId' = ${input.mixId} AND jsonb_typeof(r -> 'parentTransitionId') IS DISTINCT FROM 'string')
       AND (${Prisma.join(input.occurrencePrefixes.map(prefix => Prisma.sql`starts_with(w.state -> 'context' ->> 'occurrenceKey', ${prefix})`), " OR ")})
+      ${input.startedBy ? Prisma.sql`AND (
+        (w.state -> 'context' -> 'enrollment' ->> 'id' = ${input.startedBy.id}
+          AND w.state -> 'context' -> 'enrollment' ->> 'updatedAt' = ${input.startedBy.updatedAt})
+        OR (w.state -> 'context' -> 'enrollment' IS NULL AND w."createdAt" >= ${input.startedBy.since})
+      )` : Prisma.empty}
     ORDER BY w.id FOR UPDATE OF w`;
 }
 

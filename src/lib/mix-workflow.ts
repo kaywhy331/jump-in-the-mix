@@ -1,3 +1,4 @@
+import { lockPreparationEnrollments, preparationEnrollmentKey, type PreparationEnrollment } from "@/lib/enrollment-preparation";
 import { workflowCalendarStepTime } from "@/lib/workflow-scheduling";
 import { applyBusinessUpdate, undoBusinessUpdate, workflowFingerprint } from "@/lib/workflow-business-update";
 import type { WorkflowBusinessUpdate, WorkflowUpdateRecord } from "@/lib/mix-workflow-types";
@@ -53,35 +54,33 @@ export async function saveWorkflowConfiguration(db: DB, workspaceId: string, inp
 }
 
 /** Record an existing scheduler admission before preparing its Beats. Retries keep its snapshot. */
-export async function ensureLegacyWorkflow(input: { workspaceId: string; contactId: string; mixId: string; occurrenceKey: string; startedAt: Date; timezone: string; appointmentBindingId: string | null; definition: WorkflowDefinition; passStartedAt?: Date }) {
-  const admissionKey = `legacy:${createHash("sha256").update(`${input.contactId}:${input.mixId}:${input.occurrenceKey}`).digest("hex")}`;
-  const state = startWorkflow(input.definition, { mixId: input.mixId, stepId: null }, input.startedAt.toISOString(), true);
-  state.context = { timezone: input.timezone, appointmentBindingId: input.appointmentBindingId, occurrenceKey: input.occurrenceKey, completionCutoff: input.definition.publishedAt };
-  const known = await prisma.mixWorkflowInstance.findFirst({ where: { workspaceId: input.workspaceId, contactId: input.contactId, OR: [{ admissionKey }, { state: { path: ["context", "admissionAlias"], equals: admissionKey } }] }, orderBy: { createdAt: "asc" } });
-  let instance = known ?? await prisma.mixWorkflowInstance.upsert({ where: { workspaceId_admissionKey: { workspaceId: input.workspaceId, admissionKey } },
-    create: { workspaceId: input.workspaceId, contactId: input.contactId, admissionKey, label: input.definition.mixes.find(mix => mix.id === input.mixId)?.name ?? "Mix", definition: workflowJson(input.definition), state: workflowJson(state) }, update: {} }).catch(async error => {
-      if ((error as { code?: string }).code !== "P2002") throw error;
-      return prisma.mixWorkflowInstance.findUniqueOrThrow({ where: { workspaceId_admissionKey: { workspaceId: input.workspaceId, admissionKey } } });
-    });
-  // An enrollment that ended (Remove from Mix, or Undo of a bulk start) ended this run; a start of the same occurrence
-  // since then picks it back up, on the same day too. A pass that began before the end read the old enrollment, so it
-  // never does (UNDO-04).
-  const ended = workflowState(instance.state).context?.enrollmentEnded;
-  if (ended && (!input.passStartedAt || input.passStartedAt.getTime() > Date.parse(ended.at))) instance = await reopenEndedEnrollment(instance.id, input.workspaceId) ?? instance;
-  const saved = workflowState(instance.state);
-  return { id: instance.id, status: instance.status, legacy: saved.runs[0]?.legacy, runId: saved.runs[0]?.id, visits: saved.visits.filter(visit => visit.runId === saved.runs[0]?.id && !visit.parentTransitionId), mix: workflowDefinition(instance.definition).mixes.find(mix => mix.id === input.mixId)!, gatedStepIds: workflowDefinition(instance.definition).gatedStepIds };
-}
-
-/** Puts an ended enrollment's run back under the record's lock; null when someone else already did (src/lib/enrollment-workflow.ts). */
-async function reopenEndedEnrollment(instanceId: string, workspaceId: string) {
+export async function ensureLegacyWorkflow(input: { workspaceId: string; contactId: string; mixId: string; occurrenceKey: string; startedAt: Date; timezone: string; appointmentBindingId: string | null; definition: WorkflowDefinition; enrollment: PreparationEnrollment; passStartedAt: Date }) {
   return prisma.$transaction(async db => {
-    await db.$queryRaw`SELECT id FROM "MixWorkflowInstance" WHERE id = ${instanceId} AND "workspaceId" = ${workspaceId} FOR UPDATE`;
-    const current = await db.mixWorkflowInstance.findFirst({ where: { id: instanceId, workspaceId } });
-    if (!current) return null;
-    const state = workflowState(current.state);
-    const status = reopenEnrollmentRun(state, current.status);
-    if (!status) return current;
-    return db.mixWorkflowInstance.update({ where: { id: instanceId }, data: { status, state: workflowJson(state), revision: { increment: 1 }, nextCheckAt: new Date() } });
+    const valid = await lockPreparationEnrollments(db, [input.enrollment]);
+    if (!valid.has(preparationEnrollmentKey(input.enrollment))) return null;
+    const admissionKey = `legacy:${createHash("sha256").update(`${input.contactId}:${input.mixId}:${input.occurrenceKey}`).digest("hex")}`;
+    const enrollment = { id: input.enrollment.id, updatedAt: input.enrollment.updatedAt.toISOString() };
+    const state = startWorkflow(input.definition, { mixId: input.mixId, stepId: null }, input.startedAt.toISOString(), true);
+    state.context = { timezone: input.timezone, appointmentBindingId: input.appointmentBindingId, occurrenceKey: input.occurrenceKey, completionCutoff: input.definition.publishedAt, enrollment };
+    const known = await db.mixWorkflowInstance.findFirst({ where: { workspaceId: input.workspaceId, contactId: input.contactId, OR: [{ admissionKey }, { state: { path: ["context", "admissionAlias"], equals: admissionKey } }] }, orderBy: { createdAt: "asc" } });
+    // ON CONFLICT DO NOTHING waits for a competing admission without aborting this transaction.
+    // Prisma's empty-update upsert can use a read/create pair and lose that race.
+    if (!known) await db.mixWorkflowInstance.createMany({ data: [{ workspaceId: input.workspaceId, contactId: input.contactId, admissionKey, label: input.definition.mixes.find(mix => mix.id === input.mixId)?.name ?? "Mix", definition: workflowJson(input.definition), state: workflowJson(state) }], skipDuplicates: true });
+    const admitted = known ?? await db.mixWorkflowInstance.findUniqueOrThrow({ where: { workspaceId_admissionKey: { workspaceId: input.workspaceId, admissionKey } } });
+    await db.$queryRaw`SELECT id FROM "MixWorkflowInstance" WHERE id = ${admitted.id} AND "workspaceId" = ${input.workspaceId} FOR UPDATE`;
+    let instance = await db.mixWorkflowInstance.findUniqueOrThrow({ where: { id: admitted.id } });
+    const saved = workflowState(instance.state);
+    const ended = saved.context?.enrollmentEnded;
+    // Recheck the ended marker under the lock; a read before Undo's commit cannot reopen its run.
+    if (ended && input.passStartedAt.getTime() > Date.parse(ended.at)) {
+      const status = reopenEnrollmentRun(saved, instance.status);
+      if (status) {
+        saved.context!.enrollment = enrollment;
+        instance = await db.mixWorkflowInstance.update({ where: { id: instance.id }, data: { status, state: workflowJson(saved), revision: { increment: 1 }, nextCheckAt: new Date() } });
+      }
+    }
+    const definition = workflowDefinition(instance.definition);
+    return { id: instance.id, status: instance.status, legacy: saved.runs[0]?.legacy, runId: saved.runs[0]?.id, visits: saved.visits.filter(visit => visit.runId === saved.runs[0]?.id && !visit.parentTransitionId), mix: definition.mixes.find(mix => mix.id === input.mixId)!, gatedStepIds: definition.gatedStepIds };
   });
 }
 

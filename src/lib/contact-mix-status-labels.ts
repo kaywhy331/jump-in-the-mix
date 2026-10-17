@@ -24,25 +24,25 @@ const people = (count: number) => count === 1 ? "1 person" : `${count.toLocaleSt
 /**
  * What the bulk Mix sheet says about the chosen Mix, by how it starts (`Mix.triggerMode`; D46, COPY-02). Only a
  * hand-started Mix runs again for someone who finished it; a date-based one follows each person's saved date,
- * and a fixed-date Mix goes out on its own date, so the start day does nothing for it.
+ * and a fixed-date Mix has follow-ups due on its own date, so the start day does nothing for it.
  */
 export function bulkMixSheetSentence(triggerMode: string): string {
   if (triggerMode === "DATE_TRIGGERED") return "It follows each person’s saved date. Anyone without one gets the start day as their date. Anyone still in it keeps their start.";
-  if (triggerMode === "BROADCAST") return "It goes out on its fixed date. Anyone still in it keeps their start.";
+  if (triggerMode === "BROADCAST") return "Follow-ups are due on its fixed date. Anyone still in it keeps their start.";
   return "Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.";
 }
 
 /** The same for one person, under the start day in What's next: what that day does for the chosen Mix (END-02). */
 export function oneMixStartSentence(triggerMode: string): string {
   if (triggerMode === "DATE_TRIGGERED") return "It follows their saved date. Without one, the start day is saved as their date.";
-  if (triggerMode === "BROADCAST") return "It goes out on its fixed date, whatever start day you choose.";
+  if (triggerMode === "BROADCAST") return "Follow-ups are due on its fixed date, whatever start day you choose.";
   return "It starts on the day you choose.";
 }
 
 /**
  * The confirmation after Add to the Mix (JITM-04 §2.7): it names the Mix and says what happened to each
  * group of people, so it never promises follow-ups that are not coming. `startDay` is the chosen start day
- * as the owner reads it; a fixed-date Mix (`triggerMode` BROADCAST) goes out on its own date instead.
+ * as the owner reads it; a fixed-date Mix (`triggerMode` BROADCAST) has follow-ups due on its own date instead.
  */
 export function bulkMixStartNotice(input: { mixName: string; triggerMode: string; counts: MixStartCounts; startDay: string; startsToday: boolean; waitsForVisit: boolean }): string {
   const { counts, mixName } = input;
@@ -50,7 +50,7 @@ export function bulkMixStartNotice(input: { mixName: string; triggerMode: string
   const kept = counts["already-running"];
   const sentences: string[] = [];
   if (started) sentences.push(input.triggerMode === "BROADCAST"
-    ? `${mixName} goes out to ${people(started)} on its fixed date.`
+    ? `${mixName} has follow-ups due for ${people(started)} on its fixed date.`
     : `${mixName} ${counts.started && !input.startsToday ? `starts on ${input.startDay}` : "started"} for ${people(started)}.`);
   if (kept) sentences.push(started
     ? `${kept === 1 ? "1 was" : `${kept.toLocaleString()} were`} already in it and ${kept === 1 ? "keeps" : "keep"} their start.`
