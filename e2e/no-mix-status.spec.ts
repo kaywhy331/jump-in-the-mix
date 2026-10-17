@@ -105,6 +105,33 @@ test("a contact with no Mix says so, and the owner can confirm it or start one f
   }
 });
 
+test("a fixed-date start confirms its own schedule on the profile", async ({ page }, testInfo) => {
+  const since = new Date();
+  const { people: [person] } = await people(["Fixed date"]);
+  const mix = await prisma.mix.create({ data: { workspaceId, name: `Fixed date ${person.id}`, status: "ACTIVE", triggerMode: "BROADCAST", steps: { create: { stepVersionId: "demo_step_sms_v1", dayOffset: 0, sortOrder: 1 } } } });
+  await prisma.mixBroadcastSchedule.create({ data: { workspaceId, mixId: mix.id, localDate: new Date("2030-04-20T12:00:00Z"), timeMinutes: 600, timezone: "UTC" } });
+  try {
+    await page.goto(`/contacts/${person.id}`);
+    await page.getByRole("button", { name: `No Mix: choose what's next for ${person.displayName}` }).click();
+    const sheet = page.getByRole("dialog", { name: `What’s next for ${person.displayName}` });
+    await sheet.getByRole("combobox", { name: "Choose a Mix" }).selectOption(mix.id);
+    await expect(sheet.getByRole("combobox", { name: "Choose a Mix" })).toHaveValue(mix.id);
+    await Promise.all([page.waitForURL(/mixStart=fixed/), sheet.getByRole("button", { name: "Add to the Mix", exact: true }).click()]);
+    const notice = page.locator(".notice.success").filter({ hasText: "Start saved. Follow-ups are due on the Mix’s fixed date." });
+    await expect(notice).toBeVisible();
+    for (const theme of ["light", "dark"] as const) {
+      await setTheme(page, theme);
+      await page.screenshot({ path: testInfo.outputPath(`fixed-date-${theme}.png`), fullPage: true });
+    }
+    // Today renders the same action receipt; the integration suite checks that action's Today return path.
+    await page.goto(`/jumps?${new URL(page.url()).searchParams}`);
+    await expect(page.locator(".notice.success").filter({ hasText: "Start saved. Follow-ups are due on the Mix’s fixed date." })).toBeVisible();
+  } finally {
+    await cleanUp([person.id], since);
+    await prisma.mix.deleteMany({ where: { id: mix.id, workspaceId } });
+  }
+});
+
 test("Contacts finds people with No Mix and handles them in bulk", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Bulk handling is exercised once, in the docked desktop layout.");
   const since = new Date();
@@ -160,7 +187,7 @@ test("Contacts finds people with No Mix and handles them in bulk", async ({ page
     // and only a hand-started one says that anyone who finished it starts it again (D46).
     const choose = sheet.getByRole("combobox", { name: "Choose a Mix", exact: true });
     await choose.selectOption(fixedMix.id);
-    await expect(sheet.getByText("It goes out on its fixed date. Anyone still in it keeps their start.", { exact: true })).toBeVisible();
+    await expect(sheet.getByText("Follow-ups are due on its fixed date. Anyone still in it keeps their start.", { exact: true })).toBeVisible();
     await expect(sheet.getByLabel("Start on", { exact: true })).toHaveCount(0);
     await choose.selectOption(handMix.id);
     await expect(sheet.getByText("Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.", { exact: true })).toBeVisible();
@@ -294,6 +321,31 @@ test("Today points to the people with No Mix", async ({ page }) => {
     await expect(page.locator(".contact-row").filter({ hasText: person.displayName })).toHaveCount(1);
   } finally {
     await cleanUp([person.id]);
+  }
+});
+
+test("a visit-only contact stays in No Mix while awaiting booking or outcome (D126)", async ({ page }) => {
+  const { people: [person] } = await people(["Visit waiting"]);
+  const mix = await prisma.mix.create({ data: { workspaceId, name: `Visit follow-up ${person.id}`, status: "ACTIVE", triggerMode: "MANUAL_START", steps: { create: { stepVersionId: "demo_step_sms_v1", dayOffset: 0, sortOrder: 1, anchor: "APPOINTMENT_END", offsetMinutes: 60 } } } });
+  try {
+    const assignment = await prisma.mixAssignment.create({ data: { workspaceId, mixId: mix.id, contactId: person.id, assignmentKey: `visit-wait:${person.id}` } });
+    for (const booked of [false, true]) {
+      if (booked) {
+        const visit = await prisma.calendarEntry.create({ data: { workspaceId, contactId: person.id, kind: "MEETING", title: "Site visit", startsAt: new Date(Date.now() - 86_400_000), endsAt: new Date(Date.now() - 82_800_000), timezone: "UTC" } });
+        await prisma.appointmentBinding.create({ data: { workspaceId, mixId: mix.id, contactId: person.id, calendarEntryId: visit.id, assignmentId: assignment.id } });
+      }
+      await page.goto(`/contacts?mix=no-mix&q=${encodeURIComponent(person.displayName)}`);
+      await expect(page.locator(".contact-row").filter({ hasText: person.displayName }).locator(".contact-no-mix")).toHaveText("No Mix");
+      await page.goto(`/contacts/${person.id}`);
+      const chip = page.getByRole("button", { name: `No Mix: choose what's next for ${person.displayName}` });
+      await chip.focus(); await page.keyboard.press("Enter");
+      const sheet = page.getByRole("dialog", { name: `What’s next for ${person.displayName}` });
+      await expect(sheet.getByText("No Mix has work to come for this person.", { exact: true })).toBeVisible();
+      await page.keyboard.press("Escape"); await expect(chip).toBeFocused();
+    }
+  } finally {
+    await cleanUp([person.id]);
+    await prisma.mix.deleteMany({ where: { id: mix.id, workspaceId } });
   }
 });
 
