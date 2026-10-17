@@ -27,6 +27,7 @@ async function main() {
   const output = resolve(outputArg); await mkdir(output, { mode: 0o700 });
   const config = loadWorkerConfiguration(plan), env = isolatedLoadEnvironment(config), origin = env.APP_URL;
   const database = loadDatabaseName(plan.id), role = loadRoleName(plan.id), marker = loadOwnershipMarker(plan);
+  const cleanupProgress = phase => emit({ event: 'cleanup-progress', id: plan.id, phase });
   const owner = new Client({ connectionString: plan.sourceUrl, connectionTimeoutMillis: 5000, query_timeout: 30000 });
   const abort = new AbortController(), log = await open(join(output, 'process.log'), 'wx', 0o600);
   let db, web, webExit, createdDatabase = false, createdRole = false, closing = false, input, timer, phase = 'source-preflight';
@@ -122,23 +123,30 @@ async function main() {
     throw error;
   } finally {
     clearTimeout(timer); closing = true; input?.close(); abort.abort();
-    await stopWeb(); await db?.end().catch(() => {});
+    cleanupProgress('stop-web');
+    await stopWeb();
+    cleanupProgress('close-database-connection');
+    await db?.end().catch(() => {});
     let databaseRemoved = !createdDatabase, roleRemoved = !createdRole;
     try {
       if (createdDatabase) {
+        cleanupProgress('remove-database');
         const found = (await owner.query(`SELECT shobj_description(oid,'pg_database') AS marker FROM pg_database WHERE datname=$1`, [database])).rows[0];
         if (found && found.marker !== marker) throw new Error('Fixture ownership marker changed; cleanup requires operator review.');
         if (found) await owner.query(`DROP DATABASE ${quoteIdentifier(database)} WITH (FORCE)`);
         databaseRemoved = true;
       }
       if (createdRole) {
+        cleanupProgress('remove-role');
         const found = (await owner.query(`SELECT shobj_description(oid,'pg_authid') AS marker FROM pg_roles WHERE rolname=$1`, [role])).rows[0];
         if (found && found.marker !== marker) throw new Error('Fixture role ownership marker changed; cleanup requires operator review.');
         if (found) await owner.query(`DROP ROLE ${quoteIdentifier(role)}`);
         roleRemoved = true;
       }
     } finally {
+      cleanupProgress('close-owner-and-log');
       const closed = await Promise.allSettled([owner.end(), log.close()]);
+      cleanupProgress('remove-credentials');
       let credentialsRemoved = true;
       for (const name of ['accounts.json', 'worker.json']) {
         try { await unlink(join(output, name)); } catch (error) { if (error.code !== 'ENOENT') credentialsRemoved = false; }
