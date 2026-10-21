@@ -1,5 +1,5 @@
 import { randomUUID } from "node:crypto";
-import { afterAll, beforeAll, describe, expect, it } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import { runAutomaticDeliveries } from "../src/lib/automatic-delivery";
 import { APPOINTMENT_HOLD_METHODS, reconcileJumps } from "../src/lib/jump-engine";
 import { saveJumpDraft } from "../src/lib/jump-drafts";
@@ -10,6 +10,10 @@ const DAY = 86_400_000;
 const TIMEZONE = "America/Los_Angeles";
 // Local Pacific times on days ahead of October 5, 2026, expressed as instants (PDT is UTC-7).
 const at = (daysAhead: number, hourLocal: number, minute = 30) => new Date(Date.UTC(2026, 9, 5 + daysAhead, hourLocal + 7, minute));
+/** The clock those instants count from: 9:00 AM Pacific on October 5, 2026. */
+const T0 = at(0, 9, 0);
+/** Only the clock is frozen; timers stay real so the database client keeps working. */
+function setClock(instant: Date) { vi.useFakeTimers({ toFake: ["Date"] }); vi.setSystemTime(instant); }
 
 describe.sequential("appointment bindings", () => {
   let fixture: BroadcastFixture;
@@ -51,12 +55,13 @@ describe.sequential("appointment bindings", () => {
   }
 
   beforeAll(async () => {
+    setClock(T0);
     fixture = await createBroadcastFixture("appointment", "Alex");
     workspaceId = fixture.workspaceId;
     await prisma.contactPhone.create({ data: { contactId: fixture.contactId, phone: "+15550100400", normalized: "+15550100400", isPrimary: true } });
     mixId = await planWithTwoBeats("Estimate visit plan");
   });
-  afterAll(() => fixture.cleanup());
+  afterAll(async () => { vi.useRealTimers(); await fixture.cleanup(); });
 
   it("anchors the plan's beats to the appointment and renders its details", async () => {
     const entry = await appointment(fixture.contactId, at(10, 14));
