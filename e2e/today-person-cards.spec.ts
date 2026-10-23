@@ -264,13 +264,13 @@ test.describe("on a phone", () => {
     await card(page, id.gwenText).getByRole("button", { name: "Review message for Gwen Group: Text, 1 day overdue", exact: true }).click();
     await expect(openReview(page).locator(".review-also-due")).toHaveText("Also due: Call at 12:02 AM.");
     // D99 reads Today after this saved outcome. Match a read started after its response, so an earlier read cannot
-    // satisfy the wait, and consume the whole response before asserting the rendered timestamp (D98).
+    // satisfy the wait. The card's server-derived timestamp proves that read was applied before checking the review (D98).
     const todayRead = page.waitForResponse(response => new URL(response.url()).pathname === `/api/jumps/${id.gwenText}/outcome`
       && response.request().method() === "POST").then(async () => {
       const request = await page.waitForRequest(request => new URL(request.url()).pathname === "/jumps" && request.method() === "GET");
       const response = await request.response();
       expect(response?.status()).toBe(200);
-      expect(await response!.finished()).toBeNull();
+      await expect(card(page, id.gwenCall).locator(".jump-contacted-today")).toHaveText(/^Contacted today at \d{1,2}:\d{2}\s?[AP]M$/);
     });
     await record(page, openReview(page).getByRole("button", { name: "Mark sent for Gwen Group", exact: true }), id.gwenText);
     // The call's own review opens next (D70). With the text recorded it names nothing else as due, and says Gwen was
