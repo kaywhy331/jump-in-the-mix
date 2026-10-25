@@ -78,7 +78,9 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
       try { onSignal(JSON.parse(event.newValue ?? "null")); } catch { void check(); }
     };
     const onPageHide = () => { controller?.abort(); sequence++; hide(false); };
-    const onFocus = () => { if (gone) hide(); else void check(); };
+    // Revalidate usable content in the background, like the periodic check. A new modal would swallow Escape meant
+    // for the owner's open sheet. Hidden/restored tabs stay masked, and any failed check still locks immediately.
+    const onFocus = () => { if (gone) hide(); else void check(content.current?.inert !== false); };
     const onVisible = () => { if (document.hidden) onPageHide(); else onFocus(); };
     const onPageShow = (event: PageTransitionEvent) => { if (event.persisted) onFocus(); };
     const onOffline = () => { if (!gone) { controller?.abort(); sequence++; hide(); setState("offline"); } };
