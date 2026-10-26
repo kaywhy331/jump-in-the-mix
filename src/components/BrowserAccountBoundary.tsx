@@ -58,7 +58,8 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
           delete document.documentElement.dataset.browserLocked;
           if (content.current) { content.current.style.visibility = "visible"; content.current.inert = false; }
           gate.current?.close();
-          if (focus?.isConnected && document.hasFocus()) { focus.focus({ preventScroll: true }); window.scrollTo({ top: scroll, behavior: "instant" }); focus = null; }
+          // A background success must not replay focus captured before the owner resumed work.
+          if (mask && focus?.isConnected && document.hasFocus()) { focus.focus({ preventScroll: true }); window.scrollTo({ top: scroll, behavior: "instant" }); focus = null; }
         } else if (result.scope === null && !signedOut) {
           hide(); setState("expired");
         } else {

@@ -47,6 +47,8 @@ function TodayFixture() {
   </div>;
 }
 const kind = new URL(location.href).searchParams.get("kind");
-createRoot(document.getElementById("root")!).render(kind === "account"
+createRoot(document.getElementById("root")!).render(kind === "account-focus"
+  ? <BrowserAccountBoundary scope="fixture-account"><div style={{ minHeight: "300vh", paddingTop: 200 }}><input aria-label="Field X" /><input aria-label="Field Y" /></div></BrowserAccountBoundary>
+  : kind === "account"
   ? <BrowserAccountBoundary scope="fixture-account"><Sheet title="Profile" trigger={<button>Profile</button>}><input aria-label="Draft" defaultValue="Keep my draft" /></Sheet></BrowserAccountBoundary>
   : <TodayFixture />);

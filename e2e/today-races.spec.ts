@@ -44,6 +44,54 @@ for (const event of ["focus", "online"]) {
   });
 }
 
+test("a background focus recheck does not restore focus and scroll from a hidden tab", async ({ page }) => {
+  await page.route("**/api/auth/browser-context", route => route.fulfill({ json: { scope: "fixture-account" } }));
+  await page.goto("/__today-races?kind=account-focus");
+  const content = page.locator("[data-browser-scope]");
+  const gate = page.locator(".browser-account-gate");
+  await expect(content).not.toHaveAttribute("inert", "");
+  await page.getByLabel("Field X").focus();
+  await expect(page.getByLabel("Field X")).toBeFocused();
+  await page.evaluate(() => {
+    window.scrollTo({ top: 80, behavior: "instant" });
+    Object.defineProperty(document, "hidden", { configurable: true, value: true });
+    Object.defineProperty(document, "hasFocus", { configurable: true, value: () => false });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect(content).toHaveAttribute("inert", "");
+  let pending: Route | undefined;
+  await page.route("**/api/auth/browser-context", route => { pending = route; });
+  await page.evaluate(() => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: false });
+    document.dispatchEvent(new Event("visibilitychange"));
+  });
+  await expect.poll(() => Boolean(pending)).toBe(true);
+  await expect(gate).toBeVisible();
+  await pending!.fulfill({ json: { scope: "fixture-account" } });
+  await expect(content).not.toHaveAttribute("inert", "");
+  await expect(gate).not.toBeVisible();
+  // The visible tab is usable, but the window has not gained focus yet. The owner chooses Y.
+  await page.getByLabel("Field Y").focus();
+  await expect(page.getByLabel("Field Y")).toBeFocused();
+  pending = undefined;
+  await page.evaluate(() => {
+    window.scrollTo({ top: 160, behavior: "instant" });
+    Object.defineProperty(document, "hasFocus", { configurable: true, value: () => true });
+    window.dispatchEvent(new Event("focus"));
+  });
+  await expect.poll(() => Boolean(pending)).toBe(true);
+  await expect(page.getByLabel("Field Y")).toBeFocused();
+  const finished = page.waitForEvent("requestfinished", request => request.url().endsWith("/api/auth/browser-context"));
+  await pending!.fulfill({ json: { scope: "fixture-account" } });
+  await finished;
+  // Let the response continuation and the browser's focus/scroll work finish before checking the result.
+  await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+  await expect(content).not.toHaveAttribute("inert", "");
+  await expect(gate).not.toBeVisible();
+  await expect(page.getByLabel("Field Y")).toBeFocused();
+  expect(await page.evaluate(() => window.scrollY)).toBe(160);
+});
+
 for (const result of ["offline", "expired", "changed"] as const) {
   test(`a background recheck that is ${result} still locks the account`, async ({ page }) => {
     await page.route("**/api/auth/browser-context", route => route.fulfill({ json: { scope: "fixture-account" } }));
