@@ -139,6 +139,7 @@ export function LiveAttentionSummary() {
  * asks what's next for that person instead.
  */
 export function TodayMomentum() {
+  const { settle } = useTodayReviewPlacement();
   useEffect(() => {
     let frame = 0, opened: HTMLDialogElement | null = null, slot: HTMLElement | null = null, tallest = 0;
     // In a docked review the slot keeps the tallest height it has had while the review stays open, so a confirmation
@@ -282,6 +283,8 @@ export function TodayMomentum() {
       // still asking, is the owner's.
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
+          // Pin release can reparent the next card. Commit that placement before resolving its current trigger.
+          settle();
           const focused = document.activeElement;
           if (document.querySelector("dialog[open], [data-today-notice]")) return;
           if (focused instanceof HTMLElement && focused.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
@@ -305,6 +308,6 @@ export function TodayMomentum() {
       if (slot) slot.style.minHeight = "";
       setOpenReviewSlot(null);
     };
-  }, []);
+  }, [settle]);
   return null;
 }
