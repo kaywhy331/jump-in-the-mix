@@ -58,7 +58,8 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
           delete document.documentElement.dataset.browserLocked;
           if (content.current) { content.current.style.visibility = "visible"; content.current.inert = false; }
           gate.current?.close();
-          if (focus?.isConnected && document.hasFocus()) { focus.focus({ preventScroll: true }); window.scrollTo({ top: scroll, behavior: "instant" }); focus = null; }
+          // A background success must not replay focus captured before the owner resumed work.
+          if (mask && focus?.isConnected && document.hasFocus()) { focus.focus({ preventScroll: true }); window.scrollTo({ top: scroll, behavior: "instant" }); focus = null; }
         } else if (result.scope === null && !signedOut) {
           hide(); setState("expired");
         } else {
@@ -78,7 +79,9 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
       try { onSignal(JSON.parse(event.newValue ?? "null")); } catch { void check(); }
     };
     const onPageHide = () => { controller?.abort(); sequence++; hide(false); };
-    const onFocus = () => { if (gone) hide(); else void check(); };
+    // Revalidate usable content in the background, like the periodic check. A new modal would swallow Escape meant
+    // for the owner's open sheet. Hidden/restored tabs stay masked, and any failed check still locks immediately.
+    const onFocus = () => { if (gone) hide(); else void check(content.current?.inert !== false); };
     const onVisible = () => { if (document.hidden) onPageHide(); else onFocus(); };
     const onPageShow = (event: PageTransitionEvent) => { if (event.persisted) onFocus(); };
     const onOffline = () => { if (!gone) { controller?.abort(); sequence++; hide(); setState("offline"); } };
