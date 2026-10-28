@@ -13,7 +13,8 @@ import type { ContactMixRowStatus } from "@/lib/contact-mix-row-labels";
 import { removeMixAssignmentAction } from "@/lib/contact-mix-actions";
 import type { DisplayFormatPreferences } from "@/lib/format";
 import { resumeMixForContactAction, stopMixForContactAction } from "@/lib/mix-stop-actions";
-import type { WorkflowGraphView, WorkflowInstanceView } from "@/lib/mix-workflow-view";
+import type { WorkflowGraphView } from "@/lib/mix-workflow-view";
+import type { NextActionProjection } from "@/lib/next-action";
 
 export type ContactMixesRow = {
   mixId: string; name: string; status: ContactMixRowStatus; route: string | null;
@@ -23,22 +24,13 @@ export type ContactMixesRow = {
   assignmentId: string | null; everyoneStart: boolean; hasTags: boolean; stopped: boolean; workIds: string[];
 };
 
-/** What a row of Journey work still needs from the owner, so it shows without opening the menu. */
-function attention(instances: WorkflowInstanceView[]): string | null {
-  if (instances.some(instance => instance.preparationFailed)) return "Follow-up preparation needs another try";
-  // Only a decision still waiting, in work that isn't paused, can take an outcome now.
-  if (instances.some(instance => instance.status !== "PAUSED" && instance.decisions.some(decision => decision.status === "WAITING" && !decision.outcome))) return "Waiting for you to record an outcome";
-  if (instances.some(instance => instance.beats.some(beat => beat.status === "HELD" && instance.state.visits.find(visit => visit.id === beat.visitId)?.reason?.includes("appointment")))) return "Waiting for you to link an appointment";
-  return instances.find(instance => instance.state.issue)?.state.issue ?? null;
-}
-
 /**
  * The profile's one Mixes section (D77, JITM-09 §2.32): a row per Mix with its status, and a menu per row that
  * holds everything done to that Mix for this person. Review stays on the Next card. Journey work for the person
  * is read from the Journey's own API, once, and only when a row has some.
  */
-export function ContactMixes({ contactId, contactName, rows, displayPreferences, viewOnly, addControl }: {
-  contactId: string; contactName: string; rows: ContactMixesRow[]; displayPreferences: DisplayFormatPreferences; viewOnly: boolean; addControl: ReactNode;
+export function ContactMixes({ contactId, contactName, rows, displayPreferences, viewOnly, addControl, nextActions, unavailable = false }: {
+  contactId: string; contactName: string; rows: ContactMixesRow[]; displayPreferences: DisplayFormatPreferences; viewOnly: boolean; addControl: ReactNode; nextActions: NextActionProjection; unavailable?: boolean;
 }) {
   const router = useRouter();
   const hasWork = rows.some(row => row.workIds.length > 0);
@@ -52,24 +44,25 @@ export function ContactMixes({ contactId, contactName, rows, displayPreferences,
   useEffect(() => {
     if (!hasWork) return;
     refresh();
-    window.addEventListener("jitm:workflow-updated", refresh);
-    return () => window.removeEventListener("jitm:workflow-updated", refresh);
-  }, [hasWork, refresh]);
+    const updated = () => { refresh(); router.refresh(); };
+    window.addEventListener("jitm:workflow-updated", updated);
+    return () => window.removeEventListener("jitm:workflow-updated", updated);
+  }, [hasWork, refresh, router]);
   // A saved change re-reads the work through `jitm:workflow-updated` (src/lib/mix-workflow-client.ts). It can also
   // change the rows themselves (paused, the next Beat), which the server reads.
   const updated = () => router.refresh();
   const returnTo = `/contacts/${contactId}`;
   return <section className="contact-mixes" aria-labelledby="contact-mixes-heading">
     <div className="contact-section-heading"><h2 id="contact-mixes-heading">Mixes</h2></div>
-    {rows.length ? <ul className="contact-mix-list">{rows.map(row => {
+    {unavailable ? <p role="status" className="contact-empty-copy">Mixes could not be checked. <button type="button" className="text-button" onClick={() => router.refresh()}>Try again</button></p> : rows.length ? <ul className="contact-mix-list">{rows.map(row => {
       const instances = work?.instances.filter(instance => row.workIds.includes(instance.id)) ?? [];
-      const needs = attention(instances);
+      const needs = nextActions.items.find(item => item.workId && row.workIds.includes(item.workId) && item.kind !== "follow-up" && item.timing !== "future");
       return <li className="contact-mix-row" key={row.mixId} data-mix-row={row.mixId}>
         <div className="contact-mix-row-text">
           <strong>{row.name}</strong>
           <span className={`contact-mix-row-status${row.status.tone === "late" ? " overdue-text" : ""}`} data-tone={row.status.tone}>{row.status.label}</span>
           {row.route && <small>{row.route}</small>}
-          {needs && <span className="contact-mix-row-attention">{needs}</span>}
+          {needs && <span className="contact-mix-row-attention">{needs.action} · {needs.detail}</span>}
         </div>
         <Sheet trigger={<button type="button" className="icon-button contact-mix-row-menu" aria-label={`Options for ${row.name}: ${row.status.label}`}><AppIcon name="more" /></button>} title={row.name} description={row.summary}>
           <ClosesOnSubmit><div className="contact-tools-links contact-menu-list">

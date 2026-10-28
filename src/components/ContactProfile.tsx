@@ -1,5 +1,7 @@
 import { ContactAnchorReveal } from "@/components/ContactAnchorReveal";
-import { contactDueLabel, recordedStageChanges, sameContactSequence } from "@/lib/contact-profile-view";
+import { recordedStageChanges, sameContactSequence } from "@/lib/contact-profile-view";
+import { NextActionSummary } from "@/components/NextAction";
+import { readNextActions } from "@/lib/next-action-reader";
 import { ClampedText } from "@/components/ClampedText";
 import { ClosesOnSubmit } from "@/components/ClosesOnSubmit";
 import { ContactMixes, type ContactMixesRow } from "@/components/ContactMixes";
@@ -54,6 +56,7 @@ function addressText(address: { street1: string | null; street2: string | null; 
 
 export async function ContactProfile({ contactId, query = {}, embedded = false, directoryHref }: { contactId: string; query?: ContactProfileSearchParams; embedded?: boolean; directoryHref?: string }) {
   const { session, workspace, user, impersonation } = await requireWorkspace();
+  const now = new Date();
   const preparation = await readPreparationStatus(workspace.id, contactId);
   const [contact, dateTypes, plans, groupStates, relationshipState, mergeHistory, nextFollowUp, comingUp, journeyStages, journeyEvents, nextMeeting] = await Promise.all([
     // Archived people are found too: an old link or merge note opens their archived state, not a 404.
@@ -114,14 +117,14 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
   const [pendingCount, mixStatus, mixRows] = await Promise.all([
     prisma.jump.count({ where: { workspaceId: workspace.id, contactId, status: "PENDING" } }),
     contactMixStatus(workspace.id, contactId),
-    readContactMixRows(workspace.id, { id: contact.id, mixAssignments: contact.mixAssignments, groupIds: contact.groupMemberships.map(membership => membership.groupId) }, new Set(contact.groupMemberships.flatMap(({ groupId }) => activeByGroupId.get(groupId) === false ? [] : [groupId])))
+    readContactMixRows(workspace.id, { id: contact.id, mixAssignments: contact.mixAssignments, groupIds: contact.groupMemberships.map(membership => membership.groupId) }, new Set(contact.groupMemberships.flatMap(({ groupId }) => activeByGroupId.get(groupId) === false ? [] : [groupId]))).catch(() => null)
   ]);
   const followUpType = dateTypes.find((type) => type.slug === "follow-up");
   const primaryEmail = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email ?? null;
   const primaryPhone = contact.phones.find((item) => item.isPrimary)?.phone ?? contact.phones[0]?.phone ?? null;
   const state = relationshipState ?? { preferredChannel: null, priority: "NORMAL" as const, doNotContact: false, relationshipStatus: null, nextCommitmentAt: null, version: 0 };
 
-  const now = new Date();
+  const nextActions = await readNextActions(workspace.id, { contactId, now, timeZone: displayPreferences.timeZone });
   const shortDate = (date: Date) => formatDate(date, displayPreferences, { year: undefined });
   const sequenceCandidates = nextFollowUp ? await prisma.jump.findMany({
     where: { workspaceId: workspace.id, contactId, mixId: nextFollowUp.mixId, status: { not: "CANCELED" },
@@ -166,7 +169,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
     {noMixChoice}
   </ClosesOnSubmit>;
   const addToMix = <Sheet trigger={<button type="button" className="contact-inline-action contact-add-mix"><AppIcon name="add" />Add to a Mix</button>} title={`Add ${contact.displayName} to a Mix`}>{mixChoices}</Sheet>;
-  const mixChip = mixStatus === "no-mix" || mixStatus === "no-mix-needed" ? <Sheet trigger={<button type="button" className="contact-mix-chip" data-status={mixStatus} aria-label={`${mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}: choose what's next for ${contact.displayName}`}>{mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}<AppIcon name="chevronDown" /></button>} title={`What’s next for ${contact.displayName}`} description={mixStatus === "no-mix" ? "No Mix has work to come for this person." : undefined}>{mixChoices}</Sheet> : null;
+  const mixChip = mixRows !== null && (mixStatus === "no-mix" || mixStatus === "no-mix-needed") ? <Sheet trigger={<button type="button" className="contact-mix-chip" data-status={mixStatus} aria-label={`${mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}: choose what's next for ${contact.displayName}`}>{mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}<AppIcon name="chevronDown" /></button>} title={`What’s next for ${contact.displayName}`} description={mixStatus === "no-mix" ? "No Mix has work to come for this person." : undefined}>{mixChoices}</Sheet> : null;
   const journeyTrack = <>
     <div className="contact-section-heading"><h2>Stage</h2></div>
     {contact.journey ? <div className="contact-journey-track" role="region" tabIndex={0} aria-label="Recorded stage history and possible next stages">
@@ -175,7 +178,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
       {futureStages.length > 0 && <ol className="contact-stage-future" aria-label="Possible next stages, not scheduled">{futureStages.map(stage => <li key={stage.id}><span>{stage.name}</span><i aria-hidden="true" /></li>)}</ol>}
     </div> : <p className="contact-empty-copy">No stage yet. Choose a stage beside this person’s name.</p>}
   </>;
-  const mixRowsView: ContactMixesRow[] = mixRows.map(row => {
+  const mixRowsView: ContactMixesRow[] = (mixRows ?? []).map(row => {
     const status = contactMixRowStatus(row, now, displayPreferences), route = contactMixRowRoute(row);
     return { mixId: row.mixId, name: row.name, status, route, summary: `${contactMixRowSummary(row, contact.displayName, now, displayPreferences)}${route ? ` ${route}.` : ""}`, assignmentId: row.assignmentId, everyoneStart: row.everyoneStart, hasTags: row.tags.length > 0, stopped: Boolean(row.stop), workIds: row.workIds };
   });
@@ -237,19 +240,18 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
         {(state.doNotContact || !primaryPhone || !primaryEmail) && <p className="contact-quick-action-hint">{state.doNotContact ? "Do not contact is on, so Text, Email and Call are off." : !primaryPhone && !primaryEmail ? "Add a phone number or email in Details to reach them." : !primaryPhone ? "Add a phone number in Details to text or call." : "Add an email address in Details to email."}</p>}
       </header>
 
-      <section className="contact-next-line" aria-label="Next follow-up">
-        <h2>Next</h2>
-        {nextFollowUp ? <><div className="contact-next-description"><strong>{nextFollowUp.reason}</strong><span>Beat {currentBeat} of {sequenceSteps.length}<span className={nextFollowUp.scheduledAt < now ? "overdue-text" : ""}>{contactDueLabel(nextFollowUp.scheduledAt, now, displayPreferences)}</span></span></div><Link className="button primary contact-review-button" href={`/jumps?jump=${encodeURIComponent(nextFollowUp.id)}&range=all`}>Review</Link>
+      <NextActionSummary projection={nextActions} displayPreferences={displayPreferences} restricted={state.doNotContact} retryHref={`/contacts/${contact.id}`} sequenceJumpId={nextFollowUp?.id}>
+        {nextFollowUp && nextFollowUp.mix.source !== "ONE_TIME" && <><span className="next-action-sequence-label">Beat {currentBeat} of {sequenceSteps.length}</span>
           <ol className="contact-beat-track" aria-label={`Beats in ${nextFollowUp.mix.name}`}>{sequenceSteps.map(step => {
             const beat = sequence.find(item => item.mixStepId === step.id);
             const current = beat?.id === nextFollowUp.id;
             return <li key={step.id} className={current ? "is-current" : beat?.status === "DONE" ? "is-complete" : "is-upcoming"} aria-current={current ? "step" : undefined}>{beat ? <Link href={`/jumps?jump=${encodeURIComponent(beat.id)}&range=all`} aria-label={`${current ? "Current Beat" : beat.status === "DONE" ? "Completed Beat" : beat.status === "SKIPPED" ? "Skipped Beat" : "Upcoming Beat"}, ${formatDate(beat.scheduledAt, displayPreferences)}`}><i aria-hidden="true" /><time dateTime={beat.scheduledAt.toISOString()}>{shortDate(beat.scheduledAt)}</time></Link> : <span><i aria-hidden="true" /><small aria-label="Date unavailable" title="No date available for this Beat">—</small></span>}</li>;
           })}</ol>
-        </> : <div className="contact-next-empty"><strong>{preparation.state !== "ready" ? "Awaiting follow-up preparation" : "Nothing scheduled"}</strong></div>}
-      </section>
+        </>}
+      </NextActionSummary>
       {nextMeeting && meetingLink && <Link className="contact-next-meeting" href={meetingLink}><AppIcon name="calendar" /><span>Meeting · <time dateTime={nextMeeting.startsAt.toISOString()}>{formatDateTime(nextMeeting.startsAt, displayPreferences)}</time> · <strong>{nextMeeting.title}</strong></span></Link>}
       <PreparationNotice key={contact.id} initial={preparation} contactId={contact.id} canRetry={!impersonation} />
-      <ContactMixes contactId={contact.id} contactName={contact.displayName} rows={mixRowsView} displayPreferences={displayPreferences} viewOnly={Boolean(impersonation)} addControl={addToMix} />
+      <ContactMixes contactId={contact.id} contactName={contact.displayName} rows={mixRowsView} unavailable={mixRows === null} displayPreferences={displayPreferences} viewOnly={Boolean(impersonation)} addControl={addToMix} nextActions={nextActions} />
 
       {contact.groupMemberships.length > 0 && <div className="contact-group-strip" aria-label="Tags">{contact.groupMemberships.map(({ group }) => {
         const isActive = activeByGroupId.get(group.id) !== false;

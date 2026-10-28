@@ -92,7 +92,7 @@ test("one Mixes section lists each Mix once with where it stands, and Review sta
   expect(await top(".contact-next-meeting")).toBeGreaterThan(await top(".contact-next-line"));
   expect(await top(".contact-mixes")).toBeLessThan(await top("#contact-history"));
   // Review appears once, on the Next card; the old blocks and the extra ways to start a Mix are gone.
-  await expect(page.getByRole("link", { name: "Review", exact: true })).toHaveCount(1);
+  await expect(page.getByRole("region", { name: "Next follow-up" }).locator(".contact-review-button")).toHaveCount(1);
   await expect(page.getByRole("region", { name: "Next follow-up" }).getByRole("link", { name: "Review", exact: true })).toBeVisible();
   for (const gone of ["Connected Mixes", "Start a follow-up", "Other stopped Mixes"]) await expect(page.getByText(gone, { exact: true })).toHaveCount(0);
   await expect(page.locator("#dates-and-mixes > summary")).toContainText("Dates, preferences and custom fields");

@@ -1,5 +1,7 @@
 import { WorkflowAttention, UpcomingWorkflowCommitments } from "@/components/WorkflowAttention";
-import { readWorkflowAttention } from "@/lib/workflow-attention";
+import { readNextActions, nextActionAttention } from "@/lib/next-action-reader";
+import { NextActionSummary } from "@/components/NextAction";
+import { nextActionsInView } from "@/lib/next-action";
 import { QuietDaySuggestions } from "@/components/QuietDaySuggestions";
 import { InvitationPrompt } from "@/components/InvitationPrompt";
 import { readQuietDays } from "@/lib/quiet-days";
@@ -143,6 +145,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const status = params.jump ? "all" : ["all", "pending", "done", "skipped"].includes(params.status ?? "") ? params.status! : "all";
   const channel = params.channel && channels.includes(params.channel as Channel) ? params.channel as Channel : "all";
   const { session, workspace, user, impersonation } = await requireWorkspace();
+  const now = new Date();
   const invitations = impersonation ? null : await invitationsLeft(user.id, workspace.id);
   // Today's invitation prompt waits for the owner's first recorded outcome, and isn't rendered once dismissed (JITM-09 §2.9, D72).
   const promptDismissed = invitationPromptDismissed((await cookies()).get(INVITATION_PROMPT_COOKIE)?.value, browserScope(session));
@@ -153,7 +156,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   ]);
   const displayPreferences = await displayPreferencesForUser(user.id);
   const timezone = displayPreferences.timeZone;
-  const today = logicalDateInTimezone(new Date(), timezone);
+  const today = logicalDateInTimezone(now, timezone);
   const startToday = zonedDateTimeToUtc(today, 0, timezone);
   const endToday = zonedDateTimeToUtc(addLogicalDays(today, 1), 0, timezone);
   const endWeek = zonedDateTimeToUtc(addLogicalDays(today, 7), 0, timezone);
@@ -211,16 +214,23 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     return skipped ? { skipped, plan: (await planLimits(workspace.id)).plan } : null;
   };
   const planLimitNotice = await readPlanLimitNotice().catch(() => null);
-  const [drafts, failedDeliveryRows, owner, automation, quietDays, workflowAttention, mixCounts] = await Promise.all([
+  const [drafts, failedDeliveryRows, owner, automation, quietDays, nextActions, mixCounts] = await Promise.all([
     readJumpDrafts(workspace.id, pendingIds),
     readFailedDeliveries(),
     prisma.user.findUnique({ where: { id: workspace.ownerId }, select: { name: true, email: true } }),
     prisma.automationPreference.findUnique({ where: { workspaceId: workspace.id }, select: { enabled: true, emailEnabled: true, smsEnabled: true, reviewWindowMinutes: true } }),
     readQuietDays({ workspaceId: workspace.id, timezone }),
-    readWorkflowAttention(workspace.id, 30, Math.max(0, Math.min(100000, Math.floor(Number(params.attentionPage) || 0))) * 30, new Date(), Math.max(0, Math.min(100000, Math.floor(Number(params.callbackPage) || 0))) * 30).catch(() => null),
+    readNextActions(workspace.id, { now, timeZone: timezone, followUpWhere: where, query,
+      includeOtherActions: !params.jump && channel === "all" && status !== "done" && status !== "skipped",
+      overdueOnly: priority === "overdue", from: range === "week" || range === "month" ? startToday : undefined,
+      before: priority === "overdue" ? startToday : range === "due" ? endToday : range === "week" ? endWeek : range === "month" ? endMonth : undefined }),
     // People with no Mix have nothing to remind the owner about them (JITM-09 §2.77); a failed count only hides the line.
     contactMixCounts(workspace.id).catch(() => null)
   ]);
+  const filteredNextActions = nextActionsInView(nextActions);
+  const workflowAttention = nextActionAttention(filteredNextActions,
+    Math.max(0, Math.min(100000, Math.floor(Number(params.attentionPage) || 0))) * 30,
+    Math.max(0, Math.min(100000, Math.floor(Number(params.callbackPage) || 0))) * 30);
   // The Mixes the end-of-Mix question can start, as on the profile: those the owner starts come first, by name, then
   // date-based and fixed-date Mixes, which the question never preselects (END-02).
   const [activeMixes, afterAnotherMix] = await Promise.all([
@@ -249,7 +259,6 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const ownerPreferred = readJourneyPreferences(scheduling?.journeyPreferences)?.communication ?? null;
   // Numbers saved without a country code are read in the workspace's region; dial targets are computed here.
   const phoneRegion = phoneRegionOrDefault(scheduling?.phoneRegion);
-  const now = new Date();
   // The review's "not before" time comes from the worker's own rule (review window, quiet hours,
   // working hours, appointments) in the owner's timezone; the page only formats it for the viewer.
   const readSendingRule = async (): Promise<AutomaticSendingRule | null> => {
@@ -534,7 +543,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
-      <TodayLiveCounts dueGroups={dueGroups} readAt={now.toISOString()} overdue={overdueCount} doneCounts={doneCounts} zero={zeroLine} initial={{ overdue: overdueCount - movedOverdue, today: attentionCount - overdueCount + movedOverdue, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
+      <TodayLiveCounts nextActions={filteredNextActions} dueGroups={dueGroups} readAt={now.toISOString()} overdue={overdueCount} doneCounts={doneCounts} zero={zeroLine} initial={{ overdue: overdueCount - movedOverdue, today: attentionCount - overdueCount + movedOverdue, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
       <TodayMomentum />
       <JumpReturnTray />
       <MixEndPrompt mixes={startableMixes} todayKey={logicalDateKey(logicalDateInTimezone(new Date(), timezone))} address={JSON.stringify(params)} viewOnly={Boolean(impersonation)} />
@@ -555,7 +564,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       <UrlErrorNotice params={params} viewer={session} />
 
       <header className="page-header today-page-header">
-        <div><h1 tabIndex={-1}>Today</h1><p>{attentionCount ? <LiveAttentionSummary /> : zeroLine}</p>{(!workflowAttention || workflowAttention.total > 0) && <a className="text-button" href="#needs-your-input">Needs your input{workflowAttention ? ` · ${workflowAttention.total}` : ""}</a>}</div>
+        <div><h1 tabIndex={-1}>Today</h1><p><LiveAttentionSummary /></p>{(!workflowAttention || workflowAttention.total > 0) && <a className="text-button" href="#needs-your-input">Needs your input{workflowAttention ? ` · ${workflowAttention.total}` : ""}</a>}</div>
         <div className="today-header-tools"><Sheet trigger={<button className={query ? "icon-button today-search-trigger active" : "icon-button today-search-trigger"} type="button" aria-label={query ? `Search: ${query}` : "Search Today"}><AppIcon name="search" /></button>} title="Search Today" description="Find a person, Mix, or reason.">
           <form action="/jumps" className="search-row" role="search"><label className="field"><span>Find a person, Mix, or reason</span><input type="search" name="q" autoFocus defaultValue={query} maxLength={160} placeholder="Search this follow-up view" /></label>{[...viewParams].filter(([name]) => name !== "q").map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}<button className="button primary" type="submit"><AppIcon name="search" />Search</button></form>
           {query && <TodayLink className="button" href={`/jumps?${new URLSearchParams([...viewParams].filter(([name]) => name !== "q"))}`}>Clear search</TodayLink>}
@@ -574,6 +583,8 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         </Sheet></div>
       </header>
 
+      <NextActionSummary projection={plainDueView ? nextActions : filteredNextActions} displayPreferences={displayPreferences} today retryHref={firstHref} emptyLabel={plainDueView ? undefined : "Nothing matches this view."} />
+
       {invitationsToSend.length > 0 && <section className="invite-send" aria-labelledby="invite-send-heading">
         <div className="invite-send-head"><AppIcon name="gift" /><div><h2 id="invite-send-heading">{invitationsToSend.length === 1 ? "1 invitation ready to send" : `${invitationsToSend.length} invitations ready to send`}</h2><p>Not sent yet. Open each one and send it from your own email or text app.</p></div></div>
         <ul className="invite-send-list">{invitationsToSend.map(item => {
@@ -585,11 +596,11 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       {planLimitNotice && <div className="notice warning compact" data-plan-limit-skipped={planLimitNotice.skipped}><p>{planLimitNotice.skipped === 1 ? "1 person wasn’t" : `${planLimitNotice.skipped.toLocaleString("en-US")} people weren’t`} added to a Mix this week. Your {planLimitNotice.plan.name} plan has room for {planLimitNotice.plan.people.toLocaleString("en-US")} people with follow-ups on.</p><p>Once there’s room, resume the Mix from their contact page. <Link href="/account/billing">See plans</Link></p></div>}
       <PreparationNotice initial={preparation} canRetry={!impersonation} deferWhileEditing />
       <TodayDueSections />
-      <WorkflowAttention attention={workflowAttention} />
+      <WorkflowAttention viewHref={firstHref} attention={workflowAttention} projection={filteredNextActions} displayPreferences={displayPreferences} />
       {invitations && outcomeRecorded && <InvitationPrompt remaining={invitations} />}
       <QuietDaySuggestions locale={displayPreferences.locale} initial={quietDays} canResolve={!impersonation} compact />
       {noMixCount > 0 && <p className="today-no-mix-line"><AppIcon name="people" /><span>{noMixTodayLine(noMixCount)}</span><Link href="/contacts?mix=no-mix">Review</Link></p>}
-      <details className="today-queue-group" data-today-section="upcoming" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Next 7 days" : "Upcoming"} <span><LiveCount name="upcoming" /></span></summary><UpcomingWorkflowCommitments attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(followUp => renderCard(followUp))}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
+      <details className="today-queue-group" data-today-section="upcoming" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Next 7 days" : "Upcoming"} <span><LiveCount name="upcoming" /></span></summary><UpcomingWorkflowCommitments viewHref={firstHref} attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(followUp => renderCard(followUp))}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
       <details className="today-queue-group" open={status === "done" || status === "skipped" || pendingCount === 0 || undefined}><summary>Done <span><LiveCount name="done" /></span></summary>{completed.length ? <div className="jump-list">{completed.map(followUp => renderCard(followUp))}</div> : <TodayLink className="today-queue-link" href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
       {totalCount > 0 && <nav className="pagination-bar today-pagination" aria-label="Follow-up pages">
         <span role="status">Showing {ordered.length} of {totalCount.toLocaleString()} follow-up{totalCount === 1 ? "" : "s"} in this view.</span>
