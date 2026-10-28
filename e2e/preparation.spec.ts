@@ -87,7 +87,15 @@ test("Today distinguishes delayed preparation, network trouble and filtered empt
   await page.route(endpoint, route => route.fulfill({ status: 200, contentType: "text/html", body: "<html>Login</html>" }));
   await notice.getByRole("button", { name: "Check again" }).click();
   await expect(notice).toContainText("couldn’t check");
+  await expect(notice).not.toContainText("taking longer");
   await expect(notice.getByRole("button", { name: "Retry preparation" })).toHaveCount(0);
+  await page.unroute(endpoint);
+  await page.route(endpoint, route => route.abort("failed"));
+  const failedRequest = page.waitForEvent("requestfailed", request => new URL(request.url()).pathname === "/api/follow-ups/preparation");
+  await notice.getByRole("button", { name: "Check again" }).click();
+  await failedRequest;
+  await expect(notice).toContainText("couldn’t check");
+  await expect(notice).not.toContainText("taking longer");
   await page.unroute(endpoint); await complete();
   await notice.getByRole("button", { name: "Check again" }).click();
   await expect(notice).toContainText("Follow-up list updated");
@@ -112,21 +120,55 @@ test("a failed preparation can be retried once without discarding its receipt", 
 test("polling pauses when hidden, stops after a minute and can resume manually", async ({ page }) => {
   await queued();
   let checks = 0;
-  await page.clock.install();
-  await page.route(endpoint, route => { checks++; return route.fulfill({ json: { state: "preparing", observedAt: new Date().toISOString() } }); });
-  await page.goto(`/contacts/${contactId}`);
-  await expect.poll(() => checks).toBeGreaterThan(0);
+  const clockStart = new Date("2026-10-01T12:00:00Z");
+  await page.clock.install({ time: clockStart });
+  await page.route(endpoint, route => { checks++; return route.fulfill({ json: { state: "preparing", observedAt: clockStart.toISOString() } }); });
+  const notice = page.getByRole("complementary", { name: "Follow-up preparation" });
+  const failedChecks: string[] = [];
+  page.on("requestfailed", request => {
+    if (new URL(request.url()).pathname === "/api/follow-ups/preparation") failedChecks.push(request.failure()?.errorText ?? "Request failed");
+  });
+  const responded = async (url: string, trigger: () => Promise<unknown>) => {
+    const [response] = await Promise.all([page.waitForResponse(url), trigger()]);
+    expect(response.status()).toBe(200);
+    const body: unknown = await response.json();
+    expect(await response.finished()).toBeNull();
+    // A routed request being counted does not mean fetch/json has settled.
+    // Let its continuation clear the 10-second abort timer before jumping time.
+    await page.clock.runFor(1);
+    return body;
+  };
+  const checked = async (trigger: () => Promise<unknown>) => {
+    expect(await responded(endpoint, trigger)).toMatchObject({ state: "preparing" });
+    await expect(notice).toContainText("Preparing your follow-ups");
+    expect(failedChecks).toEqual([]);
+  };
+  const accountChecked = async (trigger: () => Promise<unknown>) => {
+    expect(await responded("**/api/auth/browser-context", trigger)).toMatchObject({ scope: expect.any(String) });
+    await expect(page.locator("html")).not.toHaveAttribute("data-browser-locked", "true");
+  };
+  await checked(() => page.goto(`/contacts/${contactId}`));
   await page.evaluate(() => { Object.defineProperty(document, "hidden", { configurable: true, value: true }); document.dispatchEvent(new Event("visibilitychange")); });
   const hiddenChecks = checks; await page.clock.runFor(8_000); expect(checks).toBe(hiddenChecks);
-  await page.evaluate(() => { Object.defineProperty(document, "hidden", { configurable: true, value: false }); document.dispatchEvent(new Event("visibilitychange")); });
-  await expect.poll(() => checks).toBeGreaterThan(hiddenChecks);
-  await page.clock.fastForward(65_000);
-  const notice = page.getByRole("complementary", { name: "Follow-up preparation" });
+  await checked(() => page.evaluate(() => { Object.defineProperty(document, "hidden", { configurable: true, value: false }); document.dispatchEvent(new Event("visibilitychange")); }));
+  expect(checks).toBeGreaterThan(hiddenChecks);
+  // The minute also starts a real account check. Settle it before the next
+  // clock advance, or its request timeout can hide the preparation controls.
+  await accountChecked(() => page.clock.fastForward(65_000));
   await expect(notice).toContainText("taking longer");
+  await expect(notice).not.toContainText(/couldn’t check|took too long/);
   const stoppedChecks = checks; await page.clock.runFor(10_000); expect(checks).toBe(stoppedChecks);
-  await notice.getByRole("button", { name: "Check again" }).click();
-  await expect.poll(() => checks).toBeGreaterThan(stoppedChecks);
-  await page.goto("/contacts"); const afterUnmount = checks; await page.clock.runFor(10_000); expect(checks).toBe(afterUnmount);
+  await checked(async () => {
+    await notice.getByRole("button", { name: "Check again" }).click();
+    await page.clock.runFor(1);
+  });
+  expect(checks).toBeGreaterThan(stoppedChecks);
+  expect(failedChecks).toEqual([]);
+  // Contacts can restore the last profile, including a new preparation poller.
+  // Settings leaves the profile, so this actually checks disposal on unmount.
+  await accountChecked(() => page.goto("/settings"));
+  await expect(notice).toHaveCount(0);
+  const afterUnmount = checks; await page.clock.runFor(10_000); expect(checks).toBe(afterUnmount);
 });
 
 test("preparation controls are accessible across themes, narrow widths and expired sessions", async ({ page }) => {
