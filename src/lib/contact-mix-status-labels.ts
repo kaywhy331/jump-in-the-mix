@@ -8,11 +8,10 @@ export function contactMixFilter(value: string | null | undefined): ContactMixFi
 }
 
 /**
- * Today's line about people with No Mix (JITM-09 §2.77, D44). It says only that no Mix will remind the owner,
- * which stays true when a one-time follow-up is on its way: those are outside every Mix (JITM-05 §2.3).
+ * Enrollment is separate from next action: a one-time follow-up may still be scheduled.
  */
 export function noMixTodayLine(count: number): string {
-  return `${count === 1 ? "1 person has" : `${count.toLocaleString()} people have`} No Mix, so no Mix will remind you about them.`;
+  return `${count === 1 ? "1 person has" : `${count.toLocaleString()} people have`} No Mix.`;
 }
 
 /** What starting a Mix did for one person (src/lib/contact-mix-actions.ts). */

@@ -23,9 +23,12 @@ describe("the profile's Mixes rows (D77)", () => {
     expect(rows[3]).toMatchObject({ stop: "stopped" });
   });
 
-  it("leaves out archived Mixes and Mixes it doesn't know, such as one-time follow-ups", () => {
+  it("includes archived known Mixes only with an outstanding obligation and excludes unknown one-time follow-ups", () => {
     const rows = buildContactMixRows(input({ mixes: [mix("a", "Old Mix", "ARCHIVED")], starts: [{ assignmentId: "start-a", mixId: "a" }], pending: [{ mixId: "one-time", at: now }] }));
     expect(rows).toEqual([]);
+    const outstanding = buildContactMixRows(input({ mixes: [mix("a", "Old Mix", "ARCHIVED")], pending: [{ mixId: "a", at: now }, { mixId: "one-time", at: now }] }));
+    expect(outstanding.map(row => row.mixId)).toEqual(["a"]);
+    expect(contactMixRowStatus(outstanding[0], now, preferences).label).toBe("Archived Mix · action outstanding");
   });
 
   it("orders work to come soonest first, then preparing, then nothing to come, then stopped, each by name", () => {

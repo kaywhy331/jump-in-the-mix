@@ -26,7 +26,7 @@
 .contact-list-tools { display: inline-flex; align-items: center; gap: 8px; margin-left: auto; }
 .contact-list-summary .contact-list-tools form { margin: 0; }
 .contact-list-summary .contact-select-toggle { min-height: 44px; padding: 0 4px; }
-.contact-no-mix-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 12px; padding: 12px 14px; border: 1px solid var(--warning-border); border-radius: 14px; background: var(--surface); }
+.contact-no-mix-strip { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 12px; margin: 4px 0 12px; padding: 12px 14px; border: 1px solid var(--line); border-radius: 14px; background: var(--surface); }
 .contact-no-mix-strip p { flex: 1 1 14rem; margin: 0; font-size: .875rem; color: var(--text-2); }
 .contact-no-mix-strip-actions { display: flex; flex-wrap: wrap; gap: 8px; }
 .bulk-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 8px; }
