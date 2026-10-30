@@ -88,18 +88,57 @@ test("Contact details use a fixed phone-first layout", async ({ page }, testInfo
   await signIn(page);
   await page.goto("/contacts/demo_contact_sarah");
 
-  // One fixed order: Mixes under the Next card, then the stage and the history, with the details and the notes to
-  // remember beside them (D77).
-  const primary = page.locator(".contact-detail-primary");
+  // Current stage stays with identity, notes precede Next, and Mixes lead into Recent activity.
+  // Details and dated Stage history remain secondary.
   await expect(page.getByRole("region", { name: "Mixes", exact: true })).toBeVisible();
-  await expect(primary.getByRole("heading", { name: "Stage", exact: true })).toBeVisible();
-  await expect(primary.getByRole("heading", { name: "History", exact: true })).toBeVisible();
+  const stage = page.locator(".contact-profile-header .profile-identity").getByRole("button", { name: "Change stage: No stage", exact: true });
+  await expect(stage).toBeVisible();
+  await stage.click();
+  const stageDialog = page.getByRole("dialog", { name: "Stage for Sarah Chen", exact: true });
+  await expect(stageDialog).toBeVisible();
+  await expect(stageDialog.getByRole("combobox", { name: "Move to stage", exact: true })).toBeVisible();
+  await expect(stageDialog.getByRole("button", { name: "Move stage", exact: true })).toBeVisible();
+  await page.keyboard.press("Escape");
+  await expect(stageDialog).toBeHidden();
+  await expect(stage).toBeFocused();
+
+  const history = page.locator("#contact-history");
+  await expect(history.getByRole("heading", { name: "Recent activity", exact: true })).toBeVisible();
+  const historyTrigger = history.getByRole("button", { name: "History options", exact: true });
+  await historyTrigger.click();
+  const historyOptions = page.getByRole("dialog", { name: "History options", exact: true });
+  await expect(historyOptions).toBeVisible();
+  await historyOptions.getByRole("button", { name: "Notes", exact: true }).click();
+  await expect(historyOptions.getByRole("button", { name: "Notes", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await historyOptions.getByRole("button", { name: "All", exact: true }).click();
+  await expect(historyOptions.getByRole("button", { name: "All", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await expect(historyOptions.getByRole("button", { name: "Communications", exact: true })).toBeEnabled();
+  await expect(historyOptions.getByRole("button", { name: "Refresh", exact: true })).toBeEnabled();
+  await page.keyboard.press("Escape");
+  await expect(historyTrigger).toBeFocused();
+  const noteLink = page.locator(".contact-profile-quick-actions").getByRole("link", { name: "Note", exact: true });
+  await expect(noteLink).toHaveAttribute("href", "#add-note");
+  await noteLink.click();
+  await expect(history.getByRole("textbox", { name: "Add a note", exact: true })).toBeEditable();
+  await expect(history.getByRole("checkbox", { name: "This records a conversation", exact: true })).toBeEnabled();
+  await expect(history.getByRole("checkbox", { name: "Keep private (never used in messages)", exact: true })).toBeEnabled();
+  await expect(history.getByRole("button", { name: "Add update", exact: true })).toBeEnabled();
+  await history.locator(".contact-note-composer > summary").click();
   await expect(page.locator(".contact-profile-details").getByRole("heading", { name: "Details", exact: true })).toBeVisible();
-  await expect(page.locator(".contact-profile-details").getByRole("heading", { name: "Notes to remember", exact: true })).toBeVisible();
+  const notes = page.locator(".contact-notes");
+  await expect(notes.getByRole("heading", { name: "Notes to remember", exact: true })).toBeVisible();
+  await expect(notes.getByText("Introduced by a past customer; asked about a water-heater replacement.", { exact: true })).toBeVisible();
+  await expect(notes.getByRole("link", { name: "Edit notes to remember", exact: true })).toHaveAttribute("href", "/contacts/demo_contact_sarah/edit#contact-notes");
+  const notesBox = await notes.boundingBox();
+  const nextBox = await page.locator(".contact-next-line").boundingBox();
+  expect(notesBox).not.toBeNull();
+  expect(nextBox).not.toBeNull();
+  expect(notesBox!.y + notesBox!.height).toBeLessThanOrEqual(nextBox!.y);
   await expect(page.locator("[data-personalizable-card-board]")).toHaveCount(0);
 
   // Preferences and dates wait under More; Mixes are no longer there.
   await page.locator(".contact-detail-more > summary").click();
+  await expect(page.locator(".contact-detail-more .contact-stage-records > summary")).toHaveText("Stage history");
   await expect(page.getByRole("heading", { name: "Preferences", exact: true })).toBeVisible();
   await expect(page.getByRole("heading", { name: "Dates", exact: true })).toBeVisible();
   await expect(page.locator(".contact-detail-more").getByRole("heading", { name: "Mixes", exact: true })).toHaveCount(0);

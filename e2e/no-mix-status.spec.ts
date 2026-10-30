@@ -83,7 +83,7 @@ test("a contact with no Mix says so, and the owner can confirm it or start one f
     await expect(chip).toBeVisible();
     await chip.click();
     const sheet = page.getByRole("dialog", { name: `What’s next for ${person.displayName}` });
-    await expect(sheet.getByText("No Mix has work to come for this person.", { exact: true })).toBeVisible();
+    await expect(sheet.getByText("This person has No Mix. A one-time follow-up can still be scheduled.", { exact: true })).toBeVisible();
     await Promise.all([page.waitForURL(/noMixNeeded=1/), sheet.getByRole("button", { name: "Mark No Mix needed", exact: true }).click()]);
     await expect(page.locator(".notice.success").filter({ hasText: "Marked No Mix needed." })).toBeVisible();
     await expect(page.getByRole("button", { name: `No Mix needed: choose what's next for ${person.displayName}` })).toBeVisible();
@@ -315,7 +315,8 @@ test("Today points to the people with No Mix", async ({ page }) => {
   try {
     await page.goto("/jumps");
     const line = page.locator(".today-no-mix-line");
-    await expect(line).toContainText(/No Mix, so no Mix will remind you about them\./);
+    await expect(line.locator(":scope > span")).toHaveText("1 person has No Mix.");
+    await expect(line.getByRole("link", { name: "Review", exact: true })).toHaveAttribute("href", "/contacts?mix=no-mix");
     await Promise.all([page.waitForURL(/\/contacts\?mix=no-mix$/), line.getByRole("link", { name: "Review", exact: true }).click()]);
     await page.goto(`/contacts?mix=no-mix&q=${encodeURIComponent(person.displayName)}`);
     await expect(page.locator(".contact-row").filter({ hasText: person.displayName })).toHaveCount(1);
@@ -340,7 +341,7 @@ test("a visit-only contact stays in No Mix while awaiting booking or outcome (D1
       const chip = page.getByRole("button", { name: `No Mix: choose what's next for ${person.displayName}` });
       await chip.focus(); await page.keyboard.press("Enter");
       const sheet = page.getByRole("dialog", { name: `What’s next for ${person.displayName}` });
-      await expect(sheet.getByText("No Mix has work to come for this person.", { exact: true })).toBeVisible();
+      await expect(sheet.getByText("This person has No Mix. A one-time follow-up can still be scheduled.", { exact: true })).toBeVisible();
       await page.keyboard.press("Escape"); await expect(chip).toBeFocused();
     }
   } finally {
@@ -370,12 +371,13 @@ test("a person with No Mix and a pending one-time follow-up is described truthfu
     await page.goto(`/contacts/${person.id}`);
     await page.getByRole("button", { name: `No Mix: choose what's next for ${person.displayName}` }).click();
     const sheet = page.getByRole("dialog", { name: `What’s next for ${person.displayName}` });
-    await expect(sheet.getByText("No Mix has work to come for this person.", { exact: true })).toBeVisible();
+    await expect(sheet.getByText("This person has No Mix. A one-time follow-up can still be scheduled.", { exact: true })).toBeVisible();
     await expect(sheet).not.toContainText("nothing will remind you");
 
     await page.goto("/jumps");
     const line = page.locator(".today-no-mix-line");
-    await expect(line).toContainText(/(1 person has|people have) No Mix, so no Mix will remind you about them\./);
+    await expect(line.locator(":scope > span")).toHaveText("1 person has No Mix.");
+    await expect(line.getByRole("link", { name: "Review", exact: true })).toHaveAttribute("href", "/contacts?mix=no-mix");
     await expect(line).not.toContainText("nothing will remind you");
   } finally {
     await cleanUp([person.id]);
