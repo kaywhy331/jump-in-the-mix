@@ -96,10 +96,10 @@ test("Contact details use a fixed phone-first layout", async ({ page }, testInfo
   await stage.click();
   const stageDialog = page.getByRole("dialog", { name: "Stage for Sarah Chen", exact: true });
   await expect(stageDialog).toBeVisible();
-  await expect(stageDialog.getByRole("combobox", { name: "Move to stage", exact: true })).toBeVisible();
-  await expect(stageDialog.getByRole("button", { name: "Move stage", exact: true })).toBeVisible();
+  await expect(stageDialog.getByText("Set up your customer journey", { exact: true })).toBeVisible();
   await page.keyboard.press("Escape");
   await expect(stageDialog).toBeHidden();
+  await expect(stage).toHaveAccessibleName("Change stage: No stage");
   await expect(stage).toBeFocused();
 
   const history = page.locator("#contact-history");
