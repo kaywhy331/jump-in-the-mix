@@ -1,3 +1,4 @@
+import { NeedsReviewLink } from "@/components/IntakeReviews";
 import { WorkflowAttention, UpcomingWorkflowCommitments } from "@/components/WorkflowAttention";
 import { readNextActions, nextActionAttention } from "@/lib/next-action-reader";
 import { NextActionSummary } from "@/components/NextAction";
@@ -583,6 +584,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
         </Sheet></div>
       </header>
 
+      <NeedsReviewLink today count={nextActions.state === "unavailable" ? null : nextActions.items.filter(item => item.kind === "intake-review").length} />
       <NextActionSummary projection={plainDueView ? nextActions : filteredNextActions} displayPreferences={displayPreferences} today retryHref={firstHref} emptyLabel={plainDueView ? undefined : "Nothing matches this view."} />
 
       {invitationsToSend.length > 0 && <section className="invite-send" aria-labelledby="invite-send-heading">

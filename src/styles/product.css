@@ -504,3 +504,19 @@
 .demo-info-button svg { width: 20px; height: 20px; }
 .demo-info-tip { display: none; position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 5; width: max-content; max-width: min(260px, 80vw); padding: 10px 12px; border-radius: 10px; background: var(--ink); color: var(--on-violet); font-size: .8125rem; line-height: 1.4; box-shadow: var(--shadow-sm); }
 .demo-info:hover .demo-info-tip, .demo-info:focus-within .demo-info-tip, .demo-info.open .demo-info-tip { display: block; }
+
+/* Lead review remains a receipt workflow, separate from contact placement. */
+.needs-review-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-block: 12px; border-bottom: 1px solid var(--line); }
+.needs-review-entry > span { min-width: 0; flex: 1 1 200px; }
+.intake-review-panel { min-width: 0; overflow-wrap: anywhere; }
+.intake-review-panel .form-actions { flex-wrap: wrap; }
+.intake-review-panel .field, .intake-review-panel select { min-width: 0; max-width: 100%; }
+.intake-review { scroll-margin-block-start: 100px; }
+.connections-page .copy-field .button.small { min-height: 44px; min-width: 44px; }
+
+/* On receipt-review surfaces, keep the support notice in flow and the workspace
+   beside the rail. The notice can grow at enlarged text without covering work. */
+.app-shell.impersonating:has(.needs-review-entry, .intake-review-panel) { grid-template-rows: auto 1fr; }
+.app-shell.impersonating:has(.needs-review-entry, .intake-review-panel) > .sidebar { grid-row: 1 / span 2; }
+.app-shell.impersonating:has(.needs-review-entry, .intake-review-panel) > .app-main { grid-column: 2; }
+.app-shell.impersonating:has(.needs-review-entry, .intake-review-panel) > .impersonation-banner { position: static; }
