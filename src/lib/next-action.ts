@@ -78,6 +78,15 @@ export function withoutSettledActions(projection: NextActionProjection, settledJ
     futureCount: items.filter(item => item.timing === "future").length };
 }
 
+/** A later read cannot revive a settled version; a newer server version can reopen it. */
+export function withoutSettledActionVersions(projection: NextActionProjection, settledVersions: ReadonlyMap<string, string>): NextActionProjection {
+  const settledIds = new Set(projection.items.flatMap(item => {
+    const version = item.jumpId && settledVersions.get(item.jumpId);
+    return version && Date.parse(item.updatedAt) <= Date.parse(version) ? [item.jumpId!] : [];
+  }));
+  return withoutSettledActions(projection, settledIds);
+}
+
 export function nextActionTime(item: NextAction, projection: Pick<NextActionProjection, "observedAt" | "timeZone">, preferences: DisplayFormatPreferences): string {
   if (!item.dueAt) return item.kind === "outcome" ? "Waiting for your outcome" : "Needs your attention";
   const display = { ...preferences, timeZone: projection.timeZone };

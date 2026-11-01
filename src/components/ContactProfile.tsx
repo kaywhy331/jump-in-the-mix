@@ -143,8 +143,10 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
     return next ? [{ id: item.id, title: item.label || item.dateType.name, type: item.dateType.name, date: zonedDateTimeToUtc(next, 12 * 60, displayPreferences.timeZone) }] : [];
   });
   const upcoming = [
-    // The Next card already shows its own Beats, so Coming up lists the rest (LEN-03).
-    ...comingUp.filter(beat => beat.id !== nextFollowUp?.id && !sequence.some(item => item.id === beat.id)).map(beat => ({ id: beat.id, date: beat.scheduledAt, title: beat.reason, href: `/jumps?jump=${encodeURIComponent(beat.id)}&range=all` })),
+    // Only omit links already shown by Next: an outcome can lead while future work remains.
+    ...comingUp.filter(beat => !nextActions.items.some(item => item.jumpId === beat.id)
+      && !(nextFollowUp?.mix.source !== "ONE_TIME" && nextActions.items.some(item => item.jumpId === nextFollowUp?.id)
+        && sequence.some(item => item.id === beat.id))).map(beat => ({ id: beat.id, date: beat.scheduledAt, title: beat.reason, href: `/jumps?jump=${encodeURIComponent(beat.id)}&range=all` })),
     ...importantDates.map(date => ({ ...date, href: `#dates-and-mixes` }))
   ].sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 5);
   const stageNames = new Map(journeyStages.map(stage => [stage.id, stage.name]));
