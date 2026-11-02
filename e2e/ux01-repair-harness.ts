@@ -1,5 +1,12 @@
 import { build } from "esbuild";
 
+/** QA's supported focus reproducers; geometry always reads the actual computed ring. */
+export const repairViewports = [
+  { width: 600, height: 900, text: 1 },
+  { width: 320, height: 1100, text: 2 },
+  { width: 390, height: 1100, text: 2 }
+];
+
 /** Mount the real shared component; only navigation is replaced in the isolated component fixture. */
 export async function componentBundle() {
   const result = await build({

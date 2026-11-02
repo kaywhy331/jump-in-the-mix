@@ -59,6 +59,8 @@ type OutcomeAttempt = { attemptId: string; payload?: OpenedAttemptPayload };
 export type JumpStateDetail = {
   jumpId: string;
   status: OutcomeResponse["status"];
+  /** The server row version acknowledged by this outcome, including retries and conflicts. */
+  updatedAt?: string;
   /** Shown in the card's confirmation when a retry found the outcome already recorded. */
   notice?: string;
   /** The follow-up this outcome scheduled, named in the confirmation instead of the plan's next step. */
@@ -77,7 +79,7 @@ const UNREACHED_OUTCOMES = new Set<Outcome>(["NO_ANSWER", "WRONG_NUMBER"]);
 
 type SaveResult =
   | { recorded: true; response: OutcomeResponse }
-  | { recorded: false; status: "DONE" | "SKIPPED" | "PENDING" };
+  | { recorded: false; status: "DONE" | "SKIPPED" | "PENDING"; updatedAt?: string };
 
 /** Outcomes that finish the follow-up. A retry that finds it already finished counts as recorded, not as an error. */
 const FINISHING_OUTCOMES: ReadonlySet<Outcome> = new Set<Outcome>(["COMPLETED", "CONNECTED", "LEFT_VOICEMAIL", "NO_ANSWER", "WRONG_NUMBER", "RESCHEDULED", "SKIPPED"]);
@@ -204,11 +206,12 @@ async function saveOutcome(
     body: JSON.stringify({ outcome, requestId, ...details, ...(attempt ? { attemptId: attempt.attemptId, ...(attempt.payload ? { attempt: attempt.payload } : {}) } : {}) })
   });
   const payload = await response.json().catch(() => ({})) as OutcomePayload;
-  if (response.status === 409 && FINISHING_OUTCOMES.has(outcome) && (payload.status === "DONE" || payload.status === "SKIPPED")) return { recorded: false, status: payload.status };
-  if (response.status === 409 && outcome === "REOPENED" && payload.status === "PENDING") return { recorded: false, status: payload.status };
+  const updatedAt = response.headers.get("X-JITM-Jump-Updated-At") ?? undefined;
+  if (response.status === 409 && FINISHING_OUTCOMES.has(outcome) && (payload.status === "DONE" || payload.status === "SKIPPED")) return { recorded: false, status: payload.status, updatedAt };
+  if (response.status === 409 && outcome === "REOPENED" && payload.status === "PENDING") return { recorded: false, status: payload.status, updatedAt };
   if (!response.ok) throw new Error(payload.error || "The follow-up outcome could not be saved.");
   const stored = payload as OutcomeResponse;
-  dispatchJumpState({ jumpId, status: stored.status, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null, mixEnd: stored.mixEnd ?? null, origin, reached: stored.status === "DONE" && !UNREACHED_OUTCOMES.has(outcome) });
+  dispatchJumpState({ jumpId, status: stored.status, updatedAt, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null, mixEnd: stored.mixEnd ?? null, origin, reached: stored.status === "DONE" && !UNREACHED_OUTCOMES.has(outcome) });
   return { recorded: true, response: stored };
 }
 
@@ -278,7 +281,7 @@ function HostedConfirmationItem({ entry }: { entry: HostedConfirmation }) {
       const result = await saveOutcome(jumpId, "REOPENED", ids.claim(key));
       ids.release(key);
       // Reopened already, elsewhere: the page hears it as this Undo's, so the card and its counts come back.
-      if (!result.recorded) dispatchJumpState({ jumpId, status: result.status });
+      if (!result.recorded) dispatchJumpState({ jumpId, status: result.status, updatedAt: result.updatedAt });
       focusAfterConfirmation(confirmationRef.current, hadFocus);
       dropHostedConfirmation(jumpId);
     } catch (reason) {
@@ -398,7 +401,7 @@ export function JumpOutcomeButton({
         // the card.
         const copy = alreadyRecordedCopy(result.status);
         setNotice(copy);
-        dispatchJumpState({ jumpId, status: result.status, notice: copy });
+        dispatchJumpState({ jumpId, status: result.status, updatedAt: result.updatedAt, notice: copy });
       }
       if (quickAction) focusAfterQuickAction(jumpId, group);
     } catch (reason) {
@@ -546,7 +549,7 @@ export function JumpReturnTray() {
         // not go in, and the owner is told exactly that rather than "saved".
         const missing = [details && note.trim() ? "Your note wasn't added." : "", details && wantsNext ? "The next follow-up wasn't scheduled." : ""].filter(Boolean);
         showNotice([alreadyRecordedCopy(result.status), ...missing].join(" "));
-        dispatchJumpState({ jumpId: session.jumpId, status: result.status });
+        dispatchJumpState({ jumpId: session.jumpId, status: result.status, updatedAt: result.updatedAt });
       } else if (result.response.attempt?.evidence === "mismatch") showNotice("Your outcome is saved. The message recorded when you opened it differs from what this device holds, so that record was not attached.");
       advance();
       setNote("");

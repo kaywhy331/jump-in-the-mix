@@ -7,6 +7,22 @@ import type { JumpStateDetail } from "@/components/JumpWorkflow";
 import type { DisplayFormatPreferences } from "@/lib/format";
 import { nextActionEmptyText, nextActionTime, withoutSettledActionVersions, type NextAction, type NextActionProjection } from "@/lib/next-action";
 
+/** Native focus scrolling considers the control's box, not its outward focus indicator. */
+function revealNextFocus(control: EventTarget | null) {
+  if (!(control instanceof HTMLElement) || !control.matches(":focus-visible")) return;
+  const box = control.getBoundingClientRect(), style = getComputedStyle(control);
+  const outset = Math.max(0, parseFloat(style.outlineWidth) + parseFloat(style.outlineOffset));
+  let left = 0, right = innerWidth, top = 0, bottom = innerHeight;
+  for (let parent = control.parentElement; parent; parent = parent.parentElement) {
+    const bounds = parent.getBoundingClientRect(), overflow = getComputedStyle(parent);
+    if (/(hidden|clip|auto|scroll)/.test(overflow.overflowX)) { left = Math.max(left, bounds.left); right = Math.min(right, bounds.right); }
+    if (/(hidden|clip|auto|scroll)/.test(overflow.overflowY)) { top = Math.max(top, bounds.top); bottom = Math.min(bottom, bounds.bottom); }
+  }
+  if (box.left - outset < left || box.right + outset > right || box.top - outset < top || box.bottom + outset > bottom) {
+    control.scrollIntoView({ block: "center", inline: "center", behavior: "instant" });
+  }
+}
+
 export function NextActionLink({ item, today = false, primary = false }: { item: NextAction; today?: boolean; primary?: boolean }) {
   const NavigationLink = today ? TodayLink : Link;
   return <NavigationLink className={`button next-action-link ${primary ? "primary contact-review-button" : "small"}`} href={item.href}>{item.action}</NavigationLink>;
@@ -30,7 +46,7 @@ export function NextActionSummary({ projection, displayPreferences, today = fals
   // through delayed reads, and do not roll the view back when responses arrive out of order.
   const [snapshot, setSnapshot] = useState(projection);
   if (projection !== snapshot && Date.parse(projection.observedAt) >= Date.parse(snapshot.observedAt)) setSnapshot(projection);
-  const [settled, setSettled] = useState<ReadonlyMap<string, string>>(() => new Map());
+  const [settled, setSettled] = useState<ReadonlyMap<string, string | null>>(() => new Map());
   useEffect(() => {
     const change = (event: Event) => {
       const detail = (event as CustomEvent<JumpStateDetail>).detail;
@@ -39,23 +55,26 @@ export function NextActionSummary({ projection, displayPreferences, today = fals
         const versions = new Map(current);
         if (detail.status === "PENDING") versions.delete(detail.jumpId);
         else {
-          const version = snapshot.items.find(item => item.jumpId === detail.jumpId)?.updatedAt ?? snapshot.observedAt;
+          // A displayed pending version can precede another in-flight pending version.
+          // Only the outcome's server version binds settlement; legacy events stay closed until Undo.
+          const version = detail.updatedAt && Number.isFinite(Date.parse(detail.updatedAt)) ? detail.updatedAt : null;
           const previous = versions.get(detail.jumpId);
-          if (!previous || Date.parse(version) > Date.parse(previous)) versions.set(detail.jumpId, version);
+          if (!versions.has(detail.jumpId) || (previous && (!version || Date.parse(version) > Date.parse(previous)))) versions.set(detail.jumpId, version);
         }
         return versions;
       });
     };
     window.addEventListener("jitm:jump-state", change);
     return () => window.removeEventListener("jitm:jump-state", change);
-  }, [snapshot]);
+  }, []);
   const live = withoutSettledActionVersions(snapshot, settled);
   const primary = restricted ? undefined : live.items[0];
   // Other people's work remains in Today's queues. A person's concurrent obligations stay together here.
   const secondary = primary ? live.items.filter(item => item.id !== primary.id && item.contactId === primary.contactId && item.timing !== "future") : [];
   const future = primary ? live.items.filter(item => item.id !== primary.id && item.contactId === primary.contactId && item.timing === "future") : [];
   const NavigationLink = today ? TodayLink : Link;
-  return <section className={today ? "next-action-summary" : "contact-next-line"} aria-label={today ? "Next action" : "Next follow-up"} data-next-action-state={live.state}>
+  return <section className={today ? "next-action-summary" : "contact-next-line"} aria-label={today ? "Next action" : "Next follow-up"} data-next-action-state={live.state}
+    onFocusCapture={event => revealNextFocus(event.target)}>
     <h2>Next</h2>
     {primary ? <>
       <div className="contact-next-description" data-next-action-id={primary.id} data-next-action-kind={primary.kind}>

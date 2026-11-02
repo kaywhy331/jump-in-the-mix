@@ -59,6 +59,7 @@ const UUID_V4 = /^[0-9a-f]{8}-[0-9a-f]{4}-4[0-9a-f]{3}-[89ab][0-9a-f]{3}-[0-9a-f
 
 type StoredResponse = {
   status: "PENDING" | "DONE" | "SKIPPED";
+  updatedAt?: string;
   activityId: string;
   nextCommitmentAt: string | null;
   jumpDateId: string | null;
@@ -92,6 +93,7 @@ function jsonResponse(value: Prisma.JsonValue | null): StoredResponse | null {
   const attempt = object.attempt && typeof object.attempt === "object" && !Array.isArray(object.attempt) ? object.attempt as Record<string, unknown> : null;
   return {
     status: object.status as StoredResponse["status"],
+    ...(typeof object.updatedAt === "string" ? { updatedAt: object.updatedAt } : {}),
     activityId: String(object.activityId ?? ""),
     nextCommitmentAt: typeof object.nextCommitmentAt === "string" ? object.nextCommitmentAt : null,
     jumpDateId: typeof object.jumpDateId === "string" ? object.jumpDateId : null,
@@ -116,6 +118,12 @@ async function withMixEnd(workspaceId: string, jumpId: string, result: StoredRes
 
 function responseJson(value: StoredResponse): Prisma.InputJsonValue {
   return JSON.parse(JSON.stringify(value)) as Prisma.InputJsonValue;
+}
+
+// Keep the established JSON response shape; carry the row version as response metadata.
+function outcomeJson(value: StoredResponse & { duplicate?: boolean; mixEnd?: unknown }) {
+  const { updatedAt, ...body } = value;
+  return NextResponse.json(body, { headers: updatedAt ? { "X-JITM-Jump-Updated-At": updatedAt } : {} });
 }
 
 export async function POST(request: Request, { params }: { params: Promise<{ jumpId: string }> }) {
@@ -154,7 +162,7 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
     select: { response: true }
   });
   const replay = jsonResponse(existingResponse?.response ?? null);
-  if (replay) return NextResponse.json({ ...await withMixEnd(membership.workspaceId, jumpId, replay), duplicate: true });
+  if (replay) return outcomeJson({ ...await withMixEnd(membership.workspaceId, jumpId, replay), duplicate: true });
 
   const jump = await prisma.jump.findFirst({
     where: { id: jumpId, workspaceId: membership.workspaceId },
@@ -323,8 +331,10 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
         }
       });
 
+      const version = await tx.jump.findFirstOrThrow({ where: { id: jump.id, workspaceId: membership.workspaceId }, select: { updatedAt: true } });
       const response: StoredResponse = {
         status: nextStatus,
+        updatedAt: version.updatedAt.toISOString(),
         activityId: activity.id,
         nextCommitmentAt: nextCommitmentAt?.toISOString() ?? null,
         jumpDateId: null,
@@ -342,20 +352,20 @@ export async function POST(request: Request, { params }: { params: Promise<{ jum
       return response;
     });
 
-    return NextResponse.json(await withMixEnd(membership.workspaceId, jump.id, result));
+    return outcomeJson(await withMixEnd(membership.workspaceId, jump.id, result));
   } catch (error) {
     const duplicate = await prisma.idempotencyKey.findUnique({
       where: { workspaceId_key: { workspaceId: membership.workspaceId, key: idempotencyKey } },
       select: { response: true }
     });
     const replayAfterRace = jsonResponse(duplicate?.response ?? null);
-    if (replayAfterRace) return NextResponse.json({ ...await withMixEnd(membership.workspaceId, jump.id, replayAfterRace), duplicate: true });
+    if (replayAfterRace) return outcomeJson({ ...await withMixEnd(membership.workspaceId, jump.id, replayAfterRace), duplicate: true });
     // The status read before the transaction can be stale when another request finished first; the
     // refusal reports what the follow-up is now, falling back to that read if the lookup fails.
-    const current = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: membership.workspaceId }, select: { status: true } }).catch(() => null);
+    const current = await prisma.jump.findFirst({ where: { id: jump.id, workspaceId: membership.workspaceId }, select: { status: true, updatedAt: true } }).catch(() => null);
     return NextResponse.json(
       { error: error instanceof Error ? error.message : "The follow-up outcome could not be saved.", status: current?.status ?? jump.status },
-      { status: 409 }
+      { status: 409, headers: current ? { "X-JITM-Jump-Updated-At": current.updatedAt.toISOString() } : {} }
     );
   }
 }

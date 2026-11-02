@@ -79,10 +79,12 @@ export function withoutSettledActions(projection: NextActionProjection, settledJ
 }
 
 /** A later read cannot revive a settled version; a newer server version can reopen it. */
-export function withoutSettledActionVersions(projection: NextActionProjection, settledVersions: ReadonlyMap<string, string>): NextActionProjection {
+export function withoutSettledActionVersions(projection: NextActionProjection, settledVersions: ReadonlyMap<string, string | null>): NextActionProjection {
   const settledIds = new Set(projection.items.flatMap(item => {
-    const version = item.jumpId && settledVersions.get(item.jumpId);
-    return version && Date.parse(item.updatedAt) <= Date.parse(version) ? [item.jumpId!] : [];
+    if (!item.jumpId || !settledVersions.has(item.jumpId)) return [];
+    const version = settledVersions.get(item.jumpId);
+    const newer = version && Date.parse(item.updatedAt) > Date.parse(version) && Date.parse(projection.observedAt) > Date.parse(version);
+    return newer ? [] : [item.jumpId];
   }));
   return withoutSettledActions(projection, settledIds);
 }

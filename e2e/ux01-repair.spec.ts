@@ -3,7 +3,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
 import type { Prisma } from "../src/generated/prisma/client";
 import { emptyWorkflowState, type WorkflowDefinition } from "../src/lib/mix-workflow-types";
-import { componentBundle } from "./ux01-repair-harness";
+import { componentBundle, repairViewports } from "./ux01-repair-harness";
 import { resolveNextActions, type NextActionCandidate } from "../src/lib/next-action";
 
 if (!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "")) throw new Error("Disposable local database required");
@@ -56,8 +56,8 @@ async function theme(page: Page, value: string) {
   await page.addInitScript(value => { localStorage.setItem("jitm-appearance", value); document.documentElement.dataset.theme = value; }, value);
   await page.evaluate(value => { document.documentElement.dataset.theme = value; }, value);
 }
-async function stateEvent(page: Page, jumpId: string, status: string) {
-  await page.evaluate(detail => window.dispatchEvent(new CustomEvent("jitm:jump-state", { detail })), { jumpId, status });
+async function stateEvent(page: Page, jumpId: string, status: string, updatedAt?: string) {
+  await page.evaluate(detail => window.dispatchEvent(new CustomEvent("jitm:jump-state", { detail })), { jumpId, status, updatedAt });
 }
 async function installRefresh(page: Page) {
   // Obtain the existing router from its provider in the real production page; no application test hook.
@@ -88,6 +88,32 @@ async function observeAbsentFrames(page: Page, id: string) {
 }
 
 for (const appearance of ["light", "dark"]) {
+  for (const mode of ["saved", "replayed", "conflict"]) test(`H01 ${mode} outcome forwards the settled version in ${appearance}`, async ({ page }) => {
+    const contact = await person(), pending = await jump(contact.id, now);
+    await theme(page, appearance); await visit(page, "/jumps");
+    await page.evaluate(() => {
+      (window as any).ux01Events = [];
+      window.addEventListener("jitm:jump-state", event => (window as any).ux01Events.push((event as CustomEvent).detail));
+    });
+    await page.route(`**/api/jumps/${pending.id}/outcome`, async route => {
+      const saved = await route.fetch();
+      if (mode === "saved") return route.fulfill({ response: saved });
+      const response = mode === "replayed" ? await route.fetch() : await page.request.post(route.request().url(), {
+        headers: { origin: process.env.APP_URL! }, data: { ...route.request().postDataJSON(), requestId: randomUUID() }
+      });
+      await route.fulfill({ response });
+    });
+    await next(page).locator(".contact-review-button").click();
+    const button = page.getByRole("button", { name: `Mark sent for ${contact.displayName}`, exact: true });
+    await button.click();
+    const decisions = page.getByRole("group", { name: "Record journey outcome" });
+    await expect.poll(async () => await decisions.isVisible() || await page.evaluate(id => (window as any).ux01Events.some((event: any) => event.jumpId === id), pending.id)).toBe(true);
+    if (await decisions.isVisible()) await decisions.getByRole("button", { name: "Save outcome", exact: true }).click();
+    await expect.poll(async () => page.evaluate(id => (window as any).ux01Events.find((event: any) => event.jumpId === id), pending.id)).toMatchObject({ jumpId: pending.id, status: "DONE" });
+    const stored = await prisma.jump.findUniqueOrThrow({ where: { id: pending.id } });
+    const event = await page.evaluate(id => (window as any).ux01Events.find((event: any) => event.jumpId === id), pending.id);
+    expect(event.updatedAt).toBe(stored.updatedAt.toISOString());
+  });
   for (const surface of ["Today", "Contacts"]) for (const status of ["DONE", "SKIPPED"] as const) {
     test(`H01 page ${surface} ${status} delayed read and real Undo in ${appearance}`, async ({ page }) => {
       const contact = await person(); const pending = await jump(contact.id, now);
@@ -104,12 +130,18 @@ for (const appearance of ["light", "dark"]) {
         await gate; await route.fulfill({ response, body }); delivered = true;
       });
       try {
+        const intermediate = await prisma.jump.update({ where: { id: pending.id }, data: { reason: "Pending revision captured before settlement" } });
+        expect(intermediate.updatedAt.getTime()).toBeGreaterThan(pending.updatedAt.getTime());
         await page.evaluate("window.ux01Refresh()");
         await expect.poll(() => captured).toBe(true);
         const response = await page.request.post(`/api/jumps/${pending.id}/outcome`, { headers: { origin: process.env.APP_URL! }, data: { outcome: status === "DONE" ? "COMPLETED" : "SKIPPED", requestId: randomUUID() } });
         expect(response.ok(), await response.text()).toBe(true);
-        expect((await prisma.jump.findUniqueOrThrow({ where: { id: pending.id } })).status).toBe(status);
-        await stateEvent(page, pending.id, status);
+        const settled = await prisma.jump.findUniqueOrThrow({ where: { id: pending.id } });
+        expect(settled.status).toBe(status);
+        expect(settled.updatedAt.getTime()).toBeGreaterThan(intermediate.updatedAt.getTime());
+        const settledVersion = response.headers()["x-jitm-jump-updated-at"];
+        expect(settledVersion).toBe(settled.updatedAt.toISOString());
+        await stateEvent(page, pending.id, status, settledVersion);
         await expect(next(page).locator(`a[href="${href}"]`)).toHaveCount(0);
         release(); await expect.poll(() => delivered).toBe(true);
         expect(await observeAbsentFrames(page, pending.id)).toBe(0);
@@ -119,7 +151,7 @@ for (const appearance of ["light", "dark"]) {
         } else {
           const undo = await page.request.post(`/api/jumps/${pending.id}/outcome`, { headers: { origin: process.env.APP_URL! }, data: { outcome: "REOPENED", requestId: randomUUID() } });
           expect(undo.ok(), await undo.text()).toBe(true);
-          await stateEvent(page, pending.id, "PENDING");
+          await stateEvent(page, pending.id, "PENDING", undo.headers()["x-jitm-jump-updated-at"]);
         }
         await expect.poll(async () => (await prisma.jump.findUniqueOrThrow({ where: { id: pending.id } })).status).toBe("PENDING");
         await page.evaluate("window.ux01Refresh()");
@@ -128,7 +160,7 @@ for (const appearance of ["light", "dark"]) {
     });
   }
 
-  for (const viewport of [{ width: 600, height: 900, text: 1 }, { width: 320, height: 900, text: 2 }]) {
+  for (const viewport of repairViewports) {
     test(`FOCUS-01 primary and secondary complete at ${viewport.width} text ${viewport.text} in ${appearance}`, async ({ page }, testInfo) => {
       const contact = await person(); await outcome(contact.id); await sequenceFollowUp(contact.id);
       await page.setViewportSize(viewport); await theme(page, appearance);
@@ -163,8 +195,9 @@ for (const appearance of ["light", "dark"]) {
           expect(geometry.style).not.toBe("none"); expect(geometry.width).toBeGreaterThan(0);
           for (const edge of [geometry.left, geometry.right, geometry.top, geometry.bottom]) expect(edge).toBeGreaterThanOrEqual(0);
         }
-        if (process.env.UX01_SCREENSHOTS && testInfo.project.name === "desktop-chromium" && route === "/jumps") {
-          await next(page).locator(".contact-review-button").focus();
+        if (process.env.UX01_SCREENSHOTS && testInfo.project.name === "desktop-chromium" && route.startsWith("/contacts") && viewport.text > 1) {
+          const primary = next(page).locator(".contact-review-button");
+          await primary.scrollIntoViewIfNeeded(); await primary.focus();
           await page.screenshot({ path: `${process.env.UX01_SCREENSHOTS}/focus-${appearance}-${viewport.width}.png` });
         }
       }
@@ -189,6 +222,52 @@ for (const appearance of ["light", "dark"]) {
 }
 
 for (const today of [false, true]) for (const status of ["DONE", "SKIPPED"]) {
+  test(`H01 intermediate version ${today ? "Today" : "Contacts"} ${status} binds to settlement`, async ({ page }, testInfo) => {
+    const contact = await person(), pending = await jump(contact.id, now);
+    await page.goto("about:blank"); await page.setContent('<div id="fixture"></div>');
+    await page.addScriptTag({ content: await componentBundle() });
+    const item: NextActionCandidate = { id: `fixture:jump:${pending.id}`, jumpId: pending.id, contactId: contact.id, contactName: "Fixture", kind: "follow-up", title: "Check in", detail: "Prepared follow-up", action: "Review message", href: `/jumps?jump=${pending.id}`, dueAt: pending.scheduledAt.toISOString(), updatedAt: pending.updatedAt.toISOString() };
+    const render = async (updatedAt: string, capturedAt: string) => {
+      const projection = resolveNextActions([{ ...item, updatedAt }], { now: new Date(capturedAt), timeZone: "UTC" });
+      await page.evaluate(`window.ux01.render(${JSON.stringify(projection)}, ${today})`);
+    };
+    await render(item.updatedAt, item.updatedAt);
+    await expect(next(page).getByRole("link", { name: "Review message" })).toBeVisible();
+    const intermediate = await prisma.jump.update({ where: { id: pending.id }, data: { reason: "Pending revision captured before settlement" } });
+    const response = await page.request.post(`${process.env.APP_URL}/api/jumps/${pending.id}/outcome`, { headers: { origin: process.env.APP_URL! }, data: { outcome: status === "DONE" ? "COMPLETED" : "SKIPPED", requestId: randomUUID() } });
+    expect(response.ok()).toBe(true);
+    const settled = await prisma.jump.findUniqueOrThrow({ where: { id: pending.id } });
+    expect(intermediate.updatedAt.getTime()).toBeGreaterThan(pending.updatedAt.getTime());
+    expect(settled.updatedAt.getTime()).toBeGreaterThan(intermediate.updatedAt.getTime());
+    // Isolate the consumer from the transport: use the actual committed server version here.
+    await stateEvent(page, pending.id, status, settled.updatedAt.toISOString());
+    await expect(next(page).getByRole("link", { name: "Review message" })).toHaveCount(0);
+    await render(intermediate.updatedAt.toISOString(), intermediate.updatedAt.toISOString());
+    const revived = await observeAbsentFrames(page, pending.id);
+    await testInfo.attach("settled-version-proof", { body: JSON.stringify({ today, status, displayed: pending.updatedAt, intermediate: intermediate.updatedAt, settled: settled.updatedAt, revived }), contentType: "application/json" });
+    expect(revived).toBe(0);
+    await render(intermediate.updatedAt.toISOString(), settled.updatedAt.toISOString());
+    expect(await observeAbsentFrames(page, pending.id)).toBe(0);
+    expect((await prisma.jump.findUniqueOrThrow({ where: { id: pending.id } })).status).toBe(status);
+    const undo = await page.request.post(`${process.env.APP_URL}/api/jumps/${pending.id}/outcome`, { headers: { origin: process.env.APP_URL! }, data: { outcome: "REOPENED", requestId: randomUUID() } });
+    expect(undo.ok()).toBe(true);
+    const reopened = await prisma.jump.findUniqueOrThrow({ where: { id: pending.id } });
+    await render(reopened.updatedAt.toISOString(), reopened.updatedAt.toISOString());
+    await expect(next(page).getByRole("link", { name: "Review message" })).toBeVisible();
+    // A legacy response has no version; an older acknowledgment cannot weaken that receipt.
+    const legacy = await page.request.post(`${process.env.APP_URL}/api/jumps/${pending.id}/outcome`, { headers: { origin: process.env.APP_URL! }, data: { outcome: status === "DONE" ? "COMPLETED" : "SKIPPED", requestId: randomUUID() } });
+    expect(legacy.ok()).toBe(true);
+    const legacySettlement = await prisma.jump.findUniqueOrThrow({ where: { id: pending.id } });
+    expect(legacySettlement.status).toBe(status);
+    await stateEvent(page, pending.id, status);
+    await stateEvent(page, pending.id, status, settled.updatedAt.toISOString());
+    await render(reopened.updatedAt.toISOString(), legacySettlement.updatedAt.toISOString());
+    expect(await observeAbsentFrames(page, pending.id)).toBe(0);
+    const legacyUndo = await page.request.post(`${process.env.APP_URL}/api/jumps/${pending.id}/outcome`, { headers: { origin: process.env.APP_URL! }, data: { outcome: "REOPENED", requestId: randomUUID() } });
+    expect(legacyUndo.ok()).toBe(true);
+    await stateEvent(page, pending.id, "PENDING", legacyUndo.headers()["x-jitm-jump-updated-at"]);
+    await expect(next(page).getByRole("link", { name: "Review message" })).toBeVisible();
+  });
   test(`H01 component ${today ? "Today" : "Contacts"} ${status} delayed and out-of-order snapshots`, async ({ page }) => {
     await page.goto("about:blank"); await page.setContent('<div id="fixture"></div>');
     await page.addScriptTag({ content: await componentBundle() });
@@ -200,7 +279,7 @@ for (const today of [false, true]) for (const status of ["DONE", "SKIPPED"]) {
     };
     await render([item], updatedAt);
     await expect(next(page).getByRole("link", { name: "Review message" })).toBeVisible();
-    await stateEvent(page, "one", status);
+    await stateEvent(page, "one", status, updatedAt);
     await expect(next(page).getByRole("link", { name: "Review message" })).toHaveCount(0);
     await render([item], "2026-11-01T12:01:00.000Z");
     expect(await observeAbsentFrames(page, "one")).toBe(0);
@@ -212,7 +291,7 @@ for (const today of [false, true]) for (const status of ["DONE", "SKIPPED"]) {
     await render([item], "2026-11-01T12:01:00.000Z");
     await expect(next(page).getByRole("link", { name: "Review message" })).toBeVisible();
     await expect(next(page)).toContainText("Restored version");
-    await stateEvent(page, "one", status);
+    await stateEvent(page, "one", status, "2026-11-01T12:03:00.000Z");
     await expect(next(page).getByRole("link", { name: "Review message" })).toHaveCount(0);
     await stateEvent(page, "one", "PENDING");
     await expect(next(page).getByRole("link", { name: "Review message" })).toBeVisible();
