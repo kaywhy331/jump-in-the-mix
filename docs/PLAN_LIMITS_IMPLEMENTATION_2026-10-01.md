@@ -10,7 +10,7 @@ Asked on 2026-09-30, while the limits work was paused, because automatic additio
 
 Earlier rules from the pricing decision, lines 18–21: a person counts once; a Mega-Mix counts as one Mix; stored contacts don't count until follow-up is on for them; reaching a limit stops new additions, never access to what the account already has.
 
-**Status:** pull request open; not released. The release (WF-06) needs the additive migration `20261001120000_plan_people`.
+**Status:** PR #109, merged 2026-10-01 as `6cf9ad6`, with the wording below approved as written ("merge 109", O15). Live since 2026-10-01 17:28 UTC (tag `prod-2026-10-01-6cf9ad6`, [release record](PLAN_LIMITS_BILLING_DELETION_RELEASE_2026-10-01.md)); inactive while billing is off.
 
 | Item | Value |
 | --- | --- |
