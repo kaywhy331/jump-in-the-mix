@@ -2,9 +2,9 @@
 id: JITM-14
 title: Release and environments
 status: active
-version: 2.1.1
+version: 2.1.2
 owner: Kevin
-last_reviewed: 2026-10-01
+last_reviewed: 2026-10-14
 applies_to: [production, releases, environments, render, rollback, operations]
 supersedes: [AGENTS.md#deployment-destinations, AGENTS.md#production-deployment-render, docs/FREE_TESTING.md, docs/NETLIFY_DEPLOYMENT.md, docs/HOSTED_DEPLOYMENT.md#deploy-order]
 sources:
@@ -217,7 +217,7 @@ Differences from the quote:
 - **Stale runbooks.** `docs/HOSTED_DEPLOYMENT.md:55-62`, `docs/MIGRATION_RUNBOOK.md:45` and `docs/OPERATIONS_READINESS.md:58` still say web first, and their sequence includes a restore proof and a write freeze that practice does not run; §2.14 governs. `docs/WORKER_RECOVERY_QUALIFICATION.md:21` says the blueprint enables auto-deploy, which is off (`render.yaml:46,78`). `docs/MIGRATION_RUNBOOK.md:5-14` lists the migration chain only up to 2026-09-04.
 - **Untracked pipeline.** The release scripts still exist only in the ignored `.artifacts/` directory (`docs/FULL_AUDIT_2026-09-24.md:116`). Committing the script and runbook (§2.10, D18) is backlog B-11.
 - **Missing tags and records.** The seven tagged deploys `5a0c07b`, `def2e96`, `040fc25`, `84eda7a`, `ef87c3c`, `288fc26` and `9439fd6` have no record. `4b5abd8` has neither tag nor record. 22 of 31 tag messages lack deploy ids. Two production release records exist only in the owner's local checkout (`docs/standards-audit-2026-09-28/SOURCE_REGISTER.md`). Kevin chose short reconstructed records (JITM-15 §2.19, D19); the back-fill is backlog B-12.
-- **Outage signal.** INFERRED: §2.30 is not met; the external monitor is backlog B-08 and restoring Actions billing is Kevin's step (D13). Render failure notifications for the workspace, web, worker and backup cron were set by Kevin on 2026-09-26 (owner confirmation, recorded as TST-02 in the 2026-09-28 audit), but the hourly application smoke on GitHub Actions has probably not run since Actions was billing-blocked (`docs/INVITE_PAGE_RELEASE_2026-09-27.md:30`).
+- **Outage signal.** INFERRED: §2.30 is not met; the external monitor is backlog B-08. Render failure notifications for the workspace, web, worker and backup cron were set by Kevin on 2026-09-26 (owner confirmation, recorded as TST-02 in the 2026-09-28 audit). The hourly application smoke on GitHub Actions can run again since the repository became public on 2026-10-13; a manual run passed on 2026-10-13 at 23:16 UTC. When Actions last ran on schedule (2026-10-01 to 2026-10-05), GitHub started the hourly smoke only every 3 to 9 hours, about 5.4 on average, so it is a slow signal.
 - **Free-plan scope.** The blueprints name `0.5c-512mb` instances (`render.yaml:41,74`), while `docs/AUDIT_RELEASE_B_2026-09-25.md:110` calls the workspace Render's free Hobby plan. Billing is not visible to agents, so §2.25 reads O4 as "no additions or upgrades beyond what runs today".
 - **Shutdown delay.** Whether the worker's 300-second shutdown delay is applied on the live service is unverified (`docs/AUDIT_RELEASE_B_2026-09-25.md:110`).
 - **Staging leftovers.** `playwright.staging.config.ts`, `scripts/staging-smoke.mjs` and `.github/workflows/private-test-worker.yml` still target the retired site. `README.md:28-30` and `docs/HOSTED_DEPLOYMENT.md:3-5` still point to Netlify or call the runbook inactive.
@@ -229,3 +229,4 @@ Differences from the quote:
 - 2.0.0 — 2026-09-28 — Base 61d4df4. §2.10 commits the reusable release script and runbook (D18); §2.12 confirmed and automated (D17); §2.30 adds a free external uptime monitor as the signal that survives CI billing failures (D13).
 - 2.1.0 — 2026-09-29 — Base db54cc7. §2.31: billing stays off in production until Kevin chooses the start date, and its variables arrive in a reviewed release plan (docs/STRIPE_BILLING_IMPLEMENTATION_2026-09-29.md).
 - 2.1.1 — 2026-10-01 — Base f1ac84d. §2.31: the billing variables also go on the worker, which applies the people limit (docs/PLAN_LIMITS_IMPLEMENTATION_2026-10-01.md).
+- 2.1.2 — 2026-10-14 — Base 6630e49. §6: Actions runs again, so the hourly smoke can run, though GitHub started it only every few hours when it last ran; the external monitor (B-08) is still missing.
