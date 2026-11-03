@@ -1,4 +1,7 @@
 import { describe, expect, it } from "vitest";
+import type { Prisma } from "@/generated/prisma/client";
+import { emptyWorkflowState } from "@/lib/mix-workflow-types";
+import { nextActionAttention, readNextActionSnapshot } from "@/lib/next-action-reader";
 import { nextActionEmptyText, nextActionsInView, nextActionTime, resolveNextActions, withoutSettledActions, type NextActionCandidate } from "@/lib/next-action";
 
 const now = new Date("2026-11-01T09:30:00.000Z");
@@ -9,6 +12,49 @@ const candidate = (id: string, patch: Partial<NextActionCandidate> = {}): NextAc
 });
 
 describe("shared next-action resolution", () => {
+  it("keeps future obligations in Today's upcoming queue after its due filter", async () => {
+    const dueAt = "2026-11-09T17:00:00.000Z", contact = { displayName: "Fixture person" };
+    const state = emptyWorkflowState();
+    state.commitments = ["CUSTOMER", "OWNER"].map(source => ({
+      id: source, updateId: source, runId: "run", dueAt, timezone: "America/New_York",
+      source: source as "CUSTOMER" | "OWNER", recordedAt: now.toISOString(), status: "OPEN"
+    }));
+    const db = {
+      $queryRaw: async () => [{ pending: false, delayed: false, failed: false }],
+      jump: { findMany: async ({ where }: { where: Prisma.JumpWhereInput }) => where.AND ? [] : [{
+        id: "follow-up", contactId: "person", contact, reason: "Scheduled follow-up", scheduledAt: new Date(dueAt),
+        updatedAt: now, mixId: "mix", mix: { source: "ONE_TIME" }, workflowInstanceId: null, workflowVisitId: null
+      }] },
+      mixWorkflowInstance: { findMany: async () => [{
+        id: "work", contactId: "person", contact, label: "Estimate follow-up", state,
+        definition: { rules: [] }, updatedAt: now
+      }] },
+      job: { findMany: async () => [], findFirst: async () => null },
+      contactRelationshipState: { findMany: async () => [{
+        id: "relationship", contactId: "person", contact, nextCommitmentAt: new Date(dueAt), updatedAt: now
+      }] },
+      calendarEntry: { findMany: async () => [{
+        id: "appointment", contactId: "person", contact, title: "Site visit", startsAt: new Date(dueAt),
+        endsAt: new Date("2026-11-09T18:00:00.000Z"), updatedAt: now
+      }] }
+    } as unknown as Prisma.TransactionClient;
+    const before = new Date("2026-11-02T08:00:00.000Z");
+    const snapshot = await readNextActionSnapshot(db, "workspace", {
+      ...options, followUpWhere: { scheduledAt: { lt: before } }, before
+    });
+    const filtered = nextActionsInView(snapshot);
+    expect(filtered.items).toEqual([]);
+    expect(snapshot).toMatchObject({ state: "ready", attentionCount: 0, futureCount: 5 });
+    expect(snapshot.items.find(item => item.jumpId === "follow-up")).toMatchObject({ kind: "follow-up", timing: "future" });
+    const attention = nextActionAttention(filtered, 0, 0, snapshot);
+    expect(attention).toMatchObject({ total: 0, futureTotal: 4 });
+    expect(attention?.future).toEqual(expect.arrayContaining([
+      expect.objectContaining({ reason: "Customer requested a callback", timezone: "America/New_York" }),
+      expect.objectContaining({ reason: "Your planned check-in", timezone: "America/New_York" }),
+      expect.objectContaining({ reason: "Check the commitment you saved." }),
+      expect.objectContaining({ reason: "Scheduled appointment" })
+    ]));
+  });
   it("puts an outcome ahead of future work and keeps separate urgent obligations for one person", () => {
     const items = [candidate("future", { dueAt: "2026-11-02T09:00:00.000Z" }), candidate("overdue"),
       candidate("outcome", { kind: "outcome", dueAt: null, action: "Record outcome" }), candidate("callback", { kind: "commitment", dueAt: now.toISOString() })];

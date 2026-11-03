@@ -6,6 +6,8 @@ export type NextActionCandidate = {
   id: string; contactId: string; contactName: string; kind: NextActionKind;
   title: string; detail: string; href: string; action: string;
   dueAt: string | null; updatedAt: string;
+  /** A commitment's saved timezone, retained for its upcoming queue entry. */
+  dueTimeZone?: string;
   status?: "open" | "done" | "skipped";
   jumpId?: string; workId?: string; mixId?: string;
   inView?: boolean;

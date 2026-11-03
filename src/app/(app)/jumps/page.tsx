@@ -230,7 +230,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const filteredNextActions = nextActionsInView(nextActions);
   const workflowAttention = nextActionAttention(filteredNextActions,
     Math.max(0, Math.min(100000, Math.floor(Number(params.attentionPage) || 0))) * 30,
-    Math.max(0, Math.min(100000, Math.floor(Number(params.callbackPage) || 0))) * 30);
+    Math.max(0, Math.min(100000, Math.floor(Number(params.callbackPage) || 0))) * 30, nextActions);
   // The Mixes the end-of-Mix question can start, as on the profile: those the owner starts come first, by name, then
   // date-based and fixed-date Mixes, which the question never preselects (END-02).
   const [activeMixes, afterAnotherMix] = await Promise.all([

@@ -87,13 +87,13 @@ export async function readNextActionSnapshot(db: Prisma.TransactionClient, works
         const pending = visit ? jumps.find(jump => jump.workflowInstanceId === instance.id && jump.workflowVisitId === visit.id) : null;
         other.push({ ...base, id: visit ? `${workspaceId}:visit:${instance.id}:${visit.id}` : `${workspaceId}:work:${instance.id}:${reason.id}`,
           kind: commitment ? "commitment" : outcome ? "outcome" : "repair", detail: reason.reason,
-          action: outcome ? "Record outcome" : reason.action, dueAt: commitment?.dueAt ?? null,
+          action: outcome ? "Record outcome" : reason.action, dueAt: commitment?.dueAt ?? null, dueTimeZone: commitment?.timezone,
           // Editing the prepared text must not override the current visit's hold.
           ...(pending ? { jumpId: pending.id, updatedAt: new Date(Math.max(instance.updatedAt.getTime(), pending.updatedAt.getTime())).toISOString() } : {}) });
       }
       for (const commitment of state.commitments ?? []) if (commitment.status === "OPEN" && Date.parse(commitment.dueAt) > options.now.getTime()) {
         other.push({ ...base, id: `${workspaceId}:work:${instance.id}:${commitment.id}`, kind: "commitment",
-          detail: commitment.source === "CUSTOMER" ? "Customer requested a callback" : "Your planned check-in", action: "Review work", dueAt: commitment.dueAt });
+          detail: commitment.source === "CUSTOMER" ? "Customer requested a callback" : "Your planned check-in", action: "Review work", dueAt: commitment.dueAt, dueTimeZone: commitment.timezone });
       }
     }
     // Failed preparation is scoped to the instance and its current revision, as in the existing workflow reader.
@@ -149,14 +149,15 @@ export async function readNextActions(workspaceId: string, options: NextActionRe
 }
 
 /** The existing paged queues are a view of the projection, never a second count of the same obligation. */
-export function nextActionAttention(projection: NextActionProjection, offset = 0, futureOffset = 0): WorkflowAttention | null {
+export function nextActionAttention(projection: NextActionProjection, offset = 0, futureOffset = 0, upcomingProjection = projection): WorkflowAttention | null {
   if (projection.state === "unavailable") return null;
-  const other = projection.items.filter(item => item.kind !== "follow-up");
-  const current = other.filter(item => item.timing !== "future"), future = other.filter(item => item.timing === "future");
+  const current = projection.items.filter(item => item.kind !== "follow-up" && item.timing !== "future");
+  // Today's upcoming queue keeps the complete snapshot's future context, outside its due filters.
+  const future = upcomingProjection.items.filter(item => item.kind !== "follow-up" && item.timing === "future");
   offset = current.length ? Math.max(0, Math.min(offset, Math.floor((current.length - 1) / 30) * 30)) : 0;
   futureOffset = future.length ? Math.max(0, Math.min(futureOffset, Math.floor((future.length - 1) / 30) * 30)) : 0;
-  const view = (item: typeof other[number]) => ({ id: item.id, contactId: item.contactId, contactName: item.contactName,
+  const view = (item: typeof projection.items[number]) => ({ id: item.id, contactId: item.contactId, contactName: item.contactName,
     label: item.title, reason: item.detail, action: item.action, href: item.href, nextAction: item });
   return { items: current.slice(offset, offset + 30).map(view), total: current.length, offset,
-    preparing: projection.state === "preparing", future: future.slice(futureOffset, futureOffset + 30).map(item => ({ ...view(item), dueAt: item.dueAt!, timezone: projection.timeZone })), futureTotal: future.length, futureOffset };
+    preparing: projection.state === "preparing", future: future.slice(futureOffset, futureOffset + 30).map(item => ({ ...view(item), dueAt: item.dueAt!, timezone: item.dueTimeZone ?? upcomingProjection.timeZone })), futureTotal: future.length, futureOffset };
 }
