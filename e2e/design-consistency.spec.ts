@@ -90,13 +90,13 @@ test("Profile sheet uses flat destination rows", async ({ page }, info) => {
   test.skip(info.project.name !== "desktop-chromium", "The Profile sheet is on the desktop rail.");
   await page.setViewportSize({ width: 1440, height: 900 });
   await page.goto("/jumps");
-  await page.getByRole("button", { name: "Profile", exact: true }).click();
-  const sheet = page.getByRole("dialog", { name: "Profile and settings" });
-  for (const name of ["My account", "Settings", "Ready-made Mixes", "Help"]) {
+  await page.getByRole("button", { name: "Consistency owner", exact: true }).click();
+  const sheet = page.getByRole("dialog", { name: "Account" });
+  for (const name of ["My account", "Plan and billing"]) {
     const row = sheet.getByRole("link", { name, exact: true });
     await expect(row).toBeVisible();
     expect((await row.boundingBox())!.height).toBeGreaterThanOrEqual(48);
   }
   const signOut = sheet.getByRole("button", { name: "Sign out", exact: true });
-  expect(await signOut.evaluate(button => getComputedStyle(button).fontSize)).toBe(await sheet.getByRole("link", { name: "Help", exact: true }).evaluate(link => getComputedStyle(link).fontSize));
+  expect(await signOut.evaluate(button => getComputedStyle(button).fontSize)).toBe(await sheet.getByRole("link", { name: "My account", exact: true }).evaluate(link => getComputedStyle(link).fontSize));
 });
