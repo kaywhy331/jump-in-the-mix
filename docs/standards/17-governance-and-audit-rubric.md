@@ -2,9 +2,9 @@
 id: JITM-17
 title: Governance and audit rubric
 status: active
-version: 2.0.0
+version: 3.0.0
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-10-14
 applies_to: [standards, skills, workflows, reviews, audits]
 supersedes: []
 sources:
@@ -77,7 +77,7 @@ Other standards cover related ground:
 - agents MUST run `npm run standards:check` before opening a pull request that touches standards, workflows, skills, `AGENTS.md` or the PR template;
 - reviewers apply the rubric below.
 
-Neither CI nor a pre-push hook blocks changes until Kevin decides otherwise. [OWNER 2026-09-28 D8]
+No CI job or pre-push hook runs `standards:check`, so the standards stay advisory. [OWNER 2026-09-28 D8] Hosted CI does gate merges on the product's checks (JITM-12 §2.12). [OWNER 2026-10-14 D122]
 
 ### Audit rubric
 
@@ -165,10 +165,11 @@ Neither CI nor a pre-push hook blocks changes until Kevin decides otherwise. [OW
 
 ## 6. Open decisions and known deviations
 
-- Enforcement is advisory (D8). Gating in CI waits for Kevin's decision and for GitHub Actions to become available.
+- The standards' enforcement is advisory (D8): no CI job runs `standards:check`. Kevin decided that hosted CI gates merges (D122); `main` has no branch protection yet (JITM-13 §6).
 - The cadence in §2.9 is a proposal until Kevin confirms it or changes it.
 
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. §2.1: merging follows JITM-16 §2.5 (D30).
+- 3.0.0 — 2026-10-14 — Base 6630e49. §2.11 changes meaning: hosted CI gates merges (D122), while `standards:check` stays advisory (D8). §6 follows.
