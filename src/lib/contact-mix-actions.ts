@@ -234,7 +234,7 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
       // the Journey pass's order. A start whose record took a business update since was moved on by the owner in
       // Journey, so it counts as changed since and is left as it is (UNDO-04, UNDO-05).
       const journeys = new Map<string, Awaited<ReturnType<typeof lockEnrollmentWorkflows>>>();
-      for (const start of untouched) journeys.set(start.assignmentId, await lockEnrollmentWorkflows(tx, { workspaceId: workspace.id, contactId: start.contactId, mixId, occurrencePrefixes: keysOf(start, byId.get(start.assignmentId)!).triggers }));
+      for (const start of untouched) journeys.set(start.assignmentId, await lockEnrollmentWorkflows(tx, { workspaceId: workspace.id, contactId: start.contactId, mixId, occurrencePrefixes: keysOf(start, byId.get(start.assignmentId)!).triggers, startedBy: { id: start.assignmentId, updatedAt: start.assignmentUpdatedAt, since: record.createdAt } }));
       const unchanged = untouched.filter(start => !journeys.get(start.assignmentId)!.some(record => workflowTookUpdate(record.state as unknown as WorkflowState)));
       if (!unchanged.length) return { ended: 0, kept: starts.length, dates: 0, confirmed: 0 };
       const endedAt = new Date();
@@ -250,7 +250,8 @@ export async function undoBulkMixStartAction(formData: FormData): Promise<void> 
         await tx.jump.updateMany({
           where: {
             workspaceId: workspace.id, mixId, contactId: start.contactId, status: "PENDING", workflowManaged: false, appointmentBindingId: null,
-            AND: [{ OR: [{ createdAt: { gte: record.createdAt } }, { updatedAt: { gte: record.createdAt } }] }, occurrenceIn(keysOf(start, byId.get(start.assignmentId)!).beats)]
+            AND: [{ OR: [{ createdAt: { gte: record.createdAt } }, { updatedAt: { gte: record.createdAt } }] }, occurrenceIn(keysOf(start, byId.get(start.assignmentId)!).beats),
+              { OR: [{ workflowInstanceId: null }, { workflowInstanceId: { in: journeys.get(start.assignmentId)!.map(record => record.id) } }] }]
           },
           data: { status: "CANCELED", completedAt: null, completionMethod: "reconciled" }
         });
@@ -297,6 +298,8 @@ export async function removeMixAssignmentAction(formData: FormData): Promise<voi
     // Removing an Everyone place waits for a Mix save in progress, which holds the business's row and re-syncs the
     // places, and a later save waits for it, so neither undoes the other (LCK-04).
     if (everyonePlace) await tx.$queryRaw`SELECT id FROM "Workspace" WHERE id = ${workspace.id} FOR KEY SHARE`;
+    // Serialize with preparation before locking Journey records or Beats, as bulk Undo does.
+    await tx.$queryRaw`SELECT id FROM "MixAssignment" WHERE id = ${assignment.id} AND "workspaceId" = ${workspace.id} FOR UPDATE`;
     // The run's Journey record, locked before its Beats in the Journey pass's order (UNDO-04).
     const journeys = await lockEnrollmentWorkflows(tx, { workspaceId: workspace.id, contactId, mixId: assignment.mixId, occurrencePrefixes: keys.triggers });
     if (everyonePlace) {

@@ -1,5 +1,6 @@
 # No Mix status release — October 6, 2026
 
+> Decision update — 2026-10-17: Kevin confirmed the eight PR #125 defaults (D125), chose the existing visit membership behavior (D126), and retained TRU-09 as his staff-console publication handoff (D127). The open-input statements below are historical; current rules are JITM-09 §2.19 and §2.76–§2.77.
 Live at https://jumpinthemix.com since 2026-10-06 21:57 UTC (web cutover). The final check passed at 22:00:10 UTC.
 
 This release ships PR #125, the first build slice of D33:

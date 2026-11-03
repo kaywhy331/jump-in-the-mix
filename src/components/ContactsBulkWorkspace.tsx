@@ -285,7 +285,7 @@ export function ContactsBulkWorkspace({
               {selectedDoNotContact.length > 0 && <div className="notice error" id="bulk-mix-blocked">Remove {selectedDoNotContact.map((contact) => contact.displayName).join(", ")} because “Do not contact” is on.</div>}
               <form action={bulkAssignMixAction} className="form-stack">{contactIdsInputs(selectedIds)}<input type="hidden" name="returnTo" value={listHref} />
                 <label className="field"><span>Choose a Mix</span><select name="mixId" required value={chosenMixId} onChange={(event) => setChosenMixId(event.target.value)}><option value="" disabled>Choose a Mix</option>{mixes.map(mix => <option key={mix.id} value={mix.id}>{mix.name}</option>)}</select></label>
-                {/* A fixed-date Mix goes out on its own date, so it asks for no start day (COPY-02). */}
+                {/* A fixed-date Mix has follow-ups due on its own date, so it asks for no start day (COPY-02). */}
                 {chosenMix?.triggerMode !== "BROADCAST" && <label className="field"><span>Start on</span><input type="date" name="startDate" required min={todayKey} defaultValue={todayKey} /></label>}
                 {chosenMix && <p className="muted-copy">{bulkMixSheetSentence(chosenMix.triggerMode)}</p>}
                 {/* The reason a disabled button gives is linked to it, so assistive technology reads it too (JITM-08 §2.6).

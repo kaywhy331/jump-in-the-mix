@@ -1,6 +1,88 @@
-import { describe, expect, it } from "vitest";
+import { afterEach, describe, expect, it, vi } from "vitest";
 import { channelName, channelWord, localDateTimeLabel, timeOfDayLabel, zoneGenericName, zoneLabel, zonedDateTimeLabel } from "../src/lib/display-labels";
 import { formatDateTime, formatTime } from "../src/lib/format";
+
+afterEach(() => {
+  vi.restoreAllMocks();
+  vi.useRealTimers();
+});
+
+// Pin the product's names independently of the installed ICU alias table.
+const namedZones = [
+  ["America/New_York", "Eastern Time", ["EST5EDT", "US/Eastern"]],
+  ["America/Chicago", "Central Time", ["CST6CDT", "US/Central"]],
+  ["America/Denver", "Mountain Time", ["MST7MDT", "US/Mountain"]],
+  ["America/Los_Angeles", "Pacific Time", ["PST8PDT", "US/Pacific", "US/Pacific-New"]],
+  ["America/Anchorage", "Alaska Time", ["US/Alaska"]],
+  ["America/Adak", "Hawaii-Aleutian Time", ["US/Aleutian"]],
+  ["Pacific/Honolulu", "Hawaii-Aleutian Standard Time", ["US/Hawaii"]],
+  ["America/Phoenix", "Mountain Standard Time", ["US/Arizona"]],
+  ["America/Indiana/Indianapolis", "Eastern Time", ["US/East-Indiana", "America/Indianapolis"]],
+  ["America/Indiana/Knox", "Central Time", ["US/Indiana-Starke"]],
+  ["America/Detroit", "Eastern Time", ["US/Michigan"]],
+  ["Pacific/Pago_Pago", "American Samoa Standard Time", ["US/Samoa"]],
+  ["America/Kentucky/Louisville", "Eastern Time", ["America/Louisville"]],
+  ["Europe/Lisbon", "Western European Time", ["WET"]],
+  ["Europe/Brussels", "Central European Time", ["CET", "MET"]],
+  ["Europe/Athens", "Eastern European Time", ["EET"]],
+  ["Europe/London", "United Kingdom Time", ["GB", "GB-Eire"]],
+  ["Europe/Dublin", "Ireland Time", ["Eire"]],
+  ["Europe/Kyiv", "Eastern European Time", ["Europe/Kiev"]],
+  ["Asia/Kolkata", "India Standard Time", ["Asia/Calcutta"]],
+  ["Asia/Kathmandu", "Nepal Time", ["Asia/Katmandu"]],
+  ["Asia/Tokyo", "Japan Standard Time", ["Japan"]],
+  ["Pacific/Auckland", "New Zealand Time", ["NZ"]],
+  ["Pacific/Chatham", "Chatham Time", ["NZ-CHAT"]],
+  ["Australia/Sydney", "Australian Eastern Time", []]
+] as const;
+
+describe("time-zone names across ICU versions", () => {
+  it.each(namedZones)("names %s and its legacy links in winter and summer", (canonical, name, aliases) => {
+    vi.useFakeTimers().setSystemTime(new Date("2026-01-15T12:00:00Z"));
+    for (const at of [new Date("2026-01-15T12:00:00Z"), new Date("2026-07-15T12:00:00Z")]) {
+      for (const zone of [canonical, ...aliases]) {
+        expect(zoneGenericName(zone, at), `${zone} at ${at.toISOString()}`).toBe(name);
+      }
+    }
+    for (const alias of aliases) {
+      expect(zoneLabel(alias), alias).toBe(alias.includes("/") ? zoneLabel(canonical) : name);
+    }
+  });
+
+  it.each(["GMT-05:00", "GMT+05:30", "GMT-5", "GMT"])("uses the canonical product name when Intl returns %s", offset => {
+    vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts").mockReturnValue([{ type: "timeZoneName", value: offset }]);
+    for (const [canonical, name, aliases] of namedZones) {
+      for (const zone of [canonical, ...aliases]) {
+        expect(zoneGenericName(zone), zone).toBe(name);
+      }
+    }
+    expect(zoneLabel("EST5EDT")).toBe("Eastern Time");
+    expect(zoneLabel("US/Eastern")).toBe("New York time");
+    // An unnamed zone or a real fixed offset must not be mislabeled as a named region.
+    expect(zoneGenericName("Etc/GMT+5")).toBe(offset);
+    expect(zoneGenericName("Africa/Abidjan")).toBe(offset);
+  });
+
+  it("retains informative runtime names for zones outside the product's named set", () => {
+    vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts").mockReturnValue([{ type: "timeZoneName", value: "Central European Time" }]);
+    expect(zoneGenericName("Europe/Paris")).toBe("Central European Time");
+  });
+
+  it("keeps product names stable when ICU adds a regional qualifier", () => {
+    vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts").mockReturnValue([{ type: "timeZoneName", value: "Hawaii-Aleutian Time (Adak)" }]);
+    expect(zoneGenericName("America/Adak")).toBe("Hawaii-Aleutian Time");
+    expect(zoneGenericName("US/Aleutian")).toBe("Hawaii-Aleutian Time");
+  });
+
+  it("keeps known names when runtime name data is missing or unsupported", () => {
+    const parts = vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts").mockReturnValue([]);
+    expect(zoneGenericName("EST5EDT")).toBe("Eastern Time");
+    expect(zoneGenericName("Africa/Abidjan")).toBe("Africa/Abidjan");
+    parts.mockImplementation(() => { throw new RangeError("Unsupported time zone data"); });
+    expect(zoneGenericName("US/Central")).toBe("Central Time");
+    expect(zoneGenericName("Not/AZone")).toBe("Not/AZone");
+  });
+});
 
 describe("display labels (FMT-01–FMT-03, D79)", () => {
   it("names a time zone by its city, never by its IANA name", () => {

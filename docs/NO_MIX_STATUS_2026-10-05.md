@@ -1,5 +1,6 @@
 # No Mix status — 2026-10-05
 
+> Decision update — 2026-10-17: Kevin confirmed the eight PR #125 defaults (D125), chose the existing visit membership behavior (D126), and retained TRU-09 as his staff-console publication handoff (D127). The open-input statements below are historical; current rules are JITM-09 §2.19 and §2.76–§2.77.
 **Status:** built on branch `feat/no-mix-status-20261005` (PR #125) against `main` at 262892e, with the fixes from its WF-05 review and its two re-reviews of 2026-10-06. Merged as 4a77761 and released on 2026-10-06 as `prod-2026-10-06-4a77761`; see [the release record](NO_MIX_STATUS_RELEASE_2026-10-06.md).
 
 **Decisions:** D33 ([owner decision log](standards-audit-2026-09-28/OWNER_DECISIONS.md)). Kevin asked for this: "If there is no mix assigned to a contact, then the contact should show something that the contat has no mix … Ideally everyone should be in the journey OR marked as a status/label/ or confirmation where they are not in a mix." D44–D47 (2026-10-06) are his answers to the review's questions. Where the build goes further than his words, the reading is a numbered default under [Agent defaults for Kevin](#agent-defaults-for-kevin), cited as `[SOURCE]` until he confirms it (JITM-15 §2.12).

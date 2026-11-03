@@ -1,10 +1,11 @@
 "use client";
 
-import { createContext, useContext, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from "react";
+import { createContext, useCallback, useContext, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode, type RefObject } from "react";
+import { flushSync } from "react-dom";
 import { Sheet } from "@/components/Sheet";
 import type { TodayReviewPin } from "@/lib/today-review-placement";
 
-const ReviewPlacement = createContext<{ pin: TodayReviewPin | null; opened: boolean }>({ pin: null, opened: false });
+const ReviewPlacement = createContext<{ pin: TodayReviewPin | null; opened: boolean; settle: () => void }>({ pin: null, opened: false, settle: () => undefined });
 
 export const useTodayReviewPlacement = () => useContext(ReviewPlacement);
 
@@ -14,6 +15,10 @@ export function TodayReviewPlacement({ root, viewKey, children }: { root: RefObj
   const [state, setState] = useState<{ viewKey: string; pin: TodayReviewPin | null; opened: boolean }>({ viewKey, pin: null, opened: false });
   const committed = useRef(state);
   const restore = useRef<{ jumpId: string; trigger: HTMLElement } | null>(null);
+  const synchronize = useRef<() => void>(() => undefined);
+  // An automatic Review click needs the committed placement, not just an observed dialog close. Animation frames
+  // alone cannot guarantee React has released the pin and mounted the card in its new section.
+  const settle = useCallback(() => { flushSync(() => synchronize.current()); }, []);
   useLayoutEffect(() => { committed.current = state; }, [state]);
   useLayoutEffect(() => {
     const element = root.current;
@@ -46,9 +51,10 @@ export function TodayReviewPlacement({ root, viewKey, children }: { root: RefObj
       });
     };
     const observer = new MutationObserver(sync);
+    synchronize.current = sync;
     observer.observe(element, { subtree: true, childList: true, attributes: true, attributeFilter: ["open"] });
     sync();
-    return () => observer.disconnect();
+    return () => { observer.disconnect(); synchronize.current = () => undefined; };
   }, [root, viewKey]);
   useLayoutEffect(() => {
     const target = restore.current;
@@ -60,7 +66,7 @@ export function TodayReviewPlacement({ root, viewKey, children }: { root: RefObj
     });
     return () => cancelAnimationFrame(frame);
   }, [state, root, viewKey]);
-  const value = useMemo(() => state.viewKey === viewKey ? { pin: state.pin, opened: state.opened } : { pin: null, opened: false }, [state, viewKey]);
+  const value = useMemo(() => state.viewKey === viewKey ? { pin: state.pin, opened: state.opened, settle } : { pin: null, opened: false, settle }, [state, viewKey, settle]);
   return <ReviewPlacement.Provider value={value}>{children}</ReviewPlacement.Provider>;
 }
 
