@@ -44,7 +44,7 @@
     "test:isolated": "node scripts/test-isolated-database.mjs",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
-    "test:lighthouse": "lhci autorun --config=.lighthouserc.cjs",
+    "test:lighthouse": "node scripts/run-lighthouse.mjs",
     "smoke:staging": "node scripts/staging-smoke.mjs",
     "smoke:staging:seed": "tsx scripts/seed-staging-smoke-user.ts",
     "load:smoke": "node scripts/load-smoke.mjs",
@@ -87,7 +87,7 @@
     "fflate": "0.8.3",
     "jose": "6.2.11",
     "libphonenumber-js": "1.13.13",
-    "next": "16.3.8",
+    "next": "16.4.1",
     "node-ical": "0.27.1",
     "pg": "8.16.3",
     "qrcode": "1.5.4",
@@ -96,7 +96,7 @@
     "stripe": "22.6.2",
     "svix": "2.3.0",
     "web-push": "^3.6.7",
-    "zod": "4.1.12"
+    "zod": "4.6.6"
   },
   "devDependencies": {
     "@axe-core/playwright": "4.13.0",
@@ -120,7 +120,7 @@
   "overrides": {
     "baseline-browser-mapping": "2.11.0",
     "deepmerge-ts": "8.0.2",
-    "fast-uri": "3.1.8",
+    "fast-uri": "3.1.9",
     "mysql2": "3.24.3",
     "nanoid": "3.3.18",
     "postcss": "8.5.28",

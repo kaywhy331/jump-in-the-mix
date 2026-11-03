@@ -11,9 +11,10 @@
   gap: 0.75rem;
   min-height: 3.5rem;
   padding: 0.75rem 1rem;
-  border: 1px solid color-mix(in srgb, currentColor 18%, transparent);
+  border: 1px solid var(--line);
   border-radius: 0.8rem;
-  background: color-mix(in srgb, Canvas 94%, currentColor 6%);
+  background: var(--raised);
+  color: var(--text);
 }
 
 /* The words take the room first; the Undo wraps below them only when enlarged text leaves too little (LAY-03). */
@@ -29,6 +30,18 @@
 .completedPlaceholder small {
   display: block;
   opacity: 0.66;
+}
+
+.completedPlaceholder > :global(.button.small) {
+  min-width: 44px;
+  min-height: 44px;
+}
+
+.confirmationError {
+  flex: 1 0 100%;
+  margin: 0;
+  color: var(--status-danger-ink);
+  overflow-wrap: anywhere;
 }
 
 .returnTray {

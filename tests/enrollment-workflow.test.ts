@@ -1,5 +1,6 @@
 import { describe, expect, it } from "vitest";
-import { endEnrollmentRun, ENROLLMENT_REMOVED_REASON, reopenEnrollmentRun, workflowTookUpdate } from "../src/lib/enrollment-workflow";
+import { endEnrollmentRun, ENROLLMENT_REMOVED_REASON, ENROLLMENT_UNDONE_REASON, reopenEnrollmentRun, workflowTookUpdate } from "../src/lib/enrollment-workflow";
+import { observeWorkflow } from "../src/lib/mix-workflow-engine";
 import type { WorkflowState } from "../src/lib/mix-workflow-types";
 
 // Ending an enrollment's Journey run, and picking it back up for a later start of the same occurrence (UNDO-04).
@@ -17,6 +18,25 @@ const base = (): WorkflowState => ({
 });
 
 describe("ending and reopening an enrollment's Journey run", () => {
+  it.each([ENROLLMENT_REMOVED_REASON, ENROLLMENT_UNDONE_REASON])("ignores delayed observations after %s until an explicit restart (REOPEN-01)", reason => {
+    const state = base();
+    endEnrollmentRun(state, "ACTIVE", reason, at);
+    const ended = structuredClone(state);
+    // A delayed Journey pass can read a reconciled completion as HELD and an older
+    // snapshot of an unfinished Beat as DONE. Neither can reopen an ended run.
+    observeWorkflow(state, [
+      { visitId: "done", status: "HELD", completedAt: null, outcome: null, reason: "reconciled" },
+      { visitId: "next", status: "DONE", completedAt: at, outcome: "completed" }
+    ]);
+    expect(state).toEqual(ended);
+
+    // A later deliberate start still admits observations for the same occurrence.
+    expect(reopenEnrollmentRun(state, "STOPPED")).toBe("ACTIVE");
+    observeWorkflow(state, [{ visitId: "next", status: "DONE", completedAt: at, outcome: "completed" }]);
+    expect(state.visits.find(item => item.id === "next")?.status).toBe("DONE");
+    expect(state.visits.find(item => item.id === "done")?.status).toBe("DONE");
+  });
+
   it("ends the run's Beats and waits, keeps settled history, and stops a record with nothing else running", () => {
     const state = base();
     expect(endEnrollmentRun(state, "ACTIVE", ENROLLMENT_REMOVED_REASON, at)).toBe("STOPPED");
@@ -39,6 +59,9 @@ describe("ending and reopening an enrollment's Journey run", () => {
     expect(state.runs.map(item => [item.id, item.status])).toEqual([["root", "CANCELED"], ["child", "ACTIVE"]]);
     expect(state.transitions[0].status).toBe("STARTED");
     expect(state.visits.find(item => item.id === "child-visit")!.status).toBe("PENDING");
+    observeWorkflow(state, [{ visitId: "child-visit", status: "DONE", completedAt: at, outcome: "completed" }]);
+    expect(state.visits.find(item => item.id === "child-visit")!.status).toBe("DONE");
+    expect(state.runs[0].status).toBe("CANCELED");
   });
 
   it("puts back what it ended for a later start of the same occurrence", () => {

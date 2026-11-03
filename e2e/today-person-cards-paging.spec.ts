@@ -74,3 +74,29 @@ test("an overdue follow-up stays under Overdue, counted there, when the person's
   await expect(today.getByRole("button", { name: /^Skip this/ })).toHaveCount(0);
   await expect(overdue).toHaveCount(0);
 });
+
+test("a follow-up arriving from the next page keeps the person's open overdue review mounted (B-20)", async ({ page }) => {
+  await page.goto("/jumps"); await ready(page);
+  const overdue = page.locator('[data-today-section="overdue"]');
+  await overdue.getByRole("button", { name: /^Review message for Avery Across/ }).click();
+  const review = page.getByRole("dialog", { name: "Follow up with Avery Across", exact: true });
+  await expect(review).toBeVisible();
+  await review.evaluate(element => element.setAttribute("data-kept-review", ""));
+  const other = await prisma.jump.findFirstOrThrow({ where: { workspaceId, status: "PENDING", contact: { displayName: { not: "Avery Across" } } }, orderBy: { scheduledAt: "asc" } });
+  try {
+    // Completing someone else makes room on page one for Avery's second follow-up.
+    await prisma.jump.update({ where: { id: other.id }, data: { status: "DONE", completedAt: new Date(midnight.getTime() + 180 * 60_000), completionMethod: "outcome:connected" } });
+    await page.evaluate(() => window.dispatchEvent(new Event("jitm:workflow-updated")));
+    await expect(overdue.locator("[data-jump-workflow]")).toHaveCount(2);
+    await expect(overdue.locator(".follow-up-review-sheet[open][data-kept-review]")).toBeVisible();
+    await expect(overdue.locator(".section-label span")).toHaveText("2");
+    await expect(page.locator('[data-today-section="today"] .section-label span')).toHaveText("28");
+    await expect(page.locator(".today-page-header p").first()).toHaveText("30 follow-ups need your attention · 1 overdue.");
+    await review.getByRole("button", { name: "Close Follow up with Avery Across", exact: true }).click();
+    await expect(overdue).toHaveCount(0);
+    await expect(page.locator(".follow-up-review-sheet[open]")).toHaveCount(0);
+    await expect(page.locator('[data-today-section="today"] .section-label span')).toHaveText("30");
+  } finally {
+    await prisma.jump.update({ where: { id: other.id }, data: { status: "PENDING", completedAt: null, completionMethod: null } });
+  }
+});

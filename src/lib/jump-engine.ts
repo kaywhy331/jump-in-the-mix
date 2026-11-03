@@ -1,3 +1,4 @@
+import { lockPreparationEnrollments, preparationEnrollmentKey, type PreparationEnrollment } from "@/lib/enrollment-preparation";
 import { nextJourneyAvailability } from "@/lib/journey-availability";
 import { readJourneyPreferences } from "@/lib/journey-preferences";
 import { isDeepStrictEqual } from "node:util";
@@ -392,6 +393,8 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
   const holdBinding = (id: string, hold: BindingHold) => bindingHolds.set(id, [...(bindingHolds.get(id) ?? []), hold]);
   const evaluatedBindingIds: string[] = [];
 
+  // A follow-up can be shared by several enrollments. Any unchanged source may still prepare it.
+  const sourcesByKey = new Map<string, PreparationEnrollment[]>();
   for (const assignment of assignments) {
     if (assignment.groupId && inactiveGroupIds.has(assignment.groupId)) continue;
     const personalRule = schedulingRule(schedulingByDataSpace.get(assignment.workspaceId));
@@ -510,9 +513,11 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
       for (const trigger of triggers) {
         if (!workflowDefinitions.has(assignment.workspaceId)) workflowDefinitions.set(assignment.workspaceId, await readWorkflowDefinition(prisma, assignment.workspaceId));
         const definition = workflowDefinitions.get(assignment.workspaceId)!;
-        const workflow = definition.rules.length || definition.gatedStepIds.length ? await ensureLegacyWorkflow({ workspaceId: assignment.workspaceId, contactId: contact.id, mixId: assignment.mixId,
+        const needsWorkflow = Boolean(definition.rules.length || definition.gatedStepIds.length);
+        const workflow = needsWorkflow ? await ensureLegacyWorkflow({ workspaceId: assignment.workspaceId, contactId: contact.id, mixId: assignment.mixId,
           occurrenceKey: trigger.occurrenceKey, startedAt: zonedDateTimeToUtc(trigger.logicalDate, trigger.timeMinutes ?? 0, trigger.timezone), timezone: trigger.timezone,
-          appointmentBindingId: binding?.id ?? null, definition, passStartedAt: now }) : null;
+          appointmentBindingId: binding?.id ?? null, definition, passStartedAt: now, enrollment: assignment }) : null;
+        if (needsWorkflow && !workflow) continue;
         if (workflow && (!workflow.legacy || workflow.status === "PAUSED" || workflow.status === "STOPPED")) continue;
         const savedSteps = (workflow?.mix ?? definition.mixes.find(mix => mix.id === assignment.mixId)!).steps.filter(step => !(workflow?.gatedStepIds ?? definition.gatedStepIds).includes(step.id)).map(step => ({ ...step, plannedAt: step.plannedAt ? new Date(step.plannedAt) : null,
           stepVersionId: step.versionId, stepVersion: { subject: step.subject, body: step.body, script: step.script, stepTemplate: { channel: step.channel } } }));
@@ -589,6 +594,9 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
             appointment
           );
 
+          const sources = sourcesByKey.get(uniquenessKey) ?? [];
+          sources.push({ id: assignment.id, workspaceId: assignment.workspaceId, updatedAt: assignment.updatedAt });
+          sourcesByKey.set(uniquenessKey, sources);
           desired.set(uniquenessKey, {
             workflowInstanceId: workflow?.id ?? null,
             workflowVisitId: workflowVisit?.id ?? null,
@@ -686,17 +694,21 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     updates.push({ existing, desired: desiredJump });
   }
 
+  const allowedKeys = async (tx: Prisma.TransactionClient, keys: string[]) => {
+    const valid = await lockPreparationEnrollments(tx, keys.flatMap(key => sourcesByKey.get(key) ?? []));
+    return new Set(keys.filter(key => sourcesByKey.get(key)?.some(source => valid.has(preparationEnrollmentKey(source)))));
+  };
   for (const batch of chunks(creates)) {
-    const carries = batch.flatMap((item) => (draftCarries.has(item.uniquenessKey) ? [{ uniquenessKey: item.uniquenessKey, fromJumpId: draftCarries.get(item.uniquenessKey)! }] : []));
-    if (!carries.length) {
-      created += (await prisma.jump.createMany({ data: batch, skipDuplicates: true })).count;
-      continue;
-    }
-    // The regenerated rows and their carried drafts land together. Whole draft rows are re-keyed;
-    // their text is never inspected. The source must still be pending, so a draft on a row the
-    // owner completed after this pass read it stays where it is.
     created += await prisma.$transaction(async (tx) => {
-      const result = await tx.jump.createMany({ data: batch, skipDuplicates: true });
+      const allowed = await allowedKeys(tx, batch.map(item => item.uniquenessKey));
+      const eligible = batch.filter(item => allowed.has(item.uniquenessKey));
+      if (!eligible.length) return 0;
+      const carries = eligible.flatMap((item) => (draftCarries.has(item.uniquenessKey) ? [{ uniquenessKey: item.uniquenessKey, fromJumpId: draftCarries.get(item.uniquenessKey)! }] : []));
+      // The regenerated rows and their carried drafts land together. Whole draft rows are re-keyed;
+      // their text is never inspected. The source must still be pending, so a draft on a row the
+      // owner completed after this pass read it stays where it is.
+      const result = await tx.jump.createMany({ data: eligible, skipDuplicates: true });
+      if (!carries.length) return result.count;
       const createdRows = await tx.jump.findMany({ where: { uniquenessKey: { in: carries.map((carry) => carry.uniquenessKey) } }, select: { id: true, uniquenessKey: true } });
       const idByKey = new Map(createdRows.map((row) => [row.uniquenessKey, row.id]));
       for (const carry of carries) {
@@ -716,30 +728,33 @@ export async function reconcileJumps(filters: ReconciliationFilters = {}): Promi
     });
   }
   for (const batch of chunks(updates, 100)) {
-    const results = await prisma.$transaction(batch.map(({ existing, desired: desiredJump }) => prisma.jump.updateMany({
-      // Guarded on the row exactly as this pass read it, so a snooze, stop, pause, completion or
-      // outcome recorded in the meantime is never overwritten. The next pass sees the new state.
-      where: { id: existing.id, status: existing.status, updatedAt: existing.updatedAt },
-      data: {
-        workflowInstanceId: desiredJump.workflowInstanceId,
-        workflowVisitId: desiredJump.workflowVisitId,
-        workspaceId: desiredJump.workspaceId,
-        contactId: desiredJump.contactId,
-        jumpDateId: desiredJump.jumpDateId,
-        mixId: desiredJump.mixId,
-        mixStepId: desiredJump.mixStepId,
-        stepVersionId: desiredJump.stepVersionId,
-        scheduledAt: desiredJump.scheduledAt,
-        baseScheduledAt: desiredJump.baseScheduledAt,
-        reason: desiredJump.reason,
-        templateSnapshot: desiredJump.templateSnapshot,
-        renderedSnapshot: desiredJump.renderedSnapshot,
-        appointmentBindingId: desiredJump.appointmentBindingId,
-        status: existing.status === "CANCELED" ? "PENDING" : existing.status,
-        completedAt: null,
-        completionMethod: null
-      }
-    })));
+    const results = await prisma.$transaction(async tx => {
+      const allowed = await allowedKeys(tx, batch.map(item => item.desired.uniquenessKey));
+      return Promise.all(batch.filter(item => allowed.has(item.desired.uniquenessKey)).map(({ existing, desired: desiredJump }) => tx.jump.updateMany({
+        // Guarded on the row exactly as this pass read it, so a snooze, stop, pause, completion or
+        // outcome recorded in the meantime is never overwritten. The next pass sees the new state.
+        where: { id: existing.id, status: existing.status, updatedAt: existing.updatedAt },
+        data: {
+          workflowInstanceId: desiredJump.workflowInstanceId,
+          workflowVisitId: desiredJump.workflowVisitId,
+          workspaceId: desiredJump.workspaceId,
+          contactId: desiredJump.contactId,
+          jumpDateId: desiredJump.jumpDateId,
+          mixId: desiredJump.mixId,
+          mixStepId: desiredJump.mixStepId,
+          stepVersionId: desiredJump.stepVersionId,
+          scheduledAt: desiredJump.scheduledAt,
+          baseScheduledAt: desiredJump.baseScheduledAt,
+          reason: desiredJump.reason,
+          templateSnapshot: desiredJump.templateSnapshot,
+          renderedSnapshot: desiredJump.renderedSnapshot,
+          appointmentBindingId: desiredJump.appointmentBindingId,
+          status: existing.status === "CANCELED" ? "PENDING" : existing.status,
+          completedAt: null,
+          completionMethod: null
+        }
+      })));
+    });
     updated += results.reduce((sum, result) => sum + result.count, 0);
   }
 

@@ -6,6 +6,8 @@ import { createBroadcastFixture, type BroadcastFixture } from "./helpers/broadca
 
 const DAY = 86_400_000;
 const TIMEZONE = "America/Denver";
+/** The clock the visit is planned from: 6:00 AM in Denver on September 15, 2026, well clear of the November DST change. */
+const T0 = new Date("2026-09-15T12:00:00Z");
 /** Tomorrow at 14:00 in Denver (20:00 UTC in September), so a same-day beat can fall on either side of the start. */
 function tomorrowAtTwo(): Date {
   const now = new Date();
@@ -29,7 +31,7 @@ describe.sequential("visit outcomes anchor the bound plan", () => {
   };
 
   beforeAll(async () => {
-    setClock(new Date());
+    setClock(T0);
     fixture = await createBroadcastFixture("outcome", "Sam");
     workspaceId = fixture.workspaceId;
     const template = await prisma.stepTemplate.create({ data: { workspaceId, name: "Visit plan", channel: "SMS" } });

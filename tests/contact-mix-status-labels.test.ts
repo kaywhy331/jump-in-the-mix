@@ -29,12 +29,12 @@ describe("No Mix wording (JITM-09 §2.76–§2.77)", () => {
   });
 
   it("says nothing about a start day for a fixed-date Mix, and words the sheet by how the Mix starts (COPY-02)", () => {
-    expect(notice({ started: 2 }, { startsToday: false, triggerMode: "BROADCAST" })).toBe("Estimate follow-up goes out to 2 people on its fixed date.");
-    expect(notice({ started: 1, "already-running": 1 }, { triggerMode: "BROADCAST" })).toBe("Estimate follow-up goes out to 1 person on its fixed date. 1 was already in it and keeps their start.");
+    expect(notice({ started: 2 }, { startsToday: false, triggerMode: "BROADCAST" })).toBe("Estimate follow-up has follow-ups due for 2 people on its fixed date.");
+    expect(notice({ started: 1, "already-running": 1 }, { triggerMode: "BROADCAST" })).toBe("Estimate follow-up has follow-ups due for 1 person on its fixed date. 1 was already in it and keeps their start.");
     // D46's sentence stays for a hand-started Mix; only that kind runs again for someone who finished it.
     expect(bulkMixSheetSentence("MANUAL_START")).toBe("Anyone who already finished this Mix starts it again. Anyone still in it keeps their start.");
     expect(bulkMixSheetSentence("DATE_TRIGGERED")).toBe("It follows each person’s saved date. Anyone without one gets the start day as their date. Anyone still in it keeps their start.");
-    expect(bulkMixSheetSentence("BROADCAST")).toBe("It goes out on its fixed date. Anyone still in it keeps their start.");
+    expect(bulkMixSheetSentence("BROADCAST")).toBe("Follow-ups are due on its fixed date. Anyone still in it keeps their start.");
     for (const mode of ["DATE_TRIGGERED", "BROADCAST"]) expect(bulkMixSheetSentence(mode)).not.toMatch(/starts it again/);
   });
 

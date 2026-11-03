@@ -186,7 +186,10 @@ test("the list's summary keeps its controls 44px tall and 8px apart on narrow ph
   await page.goto("/contacts"); await ready(page);
   for (const width of [320, 360, 375, 390]) {
     await page.setViewportSize({ width, height: 700 });
-    const reading = await page.locator(".contact-list-summary").evaluate(element => {
+    const summary = page.locator(".contact-list-summary");
+    // Navigation can retain a hidden list behind Loading contacts. Measure the visible destination.
+    await expect(summary).toBeVisible();
+    const reading = await summary.evaluate(element => {
       const items = [...element.querySelectorAll<HTMLElement>("a[href], button, select")].filter(item => item.getClientRects().length).map(item => item.getBoundingClientRect());
       const apart = (a: DOMRect, b: DOMRect) => Math.max(b.left - a.right, a.left - b.right, b.top - a.bottom, a.top - b.bottom);
       return { count: items.length, smallest: Math.min(...items.map(box => box.height)), nearest: Math.min(...items.flatMap((a, i) => items.slice(i + 1).map(b => apart(a, b)))) };

@@ -1,3 +1,4 @@
+import { execFileSync } from "node:child_process";
 import { existsSync, lstatSync, readdirSync, readFileSync, realpathSync } from "node:fs";
 import { dirname, join, relative, resolve } from "node:path";
 
@@ -60,6 +61,24 @@ function parseFrontmatter(text) {
     }
   }
   return { data, body: text.slice(match[0].length) };
+}
+
+// Orca task worktrees carry its bootstrap, uncommitted, above the Next.js block: an optional ORCA-WORKFLOW marker pair
+// around a "Mandatory Orca entry point" section with no other comment markers, ending just before the Next.js block.
+function orcaOverlay(text) {
+  const match = text.match(/^(<!-- ORCA-WORKFLOW:BEGIN -->\n)?## Mandatory Orca entry point\n(?:(?!<!--)[\s\S])*?(<!-- ORCA-WORKFLOW:END -->\n)?\s*(?=<!-- BEGIN:nextjs-agent-rules -->)/);
+  return match && Boolean(match[1]) === Boolean(match[2]) ? match[0] : "";
+}
+
+// The committed and staged copies of a file, or null outside a Git checkout rooted here (an archive is committed content).
+function committedCopies(path) {
+  const git = (...args) => execFileSync("git", args, { cwd: root, encoding: "utf8", stdio: ["ignore", "pipe", "ignore"] });
+  try {
+    if (realpathSync(git("rev-parse", "--show-toplevel").trim()) !== realpathSync(root)) return null;
+    return [`HEAD:${path}`, `:${path}`].map((spec) => git("show", spec).replace(/\r\n/g, "\n"));
+  } catch {
+    return null;
+  }
 }
 
 // Removes fenced and inline code so examples are not treated as links or citations.
@@ -187,11 +206,21 @@ if (!exists(indexPath)) {
   for (const name of workflowFiles) if (!index.includes(`](workflows/${name})`)) fail(indexPath, `does not link workflows/${name}`);
 }
 
+// A leading Orca overlay is set aside only while Git shows neither the committed nor the staged router carries it.
+// Committed, staged or in an archive, it is ordinary text above the Next.js block and fails below.
+const agentsFile = exists("AGENTS.md") ? read("AGENTS.md") : "";
+const overlay = orcaOverlay(agentsFile);
+const overlayCommitted = overlay !== "" && (committedCopies("AGENTS.md")?.some((copy) => orcaOverlay(copy) !== "") ?? true);
+if (overlayCommitted) fail("AGENTS.md", "the Orca bootstrap block must stay an uncommitted overlay");
+const agentsText = overlayCommitted ? agentsFile : agentsFile.slice(overlay.length);
+// Lines the overlay occupies, so findings in the rest of the router keep their line numbers in the file.
+const agentsOffset = overlayCommitted ? 0 : overlay.split("\n").length - 1;
+
 // Router: the Next.js block stays first and intact; the rest stays within budget and names every skill.
 if (!exists("AGENTS.md")) {
   fail("AGENTS.md", "missing");
 } else {
-  const agents = read("AGENTS.md");
+  const agents = agentsText;
   const begin = agents.indexOf(BEGIN_MARKER);
   const end = agents.indexOf(END_MARKER);
   if (agents.trimStart().indexOf(BEGIN_MARKER) !== 0) fail("AGENTS.md", "must start with the Next.js agent-rules block");
@@ -240,7 +269,8 @@ const hygiene = [
 ];
 
 for (const path of scoped) {
-  const text = read(path);
+  const text = path === "AGENTS.md" ? agentsText : read(path);
+  const firstLine = path === "AGENTS.md" ? agentsOffset + 1 : 1;
   const code = stripCode(text);
   for (const match of code.matchAll(/\bJITM-(\d{2})(?:\s*§\s*(\d+(?:\.\d+)?))?/g)) {
     const [, number, anchor] = match;
@@ -265,7 +295,7 @@ for (const path of scoped) {
     if (!existsSync(resolved)) fail(path, `broken link ${match[1]} (${relative(root, resolved)})`);
   }
   text.split("\n").forEach((line, index) => {
-    for (const [pattern, label] of hygiene) if (pattern.test(line)) fail(`${path}:${index + 1}`, `${label} in committed text`);
+    for (const [pattern, label] of hygiene) if (pattern.test(line)) fail(`${path}:${index + firstLine}`, `${label} in committed text`);
   });
 }
 

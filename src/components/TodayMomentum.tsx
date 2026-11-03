@@ -1,14 +1,17 @@
 "use client";
 
-import { createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
+import { Fragment, createContext, useContext, useEffect, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type ReactNode } from "react";
 import type { JumpStateDetail } from "@/components/JumpWorkflow";
 import { setOpenReviewSlot } from "@/components/useConfirmationTarget";
+import { useTodayReviewPlacement } from "@/components/TodayReviewPlacement";
+import { placeTodayGroups, type TodayDueGroup } from "@/lib/today-review-placement";
 
 type Section = "overdue" | "today" | "upcoming";
 type Counts = Record<Section | "done", number>;
 type Moved = { section: Section; overdue: boolean; skipped: boolean };
 
-const CountsContext = createContext<{ counts: Counts; overdue: number; zero: string } | null>(null);
+type DueGroup = TodayDueGroup & { content: ReactNode };
+const CountsContext = createContext<{ counts: Counts; overdue: number; zero: string; groups: { overdue: DueGroup[]; today: DueGroup[] } } | null>(null);
 const DUE_CARDS = '[data-today-section="overdue"] [data-jump-workflow], [data-today-section="today"] [data-jump-workflow]';
 // The card's own Review button; the review's "open your app" link records a handoff and is never clicked.
 const REVIEW_TRIGGER = ".sheet-trigger > [data-review-trigger]";
@@ -35,7 +38,9 @@ function isOverdue(jumpId: string): boolean {
  * server would show with nothing due. The sections count the follow-ups they show; `overdue`, for the header, counts
  * every overdue one, including one on a person's card under Today (D71).
  */
-export function TodayLiveCounts({ initial, overdue, readAt, doneCounts, zero, children }: { initial: Counts; overdue: number; readAt: string; doneCounts: { done: boolean; skipped: boolean }; zero: string; children: ReactNode }) {
+export function TodayLiveCounts({ initial, overdue, readAt, doneCounts, zero, dueGroups, children }: { initial: Counts; overdue: number; readAt: string; doneCounts: { done: boolean; skipped: boolean }; zero: string; dueGroups: DueGroup[]; children: ReactNode }) {
+  const { pin } = useTodayReviewPlacement();
+  const groups = useMemo(() => placeTodayGroups(dueGroups, pin), [dueGroups, pin]);
   const key = `${readAt}:${initial.overdue}:${initial.today}:${initial.upcoming}:${initial.done}:${overdue}`;
   const [moved, setMoved] = useState<{ key: string; items: Map<string, Moved> }>({ key, items: new Map() });
   const items = useMemo(() => moved.key === key ? moved.items : new Map<string, Moved>(), [moved, key]);
@@ -63,16 +68,31 @@ export function TodayLiveCounts({ initial, overdue, readAt, doneCounts, zero, ch
     return () => window.removeEventListener("jitm:jump-state", onState);
   }, [key]);
   const value = useMemo(() => {
-    const counts = { ...initial };
+    const counts = { ...initial, overdue: initial.overdue + groups.overdueAdjustment, today: initial.today - groups.overdueAdjustment };
+    const sections = new Map(groups.overdue.flatMap(group => group.jumpIds.map(id => [id, "overdue"] as const)));
+    const todayIds = new Set(groups.today.flatMap(group => group.jumpIds));
     let overdueLeft = overdue;
-    for (const item of items.values()) {
-      counts[item.section] = Math.max(0, counts[item.section] - 1);
+    for (const [jumpId, item] of items) {
+      // A closed review releases its pin before the outcome's fresh read. Subtract from the card's current placement,
+      // rather than the section it occupied when the outcome was recorded.
+      const section = sections.get(jumpId) ?? (todayIds.has(jumpId) ? "today" : item.section);
+      counts[section] = Math.max(0, counts[section] - 1);
       if (item.overdue) overdueLeft = Math.max(0, overdueLeft - 1);
       if (item.skipped ? doneCounts.skipped : doneCounts.done) counts.done += 1;
     }
-    return { counts, overdue: overdueLeft, zero };
-  }, [initial, overdue, items, doneCounts.done, doneCounts.skipped, zero]);
+    return { counts, overdue: overdueLeft, zero, groups };
+  }, [initial, overdue, items, doneCounts.done, doneCounts.skipped, zero, groups]);
   return <CountsContext.Provider value={value}>{children}</CountsContext.Provider>;
+}
+
+/** The same keyed card stays under the same section throughout its open review, even when the server regroups it. */
+export function TodayDueSections() {
+  const live = useContext(CountsContext);
+  if (!live) return null;
+  return <>{(["overdue", "today"] as const).map(name => live.groups[name].length > 0 && <LiveSection key={name} name={name} aria-labelledby={`${name}-follow-ups`}>
+    <div className={`section-label${name === "overdue" ? " urgent" : ""}`}><h2 id={`${name}-follow-ups`}>{name === "overdue" ? "Overdue" : "Today"}</h2><span><LiveCount name={name} /></span></div>
+    <div className="jump-list">{live.groups[name].map(group => <Fragment key={group.contactId}>{group.content}</Fragment>)}</div>
+  </LiveSection>)}</>;
 }
 
 /** One of Today's live counts. */
@@ -119,6 +139,7 @@ export function LiveAttentionSummary() {
  * asks what's next for that person instead.
  */
 export function TodayMomentum() {
+  const { settle } = useTodayReviewPlacement();
   useEffect(() => {
     let frame = 0, opened: HTMLDialogElement | null = null, slot: HTMLElement | null = null, tallest = 0;
     // In a docked review the slot keeps the tallest height it has had while the review stays open, so a confirmation
@@ -132,10 +153,10 @@ export function TodayMomentum() {
       slot.style.minHeight = tallest ? `${tallest}px` : "";
     });
     // A phone review's sheet pads its scrolling by the height of its action bar, which stays at the bottom. When the header
-    // and the bar would take more than half the sheet, or the room between them can't hold the message, as with large text
+    // and the bar would take more than half the sheet, or the room left after confirmations can't hold the message, as with large text
     // or on a short screen, the bar scrolls with the review instead, so no field is caught between the two (JITM-07 §2.26,
     // LAY-06). Sticking changes no sizes (the bar keeps its padding), so the choice can't feed back on itself (LAY-08).
-    let bar: HTMLElement | null = null, panel: HTMLElement | null = null, field: HTMLElement | null = null;
+    let bar: HTMLElement | null = null, panel: HTMLElement | null = null, field: HTMLElement | null = null, confirmations: HTMLElement | null = null;
     // Each bar's height with no outcome choices open, kept while the review is closed and reopened (LAY-09), and the bars
     // whose choices are open, so opened choices are brought into view once.
     const restingHeights = new WeakMap<HTMLElement, number>();
@@ -184,7 +205,8 @@ export function TodayMomentum() {
       const opening = Boolean(choices) && !choicesOpen.has(bar);
       if (choices) choicesOpen.add(bar);
       const resting = restingHeights.get(bar) ?? height;
-      const flows = header + resting > panel.clientHeight / 2 || panel.clientHeight - header - height < (field?.getBoundingClientRect().height ?? 0) + 24;
+      const confirmed = confirmations?.getBoundingClientRect().height ?? 0;
+      const flows = header + resting > panel.clientHeight / 2 || panel.clientHeight - header - height - confirmed < (field?.getBoundingClientRect().height ?? 0) + 24;
       const started = flows && !panel.hasAttribute("data-review-bar-flows");
       panel.toggleAttribute("data-review-bar-flows", flows);
       const sheet = panel;
@@ -220,10 +242,12 @@ export function TodayMomentum() {
       // The message's bubble is what the owner sees, and it draws the field's focus ring.
       const message = next?.closest(".sheet-panel")?.querySelector<HTMLElement>("textarea") ?? null;
       const nextField = message?.closest<HTMLElement>(".speech-bubble--compose") ?? message;
-      if (next === bar && nextField === field) return;
-      for (const element of [bar, panel, field]) if (element) barSizes.unobserve(element);
-      bar = next; panel = next?.closest<HTMLElement>(".sheet-panel") ?? null; field = nextField;
-      for (const element of [bar, panel, field]) if (element) barSizes.observe(element);
+      const nextConfirmations = next?.closest(".sheet-panel")?.querySelector<HTMLElement>("[data-sheet-momentum]") ?? null;
+      if (next === bar && nextField === field && nextConfirmations === confirmations) return;
+      for (const element of [bar, panel, field, confirmations]) if (element) barSizes.unobserve(element);
+      bar = next; panel = next?.closest<HTMLElement>(".sheet-panel") ?? null; field = nextField; confirmations = nextConfirmations;
+      // A confirmation can grow (including an Undo error) or expire without resizing the sheet or the message.
+      for (const element of [bar, panel, field, confirmations]) if (element) barSizes.observe(element);
       notices.disconnect();
       if (panel) notices.observe(panel, { subtree: true, childList: true });
     };
@@ -259,6 +283,8 @@ export function TodayMomentum() {
       // still asking, is the owner's.
       frame = requestAnimationFrame(() => {
         frame = requestAnimationFrame(() => {
+          // Pin release can reparent the next card. Commit that placement before resolving its current trigger.
+          settle();
           const focused = document.activeElement;
           if (document.querySelector("dialog[open], [data-today-notice]")) return;
           if (focused instanceof HTMLElement && focused.matches("input, textarea, select, [contenteditable]:not([contenteditable='false'])")) return;
@@ -282,6 +308,6 @@ export function TodayMomentum() {
       if (slot) slot.style.minHeight = "";
       setOpenReviewSlot(null);
     };
-  }, []);
+  }, [settle]);
   return null;
 }

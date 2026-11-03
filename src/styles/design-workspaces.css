@@ -11,6 +11,7 @@
 .sidebar .nav-link.active svg { color: var(--violet-mark); }
 .sidebar .nav-more { display: none; }
 .sidebar-footer { border: 0; padding: 0 8px; gap: 12px; }
+.sidebar .account-sidebar-actions .sidebar-profile-trigger { min-width: 44px; min-height: 44px; }
 .sidebar-utilities { display: grid; gap: 4px; }
 .sidebar-utilities a { display: flex; gap: 12px; align-items: center; min-height: 44px; font-size: .875rem; color: var(--text-2); }
 .sidebar-utilities a { padding: 8px; border-radius: var(--radius-control); }
@@ -207,7 +208,9 @@
   .sidebar .nav-link { padding: 10px 2px; flex-direction: column; gap: 4px; font-size: .75rem; overflow-wrap: anywhere; }
   .sidebar-footer { padding: 0; }
   .sidebar-utilities a { justify-content: center; font-size: 0; gap: 0; }
+  .sidebar .account-sidebar-actions > .sheet-trigger { width: 100%; }
   .sidebar .account-sidebar-actions .button { width: 100%; font-size: .75rem; padding-inline: 2px; overflow-wrap: anywhere; }
+  .sidebar .account-sidebar-actions .sidebar-profile-trigger { font-size: 0; gap: 0; justify-content: center; }
 }
 @media (min-width: 768px) and (max-width: 900px) {
   .app-main:has(.today-page) { padding: 24px 20px calc(100px + env(safe-area-inset-bottom)); }

@@ -13,7 +13,7 @@ export const visitTimedBeats = { where: { isActive: true, anchor: { not: "CALEND
 export type MixStartOutcome = {
   /** started, already running (keeps its start), saved date kept, or date written. */
   result: MixStartResult;
-  /** The day the confirmation names (YYYY-MM-DD): the chosen day, or the start a running Mix keeps; "saved" when it follows the person's saved date. */
+  /** The day the confirmation names (YYYY-MM-DD): the chosen day, or the start a running Mix keeps; "saved" for the person's saved date, "fixed" for the Mix's own date. */
   startedOn: string;
   /** Whether any of the Mix's Beats is timed from an appointment, so it waits until the person is lined up with a visit. */
   waitsForVisit: boolean;
@@ -38,7 +38,7 @@ export async function startMixForContact(tx: Prisma.TransactionClient, input: { 
   await assertMixStartEligible(tx, workspaceId, contactId, mix.id);
   const assignmentKey = `${workspaceId}:${mix.id}:${contactId}`;
   const startAt = zonedDateTimeToUtc(start, 12 * 60, timezone);
-  let startedOn: string = logicalDateKey(start);
+  let startedOn: string = mix.triggerMode === "BROADCAST" ? "fixed" : logicalDateKey(start);
   const previous = await tx.mixAssignment.findUnique({ where: { assignmentKey }, select: { isActive: true, startDate: true, mode: true } });
   // A finished or removed plan restarts from the chosen day; one still running keeps its start.
   const restart = !previous || !previous.isActive || !(await tx.jump.count({ where: { workspaceId, contactId, mixId: mix.id, status: "PENDING" } }));

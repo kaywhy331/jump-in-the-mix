@@ -13,10 +13,10 @@ import { customerRoutes } from '../scripts/lib/load-probe.mjs';
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? '');
 const pause = ms => new Promise(resolve => setTimeout(resolve, ms));
-async function until(check, timeout = 20000) {
+async function until(check, timeout = 20000, diagnostic = () => '') {
   const deadline = Date.now() + timeout;
   while (Date.now() < deadline) { const result = await check(); if (result) return result; await pause(100); }
-  throw new Error('Fixture observation timed out.');
+  throw new Error(`Fixture observation timed out. ${diagnostic()}`.trim());
 }
 
 describe.skipIf(!local || process.env.RUN_HOSTED_LOAD_WEB_TESTS !== 'true').sequential('hosted fixture lifecycle on an owned local source', () => {
@@ -40,7 +40,9 @@ describe.skipIf(!local || process.env.RUN_HOSTED_LOAD_WEB_TESTS !== 'true').sequ
     child.stdout.on('data', chunk => { run.output += chunk; pending += chunk; const lines = pending.split('\n'); pending = lines.pop(); for (const line of lines) { try { const event = JSON.parse(line); run.events.push(event); if (run.cancelOnReady && event.event === 'ready') child.kill('SIGTERM'); } catch {} } });
     child.stderr.on('data', chunk => { run.errors += chunk; });
     run.done = new Promise(resolve => child.once('close', (code, signal) => { run.ended = true; resolve({ code, signal }); }));
-    run.event = (name, after = 0) => until(() => { const event = run.events.slice(after).find(value => value.event === name); if (event) return event; if (run.ended) throw new Error(`Fixture exited before ${name}: ${run.output} ${run.errors}`); }, 90000);
+    const diagnostic = waiting => `Waiting for ${waiting}; events: ${JSON.stringify(run.events)}; stderr: ${run.errors}`;
+    run.event = (name, after = 0, timeout = 90000) => until(() => { const event = run.events.slice(after).find(value => value.event === name); if (event) return event; if (run.ended) throw new Error(`Fixture exited before ${name}: ${run.output} ${run.errors}`); }, timeout, () => diagnostic(name));
+    run.exit = async (timeout) => { await until(() => run.ended, timeout, () => diagnostic('process exit')); return run.done; };
     return run;
   }
   async function setup(profile = { accounts: 2, contactsPerAccount: 100, historyPerContact: 2, mixesPerAccount: 10, beatsPerMix: 6 }) {
@@ -155,12 +157,29 @@ describe.skipIf(!local || process.env.RUN_HOSTED_LOAD_WEB_TESTS !== 'true').sequ
     await removed(fixture.plan);
   }, 120000);
   it('cleans up after controller cancellation', async () => {
-    const fixture = await setup(), run = fixture.start();
+    // Cancellation needs real resources, not the larger import/load profile.
+    // Use the minimum valid profile and retain the 90-second total budget.
+    const fixture = await setup({ accounts: 2, contactsPerAccount: 100, historyPerContact: 1, mixesPerAccount: 2, beatsPerMix: 6 });
+    const run = fixture.start();
     // Cancel on the readiness event, while the initial snapshot may still be in
     // flight; polling first usually waits until the command loop is listening.
-    run.cancelOnReady = true; await run.event('ready');
-    expect((await run.done).code).toBe(0);
-    expect(run.events.find(event => event.event === 'cleanup')).toMatchObject({ databaseRemoved: true, roleRemoved: true, credentialsRemoved: true });
+    run.cancelOnReady = true;
+    expect(await run.event('ready', 0, 60000)).toMatchObject({ id: fixture.plan.id, fixtureRoleRestricted: true, sourceCustomerReadDenied: true });
+    expect(await run.event('cleanup', 0, 20000)).toMatchObject({ id: fixture.plan.id, databaseRemoved: true, roleRemoved: true, credentialsRemoved: true });
+    expect(await run.exit(5000)).toEqual({ code: 0, signal: null });
+    expect(run.events.filter(event => event.event === 'cleanup-progress').map(event => event.phase)).toEqual([
+      'stop-web', 'close-database-connection', 'remove-database', 'remove-role', 'close-owner-and-log', 'remove-credentials'
+    ]);
+    expect(run.events.filter(event => event.event === 'cleanup')).toHaveLength(1);
+    expect(run.events.filter(event => event.event === 'failed')).toEqual([]);
+    for (const name of ['accounts.json', 'worker.json']) await expect(stat(join(fixture.output, name))).rejects.toMatchObject({ code: 'ENOENT' });
+    // Independently prove the child released its listening socket, too.
+    const releasedPort = createServer();
+    try {
+      await new Promise((resolve, reject) => { releasedPort.once('error', reject); releasedPort.listen(fixture.plan.port, '127.0.0.1', resolve); });
+    } finally {
+      if (releasedPort.listening) await new Promise(resolve => releasedPort.close(resolve));
+    }
     await removed(fixture.plan);
   }, 90000);
   it('rejects a recovery-held source before creating fixtures', async () => {
