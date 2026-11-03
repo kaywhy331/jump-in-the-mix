@@ -2,6 +2,8 @@
 
 Live at https://jumpinthemix.com since 2026-10-14 03:08 UTC (web cutover). The final check passed at 03:09:57 UTC.
 
+Historical release record: the later October 14 release is documented in [the Today review and layout release record (#159)](https://github.com/kaywhy331/jump-in-the-mix/pull/159). The observations and unresolved questions below are preserved as recorded for this release.
+
 This release patches three dependencies with high-severity advisories (#154): Next.js 16.3.8, sharp 0.35.5 and `source-map-js` 1.2.2. It also brings the UX follow-ups release record (#152) and the decision record D112–D121 (#153). It has no migration and changes no data. Rollback: redeploy `prod-2026-10-13-4d5c307`, web first and then the worker.
 
 | Item | Value |
