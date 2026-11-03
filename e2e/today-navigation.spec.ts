@@ -178,6 +178,50 @@ test("pagination stays reachable across themes, phone and sidebar breakpoints", 
   }
 });
 
+test("navigation labels never break inside a word at 320px with 200% text", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await visit(page);
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.evaluate(() => document.fonts.ready);
+
+  // Quick Add has an accessible name but no visible text label.
+  const labels = page.locator(".mobile-nav .nav-link > span:visible");
+  expect(await labels.count()).toBeGreaterThan(0);
+  for (const colorScheme of ["light", "dark"] as const) {
+    await theme(page, colorScheme);
+    for (const label of await labels.all()) {
+      const link = label.locator("..");
+      await expect(link).toBeVisible();
+      const words = await label.evaluate(element => {
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        const measurements: { word: string; lines: number; left: number; right: number }[] = [];
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          for (const match of (node.textContent ?? "").matchAll(/\S+/g)) {
+            const range = document.createRange();
+            range.setStart(node, match.index);
+            range.setEnd(node, match.index + match[0].length);
+            const rects = Array.from(range.getClientRects());
+            measurements.push({ word: match[0], lines: new Set(rects.map(rect => rect.top)).size,
+              left: Math.min(...rects.map(rect => rect.left)), right: Math.max(...rects.map(rect => rect.right)) });
+          }
+        }
+        return measurements;
+      });
+      expect(words.length).toBeGreaterThan(0);
+      const target = (await link.boundingBox())!;
+      for (const { word, lines, left, right } of words) {
+        expect(lines, `${colorScheme}: ${word}`).toBe(1);
+        // Keeping a word whole must not let it overlap a neighboring control.
+        expect(left, `${colorScheme}: ${word} left edge`).toBeGreaterThanOrEqual(target.x);
+        expect(right, `${colorScheme}: ${word} right edge`).toBeLessThanOrEqual(target.x + target.width);
+      }
+      expect(target.width).toBeGreaterThanOrEqual(44);
+      expect(target.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  }
+});
+
 test("history says when a follow-up was sent automatically instead of offering to reopen it", async ({ page }) => {
   await prisma.jump.update({ where: { id: completedIds[0] }, data: { completionMethod: "automatic:sms" } });
   try {
