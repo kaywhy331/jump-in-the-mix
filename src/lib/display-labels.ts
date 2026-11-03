@@ -61,12 +61,12 @@ export function zoneLabel(zone: string): string {
 export function zoneGenericName(zone: string, at = new Date()): string {
   const canonical = ZONE_ALIASES.get(zone) ?? zone;
   const productName = ZONE_NAMES.get(canonical);
+  // Named zones keep the product's vocabulary even when ICU returns an offset or adds a city suffix.
+  if (productName) return productName;
   try {
-    const name = new Intl.DateTimeFormat("en-US", { timeZone: canonical, timeZoneName: "longGeneric" }).formatToParts(at).find(part => part.type === "timeZoneName")?.value;
-    // ICU versions can return an offset instead of a generic name, even for a known zone.
-    return name && !/^GMT(?:[+-]\d{1,2}(?::?\d{2})?)?$/.test(name) ? name : productName ?? name ?? zone;
+    return new Intl.DateTimeFormat("en-US", { timeZone: canonical, timeZoneName: "longGeneric" }).formatToParts(at).find(part => part.type === "timeZoneName")?.value ?? zone;
   } catch {
-    return productName ?? zone;
+    return zone;
   }
 }
 // Display-only IANA links. Do not use these names to calculate offsets or rewrite saved zones.
@@ -105,7 +105,7 @@ const ZONE_ALIASES = new Map<string, string>([
   ["NZ", "Pacific/Auckland"],
   ["NZ-CHAT", "Pacific/Chatham"]
 ]);
-// Product-owned English names used only when Intl has no name. Other zones keep Intl's live data.
+// Product-owned English names stay stable across ICU releases. Other zones keep Intl's live data.
 const ZONE_NAMES = new Map<string, string>([
   ["America/New_York", "Eastern Time"],
   ["America/Chicago", "Central Time"],
@@ -118,7 +118,7 @@ const ZONE_NAMES = new Map<string, string>([
   ["America/Indiana/Indianapolis", "Eastern Time"],
   ["America/Indiana/Knox", "Central Time"],
   ["America/Detroit", "Eastern Time"],
-  ["Pacific/Pago_Pago", "Samoa Standard Time"],
+  ["Pacific/Pago_Pago", "American Samoa Standard Time"],
   ["America/Kentucky/Louisville", "Eastern Time"],
   ["Europe/Lisbon", "Western European Time"],
   ["Europe/Brussels", "Central European Time"],
@@ -131,7 +131,7 @@ const ZONE_NAMES = new Map<string, string>([
   ["Asia/Tokyo", "Japan Standard Time"],
   ["Pacific/Auckland", "New Zealand Time"],
   ["Pacific/Chatham", "Chatham Time"],
-  ["Australia/Sydney", "Eastern Australia Time"]
+  ["Australia/Sydney", "Australian Eastern Time"]
 ]);
 const UTC_ZONES = new Set(["UTC", "Etc/UTC", "UCT", "Etc/UCT", "Universal", "Etc/Universal", "Zulu", "Etc/Zulu", "GMT", "Etc/GMT", "GMT0", "Etc/GMT0", "GMT+0", "Etc/GMT+0", "GMT-0", "Etc/GMT-0", "Greenwich", "Etc/Greenwich"]);
 // Islands whose zone is named without the word, so "Christmas time" would mislead.

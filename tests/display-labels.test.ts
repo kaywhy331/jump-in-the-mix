@@ -20,7 +20,7 @@ const namedZones = [
   ["America/Indiana/Indianapolis", "Eastern Time", ["US/East-Indiana", "America/Indianapolis"]],
   ["America/Indiana/Knox", "Central Time", ["US/Indiana-Starke"]],
   ["America/Detroit", "Eastern Time", ["US/Michigan"]],
-  ["Pacific/Pago_Pago", "Samoa Standard Time", ["US/Samoa"]],
+  ["Pacific/Pago_Pago", "American Samoa Standard Time", ["US/Samoa"]],
   ["America/Kentucky/Louisville", "Eastern Time", ["America/Louisville"]],
   ["Europe/Lisbon", "Western European Time", ["WET"]],
   ["Europe/Brussels", "Central European Time", ["CET", "MET"]],
@@ -33,7 +33,7 @@ const namedZones = [
   ["Asia/Tokyo", "Japan Standard Time", ["Japan"]],
   ["Pacific/Auckland", "New Zealand Time", ["NZ"]],
   ["Pacific/Chatham", "Chatham Time", ["NZ-CHAT"]],
-  ["Australia/Sydney", "Eastern Australia Time", []]
+  ["Australia/Sydney", "Australian Eastern Time", []]
 ] as const;
 
 describe("time-zone names across ICU versions", () => {
@@ -66,6 +66,12 @@ describe("time-zone names across ICU versions", () => {
   it("retains informative runtime names for zones outside the product's named set", () => {
     vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts").mockReturnValue([{ type: "timeZoneName", value: "Central European Time" }]);
     expect(zoneGenericName("Europe/Paris")).toBe("Central European Time");
+  });
+
+  it("keeps product names stable when ICU adds a regional qualifier", () => {
+    vi.spyOn(Intl.DateTimeFormat.prototype, "formatToParts").mockReturnValue([{ type: "timeZoneName", value: "Hawaii-Aleutian Time (Adak)" }]);
+    expect(zoneGenericName("America/Adak")).toBe("Hawaii-Aleutian Time");
+    expect(zoneGenericName("US/Aleutian")).toBe("Hawaii-Aleutian Time");
   });
 
   it("keeps known names when runtime name data is missing or unsupported", () => {
