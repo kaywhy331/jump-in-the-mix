@@ -276,7 +276,7 @@ test("phone navigation wraps without overlapping targets and clears the last Tod
     }
     const lastControl = page.locator("main a[href]:visible, main button:enabled:visible, main input:enabled:visible, main select:enabled:visible, main textarea:enabled:visible, main [tabindex='0']:visible").last();
     await lastControl.focus();
-    await page.evaluate(() => window.scrollTo(0, document.documentElement.scrollHeight));
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
     await expect(lastControl).toBeFocused();
     const target = (await lastControl.boundingBox())!;
     const footer = (await page.locator(".mobile-nav").boundingBox())!;
@@ -285,7 +285,9 @@ test("phone navigation wraps without overlapping targets and clears the last Tod
     expect(footer.y + footer.height).toBe(640);
     expect(await lastControl.evaluate(element => {
       const box = element.getBoundingClientRect();
-      return [[box.left + 1, box.top + 1], [box.right - 1, box.bottom - 1]]
+      // Probe each edge's midpoint, inside the button's rounded outline.
+      return [[box.left + box.width / 2, box.top + 1], [box.left + box.width / 2, box.bottom - 1],
+        [box.left + 1, box.top + box.height / 2], [box.right - 1, box.top + box.height / 2]]
         .every(([x, y]) => element.contains(document.elementFromPoint(x, y)));
     })).toBe(true);
   }
