@@ -46,11 +46,12 @@ export function recurrenceLabel(recurrence: string): string {
 /** A time zone in running copy, named by its city ("New York time"), never its IANA name (JITM-05 §2.19, D79). */
 export function zoneLabel(zone: string): string {
   if (!zone || UTC_ZONES.has(zone)) return "UTC";
+  const canonical = ZONE_ALIASES.get(zone) ?? zone;
   // "Etc/GMT+5" is five hours behind UTC: the sign is the reverse of what it reads.
   const offset = /^Etc\/GMT([+-])(\d{1,2})$/.exec(zone);
   if (offset) return `UTC${offset[1] === "+" ? "-" : "+"}${Number(offset[2])}`;
-  if (ISLAND_ZONES[zone]) return `${ISLAND_ZONES[zone]} time`;
-  const city = zone.includes("/") ? zone.split("/").at(-1)?.replaceAll("_", " ") : null;
+  if (ISLAND_ZONES[canonical]) return `${ISLAND_ZONES[canonical]} time`;
+  const city = zone.includes("/") ? canonical.split("/").at(-1)?.replaceAll("_", " ") : null;
   if (city) return `${city} time`;
   // Zones with no city, such as "EST5EDT", go by their generic name ("Eastern Time").
   return zoneGenericName(zone);
@@ -58,12 +59,80 @@ export function zoneLabel(zone: string): string {
 
 /** A zone's everyday name as of now ("Eastern Time"), shown beside its city in the picker; the IANA name if unknown. */
 export function zoneGenericName(zone: string, at = new Date()): string {
+  const canonical = ZONE_ALIASES.get(zone) ?? zone;
+  const productName = ZONE_NAMES.get(canonical);
   try {
-    return new Intl.DateTimeFormat("en-US", { timeZone: zone, timeZoneName: "longGeneric" }).formatToParts(at).find(part => part.type === "timeZoneName")?.value ?? zone;
+    const name = new Intl.DateTimeFormat("en-US", { timeZone: canonical, timeZoneName: "longGeneric" }).formatToParts(at).find(part => part.type === "timeZoneName")?.value;
+    // ICU versions can return an offset instead of a generic name, even for a known zone.
+    return name && !/^GMT(?:[+-]\d{1,2}(?::?\d{2})?)?$/.test(name) ? name : productName ?? name ?? zone;
   } catch {
-    return zone;
+    return productName ?? zone;
   }
 }
+// Display-only IANA links. Do not use these names to calculate offsets or rewrite saved zones.
+// Resolve aliases here rather than through Intl.resolvedOptions(), whose links vary with ICU.
+const ZONE_ALIASES = new Map<string, string>([
+  ["EST5EDT", "America/New_York"],
+  ["CST6CDT", "America/Chicago"],
+  ["MST7MDT", "America/Denver"],
+  ["PST8PDT", "America/Los_Angeles"],
+  ["US/Eastern", "America/New_York"],
+  ["US/Central", "America/Chicago"],
+  ["US/Mountain", "America/Denver"],
+  ["US/Pacific", "America/Los_Angeles"],
+  ["US/Pacific-New", "America/Los_Angeles"],
+  ["US/Alaska", "America/Anchorage"],
+  ["US/Aleutian", "America/Adak"],
+  ["US/Hawaii", "Pacific/Honolulu"],
+  ["US/Arizona", "America/Phoenix"],
+  ["US/East-Indiana", "America/Indiana/Indianapolis"],
+  ["US/Indiana-Starke", "America/Indiana/Knox"],
+  ["US/Michigan", "America/Detroit"],
+  ["US/Samoa", "Pacific/Pago_Pago"],
+  ["America/Indianapolis", "America/Indiana/Indianapolis"],
+  ["America/Louisville", "America/Kentucky/Louisville"],
+  ["WET", "Europe/Lisbon"],
+  ["CET", "Europe/Brussels"],
+  ["MET", "Europe/Brussels"],
+  ["EET", "Europe/Athens"],
+  ["GB", "Europe/London"],
+  ["GB-Eire", "Europe/London"],
+  ["Eire", "Europe/Dublin"],
+  ["Europe/Kiev", "Europe/Kyiv"],
+  ["Asia/Calcutta", "Asia/Kolkata"],
+  ["Asia/Katmandu", "Asia/Kathmandu"],
+  ["Japan", "Asia/Tokyo"],
+  ["NZ", "Pacific/Auckland"],
+  ["NZ-CHAT", "Pacific/Chatham"]
+]);
+// Product-owned English names used only when Intl has no name. Other zones keep Intl's live data.
+const ZONE_NAMES = new Map<string, string>([
+  ["America/New_York", "Eastern Time"],
+  ["America/Chicago", "Central Time"],
+  ["America/Denver", "Mountain Time"],
+  ["America/Los_Angeles", "Pacific Time"],
+  ["America/Anchorage", "Alaska Time"],
+  ["America/Adak", "Hawaii-Aleutian Time"],
+  ["Pacific/Honolulu", "Hawaii-Aleutian Standard Time"],
+  ["America/Phoenix", "Mountain Standard Time"],
+  ["America/Indiana/Indianapolis", "Eastern Time"],
+  ["America/Indiana/Knox", "Central Time"],
+  ["America/Detroit", "Eastern Time"],
+  ["Pacific/Pago_Pago", "Samoa Standard Time"],
+  ["America/Kentucky/Louisville", "Eastern Time"],
+  ["Europe/Lisbon", "Western European Time"],
+  ["Europe/Brussels", "Central European Time"],
+  ["Europe/Athens", "Eastern European Time"],
+  ["Europe/London", "United Kingdom Time"],
+  ["Europe/Dublin", "Ireland Time"],
+  ["Europe/Kyiv", "Eastern European Time"],
+  ["Asia/Kolkata", "India Standard Time"],
+  ["Asia/Kathmandu", "Nepal Time"],
+  ["Asia/Tokyo", "Japan Standard Time"],
+  ["Pacific/Auckland", "New Zealand Time"],
+  ["Pacific/Chatham", "Chatham Time"],
+  ["Australia/Sydney", "Eastern Australia Time"]
+]);
 const UTC_ZONES = new Set(["UTC", "Etc/UTC", "UCT", "Etc/UCT", "Universal", "Etc/Universal", "Zulu", "Etc/Zulu", "GMT", "Etc/GMT", "GMT0", "Etc/GMT0", "GMT+0", "Etc/GMT+0", "GMT-0", "Etc/GMT-0", "Greenwich", "Etc/Greenwich"]);
 // Islands whose zone is named without the word, so "Christmas time" would mislead.
 const ISLAND_ZONES: Record<string, string> = { "Indian/Christmas": "Christmas Island", "Pacific/Easter": "Easter Island", "Pacific/Norfolk": "Norfolk Island", "Pacific/Wake": "Wake Island" };
