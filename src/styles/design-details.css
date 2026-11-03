@@ -291,7 +291,7 @@
   .mobile-nav .nav-link { flex: 1 0 var(--phone-nav-slot); min-width: min-content; grid-template-columns: auto; text-align: center; overflow-wrap: normal; word-break: normal; }
   /* The bubble keeps its own width inside the same slot as each destination. */
   .mobile-nav .nav-quick-add { flex: 0 0 var(--phone-quick-add-width); margin-inline: max(0px, calc((var(--phone-nav-slot) - var(--phone-quick-add-width)) / 2)); }
-  .mobile-nav .nav-link > span { min-width: 0; max-width: 100%; }
+  .mobile-nav .nav-link > span { min-width: min-content; }
 }
 @media (max-width: 900px) {
   .mix-editor-form .sticky-form-actions { position: static; }
