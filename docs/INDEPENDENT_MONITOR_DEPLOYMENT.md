@@ -1,8 +1,22 @@
 # Independent production monitoring
 
-This is the reviewable activation package for the remaining production monitoring requirement. It does not indicate that the additional service or email alerts have been activated.
+This guide covers the disabled free-tier B-08 proposal and the separate paid operations-monitor package. Neither section is evidence that monitoring or email alerts have been activated.
 
-## Services and cost
+## Free-tier B-08 activation — Kevin's steps
+
+Kevin approved the free tier on October 26, 2026 (owner decision `note_9c3e64031d71595d`). Account signup, login and recipient entry remain his own steps. The [proposal](worker-health-audit-2026-10-15/b08-monitor-proposal.json) stays disabled and contains no account credentials or recipient address. It is a review specification, not a provider import file.
+
+1. Choose a monitor independent of Render and GitHub Actions. Confirm its current free tier permits this business use and includes incident and recovery email. If it requires a card, a paid plan or spending, stop; the free-tier approval does not cover that.
+2. Sign up and log in yourself. Keep passwords, tokens and account details in the provider, outside Git and agent sessions.
+3. Read the current deployment's `APP_URL` and append `/api/health/live` and `/api/health/ready` to create the two HTTPS GET monitors. Do not type a copied hostname from an old audit. These paths are public through the recovery boundary in `src/proxy.ts`. Liveness checks the web process; readiness checks configuration and database release readiness. Neither proves worker or independent operations-monitor health.
+4. In the provider, choose the cadence, timeout and incident/recovery thresholds its free tier supports. Require HTTP 200, TLS verification and no redirects; avoid retaining response bodies. If a required control is unavailable, keep the monitors disabled and record the limitation. Cadence stays an activation-time provider setting, not a committed value.
+5. Type the approved recipient directly into the provider yourself and complete its email confirmation. Keep that address out of files, commits, PRs, screenshots and logs. Enable incident and recovery email only; leave repeat reminders, SMS, calls and webhooks off.
+6. Once those checks are complete, enable the monitors in the provider. Use its labelled test or a controlled test target to check failure and recovery email without interrupting production. Confirm receipt in your inbox; provider acceptance alone is not delivery. If receipt cannot be verified, keep notification readiness marked unverified.
+7. Retain a private activation receipt with the provider/plan, resolved URLs, chosen settings, activation time and confirmed failure/recovery receipt. Public evidence may record the outcome and UTC time, but no recipient or account details. The committed proposal remains disabled; it never controls the provider's live state.
+
+The [October 15 audit](WORKER_HEALTH_AUDIT_2026-10-15.md) preserves historical health evidence. This free-tier path does not activate the paid package below or qualify worker recovery, backup checks or `/api/health/monitor`.
+
+## Paid operations-monitor services and cost
 
 The [Render monitor Blueprint](../infra/operations/render-monitor.yaml) runs `ops:watch` every five minutes in its own Oregon container, separate from the web and customer worker. It uses the 0.5 CPU / 512 MiB service ($7/month) and a 1 GiB persistent disk ($0.25/month) for durable outage deduplication state. The [monitor image](../infra/operations/monitor.Dockerfile) prepares the root-owned disk directory and drops to the `node` user before running the process. It has no migration/predeploy command and no application environment group.
 
@@ -24,7 +38,7 @@ After a real independent restore, upload the unedited `db:qualify-backup` succes
 
 Without `BACKUP_S3_BUCKET`, existing local artifact/receipt monitoring remains supported. The durable monitor outage-state file is required in either mode.
 
-## Activation sequence
+## Paid operations-monitor activation sequence
 
 1. Complete unit, database-role, process and container qualification. Generate the reviewable AWS template:
 

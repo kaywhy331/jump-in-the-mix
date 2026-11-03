@@ -1,0 +1,74 @@
+{
+  "format": "JITM B-08 review proposal, not a vendor API payload",
+  "version": 2,
+  "asOfUtc": "2026-11-02",
+  "enabled": false,
+  "maximumNewMonthlyCost": 0,
+  "currency": "USD",
+  "provider": null,
+  "providerAccountRef": null,
+  "freeCommercialEligibilityVerified": false,
+  "providerControlsVerified": false,
+  "requiredIndependence": [
+    "Render",
+    "GitHub Actions"
+  ],
+  "alerting": {
+    "enabled": false,
+    "recipientOwner": "Kevin",
+    "privateRecipientRef": null,
+    "channel": "email",
+    "incidentNotification": true,
+    "recoveryNotification": true,
+    "repeatReminders": false,
+    "sms": false,
+    "phoneCalls": false,
+    "webhooks": false,
+    "receiptVerified": false
+  },
+  "requestDefaults": {
+    "method": "GET",
+    "intervalSeconds": null,
+    "timeoutSeconds": null,
+    "verifyTls": true,
+    "followRedirects": false,
+    "expectedHttpStatus": 200,
+    "consecutiveFailuresToOpen": null,
+    "consecutiveSuccessesToRecover": null,
+    "authentication": null,
+    "headers": {
+      "Cache-Control": "no-cache"
+    },
+    "retainResponseBodies": false
+  },
+  "monitors": [
+    {
+      "name": "JITM application liveness",
+      "urlTemplate": "${APP_URL}/api/health/live",
+      "enabled": false
+    },
+    {
+      "name": "JITM application readiness",
+      "urlTemplate": "${APP_URL}/api/health/ready",
+      "enabled": false
+    }
+  ],
+  "diagnosticOnly": [
+    {
+      "path": "/api/health/worker",
+      "reason": "Separate worker heartbeat qualification; not covered by the two availability monitors."
+    },
+    {
+      "path": "/api/health/monitor",
+      "reason": "Historical October 15 observation was 503; independently qualify the operations runner."
+    }
+  ],
+  "activationBlockedBy": [
+    "Kevin must verify the current free commercial tier and provider control mapping without a card or spending",
+    "Kevin must sign up and handle all account credentials himself",
+    "Kevin must resolve APP_URL and choose cadence, timeout and incident/recovery thresholds in the provider",
+    "Kevin must enter and confirm the approved private recipient directly in the provider",
+    "Kevin must enable the monitors and verify actual failure and recovery email receipt"
+  ],
+  "baseUrlEnvironmentVariable": "APP_URL"
+}
