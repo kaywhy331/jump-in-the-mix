@@ -56,6 +56,9 @@
   align-items: start;
 }
 .support-contact-grid > .card { margin-top: 0; }
+.support-contact-card > summary h2 { margin: 0; }
+.support-contact-card > p { color: var(--muted); }
+.support-contact-card > .form-stack { margin-top: 16px; }
 .support-safety-note {
   display: grid;
   gap: 3px;

@@ -81,7 +81,7 @@ test("a lost onboarding response recovers once by keyboard and the tester can re
   const feedback = page.locator("#contact-support form");
   await feedback.getByLabel("Short title").fill("Synthetic first follow-up feedback");
   await feedback.getByLabel("What happened?").fill("My synthetic connection dropped during setup. Retrying opened the original first follow-up.");
-  await feedback.getByRole("button", { name: "Send feedback", exact: true }).click();
+  await feedback.getByRole("button", { name: "Send request", exact: true }).click();
   await expect(page).toHaveURL(/\/account\/tickets\/[^/?]+\?created=1/);
   expect(await prisma.supportTicket.count({ where: { workspaceId, title: "Synthetic first follow-up feedback" } })).toBe(1);
 });
