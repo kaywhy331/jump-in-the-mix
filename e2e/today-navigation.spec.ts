@@ -178,6 +178,121 @@ test("pagination stays reachable across themes, phone and sidebar breakpoints", 
   }
 });
 
+test("navigation labels never break inside a word at 320px with 200% text", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await visit(page);
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.evaluate(() => document.fonts.ready);
+
+  // Quick Add has an accessible name but no visible text label.
+  const labels = page.locator(".mobile-nav .nav-link > span:visible");
+  expect(await labels.count()).toBeGreaterThan(0);
+  for (const colorScheme of ["light", "dark"] as const) {
+    await theme(page, colorScheme);
+    for (const label of await labels.all()) {
+      const link = label.locator("..");
+      await expect(link).toBeVisible();
+      const words = await label.evaluate(element => {
+        const walker = document.createTreeWalker(element, NodeFilter.SHOW_TEXT);
+        const measurements: { word: string; lines: number; left: number; right: number }[] = [];
+        for (let node = walker.nextNode(); node; node = walker.nextNode()) {
+          for (const match of (node.textContent ?? "").matchAll(/\S+/g)) {
+            const range = document.createRange();
+            range.setStart(node, match.index);
+            range.setEnd(node, match.index + match[0].length);
+            const rects = Array.from(range.getClientRects());
+            measurements.push({ word: match[0], lines: new Set(rects.map(rect => rect.top)).size,
+              left: Math.min(...rects.map(rect => rect.left)), right: Math.max(...rects.map(rect => rect.right)) });
+          }
+        }
+        return measurements;
+      });
+      expect(words.length).toBeGreaterThan(0);
+      const target = (await link.boundingBox())!;
+      for (const { word, lines, left, right } of words) {
+        expect(lines, `${colorScheme}: ${word}`).toBe(1);
+        // Keeping a word whole must not let it overlap a neighboring control.
+        expect(left, `${colorScheme}: ${word} left edge`).toBeGreaterThanOrEqual(target.x);
+        expect(right, `${colorScheme}: ${word} right edge`).toBeLessThanOrEqual(target.x + target.width);
+      }
+      expect(target.width).toBeGreaterThanOrEqual(44);
+      expect(target.height).toBeGreaterThanOrEqual(44);
+    }
+    expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(320);
+  }
+});
+
+test("phone navigation keeps five equal slots and the central Quick Add at normal text", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await visit(page);
+  await page.evaluate(() => document.fonts.ready);
+  const controls = page.locator(".mobile-nav .nav-link:visible");
+  await expect(controls).toHaveCount(5);
+  await expect(controls.nth(2)).toHaveAccessibleName("Quick Add");
+  for (const colorScheme of ["light", "dark"] as const) {
+    await theme(page, colorScheme);
+    const bar = (await page.locator(".mobile-nav .app-nav").boundingBox())!;
+    const boxes = await controls.evaluateAll(elements => elements.map(element => {
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height };
+    }));
+    for (const [index, box] of boxes.entries()) {
+      expect(Math.abs(box.x + box.width / 2 - (bar.x + bar.width * (index + 0.5) / 5))).toBeLessThanOrEqual(1);
+      expect(Math.abs(box.y + box.height / 2 - (bar.y + bar.height / 2))).toBeLessThanOrEqual(1);
+      // The bubble stays its own size, centered inside its equal-width slot.
+      if (index !== 2) expect(Math.abs(box.width - bar.width / 5)).toBeLessThanOrEqual(1);
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+    }
+  }
+});
+
+test("phone navigation wraps without overlapping targets and clears the last Today control at 200% text", async ({ page }) => {
+  await page.setViewportSize({ width: 320, height: 640 });
+  await visit(page);
+  await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+  await page.evaluate(() => document.fonts.ready);
+  const controls = page.locator(".mobile-nav .nav-link:visible");
+  await expect(controls).toHaveCount(5);
+  for (const colorScheme of ["light", "dark"] as const) {
+    await theme(page, colorScheme);
+    const boxes = await controls.evaluateAll(elements => elements.map(element => {
+      const { x, y, width, height } = element.getBoundingClientRect();
+      return { x, y, width, height };
+    }));
+    const rowTops = await page.locator(".mobile-nav a.nav-link:visible").evaluateAll(elements =>
+      [...new Set(elements.map(element => Math.round(element.getBoundingClientRect().top)))]);
+    expect(rowTops).toHaveLength(2);
+    for (const [index, box] of boxes.entries()) {
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect(box.x).toBeGreaterThanOrEqual(0);
+      expect(box.x + box.width).toBeLessThanOrEqual(320);
+      for (const other of boxes.slice(index + 1)) {
+        const overlaps = box.x < other.x + other.width && box.x + box.width > other.x
+          && box.y < other.y + other.height && box.y + box.height > other.y;
+        expect(overlaps, `${colorScheme}: controls must not overlap`).toBe(false);
+      }
+    }
+    const lastControl = page.locator("main a[href]:visible, main button:enabled:visible, main input:enabled:visible, main select:enabled:visible, main textarea:enabled:visible, main [tabindex='0']:visible").last();
+    await lastControl.focus();
+    await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
+    await expect(lastControl).toBeFocused();
+    const target = (await lastControl.boundingBox())!;
+    const footer = (await page.locator(".mobile-nav").boundingBox())!;
+    expect(target.y).toBeGreaterThanOrEqual(0);
+    expect(target.y + target.height).toBeLessThanOrEqual(footer.y);
+    expect(footer.y + footer.height).toBe(640);
+    expect(await lastControl.evaluate(element => {
+      const box = element.getBoundingClientRect();
+      // Probe each edge's midpoint, inside the button's rounded outline.
+      return [[box.left + box.width / 2, box.top + 1], [box.left + box.width / 2, box.bottom - 1],
+        [box.left + 1, box.top + box.height / 2], [box.right - 1, box.top + box.height / 2]]
+        .every(([x, y]) => element.contains(document.elementFromPoint(x, y)));
+    })).toBe(true);
+  }
+});
+
 test("history says when a follow-up was sent automatically instead of offering to reopen it", async ({ page }) => {
   await prisma.jump.update({ where: { id: completedIds[0] }, data: { completionMethod: "automatic:sms" } });
   try {
