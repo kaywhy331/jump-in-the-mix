@@ -30,6 +30,7 @@ describe("shared next-action resolution", () => {
         definition: { rules: [] }, updatedAt: now
       }] },
       job: { findMany: async () => [], findFirst: async () => null },
+      intakeReceipt: { findMany: async () => [] },
       contactRelationshipState: { findMany: async () => [{
         id: "relationship", contactId: "person", contact, nextCommitmentAt: new Date(dueAt), updatedAt: now
       }] },
