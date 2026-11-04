@@ -101,6 +101,11 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 .settings-hub-card:hover { background: var(--surface); transform: none; box-shadow: none; }
 .settings-hub-card small { display: block; }
 .settings-hub-icon { background: transparent; color: var(--text-2); }
+.settings-hub-group h2 { margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 1rem; font-weight: 600; }
+.settings-hub-group .settings-hub-card { min-height: 72px; }
+.settings-hub-copy { min-width: 0; flex: 1; overflow-wrap: anywhere; }
+.settings-hub-group .settings-row-chevron { display: flex; flex: 0 0 auto; color: var(--text-2); }
+.settings-hub-group .settings-row-chevron svg { width: 16px; height: 16px; }
 .more-page .settings-hub-grid { max-width: none; grid-template-columns: 1fr; gap: 0; }
 .more-page .settings-hub-card { padding: 18px 0; }
 .more-page > .appearance-control { max-width: 420px; }

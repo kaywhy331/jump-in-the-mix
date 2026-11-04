@@ -113,9 +113,9 @@
 .repeatable-profile-records h3, .repeatable-profile-records p { margin: 0; }
 .repeatable-profile-records p { color: var(--muted); font-size: .85rem; }
 .repeatable-profile-list { display: grid; gap: 8px; }
-.repeatable-profile-row { display: grid; grid-template-columns: minmax(130px, .55fr) minmax(180px, 1fr) auto; gap: 8px; align-items: center; }
-.repeatable-profile-actions { display: flex; gap: 6px; }
-.repeatable-profile-actions .icon-button { width: 38px; min-width: 38px; height: 38px; }
+.repeatable-profile-row { display: grid; grid-template-columns: minmax(130px, .55fr) minmax(180px, 1fr) auto; gap: 8px; align-items: end; }
+.repeatable-profile-actions { display: flex; flex-wrap: wrap; gap: 6px; }
+.repeatable-profile-actions .icon-button { width: 44px; min-width: 44px; height: 44px; }
 .timezone-picker { display: grid; gap: 8px; }
 .timezone-input-row { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 8px; }
 .account-section-nav { overflow-x: auto; scrollbar-width: thin; }
