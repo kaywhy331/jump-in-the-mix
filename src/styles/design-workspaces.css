@@ -11,7 +11,14 @@
 .sidebar .nav-link.active svg { color: var(--violet-mark); }
 .sidebar .nav-more { display: none; }
 .sidebar-footer { border: 0; padding: 0 8px; gap: 12px; }
-.sidebar .account-sidebar-actions .sidebar-profile-trigger { min-width: 44px; min-height: 44px; }
+.account-sidebar-actions > .sheet-trigger { display: block; width: 100%; }
+.sidebar .account-sidebar-actions .sidebar-account-trigger { width: 100%; min-width: 44px; min-height: 44px; justify-content: flex-start; }
+.sidebar-account-trigger > span { min-width: 0; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
+.sidebar-account-trigger[aria-current="page"] { background: var(--raised); color: var(--text); }
+.sidebar-account-trigger[aria-current="page"] svg { color: var(--violet-mark); }
+.account-menu small { display: block; color: var(--text-2); font-size: .8125rem; font-weight: 400; }
+.account-sheet .contact-tools-links { padding-bottom: 0; border-bottom: 0; }
+.account-menu .appearance-control { padding: 12px 0; min-height: 48px; border-bottom: 1px solid var(--line); }
 .sidebar-utilities { display: grid; gap: 4px; }
 .sidebar-utilities a { display: flex; gap: 12px; align-items: center; min-height: 44px; font-size: .875rem; color: var(--text-2); }
 .sidebar-utilities a { padding: 8px; border-radius: var(--radius-control); }
@@ -204,14 +211,15 @@
   .app-shell { grid-template-columns: 80px minmax(0, 1fr); }
   .sidebar { padding: 20px 8px; align-items: stretch; }
   .sidebar .logo { justify-content: center; padding: 0; }
-  .sidebar .logo > span:last-child:not(.logo-mark), .sidebar .global-quick-add > span, .sidebar .user-label, .sidebar .appearance-control { display: none; }
+  .sidebar .logo > span:last-child:not(.logo-mark), .sidebar .global-quick-add > span { display: none; }
   .sidebar .global-quick-add { justify-content: center; }
   .sidebar .nav-link { padding: 10px 2px; flex-direction: column; gap: 4px; font-size: .75rem; overflow-wrap: anywhere; }
   .sidebar-footer { padding: 0; }
   .sidebar-utilities a { justify-content: center; font-size: 0; gap: 0; }
   .sidebar .account-sidebar-actions > .sheet-trigger { width: 100%; }
   .sidebar .account-sidebar-actions .button { width: 100%; font-size: .75rem; padding-inline: 2px; overflow-wrap: anywhere; }
-  .sidebar .account-sidebar-actions .sidebar-profile-trigger { font-size: 0; gap: 0; justify-content: center; }
+  .sidebar .account-sidebar-actions .sidebar-account-trigger { gap: 0; justify-content: center; }
+  .sidebar-account-trigger > span { display: none; }
 }
 @media (min-width: 768px) and (max-width: 900px) {
   .app-main:has(.today-page) { padding: 24px 20px; }
