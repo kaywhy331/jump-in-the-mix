@@ -1,13 +1,12 @@
 "use client";
 
 import Link from "next/link";
-import { useLayoutEffect, useRef } from "react";
+import { Fragment, useLayoutEffect, useRef } from "react";
 import { Logo } from "@/components/Logo";
-import { AccountNav, Nav } from "@/components/Nav";
+import { AccountControl, AccountNav, Nav } from "@/components/Nav";
 import { AppearanceControl } from "@/components/Appearance";
 import { logoutAction } from "@/lib/auth-actions";
 import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
-import { Sheet } from "@/components/Sheet";
 import { AppIcon } from "@/components/AppIcon";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 import { INVITATIONS_PATH, invitationsLeftLabel } from "@/lib/invitation-labels";
@@ -15,12 +14,14 @@ import { INVITATIONS_PATH, invitationsLeftLabel } from "@/lib/invitation-labels"
 export function AppShell({
   children,
   userName,
+  billingAvailable,
   displayPreferences,
   invitationsLeft = null,
   impersonation
 }: {
   children: React.ReactNode;
   userName: string;
+  billingAvailable: boolean;
   displayPreferences: DisplayFormatPreferences;
   /** Personal invitations the owner can still send; null hides every invitation prompt. */
   invitationsLeft?: number | null;
@@ -57,6 +58,14 @@ export function AppShell({
     </form>
   );
 
+  const accountEntries = [
+    { key: "account", content: <Link href="/account"><AppIcon name="profile" />My account</Link> },
+    { key: "billing", content: <Link href="/account/billing" aria-label="Plan and billing"><AppIcon name="profile" /><span>Plan and billing{!billingAvailable && <small>Free during the beta</small>}</span></Link> },
+    { key: "appearance", content: <AppearanceControl compact /> },
+    ...(invitationsLeft ? [{ key: "invitations", content: <Link href={INVITATIONS_PATH}><AppIcon name="gift" />Invite people · {invitationsLeftLabel(invitationsLeft)}</Link> }] : []),
+    { key: "sign-out", content: <form action={logoutAction} className="contact-tools-links"><button type="submit"><AppIcon name="arrowLeft" />Sign out</button></form> }
+  ];
+
   return (
     <div className={impersonation ? "app-shell impersonating" : "app-shell"}>
       <a className="public-skip-link" href="#workspace-main">Skip to content</a>
@@ -70,25 +79,13 @@ export function AppShell({
         </Link>}
         <div className="sidebar-footer account-sidebar-footer">
           <AccountNav />
-          <AppearanceControl compact />
-          <span className="user-label">{impersonation ? `Viewing as ${userName}` : `Signed in as ${userName}`}</span>
           <div className="account-sidebar-actions">
             {impersonation ? endImpersonationForm : (
-              <Sheet
-                trigger={<button className="button small sidebar-profile-trigger" type="button" aria-label="Profile"><AppIcon name="profile" />Profile</button>}
-                title="Profile and settings"
-                description={`Signed in as ${userName}`}
-                className="profile-sheet"
-              >
-                <nav className="contact-tools-links" aria-label="Profile and settings">
-                  <Link href="/account"><AppIcon name="profile" />My account</Link>
-                  <Link href="/settings"><AppIcon name="settings" />Settings</Link>
-                  <Link href="/templates"><AppIcon name="import" />Ready-made Mixes</Link>
-                  {invitationsLeft && <Link href={INVITATIONS_PATH}><AppIcon name="gift" />Invite people · {invitationsLeftLabel(invitationsLeft)}</Link>}
-                  <Link href="/help"><AppIcon name="help" />Help</Link>
-                </nav>
-                <form action={logoutAction} className="contact-tools-links"><button type="submit"><AppIcon name="arrowLeft" />Sign out</button></form>
-              </Sheet>
+              <AccountControl userName={userName}>
+                <div className="contact-tools-links account-menu">
+                  {accountEntries.map(({ key, content }) => <Fragment key={key}>{content}</Fragment>)}
+                </div>
+              </AccountControl>
             )}
           </div>
         </div>
