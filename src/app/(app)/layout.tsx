@@ -5,6 +5,7 @@ import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { BrowserAccountBoundary } from "@/components/BrowserAccountBoundary";
 import { browserScope } from "@/lib/browser-scope";
 import { invitationsLeft } from "@/lib/invitation-allowance";
+import { billingReady } from "@/lib/billing-config";
 
 export default async function AuthenticatedLayout({ children }: { children: React.ReactNode }) {
   const { session, actorUser, user, workspace, impersonation } = await requireWorkspace();
@@ -15,6 +16,7 @@ export default async function AuthenticatedLayout({ children }: { children: Reac
   return (
     <BrowserAccountBoundary key={browserScope(session)!} scope={browserScope(session)!}><AppShell
       userName={user.name}
+      billingAvailable={billingReady()}
       displayPreferences={displayPreferences}
       invitationsLeft={invitations}
       impersonation={impersonation ? {
