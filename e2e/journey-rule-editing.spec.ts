@@ -201,8 +201,8 @@ test("saved rules name the entry Mix and controls explain stage consequences", a
     await expect(pause.locator("..")).toContainText("Existing follow-ups continue when you pause.");
     const stage = page.locator(`#stage-${stages[0].id}`);
     await open(stage.locator(":scope > summary"));
-    await expect(stage.locator(".journey-rule-row").filter({ hasText: "A conversation starts" }).locator("p").first()).toHaveText("A conversation starts → Qualified → Entry Mix: Discovery follow-up");
-    await expect(stage.locator(".journey-rule-row").filter({ hasText: "A sale is confirmed" }).locator("p").first()).toHaveText("A sale is confirmed → Customer → No automatic Mix on entry");
+    await expect(stage.locator(".journey-rule-row > div > p").filter({ hasText: /^A conversation starts/ })).toHaveText("A conversation starts → Qualified → Entry Mix: Discovery follow-up");
+    await expect(stage.locator(".journey-rule-row > div > p").filter({ hasText: /^A sale is confirmed/ })).toHaveText("A sale is confirmed → Customer → No automatic Mix on entry");
     await expect(stage.getByLabel("Follow-up Mix on entry")).toHaveAccessibleDescription("Applies when someone next enters this stage. People already here keep their current Mix.");
     await expect(stage.locator(".journey-stage-mixes")).toContainText("No Mix sets this stage.");
     await pause.click();
@@ -211,7 +211,7 @@ test("saved rules name the entry Mix and controls explain stage consequences", a
     await prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED" } });
     await visit(page);
     await open(stage.locator(":scope > summary"));
-    await expect(stage.locator(".journey-rule-row").filter({ hasText: "A conversation starts" }).locator("p").first()).toHaveText("A conversation starts → Qualified → No automatic Mix on entry");
+    await expect(stage.locator(".journey-rule-row > div > p").filter({ hasText: /^A conversation starts/ })).toHaveText("A conversation starts → Qualified → No automatic Mix on entry");
   } finally {
     await prisma.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } });
     await prisma.mixAssignment.delete({ where: { id: assignment.id } });
@@ -260,7 +260,7 @@ test("a refused new-contact Mix save keeps the chosen mode and unavailable Mix",
     await picker.selectOption(mix.id);
     await prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED" } });
     await page.getByRole("button", { name: "Save", exact: true }).click();
-    const error = page.getByRole("alert");
+    const error = page.locator("form").getByRole("alert");
     await expect(error).toContainText("Choose a Mix that is on");
     await expect(error).toBeFocused();
     await expect(page.getByRole("radio", { name: /^Add them to a Mix automatically/ })).toBeChecked();
@@ -284,14 +284,14 @@ test("an unconfirmed new-contact save keeps its draft for retry", async ({ page 
   await picker.selectOption(mix.id);
   await page.route("**/settings/new-contacts*", route => route.request().method() === "POST" ? route.abort("failed") : route.continue());
   await page.getByRole("button", { name: "Save", exact: true }).click();
-  await expect(page.getByRole("alert")).toContainText("couldn’t confirm this save");
-  await expect(page.getByRole("alert")).toBeFocused();
+  await expect(page.locator("form").getByRole("alert")).toContainText("couldn’t confirm this save");
+  await expect(page.locator("form").getByRole("alert")).toBeFocused();
   await expect(picker).toHaveValue(mix.id);
   await expect(page.getByRole("radio", { name: /^Add them to a Mix automatically/ })).toBeChecked();
   await page.unroute("**/settings/new-contacts*");
   await page.getByRole("button", { name: "Save", exact: true }).click();
   await expect(page.locator(".notice.success")).toHaveText("New contacts setting saved.");
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator("form").getByRole("alert")).toHaveCount(0);
 });
 
 test("no eligible Mix keeps NONE and ASK saveable and explains source overrides", async ({ page }) => {

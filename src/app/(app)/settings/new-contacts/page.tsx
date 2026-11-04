@@ -1,15 +1,35 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { getURLFromRedirectError } from "next/dist/client/components/redirect";
+import { isRedirectError } from "next/dist/client/components/redirect-error";
 import { BackLink } from "@/components/BackLink";
 import { Notice } from "@/components/Notice";
 import { ViewOnlySupportNotice } from "@/components/ViewOnlySupportNotice";
 import { requireWorkspace } from "@/lib/auth";
 import { NewContactsPlacementForm } from "@/components/NewContactsPlacementForm";
 import { viewerErrorMessage } from "@/lib/form-errors";
+import { saveNewContactPlacementAction } from "@/lib/new-contact-actions";
 import { placeableMixFilter } from "@/lib/new-contact-placement";
 import { prisma } from "@/lib/prisma";
 
 export const metadata: Metadata = { title: "New contacts" };
+
+/** Keep validation in the existing action, but return its signed error without navigating away from the draft. */
+async function savePlacementFormAction(data: FormData): Promise<string | null> {
+  "use server";
+  try { await saveNewContactPlacementAction(data); }
+  catch (cause) {
+    if (!isRedirectError(cause)) throw cause;
+    const destination = getURLFromRedirectError(cause);
+    const prefix = "/settings/new-contacts?";
+    if (!destination.startsWith(prefix)) throw cause;
+    const params = Object.fromEntries(new URLSearchParams(destination.slice(prefix.length)));
+    if (!params.error) throw cause; // Successful saves and sign-in redirects keep their normal navigation.
+    const { session } = await requireWorkspace();
+    return viewerErrorMessage(params, session);
+  }
+  return null;
+}
 
 /** Where people go when they are added (JITM-09 §2.78, D34). The default leaves them out, as No Mix. */
 export default async function NewContactsSettingsPage({ searchParams }: { searchParams: Promise<{ saved?: string; error?: string; at?: string; sig?: string }> }) {
@@ -27,7 +47,7 @@ export default async function NewContactsSettingsPage({ searchParams }: { search
     {viewOnly && <ViewOnlySupportNotice />}
     {placement === "MIX" && !chosen && <Notice type="info">The Mix you chose is turned off, removed or now starts after another Mix. This setting won’t start a Mix until you choose another; Contact stage and Everyone rules still apply.</Notice>}
     <section className="card">
-      <NewContactsPlacementForm placement={placement} chosen={chosen} mixes={mixes} viewOnly={viewOnly} serverError={viewerErrorMessage(params, session)} />
+      <NewContactsPlacementForm placement={placement} chosen={chosen} mixes={mixes} viewOnly={viewOnly} serverError={viewerErrorMessage(params, session)} saveAction={savePlacementFormAction} />
     </section>
     <details className="card"><summary>Where this applies and what can override it</summary><ul className="new-contacts-rules">
       <li>Add a contact and Quick Add show the choice before you save. With Choose when adding, Add a contact starts with a follow-up ticked and Quick Add offers a Mix.</li>
