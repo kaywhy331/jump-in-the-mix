@@ -344,7 +344,7 @@ test("placement choices and stage consequences fit both themes with keyboard and
       expect(box.height).toBeGreaterThanOrEqual(44); expect(box.width).toBeGreaterThanOrEqual(44);
       expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
       await page.screenshot({ path: testInfo.outputPath(`${path.split("/").at(-1)}-${theme}-${width}.png`), fullPage: true });
-      if (zoom) await zoom.evaluate(element => element.remove());
+      if (zoom) await zoom.evaluate(element => element.parentNode?.removeChild(element));
     }
   }
 });
