@@ -10,17 +10,18 @@ import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 import { AppIcon } from "@/components/AppIcon";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 import { INVITATIONS_PATH, invitationsLeftLabel } from "@/lib/invitation-labels";
-import { billingReady } from "@/lib/billing-config";
 
 export function AppShell({
   children,
   userName,
+  billingAvailable,
   displayPreferences,
   invitationsLeft = null,
   impersonation
 }: {
   children: React.ReactNode;
   userName: string;
+  billingAvailable: boolean;
   displayPreferences: DisplayFormatPreferences;
   /** Personal invitations the owner can still send; null hides every invitation prompt. */
   invitationsLeft?: number | null;
@@ -59,7 +60,7 @@ export function AppShell({
 
   const accountEntries = [
     { key: "account", content: <Link href="/account"><AppIcon name="profile" />My account</Link> },
-    { key: "billing", content: <Link href="/account/billing" aria-label="Plan and billing"><AppIcon name="profile" /><span>Plan and billing{!billingReady() && <small>Free during the beta</small>}</span></Link> },
+    { key: "billing", content: <Link href="/account/billing" aria-label="Plan and billing"><AppIcon name="profile" /><span>Plan and billing{!billingAvailable && <small>Free during the beta</small>}</span></Link> },
     { key: "appearance", content: <AppearanceControl compact /> },
     ...(invitationsLeft ? [{ key: "invitations", content: <Link href={INVITATIONS_PATH}><AppIcon name="gift" />Invite people · {invitationsLeftLabel(invitationsLeft)}</Link> }] : []),
     { key: "sign-out", content: <form action={logoutAction} className="contact-tools-links"><button type="submit"><AppIcon name="arrowLeft" />Sign out</button></form> }
