@@ -14,6 +14,9 @@ describe("Help and support boundaries", () => {
     expect(more).toContain('["/help", "Help"');
     expect(help).toContain("<SupportFaq />");
     expect(help).toContain('id="contact-support"');
+    expect(help).toContain("<SupportContact initiallyOpen={Boolean(query.error)}>");
+    expect(help).toContain('href="#contact-support">Contact support</a>');
+    expect(help).toContain('href="/account/tickets">My requests</Link>');
     expect(help).toContain("if (env.pilotMode)");
     expect(help).toContain("<SelfHostedHelp />");
     expect(read("src/components/SupportReportFields.tsx")).toContain("SUPPORT_CATEGORIES");

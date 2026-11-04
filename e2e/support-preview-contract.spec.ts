@@ -31,7 +31,7 @@ async function suffix(page: Page): Promise<string> {
   return `\n\nIncluded context: ${d.section}; ${d.layout} layout; ${d.browser}; ${d.theme} theme; ${d.connection}`;
 }
 async function submitAndRead(page: Page) {
-  await fields(page).getByRole("button", { name: "Send feedback", exact: true }).click();
+  await fields(page).getByRole("button", { name: "Send request", exact: true }).click();
   await expect(page).toHaveURL(/\/account\/tickets\/[^/?]+\?created=1/);
   const id = new URL(page.url()).pathname.split("/").pop()!;
   return prisma.supportTicket.findUniqueOrThrow({ where: { id }, include: { messages: true } });
@@ -97,7 +97,7 @@ test("support keeps raw fields and diagnostics after two failed saves, then save
   const intercept = async (route: import("@playwright/test").Route) => route.request().method() === "POST" ? route.abort("failed") : route.continue();
   await page.route("**/help", intercept);
   for (let i = 0; i < 2; i++) {
-    await form.getByRole("button", { name: "Send feedback", exact: true }).click();
+    await form.getByRole("button", { name: "Send request", exact: true }).click();
     await expect(form.getByRole("alert")).toContainText("Your entries are kept");
     await expect(form.getByRole("alert")).toBeFocused();
     await expect(form.getByLabel("Short title")).toHaveValue(title);
