@@ -36,14 +36,14 @@ test("Help starts short while search, topics and View all reach the full FAQ", a
   await answers.locator("summary").click();
   await expect(answers.locator("p")).toHaveText(lastAnswer.answer);
   await faq.getByLabel("Search Help").fill("");
-  await faq.getByLabel("Topic", { exact: true }).selectOption("Mixes");
+  await faq.getByRole("combobox", { name: "Topic", exact: true }).selectOption("Mixes");
   await expect(answers).toHaveCount(SUPPORT_FAQS.filter(item => item.category === "Mixes").length);
   await faq.getByLabel("Search Help").fill("no-matching-faq-synthetic");
   await expect(faq.getByText("No FAQ matched that search.")).toBeVisible();
   await expect(faq.getByRole("link", { name: "contact support", exact: true })).toHaveAttribute("href", "#contact-support");
   await faq.getByRole("button", { name: "Clear filters" }).click();
   await expect(faq.getByLabel("Search Help")).toHaveValue("");
-  await expect(faq.getByLabel("Topic", { exact: true })).toHaveValue("all");
+  await expect(faq.getByRole("combobox", { name: "Topic", exact: true })).toHaveValue("all");
   await expect(answers).toHaveCount(INITIAL_FAQ_COUNT);
 });
 
@@ -62,7 +62,7 @@ test("Contact support reveals a retained draft, category-specific action and exi
   await expect(contact.locator(":scope > summary")).toBeFocused();
   await form.getByLabel("Short title").fill("Synthetic retained draft");
   for (const category of SUPPORT_CATEGORIES) {
-    await form.getByLabel("Topic", { exact: true }).selectOption(category.value);
+    await form.getByRole("combobox", { name: "Topic", exact: true }).selectOption(category.value);
     await expect(form.getByRole("button", { name: category.value === "FEATURE_REQUEST" ? "Send feedback" : "Send request", exact: true })).toBeVisible();
   }
   await contact.locator(":scope > summary").click();
@@ -71,7 +71,7 @@ test("Contact support reveals a retained draft, category-specific action and exi
   await page.getByRole("link", { name: "Contact support", exact: true }).click();
   await expect(form).toBeVisible();
   await expect(form.getByLabel("Short title")).toHaveValue("Synthetic retained draft");
-  await expect(form.getByLabel("Topic", { exact: true })).toHaveValue("FEATURE_REQUEST");
+  await expect(form.getByRole("combobox", { name: "Topic", exact: true })).toHaveValue("FEATURE_REQUEST");
 });
 
 test("Help and its deep-linked form reflow in both themes with keyboard and enlarged text", async ({ page }, info) => {
