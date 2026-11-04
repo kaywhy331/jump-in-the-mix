@@ -98,8 +98,9 @@ span.contact-missing-method { font-weight: inherit; color: inherit; }
 /* The box grows when preparation finishes. Keep scroll anchoring out of it so the browser anchors on what
    the owner is reading below (an open note) and that stays in place instead of sliding down the page. */
 .contact-next-line { overflow-anchor: none; }
-/* On phones the browser picks its anchor inside the partly scrolled-away profile header above the box; exclude it as well. */
-.contact-profile-header { overflow-anchor: none; }
+/* Context and Mix groups also sit above the note composer. Anchor on the activity being edited below
+   them when preparation changes Next or moves a Mix between groups. */
+.contact-profile-header, .contact-notes, .contact-mixes { overflow-anchor: none; }
 .contact-next-description { display: contents; }
 .next-action-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-block: 16px; border-bottom: 1px solid var(--line); }
 /* Keep the shared focus indicator inside Next even at a clipped page edge. */
@@ -189,6 +190,7 @@ span.contact-missing-method { font-weight: inherit; color: inherit; }
 .contact-priority-card .contact-section-heading { min-height: 28px; padding: 0; border: 0; }
 .contact-priority-card .contact-section-heading .contact-inline-action { min-height: 28px; }
 .contact-stage-records { margin-bottom: 16px; }
+.contact-journey-track { min-width: 0; }
 .contact-stage-records > summary { min-height: 44px; cursor: pointer; }
 .contact-stage-history { display: grid; gap: 12px; list-style: none; padding: 0; margin: 12px 0; }
 .contact-stage-history li { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; font-size: .875rem; }

@@ -274,10 +274,12 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
         <Link className="contact-add-details contact-inline-action" href={`/contacts/${contact.id}/edit`}><AppIcon name="add" />Add company, phone or email</Link>
         {upcoming.length > 0 && <section className="contact-coming-up"><div className="contact-section-heading"><h2>Coming up</h2></div>{upcoming.length ? <ol>{upcoming.map(item => <li key={item.id}><time dateTime={item.date.toISOString()}>{shortDate(item.date)}</time><Link href={item.href}>{item.title}</Link></li>)}</ol> : null}</section>}
       </aside>
+      <section className="contact-journey-track" aria-label="Recorded stage history and possible next stages" tabIndex={0}>
       <details className="card contact-detail-more" id="dates-and-mixes" open={Boolean(query.stateUpdated || query.error)}>
         <summary><span><strong>More</strong><small>Dates, preferences and custom fields</small></span><AppIcon name="chevronDown" /></summary>
         <div className="contact-more-sections">
           {journeyTrack}
+          <Link className="contact-inline-action" href={`/journey?contactId=${encodeURIComponent(contact.id)}`}>View Journey</Link>
           <section><h2>Preferences</h2><ContactRelationshipStatePanel contactId={contact.id} state={state} /></section>
 
           <section>
@@ -298,6 +300,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
           {mergeHistory.length > 0 && <small className="muted-copy">{mergeHistory.length} duplicate merge{mergeHistory.length === 1 ? "" : "s"} recorded.</small>}
         </div>
       </details>
+      </section>
     </div>
   );
 }
