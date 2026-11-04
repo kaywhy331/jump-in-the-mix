@@ -100,6 +100,17 @@ span.contact-missing-method { font-weight: inherit; color: inherit; }
 /* On phones the browser picks its anchor inside the partly scrolled-away profile header above the box; exclude it as well. */
 .contact-profile-header { overflow-anchor: none; }
 .contact-next-description { display: contents; }
+.next-action-summary { display: flex; flex-wrap: wrap; align-items: center; gap: 12px; padding-block: 16px; border-bottom: 1px solid var(--line); }
+/* Keep the shared focus indicator inside Next even at a clipped page edge. */
+.next-action-summary { padding-inline: var(--space-2); }
+[data-next-action-state] .contact-beat-track { padding: var(--space-2); }
+.next-action-summary h2 { font-size: .875rem; margin: 0; color: var(--text-2); }
+.next-action-summary .contact-next-description { display: flex; flex: 1 1 18rem; flex-direction: column; min-width: 0; }
+.next-action-summary .contact-next-description > span { align-self: stretch; font-size: .8125rem; color: var(--text-2); }
+.contact-method-row .button.next-action-link, [data-next-action-state] .button.next-action-link { min-height: 44px; max-width: 100%; white-space: normal; }
+.next-action-secondary, .next-action-status, .next-action-sequence-label { grid-column: 1 / -1; width: 100%; min-width: 0; }
+.next-action-secondary summary { min-height: 44px; display: flex; align-items: center; cursor: pointer; font-size: .875rem; }
+.next-action-sequence-label { font-size: .8125rem; color: var(--text-2); padding-top: 8px; }
 .contact-next-description > strong { grid-column: 1; grid-row: 2; display: block; font-size: 1rem; font-weight: 600; line-height: 1.35; }
 .contact-next-description > span { grid-column: 2; grid-row: 1 / 3; align-self: center; display: flex; flex-wrap: wrap; gap: 0 8px; margin-top: 2px; color: var(--text-2); font-size: .8125rem; }
 .contact-detail-page .contact-next-line .contact-review-button { grid-column: 3; grid-row: 1 / 3; align-self: center; min-height: 44px; margin: 0; padding: 10px 18px; border-radius: 999px; font-size: .875rem; }
@@ -240,11 +251,11 @@ span.contact-missing-method { font-weight: inherit; color: inherit; }
   .contact-profile-header .contact-profile-quick-actions { display: grid; grid-template-columns: repeat(4, minmax(0, 1fr)); gap: 8px; margin-top: 4px; }
   .contact-profile-header .contact-profile-quick-actions > .button { flex-direction: column; gap: 8px; min-height: 76px; width: auto; padding: 0; border: 0; background: transparent; font-size: .75rem; }
   .contact-profile-header .contact-profile-quick-actions > .button svg { width: 48px; height: 48px; padding: 13px; border-radius: 50%; background: var(--surface); }
-  .contact-detail-page .contact-next-line { grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; padding: 0; margin-bottom: 28px; border-radius: 0; background: transparent; }
+  .contact-detail-page .contact-next-line { grid-template-columns: minmax(0, 1fr) auto; column-gap: 12px; padding: 0 var(--space-2); margin-bottom: 28px; border-radius: 0; background: transparent; }
   .contact-detail-page .contact-next-line h2 { grid-column: 1 / -1; padding-bottom: 6px; margin-bottom: 10px; border-bottom: 1px solid var(--line); }
-  .contact-detail-page .contact-next-line .contact-review-button { grid-column: 2; grid-row: 2; padding-inline: 18px; }
+  .contact-detail-page .contact-next-line .contact-review-button { grid-column: 1 / -1; grid-row: 3; justify-self: start; margin-top: 8px; padding-inline: 18px; }
   .contact-detail-page .contact-next-meeting { margin-top: -12px; padding: 4px 0; }
-  .contact-next-description { display: block; grid-column: 1; min-width: 0; }
+  .contact-next-description { display: block; grid-column: 1 / -1; min-width: 0; }
   .contact-next-description > strong { font-size: 1rem; }
   .contact-beat-track { margin-top: 18px; }
   .contact-beat-track i { background: var(--page); }

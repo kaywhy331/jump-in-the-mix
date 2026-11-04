@@ -142,7 +142,7 @@
 }
 @media (max-width: 900px) {
   .app-shell { display: block; }
-  .app-main { padding: 24px 24px calc(110px + env(safe-area-inset-bottom)); }
+  .app-main { padding: 24px; }
   .app-nav .nav-desktop-item { display: none; }
   .mobile-nav .nav-link { color: var(--text-2); font-size: .75rem; font-weight: 500; }
   .mobile-nav .nav-link.active { color: var(--violet-text); background: transparent; }
@@ -151,13 +151,14 @@
   .mobile-nav .nav-link svg { box-sizing: content-box; padding: 3px 14px; border-radius: 999px; }
   .mobile-nav .nav-link.active svg { background: var(--violet-wash); stroke-width: 2.1; }
   .mobile-nav .nav-link.active > span { font-weight: 700; }
-  .mobile-nav .nav-quick-add { --bubble-fill: var(--violet); position: relative; background: var(--bubble-fill); color: var(--on-violet); border-radius: 16px; width: 56px; height: 48px; margin-inline: auto; box-shadow: 0 5px 18px color-mix(in srgb, var(--violet) 24%, transparent); }
+  .mobile-nav { --phone-quick-add-width: 56px; }
+  .mobile-nav .nav-quick-add { --bubble-fill: var(--violet); position: relative; background: var(--bubble-fill); color: var(--on-violet); border-radius: 16px; width: var(--phone-quick-add-width); height: 48px; margin-inline: auto; box-shadow: 0 5px 18px color-mix(in srgb, var(--violet) 24%, transparent); }
   .mobile-nav .nav-quick-add::after { content: ""; display: block; position: absolute; inset: auto auto -7px 14px; width: 12px; height: 12px; transform: skewY(-35deg); border: 0; background: var(--bubble-fill); }
   .mobile-nav .nav-quick-add > span { display: none; }
   .mobile-nav .nav-quick-add svg { width: 24px; height: 24px; }
 }
 @media (max-width: 600px) {
-  .app-main { padding: 20px 18px calc(105px + env(safe-area-inset-bottom)); }
+  .app-main { padding: 20px 18px; }
   .app-main > .page { padding-inline: 0; }
   .mobile-app-header .logo { font-size: .875rem; }
   .mobile-app-header .logo-mark { width: 26px; height: 26px; }
@@ -221,7 +222,7 @@
   .sidebar-account-trigger > span { display: none; }
 }
 @media (min-width: 768px) and (max-width: 900px) {
-  .app-main:has(.today-page) { padding: 24px 20px calc(100px + env(safe-area-inset-bottom)); }
+  .app-main:has(.today-page) { padding: 24px 20px; }
   .today-page { --today-queue-width: 300px; }
   .today-page .follow-up-review-sheet > .sheet-panel { padding-left: 20px; }
   .today-page .follow-up-review-sheet .speech-bubble--compose { padding: 20px; }
