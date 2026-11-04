@@ -40,7 +40,7 @@ export function AppShell({
     const measure = () => root.style.setProperty("--phone-nav-height", `${nav.getBoundingClientRect().height}px`);
     measure();
     const observer = new ResizeObserver(measure);
-    observer.observe(nav);
+    observer.observe(nav, { box: "border-box" });
     return () => {
       observer.disconnect();
       root.style.removeProperty("--phone-nav-height");
