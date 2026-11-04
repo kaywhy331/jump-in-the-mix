@@ -4,9 +4,12 @@ import { useMemo, useState } from "react";
 import { SUPPORT_FAQS } from "@/lib/support-content";
 import { AppIcon } from "@/components/AppIcon";
 
+export const INITIAL_FAQ_COUNT = 5;
+
 export function SupportFaq() {
   const [query, setQuery] = useState("");
   const [category, setCategory] = useState("all");
+  const [showAll, setShowAll] = useState(false);
   const categories = useMemo(
     () => [...new Set(SUPPORT_FAQS.map((item) => item.category))],
     []
@@ -22,6 +25,8 @@ export function SupportFaq() {
         .includes(needle);
     });
   }, [category, query]);
+  const filtering = Boolean(query.trim()) || category !== "all";
+  const visibleResults = showAll || filtering ? results : results.slice(0, INITIAL_FAQ_COUNT);
 
   return (
     <section className="card support-faq-card" aria-labelledby="support-faq-heading">
@@ -30,7 +35,7 @@ export function SupportFaq() {
           <h2 id="support-faq-heading">Frequently asked questions</h2>
           <p>Search for a quick, plain-language answer.</p>
         </div>
-        <span className="status-pill" role="status" aria-live="polite">{results.length} matching answers</span>
+        <span className="status-pill" role="status" aria-live="polite">{filtering ? `${results.length} matching answers` : `${visibleResults.length} of ${results.length} answers`}</span>
       </div>
 
       <div className="support-faq-filters">
@@ -53,8 +58,8 @@ export function SupportFaq() {
         </label>
       </div>
 
-      <div className="support-faq-list">
-        {results.map((item) => (
+      <div className="support-faq-list" id="support-faq-list">
+        {visibleResults.map((item) => (
           <details className="support-faq-item" key={item.question}>
             <summary>
               <span>{item.question}</span>
@@ -69,10 +74,16 @@ export function SupportFaq() {
         {!results.length && (
           <div className="support-faq-empty" role="status">
             <strong>No FAQ matched that search.</strong>
-            <span>Clear the filters or <a href="#contact-support">Message support</a>. You can choose whether to include your search topic in your message.</span>
+            <span>Try another word, clear the filters or <a href="#contact-support">contact support</a>.</span>
+            <button className="button" type="button" onClick={() => { setQuery(""); setCategory("all"); }}>Clear filters</button>
           </div>
         )}
       </div>
+      {!filtering && results.length > INITIAL_FAQ_COUNT && (
+        <div className="form-actions">
+          <button className="button" type="button" aria-expanded={showAll} aria-controls="support-faq-list" onClick={() => setShowAll(!showAll)}>{showAll ? "Show fewer" : "View all"}</button>
+        </div>
+      )}
     </section>
   );
 }

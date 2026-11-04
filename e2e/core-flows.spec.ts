@@ -64,9 +64,10 @@ test("single user can complete the primary discovery and support journey", async
   const ticketTitle = `E2E browser support ticket ${testInfo.project.name}`;
   await page.goto("/help");
   await expect(page.getByRole("heading", { name: "Help", exact: true })).toBeVisible();
+  await page.getByRole("link", { name: "Contact support", exact: true }).click();
   const supportForm = page.locator("#contact-support form");
   if (testInfo.project.name === "mobile-chromium") {
-    await expect(supportForm.getByRole("button", { name: "Send feedback" })).toBeVisible();
+    await expect(supportForm.getByRole("button", { name: "Send request" })).toBeVisible();
     return;
   }
   await supportForm.getByLabel("Topic").selectOption("GENERAL");
@@ -74,7 +75,7 @@ test("single user can complete the primary discovery and support journey", async
   await supportForm.getByLabel("What happened?").fill("Browser coverage is verifying that a private support conversation can be submitted and opened.");
   await Promise.all([
     page.waitForURL(/\/account\/tickets\//),
-    supportForm.getByRole("button", { name: "Send feedback" }).click()
+    supportForm.getByRole("button", { name: "Send request" }).click()
   ]);
   await expect(page.getByRole("heading", { name: ticketTitle })).toBeVisible();
   } finally {
