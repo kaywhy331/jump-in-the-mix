@@ -286,6 +286,7 @@
 .calendar-date-strip strong { width: max(36px, 1.5rem); height: max(36px, 1.5rem); }
 @media (max-width: 900px) {
   html { scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
+  html:has(.mobile-nav) { scroll-padding-bottom: calc(var(--phone-nav-height, 0px) + var(--space-4)); }
   .mobile-nav { --phone-nav-slot: calc(100% / 5); }
   .mobile-nav .app-nav { display: flex; flex-wrap: wrap; }
   .mobile-nav .nav-link { flex: 1 0 var(--phone-nav-slot); min-width: min-content; grid-template-columns: auto; text-align: center; overflow-wrap: normal; word-break: normal; }

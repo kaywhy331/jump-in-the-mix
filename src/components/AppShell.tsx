@@ -1,4 +1,7 @@
+"use client";
+
 import Link from "next/link";
+import { useLayoutEffect, useRef } from "react";
 import { Logo } from "@/components/Logo";
 import { AccountNav, Nav } from "@/components/Nav";
 import { AppearanceControl } from "@/components/Appearance";
@@ -29,6 +32,21 @@ export function AppShell({
     expiresAt: string;
   } | null;
 }) {
+  const mobileNav = useRef<HTMLDivElement>(null);
+  useLayoutEffect(() => {
+    const nav = mobileNav.current;
+    if (!nav) return;
+    const root = document.documentElement;
+    const measure = () => root.style.setProperty("--phone-nav-height", `${nav.getBoundingClientRect().height}px`);
+    measure();
+    const observer = new ResizeObserver(measure);
+    observer.observe(nav);
+    return () => {
+      observer.disconnect();
+      root.style.removeProperty("--phone-nav-height");
+    };
+  }, []);
+
   const expiresLabel = impersonation
     ? formatDateTime(impersonation.expiresAt, displayPreferences)
     : null;
@@ -92,7 +110,7 @@ export function AppShell({
         </section>
       )}
       <main id="workspace-main" tabIndex={-1} className="app-main">{children}</main>
-      <div className="mobile-nav"><Nav quickAdd={!impersonation} /></div>
+      <div ref={mobileNav} className="mobile-nav"><Nav quickAdd={!impersonation} /></div>
       {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} locale={displayPreferences.locale} />}
     </div>
   );
