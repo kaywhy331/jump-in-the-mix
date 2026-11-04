@@ -279,7 +279,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
         <summary><span><strong>More</strong><small>Dates, preferences and custom fields</small></span><AppIcon name="chevronDown" /></summary>
         <div className="contact-more-sections">
           {journeyTrack}
-          <Link className="contact-inline-action" href={`/journey?contactId=${encodeURIComponent(contact.id)}`}>View Journey</Link>
+          <Link className="contact-inline-action contact-journey-link" href={`/journey?contactId=${encodeURIComponent(contact.id)}`}>View Journey</Link>
           <section><h2>Preferences</h2><ContactRelationshipStatePanel contactId={contact.id} state={state} /></section>
 
           <section>

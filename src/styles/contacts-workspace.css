@@ -191,6 +191,7 @@ span.contact-missing-method { font-weight: inherit; color: inherit; }
 .contact-priority-card .contact-section-heading .contact-inline-action { min-height: 28px; }
 .contact-stage-records { margin-bottom: 16px; }
 .contact-journey-track { min-width: 0; }
+.contact-detail-page .contact-journey-link { min-height: 44px; }
 .contact-stage-records > summary { min-height: 44px; cursor: pointer; }
 .contact-stage-history { display: grid; gap: 12px; list-style: none; padding: 0; margin: 12px 0; }
 .contact-stage-history li { display: flex; flex-wrap: wrap; gap: 4px 16px; justify-content: space-between; font-size: .875rem; }
