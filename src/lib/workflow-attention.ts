@@ -2,7 +2,7 @@ import { prisma } from "@/lib/prisma";
 import { workflowDefinition, workflowState } from "@/lib/mix-workflow";
 import type { WorkflowDefinition, WorkflowState } from "@/lib/mix-workflow-types";
 
-export type WorkflowAttentionItem = { id: string; contactId: string; contactName: string; label: string; reason: string; href: string; action: string };
+export type WorkflowAttentionItem = { id: string; contactId: string; contactName: string; label: string; reason: string; href: string; action: string; nextAction?: import("@/lib/next-action").NextAction };
 export type WorkflowAttention = { items: WorkflowAttentionItem[]; total: number; preparing: boolean; offset?: number; future?: Array<WorkflowAttentionItem & { dueAt: string; timezone: string }>; futureTotal?: number; futureOffset?: number };
 
 /** A missing owner decision is not evidence that the customer has not answered. */
