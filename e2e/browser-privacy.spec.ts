@@ -53,15 +53,28 @@ async function auditRecoveryPage(page: Page) {
   const result = await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
   expect(result.violations).toEqual([]);
 }
+async function expectAccountOwner(page: Page, ownerName: string) {
+  const viewport = page.viewportSize();
+  const account = page.locator(".sidebar-account-trigger");
+  // Phones reach My account through More; expose the sidebar only for this identity check.
+  const resize = viewport !== null && !await account.isVisible();
+  try {
+    if (resize) await page.setViewportSize({ ...viewport, width: 1440 });
+    await expect(account).toBeVisible();
+    await expect(account).toHaveAccessibleName(ownerName);
+  } finally {
+    if (resize) await page.setViewportSize(viewport);
+  }
+}
 
 test("offline navigation cannot restore the previous owner's private Today page", async ({ page, context, browserName }) => {
   test.skip(browserName !== "chromium" && process.env.PRIVACY_UPGRADE_FIXTURE !== "1", "Requires real transport failure for service-worker fetches.");
   await useOwner(context, page, owners[0]);
   await page.goto("/jumps?privacy=setup"); await controlled(page);
   // Visit the account URL after installation so this navigation is controlled.
-  await page.goto("/jumps?privacy=alpha"); await expect(page.locator(".user-label")).toContainText("Private Alpha Owner");
+  await page.goto("/jumps?privacy=alpha"); await expectAccountOwner(page, "Private Alpha Owner");
   await useOwner(context, page, owners[1]);
-  await page.goto("/jumps?privacy=beta"); await expect(page.locator(".user-label")).toContainText("Private Beta Owner");
+  await page.goto("/jumps?privacy=beta"); await expectAccountOwner(page, "Private Beta Owner");
   await transportOffline(context);
   await page.goto("/jumps?privacy=alpha");
   await expect(page.getByRole("heading", { name: "You’re offline" })).toBeVisible();
@@ -149,7 +162,7 @@ test("same-account reauthentication keeps a note and recovery while another acco
   await expect(page.getByRole("heading", { name: "Your account changed" })).toBeVisible();
   await context.setOffline(false);
   await page.getByRole("link", { name: "Open current account" }).click(); await ready(page);
-  await expect(page.locator(".user-label")).toContainText("Private Beta Owner");
+  await expectAccountOwner(page, "Private Beta Owner");
   await other.close();
 });
 
@@ -157,9 +170,16 @@ test("confirmed sign-out clears recovery and an open private dialog in another t
   await signIn(page, owners[0]); await remember(page, "Alpha return");
   // Profile lives in the desktop sidebar. Exercise the phone's global dialog
   // with a real private draft instead of targeting a hidden desktop control.
-  const dialogName = isMobile ? "Quick Add" : "Profile and settings";
-  await page.getByRole("button", { name: isMobile ? "Quick Add" : "Profile", exact: true }).click();
+  const dialogName = isMobile ? "Quick Add" : "Account";
+  await page.getByRole("button", { name: isMobile ? "Quick Add" : "Private Alpha Owner", exact: true }).click();
   await expect(page.getByRole("dialog", { name: dialogName, exact: true })).toBeVisible();
+  if (!isMobile) {
+    const account = page.getByRole("dialog", { name: dialogName, exact: true });
+    await expect(account.getByRole("link", { name: "My account", exact: true })).toBeVisible();
+    await expect(account.getByRole("link", { name: "Plan and billing", exact: true })).toBeVisible();
+    await expect(account.getByText("Appearance", { exact: true })).toBeVisible();
+    await expect(account.getByRole("button", { name: "Sign out", exact: true })).toBeVisible();
+  }
   if (isMobile) await page.getByRole("textbox", { name: "What do you want to remember?", exact: true }).fill("Private Alpha capture");
   const other = await context.newPage(); await other.goto("/more"); await ready(other);
   await other.getByRole("button", { name: "Sign out", exact: true }).click();

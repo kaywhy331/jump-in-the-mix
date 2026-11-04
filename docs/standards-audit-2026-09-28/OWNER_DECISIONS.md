@@ -597,6 +597,8 @@ Question 4 of the same review needed no new decision: the Mix filter's first opt
 - **D126 — Visits: option A.** Preserve No Mix while Beats await booking or the visit's outcome and there is no other qualifying Mix work. Option B was not chosen: no new visit-state or membership rules. The paused-Mix rule and owner attention under D78 remain. Applied in JITM-09 §2.76 and §6.
 - **D127 — TRU-09 publication stays an owner staff-console handoff.** Manual sending is unchanged and nothing is published in JITM-05. Preserve the saved-version review and compatibility behavior until the separately authorized publication is qualified. Applied in JITM-09 §2.19. This does not claim that the live saved wording has been inspected or published.
 
+- **D128 — Phone navigation at enlarged text (2026-11-03).** Kevin answered "3. yes" to allowing the phone navigation to wrap into a second row only when enlarged text cannot fit, keeping five equal columns, the central Quick Add and 44px targets at normal text sizes; this resolves whole-word labels that cannot fit the five-column layout without breaking or overlapping. Source: Claude Code session 7b5e8109, Fleet Control OWNER WORD note_a900ed3d9310ff8f. Applies to JITM-07 §2.6, this slice only.
+
 ## Still open
 
 The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).

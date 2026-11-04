@@ -4,6 +4,7 @@ import Link from "next/link";
 import { usePathname } from "next/navigation";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { QuickAddButton } from "@/components/QuickAdd";
+import { Sheet } from "@/components/Sheet";
 
 const links = [
   { href: "/jumps", label: "Today", icon: "home", kind: "primary" },
@@ -16,9 +17,21 @@ const links = [
 
 const accountLinks = [
   { href: "/settings", label: "Settings", icon: "settings" },
-  { href: "/help", label: "Help", icon: "help" },
-  { href: "/account", label: "My account", icon: "profile" }
+  { href: "/help", label: "Help", icon: "help" }
 ] as const;
+
+export function AccountControl({ userName, children }: { userName: string; children: React.ReactNode }) {
+  const pathname = usePathname();
+  return <Sheet
+    key={pathname}
+    trigger={<button className="button small sidebar-account-trigger" type="button" aria-label={userName}
+      aria-haspopup="dialog" aria-current={pathname === "/account" || pathname.startsWith("/account/") ? "page" : undefined}>
+      <AppIcon name="profile" /><span>{userName}</span>
+    </button>}
+    title="Account"
+    className="account-sheet"
+  >{children}</Sheet>;
+}
 
 export function AccountNav() {
   const pathname = usePathname();

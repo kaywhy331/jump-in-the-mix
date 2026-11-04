@@ -249,7 +249,12 @@ test("responsive destinations stay reachable and hydration stays consistent", as
       await page.goto(route);
       await settle();
       if (width < 1024) await expect(page.locator('.nav-link[aria-current="page"]:visible')).toContainText("More");
-      else await expect(page.getByRole("navigation", { name: "Account and help", exact: true }).locator('a[aria-current="page"]:visible')).toHaveText(label);
+      else if (label === "My account") {
+        await expect(page.getByRole("navigation", { name: "Account and help", exact: true }).getByRole("link", { name: label, exact: true })).toHaveCount(0);
+        const account = page.locator('.sidebar-account-trigger[aria-current="page"]');
+        await expect(account).toBeVisible(); await account.click();
+        await expect(page.getByRole("dialog", { name: "Account", exact: true }).getByRole("link", { name: label, exact: true })).toBeVisible();
+      } else await expect(page.getByRole("navigation", { name: "Account and help", exact: true }).locator('a[aria-current="page"]:visible')).toHaveText(label);
     }
   }
   expect(errors, JSON.stringify([...new Set(networkFailures)].slice(0, 12))).toEqual([]);

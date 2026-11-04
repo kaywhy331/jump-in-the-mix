@@ -130,14 +130,14 @@ test.describe("confirmation and rail layout", () => {
       await page.goto("/jumps"); await ready(page);
       for (const width of [901, 1194, 1279, 1280]) {
         await page.setViewportSize({ width, height: 600 });
-        const profile = page.locator(".account-sidebar-actions").getByRole("button", { name: "Profile", exact: true });
+        const profile = page.locator(".account-sidebar-actions").getByRole("button", { name: "Momentum owner", exact: true });
         await page.locator(".sidebar .logo").focus();
         for (let step = 0; step < 16 && !await profile.evaluate(element => element === document.activeElement); step += 1) await page.keyboard.press("Tab");
         await expect(profile).toBeFocused();
         await expect(profile).toBeInViewport({ ratio: 1 });
         const geometry = await profile.evaluate(element => {
           const box = element.getBoundingClientRect(), rail = element.closest(".sidebar")!.getBoundingClientRect();
-          const node = [...element.childNodes].find(node => node.nodeType === Node.TEXT_NODE && node.textContent?.includes("Profile"))!;
+          const node = element.querySelector("span")!;
           const range = document.createRange(); range.selectNodeContents(node);
           return { width: box.width, height: box.height, inside: box.left >= rail.left && box.right <= rail.right, lines: [...range.getClientRects()].filter(rect => rect.width > 0 && rect.height > 0).length };
         });
@@ -145,7 +145,7 @@ test.describe("confirmation and rail layout", () => {
         expect(geometry.inside).toBe(true); expect(geometry.lines).toBeLessThanOrEqual(1);
         if (process.env.JITM_LAYOUT_CAPTURE) await page.screenshot({ path: `${process.env.JITM_LAYOUT_CAPTURE}/rail-${theme}-${width}.png` });
         await page.keyboard.press("Enter");
-        const sheet = page.getByRole("dialog", { name: "Profile and settings", exact: true, includeHidden: true });
+        const sheet = page.getByRole("dialog", { name: "Account", exact: true, includeHidden: true });
         await expect(sheet).toBeVisible();
         // Native focus restoration precedes React's close handler. Let that event finish before tabbing at the next width.
         await sheet.evaluate(element => {

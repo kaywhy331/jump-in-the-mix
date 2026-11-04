@@ -2,9 +2,9 @@
 id: JITM-07
 title: Layout and responsive structure
 status: active
-version: 2.0.0
+version: 2.1.0
 owner: Kevin
-last_reviewed: 2026-10-13
+last_reviewed: 2026-11-03
 applies_to: [ui, layout, navigation, responsive, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
@@ -68,6 +68,7 @@ Supporting values are 600 (small-phone spacing), 760 (the public menu and staff 
 **2.5** From 901 to 1279px, an 80px compact rail shows each destination's icon with its label below (size floor: JITM-10 §2.2). Quick Add and the account links are icons with accessible names. [SHIPPED 9439fd6 src/styles/design-workspaces.css:195-206] [SHIPPED 9439fd6 e2e/a2-css-checks.spec.ts:78-86]
 
 **2.6** At 900px and below, a fixed bottom navigation shows the phone destinations of JITM-09 §2.3 in five equal columns, with the Quick Add bubble in the center. The bar respects the safe area, and its rows grow when labels wrap. [SHIPPED 9439fd6 src/styles/base.css:280-282] [SHIPPED 9439fd6 src/styles/design-workspaces.css:130-145] [SHIPPED 9439fd6 src/components/Nav.tsx:40] [SHIPPED 9439fd6 src/styles/design-details.css:287-291]
+When enlarged text cannot fit the phone labels as whole words in five equal columns, the bar wraps into a second row instead of breaking words or overlapping, keeping the destination order and 44px targets; the five equal columns with the central Quick Add apply at normal text sizes. [OWNER 2026-11-03 D128]
 
 **2.7** Both rails scroll on their own when the window is short. Their controls keep full size, focus scrolls into view, and Appearance and Profile stay reachable on a 600px-high laptop. [SHIPPED 9439fd6 src/styles/design-workspaces.css:3-4] [SOURCE docs/design/DESIGN_FOLLOWTHROUGH_2026-09-20.md:10] [SOURCE docs/design/DESIGN_GUIDELINES.md:23]
 
@@ -208,6 +209,7 @@ Question for Kevin:
 
 ## 7. Changelog
 
+- 2.1.0 — 2026-11-03 — Base c9a90405. §2.6 allows a second phone-navigation row only when enlarged whole-word labels cannot fit, preserving destination order and targets; normal text retains five equal columns and the central Quick Add (D128).
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §6 updated for D20 and D24.
 - 1.1.0 — 2026-10-08 — Base f23db11. §2.20 Journey opens at 100% from 768px and in the list view on phones (D75); §2.21 the Calendar agenda leads with appointments (D74); §2.22 Settings groups its rows (D81). §6 lists the three as decided, not built.

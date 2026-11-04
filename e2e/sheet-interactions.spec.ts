@@ -80,9 +80,9 @@ test("message drafts, snooze fields, nested confirmation and focus survive closi
   await page.keyboard.press("Enter"); await expect(date.locator('input[name="customDate"]')).toHaveValue(chosen.toISOString().slice(0, 10)); await closeSheet(page);
 
   await page.setViewportSize({ width: 1440, height: 1000 });
-  const profile = page.getByRole("button", { name: "Profile", exact: true }); await profile.focus(); await page.keyboard.press("Enter");
-  const profileSheet = page.getByRole("dialog", { name: "Profile and settings", exact: true });
-  await expect(profileSheet).toBeVisible(); await expect(profileSheet.getByRole("heading", { name: "Profile and settings", exact: true, level: 2 })).toBeFocused(); await audit(page);
+  const profile = page.getByRole("button", { name: "Sheet fixture owner", exact: true }); await profile.focus(); await page.keyboard.press("Enter");
+  const profileSheet = page.getByRole("dialog", { name: "Account", exact: true });
+  await expect(profileSheet).toBeVisible(); await expect(profileSheet.getByRole("heading", { name: "Account", exact: true, level: 2 })).toBeFocused(); await audit(page);
   await closeSheet(page); await expect(profile).toBeFocused();
   expect(await prisma.jump.count({ where: { workspaceId, status: "PENDING" } })).toBe(3);
 });
