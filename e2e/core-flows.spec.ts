@@ -1,4 +1,6 @@
 import { expect, test, type Page } from "@playwright/test";
+import AxeBuilder from "@axe-core/playwright";
+import { ACCOUNT_DELETION_PHRASE } from "../src/lib/account-deletion-policy";
 import { generateTotpCode } from "../src/lib/totp";
 import bcrypt from "bcryptjs";
 import { prisma } from "../src/lib/prisma";
@@ -197,6 +199,121 @@ test("new customer reaches a prepared first Jump through onboarding", async ({ p
 });
 });
 
+test("account deletion reveal sends no request and Cancel clears credentials and errors", async ({ page }) => {
+  await signIn(page, userEmail, userPassword);
+  await page.goto("/account?section=privacy");
+  const dangerZone = page.getByRole("region", { name: "Permanently delete account" });
+  const reveal = dangerZone.getByRole("button", { name: "Delete account", exact: true });
+  const password = dangerZone.getByLabel("Current password");
+  const phrase = dangerZone.getByLabel(`Type ${ACCOUNT_DELETION_PHRASE}`, { exact: true });
+  const cancel = dangerZone.getByRole("button", { name: "Cancel", exact: true });
+  const submit = dangerZone.getByRole("button", { name: "Permanently delete account", exact: true });
+  await expect(password).toHaveCount(0);
+  await expect(phrase).toHaveCount(0);
+  await reveal.scrollIntoViewIfNeeded();
+  await page.waitForLoadState("networkidle");
+  const requests: string[] = [];
+  page.on("request", request => requests.push(`${request.method()} ${request.url()}`));
+  await reveal.focus();
+  await page.keyboard.press("Enter");
+  await expect(cancel).toBeFocused();
+  await expect(reveal).toHaveAttribute("aria-expanded", "true");
+  await page.waitForLoadState("networkidle");
+  expect(requests).toEqual([]);
+
+  // Either missing field prevents submission, even if the other is correct.
+  await phrase.fill(ACCOUNT_DELETION_PHRASE);
+  await submit.click();
+  await expect(password).toBeFocused();
+  expect(await password.evaluate(input => (input as HTMLInputElement).validity.valueMissing)).toBe(true);
+  await password.fill(userPassword);
+  await phrase.fill("");
+  await submit.click();
+  expect(await phrase.evaluate(input => (input as HTMLInputElement).validity.valueMissing)).toBe(true);
+  expect(requests).toEqual([]);
+
+  await phrase.fill(ACCOUNT_DELETION_PHRASE);
+  await cancel.click();
+  await expect(reveal).toBeFocused();
+  await expect(reveal).toHaveAttribute("aria-expanded", "false");
+  await expect(password).toHaveCount(0);
+  await expect(phrase).toHaveCount(0);
+  await reveal.click();
+  await expect(password).toHaveValue("");
+  await expect(phrase).toHaveValue("");
+  expect(requests).toEqual([]);
+
+  // A rejected server action must not survive Cancel and a fresh reveal either.
+  await password.fill("wrong-password");
+  await phrase.fill(ACCOUNT_DELETION_PHRASE);
+  await submit.click();
+  await expect(dangerZone.getByRole("alert")).toContainText("current password is incorrect");
+  await cancel.click();
+  await reveal.click();
+  await expect(password).toHaveValue("");
+  await expect(phrase).toHaveValue("");
+  await expect(dangerZone.getByRole("alert")).toHaveCount(0);
+});
+
+test("account export labels explain formats and preserve preparing, error and download feedback", async ({ page }) => {
+  await signIn(page, userEmail, userPassword);
+  await page.goto("/account?section=privacy");
+  const spreadsheet = page.getByRole("button", { name: "Spreadsheet files", exact: true });
+  const json = page.getByRole("button", { name: "JSON backup", exact: true });
+  await expect(spreadsheet).toHaveAccessibleDescription(/ZIP of CSV files/);
+  await expect(json).toHaveAccessibleDescription(/account records, Mixes, and settings/);
+  let releaseExport!: () => void;
+  const pendingExport = new Promise<void>(resolve => { releaseExport = resolve; });
+  await page.route("**/api/account/export?format=csv", async route => {
+    await pendingExport;
+    await route.fulfill({ status: 429, contentType: "application/json", body: JSON.stringify({ error: "Synthetic export limit. Try again later." }) });
+  });
+  try {
+    await spreadsheet.click();
+    await expect(page.getByRole("status").filter({ hasText: "Preparing your export…" })).toBeVisible();
+    await expect(spreadsheet).toBeDisabled();
+    await expect(json).toBeDisabled();
+  } finally { releaseExport(); }
+  await expect(page.getByRole("alert")).toHaveText("Synthetic export limit. Try again later.");
+  await expect(spreadsheet).toBeEnabled();
+  await expect(json).toBeEnabled();
+  await page.route("**/api/account/export", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ synthetic: true }) }));
+  const download = page.waitForEvent("download");
+  await json.click();
+  expect((await download).suggestedFilename()).toBe("jump-in-the-mix-export.json");
+  await expect(page.getByRole("status").filter({ hasText: "Export prepared and passed to your browser" })).toBeVisible();
+  await expect(page.getByRole("alert")).toHaveCount(0);
+});
+
+for (const theme of ["light", "dark"] as const) {
+  test(`account data controls remain accessible in ${theme} at narrow and wide sizes`, async ({ page }, testInfo) => {
+    await page.addInitScript(value => localStorage.setItem("jitm-appearance", value), theme);
+    await signIn(page, userEmail, userPassword);
+    await page.goto("/account?section=privacy");
+    const widths = testInfo.project.name === "mobile-chromium" ? [320, 390] : [834, 1194, 1920];
+    for (const width of widths) {
+      await page.setViewportSize({ width, height: 900 });
+      const textSize = await page.addStyleTag({ content: `html { font-size: ${width === 320 ? 200 : 100}% !important; }` });
+      const reveal = page.getByRole("button", { name: "Delete account", exact: true });
+      await reveal.click();
+      const cancel = page.getByRole("button", { name: "Cancel", exact: true });
+      await expect(cancel).toBeFocused();
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
+      for (const button of [cancel, page.getByRole("button", { name: "Permanently delete account", exact: true }), page.getByRole("button", { name: "Spreadsheet files", exact: true }), page.getByRole("button", { name: "JSON backup", exact: true })]) {
+        const box = await button.boundingBox();
+        expect(box?.height).toBeGreaterThanOrEqual(44);
+        expect(box?.width).toBeGreaterThanOrEqual(44);
+      }
+      const results = await new AxeBuilder({ page }).include(".account-page").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+      expect(results.violations).toEqual([]);
+      if (process.env.ACCOUNT_UI_CAPTURE_DIR) await page.screenshot({ path: `${process.env.ACCOUNT_UI_CAPTURE_DIR}/account-${theme}-${width}.png`, fullPage: true });
+      await cancel.click();
+      await textSize.evaluate(element => element.parentNode?.removeChild(element));
+    }
+  });
+}
+
 test("personal account holder must reauthenticate and explicitly confirm permanent deletion", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "The destructive stateful journey runs once.");
   const suffix = `${Date.now()}-${Math.random().toString(36).slice(2)}`;
@@ -232,6 +349,7 @@ test("personal account holder must reauthenticate and explicitly confirm permane
   await page.goto("/account?section=privacy");
   const dangerZone = page.getByRole("region", { name: "Permanently delete account" });
   await expect(dangerZone.getByRole("heading", { name: "Permanently delete account" })).toBeVisible();
+  await dangerZone.getByRole("button", { name: "Delete account", exact: true }).click();
 
   await dangerZone.getByLabel("Current password").fill("wrong-password");
   await dangerZone.getByLabel(/Type DELETE MY ACCOUNT/).fill("DELETE MY ACCOUNT");

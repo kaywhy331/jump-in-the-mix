@@ -148,6 +148,7 @@ test("rating stars read 1 to 5 from left to right and fill up to the tapped star
 test("passwordless deletion rechecks recent authentication on the server", async ({ page }) => {
   const { user, session } = await member(page);
   await page.goto("/account?section=privacy");
+  await page.getByRole("button", { name: "Delete account", exact: true }).click();
   await page.getByLabel(`Type ${ACCOUNT_DELETION_PHRASE}`, { exact: true }).fill("wrong phrase");
   await page.getByRole("button", { name: "Permanently delete account" }).click();
   await expect(page.locator("main").getByRole("alert")).toContainText(`Type ${ACCOUNT_DELETION_PHRASE} exactly`);
@@ -157,9 +158,11 @@ test("passwordless deletion rechecks recent authentication on the server", async
   await expect(page.locator("main").getByRole("alert")).toContainText("Sign in again");
   expect(await prisma.user.count({ where: { id: user.id } })).toBe(1);
   await page.reload();
+  await page.getByRole("button", { name: "Delete account", exact: true }).click();
   await expect(page.getByRole("button", { name: "Sign in again to confirm identity" })).toBeVisible();
   await prisma.session.update({ where: { id: session.id }, data: { createdAt: new Date() } });
   await page.reload();
+  await page.getByRole("button", { name: "Delete account", exact: true }).click();
   await page.getByLabel(`Type ${ACCOUNT_DELETION_PHRASE}`, { exact: true }).fill(ACCOUNT_DELETION_PHRASE);
   await page.getByRole("button", { name: "Permanently delete account" }).click();
   await expect(page).toHaveURL(/\/account\/deleted/);
