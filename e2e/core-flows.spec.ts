@@ -274,7 +274,7 @@ test("account export labels explain formats and preserve preparing, error and do
     await expect(spreadsheet).toBeDisabled();
     await expect(json).toBeDisabled();
   } finally { releaseExport(); }
-  await expect(page.getByRole("alert")).toHaveText("Synthetic export limit. Try again later.");
+  await expect(page.locator(".account-page").getByRole("alert")).toHaveText("Synthetic export limit. Try again later.");
   await expect(spreadsheet).toBeEnabled();
   await expect(json).toBeEnabled();
   await page.route("**/api/account/export", route => route.fulfill({ contentType: "application/json", body: JSON.stringify({ synthetic: true }) }));
@@ -282,7 +282,7 @@ test("account export labels explain formats and preserve preparing, error and do
   await json.click();
   expect((await download).suggestedFilename()).toBe("jump-in-the-mix-export.json");
   await expect(page.getByRole("status").filter({ hasText: "Export prepared and passed to your browser" })).toBeVisible();
-  await expect(page.getByRole("alert")).toHaveCount(0);
+  await expect(page.locator(".account-page").getByRole("alert")).toHaveCount(0);
 });
 
 for (const theme of ["light", "dark"] as const) {
@@ -307,7 +307,12 @@ for (const theme of ["light", "dark"] as const) {
       }
       const results = await new AxeBuilder({ page }).include(".account-page").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
       expect(results.violations).toEqual([]);
-      if (process.env.ACCOUNT_UI_CAPTURE_DIR) await page.screenshot({ path: `${process.env.ACCOUNT_UI_CAPTURE_DIR}/account-${theme}-${width}.png`, fullPage: true });
+      if (process.env.ACCOUNT_UI_CAPTURE_DIR) {
+        await page.evaluate(() => window.scrollTo(0, 0));
+        await page.screenshot({ path: `${process.env.ACCOUNT_UI_CAPTURE_DIR}/account-${theme}-${width}.png`, fullPage: true });
+        await cancel.scrollIntoViewIfNeeded();
+        await page.screenshot({ path: `${process.env.ACCOUNT_UI_CAPTURE_DIR}/account-controls-${theme}-${width}.png` });
+      }
       await cancel.click();
       await textSize.evaluate(element => element.parentNode?.removeChild(element));
     }
