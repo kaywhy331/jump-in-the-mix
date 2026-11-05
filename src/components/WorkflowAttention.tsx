@@ -11,7 +11,7 @@ function pageHref(viewHref: string, name: string, value: number, hash = "") {
   return `${url.pathname}${url.search}${hash}`;
 }
 
-export function WorkflowAttention({ attention, projection, displayPreferences, viewHref = "/jumps" }: { attention: Attention | null; projection?: NextActionProjection; displayPreferences?: DisplayFormatPreferences; viewHref?: string }) {
+export function WorkflowAttention({ attention, projection, displayPreferences, viewHref = "/jumps" }: { attention: Attention<string | null> | null; projection?: NextActionProjection; displayPreferences?: DisplayFormatPreferences; viewHref?: string }) {
   if (attention && !attention.total && !attention.preparing) return null;
   return <section id="needs-your-input" aria-labelledby="needs-your-input-heading" data-workflow-refresh="true">
     <div className="section-label"><h2 id="needs-your-input-heading">Needs your input</h2>{attention && <span>{attention.total}</span>}</div>
@@ -27,7 +27,7 @@ export function WorkflowAttention({ attention, projection, displayPreferences, v
   </section>;
 }
 
-export function UpcomingWorkflowCommitments({ attention, displayPreferences, viewHref = "/jumps" }: { attention: Attention | null; displayPreferences: DisplayFormatPreferences; viewHref?: string }) {
+export function UpcomingWorkflowCommitments({ attention, displayPreferences, viewHref = "/jumps" }: { attention: Attention<string | null> | null; displayPreferences: DisplayFormatPreferences; viewHref?: string }) {
   if (!attention?.future?.length) return null;
   return <div>{attention.future.map(item => <div className="contact-method-row" key={item.id}><span><strong>{item.contactName}</strong><br />{item.label} · {item.reason}<br />{formatDateTime(item.dueAt, { ...displayPreferences, timeZone: item.timezone })} ({zoneLabel(item.timezone)})</span><TodayLink className="button small" href={item.href}>{item.action}</TodayLink></div>)}{(attention.futureTotal ?? 0) > attention.future.length && <nav className="pagination-bar" aria-label="Upcoming callback pages">{(attention.futureOffset ?? 0) > 0 && <TodayLink className="button small" href={pageHref(viewHref, "callbackPage", (attention.futureOffset ?? 0) / 30 - 1)}>Previous callbacks</TodayLink>}{(attention.futureOffset ?? 0) + attention.future.length < (attention.futureTotal ?? 0) && <TodayLink className="button small" href={pageHref(viewHref, "callbackPage", (attention.futureOffset ?? 0) / 30 + 1)}>Next callbacks</TodayLink>}</nav>}</div>;
 }

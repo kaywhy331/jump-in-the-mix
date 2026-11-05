@@ -108,7 +108,7 @@ test("connection setup supports authenticated retries, ambiguous review, rotatio
   // Exercise the browser's reload rather than relying on a protocol-level
   // navigation completion signal. The new receipt proves a fresh document.
   await page.evaluate(() => window.location.reload());
-  await expect(page.locator("#needs-review")).toContainText("Needs a person’s eye · 1");
+  await expect(page.locator("#needs-review")).toContainText("Needs review · 1");
   await page.waitForFunction(() => document.readyState === "complete");
   await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
   await page.getByRole("combobox",{ name: "Matching contact", exact: true }).selectOption(other.id); await submit(page, page.getByRole("button",{ name: "Link to selected person", exact: true })); await expect(page.locator("#needs-review")).toContainText("No inquiries waiting");

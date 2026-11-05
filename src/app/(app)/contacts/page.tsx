@@ -1,3 +1,5 @@
+import { NeedsReviewLink } from "@/components/IntakeReviews";
+import { readIntakeReviewCount } from "@/lib/intake-review-reader";
 import { contactDueLabel } from "@/lib/contact-profile-view";
 import { ContactProfile } from "@/components/ContactProfile";
 import type { Metadata } from "next";
@@ -133,6 +135,7 @@ function pageHref(input: {
 export default async function ContactsPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
   const { session, user, workspace } = await requireWorkspace();
+  const reviewCount = await readIntakeReviewCount(workspace.id);
   const displayPreferences = await displayPreferencesForUser(user.id);
   const savedViews = await prisma.contactSavedView.findMany({
     where: { userId: user.id, workspaceId: workspace.id },
@@ -352,6 +355,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
       <UrlErrorNotice params={params} viewer={session} />
       <p className="sr-only" role="status" aria-live="polite">{resultMessage}</p>
       <div className="contacts-workspace"><section className="contacts-directory" aria-label="Contact directory">
+      <NeedsReviewLink count={reviewCount} />
       <ContactsBulkWorkspace
         savedViews={<ContactSavedViewsBar
           views={savedViews.map(({ id, name, isDefault }) => ({ id, name, isDefault }))}
