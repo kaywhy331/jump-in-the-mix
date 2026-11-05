@@ -386,7 +386,7 @@ test("Calendar directs focus to an ambiguous person choice and saves the reviewe
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/calendar?new=1&date=2026-10-15"); await ready(page);
   const form = page.locator(".calendar-entry-form");
   await form.getByRole("textbox", { name: "Title", exact: true }).fill("Visit with reviewed person");
-  await form.getByText("Add a new person for this visit", { exact: true }).click();
+  await form.getByRole("button", { name: "Create new contact", exact: true }).click();
   await form.getByLabel("Name", { exact: true }).fill("Keep this entered name");
   await form.getByLabel("Phone (optional)", { exact: true }).fill("+15550101991");
   await form.getByLabel("Email (optional)", { exact: true }).fill("choice@example.test");

@@ -213,7 +213,8 @@ test("a missing appointment carries the person and work through Calendar and bac
   await page.goto(`/journey?contactId=${person.id}&work=${id}`);
   await page.getByRole("link", { name: "Open Calendar", exact: true }).click();
   await expect(page).toHaveURL(/calendar\?.*returnTo=/);
-  await expect(page.getByRole("combobox", { name: "Contact (optional)", exact: true })).toHaveValue(person.id);
+  await expect(page.locator('.calendar-entry-form input[name="contactId"]')).toHaveValue(person.id);
+  await expect(page.getByRole("combobox", { name: "Contact (optional)", exact: true })).toHaveValue(person.displayName);
   await page.locator(".calendar-entry-form").getByRole("group", { name: "Starts", exact: true }).getByRole("button", { name: /Starts, date:/ }).click();
   await page.getByRole("dialog", { name: "Starts", exact: true }).getByRole("button", { name: "Tomorrow", exact: true }).click();
   if (await page.getByRole("button", { name: "Close Starts", exact: true }).isVisible()) await page.getByRole("button", { name: "Close Starts", exact: true }).click();

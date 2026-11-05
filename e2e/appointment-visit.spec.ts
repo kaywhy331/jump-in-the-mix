@@ -131,7 +131,7 @@ test("asks for one inline choice when the entered phone and email match differen
   await form.getByLabel("Where").fill("9 Pine Ct");
   await moreDetails(form);
   await form.getByLabel("Details the customer should be reminded of (optional)").fill("Side entrance");
-  await form.getByText("Add a new person for this visit").click();
+  await form.getByRole("button", { name: "Create new contact", exact: true }).click();
   await form.getByLabel("Name", { exact: true }).fill("A. Stone");
   await form.getByLabel("Phone (optional)", { exact: true }).fill("+1 555-010-0601");
   await form.getByLabel("Email (optional)", { exact: true }).fill(blakeEmail);
