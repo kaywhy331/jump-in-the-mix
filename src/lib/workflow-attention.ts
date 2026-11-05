@@ -2,8 +2,8 @@ import { prisma } from "@/lib/prisma";
 import { workflowDefinition, workflowState } from "@/lib/mix-workflow";
 import type { WorkflowDefinition, WorkflowState } from "@/lib/mix-workflow-types";
 
-export type WorkflowAttentionItem = { id: string; contactId: string; contactName: string; label: string; reason: string; href: string; action: string; nextAction?: import("@/lib/next-action").NextAction };
-export type WorkflowAttention = { items: WorkflowAttentionItem[]; total: number; preparing: boolean; offset?: number; future?: Array<WorkflowAttentionItem & { dueAt: string; timezone: string }>; futureTotal?: number; futureOffset?: number };
+export type WorkflowAttentionItem<ContactId extends string | null = string> = { id: string; contactId: ContactId; contactName: string; label: string; reason: string; href: string; action: string; nextAction?: import("@/lib/next-action").NextAction };
+export type WorkflowAttention<ContactId extends string | null = string> = { items: WorkflowAttentionItem<ContactId>[]; total: number; preparing: boolean; offset?: number; future?: Array<WorkflowAttentionItem<ContactId> & { dueAt: string; timezone: string }>; futureTotal?: number; futureOffset?: number };
 
 /** A missing owner decision is not evidence that the customer has not answered. */
 export function workflowAttentionReasons(definition: WorkflowDefinition, state: WorkflowState, now = new Date()): Array<{ id: string; reason: string; action: string }> {

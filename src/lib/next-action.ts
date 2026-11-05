@@ -1,15 +1,15 @@
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 
-export type NextActionKind = "follow-up" | "outcome" | "commitment" | "appointment" | "repair";
+export type NextActionKind = "follow-up" | "outcome" | "commitment" | "appointment" | "repair" | "intake-review";
 export type NextActionCandidate = {
   /** The obligation's identity, shared by every representation of that obligation. */
-  id: string; contactId: string; contactName: string; kind: NextActionKind;
+  id: string; contactId: string | null; contactName: string; kind: NextActionKind;
   title: string; detail: string; href: string; action: string;
   dueAt: string | null; updatedAt: string;
   /** A commitment's saved timezone, retained for its upcoming queue entry. */
   dueTimeZone?: string;
   status?: "open" | "done" | "skipped";
-  jumpId?: string; workId?: string; mixId?: string;
+  jumpId?: string; workId?: string; mixId?: string; receiptId?: string;
   inView?: boolean;
 };
 export type NextAction = NextActionCandidate & { timing: "overdue" | "due" | "future" | "attention" };
@@ -19,7 +19,7 @@ export type NextActionProjection = {
   attentionCount: number; futureCount: number;
 };
 
-const kindOrder: Record<NextActionKind, number> = { outcome: 0, commitment: 1, "follow-up": 2, repair: 3, appointment: 4 };
+const kindOrder: Record<NextActionKind, number> = { outcome: 0, commitment: 1, "follow-up": 2, repair: 3, "intake-review": 4, appointment: 5 };
 // Browser-safe calendar arithmetic: no elapsed-hour assumption across DST boundaries.
 function dayNumber(date: Date, timeZone: string): number {
   const parts = new Intl.DateTimeFormat("en-US", { timeZone, year: "numeric", month: "numeric", day: "numeric" }).formatToParts(date);
@@ -92,7 +92,7 @@ export function withoutSettledActionVersions(projection: NextActionProjection, s
 }
 
 export function nextActionTime(item: NextAction, projection: Pick<NextActionProjection, "observedAt" | "timeZone">, preferences: DisplayFormatPreferences): string {
-  if (!item.dueAt) return item.kind === "outcome" ? "Waiting for your outcome" : "Needs your attention";
+  if (!item.dueAt) return item.kind === "intake-review" ? "Needs review" : item.kind === "outcome" ? "Waiting for your outcome" : "Needs your attention";
   const display = { ...preferences, timeZone: projection.timeZone };
   const days = dayNumber(new Date(projection.observedAt), projection.timeZone) - dayNumber(new Date(item.dueAt), projection.timeZone);
   return item.timing === "overdue"

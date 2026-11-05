@@ -1,3 +1,4 @@
+import { readIntakeReviewWorkItems } from "@/lib/intake-review-reader";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { readPreparationStatus } from "@/lib/preparation";
@@ -133,6 +134,7 @@ export async function readNextActionSnapshot(db: Prisma.TransactionClient, works
         dueAt: needsOutcome ? null : appointment.startsAt.toISOString(), updatedAt: appointment.updatedAt.toISOString() });
     }
   }
+  if (!options.contactId) other.push(...await readIntakeReviewWorkItems(db, workspaceId));
   const query = options.query?.toLocaleLowerCase();
   candidates.push(...other.map(item => ({ ...item, inView: options.includeOtherActions !== false && (!query || `${item.contactName} ${item.title} ${item.detail}`.toLocaleLowerCase().includes(query))
     && (!options.overdueOnly || item.dueAt !== null && new Date(item.dueAt) < options.now)
@@ -149,7 +151,7 @@ export async function readNextActions(workspaceId: string, options: NextActionRe
 }
 
 /** The existing paged queues are a view of the projection, never a second count of the same obligation. */
-export function nextActionAttention(projection: NextActionProjection, offset = 0, futureOffset = 0, upcomingProjection = projection): WorkflowAttention | null {
+export function nextActionAttention(projection: NextActionProjection, offset = 0, futureOffset = 0, upcomingProjection = projection): WorkflowAttention<string | null> | null {
   if (projection.state === "unavailable") return null;
   const current = projection.items.filter(item => item.kind !== "follow-up" && item.timing !== "future");
   // Today's upcoming queue keeps the complete snapshot's future context, outside its due filters.

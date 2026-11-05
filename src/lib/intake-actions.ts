@@ -1,4 +1,5 @@
 "use server";
+import { revalidatePath } from "next/cache";
 import { redirect } from "next/navigation";
 import { requireWorkspace } from "@/lib/auth";
 import { withViewerError } from "@/lib/form-errors";
@@ -45,10 +46,12 @@ export async function intakeConnectionAction(data: FormData) {
 
 export async function reviewIntakeAction(data: FormData) {
   const { workspace, user, session, impersonation } = await requireWorkspace(); if (impersonation) throw new Error("Support sessions are view-only.");
+  const returnTo = value(data, "returnTo") === "/contacts/review" ? "/contacts/review" : "/settings/connections";
   try {
     const decision = value(data, "decision");
     if (!["ignore","create","link"].includes(decision)) throw new ConnectionActionError("Choose how to handle this inquiry.");
     await resolveIntake(workspace.id, value(data, "receiptId"), decision as "ignore" | "create" | "link", value(data, "contactId"), user.id);
-  } catch (error) { redirect(`${withViewerError("/settings/connections", error instanceof ConnectionActionError || error instanceof IntakeError ? error.message : "The inquiry could not be reviewed.", session)}#needs-review`); }
-  redirect("/settings/connections?saved=1#needs-review");
+  } catch (error) { redirect(`${withViewerError(returnTo, error instanceof ConnectionActionError || error instanceof IntakeError ? error.message : "The inquiry could not be reviewed.", session)}#needs-review`); }
+  for (const path of ["/jumps", "/contacts", "/contacts/review", "/settings/connections"]) revalidatePath(path);
+  redirect(`${returnTo}?saved=1#needs-review`);
 }
