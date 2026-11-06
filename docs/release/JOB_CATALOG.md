@@ -26,11 +26,12 @@ must be empty. Reads use a repeatable-read, read-only transaction. Legitimate
 concurrent changes to counted customer records refuse the release too; investigate
 and obtain a new baseline, never adjust a digest to hide drift.
 
-S3 must assign every synthetic row an ID beginning with the shared
-`syntheticPrefix`, including rows without cascading ownership. Final scans every
+Explicit fixture rows use IDs beginning with the shared `syntheticPrefix`;
+application-created sessions and related rows carry the synthetic owner or
+workspace foreign key and are removed by those relationships. Final scans every
 public text column for that reserved prefix, refuses the shared `probeTaskPrefix`
 in Job tasks, active AuthRateLimit blocks, and Job failures since release start.
-These marker contracts are deliberately shared with the future smoke/cleanup
+These marker contracts are shared with the smoke/cleanup
 commands; they do not claim discovery of arbitrary unmarked test data.
 
 S2 adds `node scripts/release/jobs/backup.mjs` and
@@ -71,6 +72,41 @@ afterwards, the full candidate schema/history must pass, and baseline counts
 must remain equal. A partial or already applied attempt refuses; resolve the
 operation through the release ledger before any further migration attempt.
 
+S3 adds `worker_gate.mjs`, `postflight.mjs`, `smoke.mjs` and `cleanup.mjs` in the
+same directory. Run smoke with `node --import tsx`; other commands use `node`.
+Worker gate requires exactly one RUNNING heartbeat with the candidate commit,
+started since approval and fresh within the reviewed threshold, and no old
+instance's lease. Prisma timestamps are interpreted explicitly as UTC. It then
+inserts one reserved no-op job, observes normal worker completion, removes its
+unlocked probe, and rereads the heartbeat, queue and business count digest.
+A locked probe is unresolved and is retained. No qualification or operations
+monitor script runs inside this job.
+
+The worker change is deliberately small: its heartbeat adds the build commit,
+and its existing job dispatcher accepts only the exact reserved task/payload
+in `src/worker/release-contract.json`. The handler itself performs no customer
+read/write or provider call. Existing queue, lease, shutdown and failure paths
+remain in use. Catalog QA must include this product-worker change.
+
+Postflight wraps the existing `production-smoke.mjs` without skips, independently
+requires same-origin sign-in redirects, and compares all `public/` and
+`.next/static/` bytes with served assets. Public files deleted since the previous
+commit must return 404. The orchestrator checks service cutover separately;
+without positive evidence of rolling instances this command refuses a failed
+read and does not infer permission to retry a job-creation POST.
+
+Smoke creates one operation-marked owner, one workspace and a contact with no
+email, phone or address rows, then a manual-only Beat. Credentials are random and
+remain in memory. Playwright verifies real sign-in cookies/session lifetime,
+client-address attribution with and without a supplied forwarded header, signed
+errors, Today at 390px, both themes' reflow/axe, and the reviewed release-change
+plan. Outbound browser requests to other origins are blocked. A completed seed
+is removed in `finally`, including a browser failure. The standalone cleanup is
+idempotent and runs through the existing orchestrator after terminal smoke
+failure too; an unresolved operation still blocks the orchestrator. Cleanup
+refuses unexpected account sharing and residual marked rows rather than deleting
+unrecognized data. Final independently checks the global reserved markers.
+
 Local tests: `node --test scripts/release/jobs/__tests__/*.node.mjs`.
 The integration test requires `RELEASE_TEST_ADMIN_URL` pointing to a local
 PostgreSQL fixture; it creates and drops only its own `jitm_design_release_*`
@@ -78,8 +114,20 @@ database and dedicated temporary role, and uses synthetic rows only.
 The migration fixture makes a private temporary Git repository with a synthetic
 additive candidate; it exercises the real owner wrapper and checks backup grants,
 new objects, count drift, repeated execution and destructive SQL refusal.
+`local-runtime.node.mjs` exercises a real local worker/probe and synthetic
+creation/removal; `RELEASE_TEST_CLI=true` adds clean-source command entrypoints.
+`RELEASE_TEST_BROWSER=true` additionally runs the actual authenticated smoke on
+a local production build, through a synthetic loopback reverse proxy with a
+known client address. Run that test process with `node --import tsx`. The HTTP
+fixture tests the existing public-smoke subprocess and byte/deletion failures.
 
-NOT RUN: Docker-edition end-to-end qualification (S5), operator image/settings
-installation (S4), Render and production calls, and rehearsal h. In particular,
+Actual authenticated browser execution is BLOCKED in S3: the local Next.js
+build compiled but failed with `Could not parse output from TypeScript's
+--showConfig.`, including one identical retry; direct TypeScript no-emit and
+showConfig passed. The coordinator requires this real-browser fixture in S5,
+alongside Docker qualification. Assertions were not disabled.
+
+NOT RUN: Docker-edition end-to-end qualification (S5), operator image build and
+installation, Render and production calls, and rehearsal h. In particular,
 whether Render interprets the `JITM_RELEASE_CONTEXT=<base64> <command>` prefix
 through a shell remains unverified; the orchestrator format is unchanged.
