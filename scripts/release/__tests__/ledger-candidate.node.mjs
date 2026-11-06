@@ -1,7 +1,6 @@
 import test from 'node:test';
 import assert from 'node:assert/strict';
 import { mkdtempSync, mkdirSync, writeFileSync, rmSync } from 'node:fs';
-import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { execFileSync } from 'node:child_process';
 import { append, read, resolve, assertNoUnresolved, GitLedger } from '../ledger.mjs';
@@ -57,7 +56,8 @@ test('remote ledger appends a child commit and never forces a competing update',
 });
 
 test('real Git candidate binding rejects non-main history, moved main and every digest mismatch', () => {
-  const cwd = mkdtempSync(join(tmpdir(), 'release-candidate-'));
+  mkdirSync('.artifacts/tmp', { recursive: true });
+  const cwd = mkdtempSync(join(process.cwd(), '.artifacts/tmp/release-candidate-'));
   const git = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
   try {
     git('init'); git('config', 'user.name', 'Synthetic Test'); git('config', 'user.email', 'test@example.test');

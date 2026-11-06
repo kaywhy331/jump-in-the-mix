@@ -11,7 +11,7 @@ const sha = (value) => { if (!/^[a-f0-9]{40}$/.test(value)) throw new Error('Can
 export function bind(cwd, candidateSha, mainSha) {
   sha(candidateSha); sha(mainSha);
   git(cwd, 'merge-base', '--is-ancestor', candidateSha, mainSha);
-  const bytes = (path) => execFileSync('git', ['show', `${candidateSha}:${path}`], { cwd, maxBuffer: 32 * 1024 * 1024 });
+  const bytes = (path) => execFileSync('git', ['show', `${candidateSha}:${path}`], { cwd, stdio: ['ignore', 'pipe', 'pipe'] });
   const paths = git(cwd, 'ls-tree', '-r', '--name-only', candidateSha, '--', 'prisma/migrations').split('\n').filter(Boolean).sort();
   if (!paths.some((path) => path.endsWith('/migration.sql'))) throw new Error('Missing migration set');
   return {
