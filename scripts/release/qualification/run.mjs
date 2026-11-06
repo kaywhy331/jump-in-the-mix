@@ -10,10 +10,16 @@ import { run, requiredChecks } from '../workflow.mjs';
 import { assertNoUnresolved, verify, pending } from '../ledger.mjs';
 import { settings as defaults } from './settings.mjs';
 import { Providers } from './providers.mjs';
+import yaml from 'js-yaml';
 
 const group=process.argv[2];
 assert.ok(Object.hasOwn(defaults.groups,group),'Use code, migration or reversible');
 const root=process.cwd(), output=resolve('.artifacts/release-qualification',`${group}-${randomUUID()}`);
+const pilot=yaml.safeLoad(await readFile('compose.pilot.yml','utf8'));
+const baseCompose=yaml.safeLoad(await readFile('docker-compose.yml','utf8'));
+const databaseService=Object.keys(baseCompose.services).find(name=>baseCompose.services[name].image?.startsWith('postgres:'));
+assert.ok(databaseService,'Pilot PostgreSQL service required');
+const databaseSettings=pilot.services[databaseService].environment;
 await mkdir(output,{recursive:true,mode:0o700});
 const source=join(output,'candidate'), sourceContext=join(output,'release-source'), webContext=join(output,'release-web');
 const secrets=[];
@@ -86,21 +92,22 @@ for (const [index,fault] of defaults.groups[group].entries()) {
   const evidence=join(directory,'evidence'), store=join(directory,'objects');
   for (const path of [evidence,store]) {await mkdir(path);await chmod(path,0o777);}
   const urls={};
-  for (const [key,role] of [['owner','jitm'],['runtime','qualification_runtime'],['backup','qualification_backup']]) {
-    const url=new URL('postgresql://postgres:5432/jitm');url.username=role;url.password=random();url.searchParams.set('schema','public');urls[key]=url.href;
+  for (const [key,role] of [['owner',databaseSettings.POSTGRES_USER],['runtime',defaults.runtimeRole],['backup',defaults.backupRole]]) {
+    const url=new URL(`postgresql://${databaseService}/${databaseSettings.POSTGRES_DB}`);url.username=role;url.password=random();url.searchParams.set('schema','public');urls[key]=url.href;
   }
   // Compose never inherits optional provider credentials from the invoking host.
   const env={...Object.fromEntries(['PATH','HOME','TMPDIR'].filter(k=>process.env[k]).map(k=>[k,process.env[k]])),
     POSTGRES_PASSWORD:new URL(urls.owner).password,APP_PORT:'0',APP_URL:defaults.siteOrigin,
     AUTH_RATE_LIMIT_SECRET:random(),DATA_ENCRYPTION_KEY:random(),BACKUP_ENCRYPTION_KEY:random(),
     COMPOSE_PROJECT_NAME:project,COMPOSE_ANSI:'never'};
-  const common={DATABASE_URL:urls.runtime,APP_URL:defaults.siteOrigin,AUTH_ALLOWED_ORIGINS:defaults.siteOrigin,
+  const common={...defaults.publicTrust,DATABASE_URL:urls.runtime,APP_URL:defaults.siteOrigin,AUTH_ALLOWED_ORIGINS:defaults.siteOrigin,
     WORKER_DISPATCH_MODE:'off',RESEND_API_KEY:'',RESEND_RECOVERY_API_KEY:'',TWILIO_ACCOUNT_SID:'',TWILIO_AUTH_TOKEN:'',
     EMAIL_FROM:'',OPS_ALERT_WEBHOOK_URL:'',WEB_PUSH_VAPID_PUBLIC_KEY:'',WEB_PUSH_VAPID_PRIVATE_KEY:'',NETLIFY_WORKER_SECRET:''};
   const runtime={...common,NODE_ENV:'production',PILOT_MODE:'true',DEMO_MODE:'false',AUTH_REQUIRE_EMAIL_VERIFICATION:'false',AUTH_REQUIRE_ADMIN_MFA:'false',
     AUTH_RATE_LIMIT_SECRET:env.AUTH_RATE_LIMIT_SECRET,DATA_ENCRYPTION_KEY:env.DATA_ENCRYPTION_KEY};
   const override=join(directory,'compose.json');
   const operator={image:images.operator,network_mode:'service:proxy',environment:{...runtime,
+    QUALIFICATION_DATABASE_HOST:databaseService,
     MIGRATION_DATABASE_URL:urls.owner,BACKUP_DATABASE_URL:urls.backup,BACKUP_ENCRYPTION_KEY:env.BACKUP_ENCRYPTION_KEY,
     BACKUP_S3_BUCKET:defaults.bucket,AWS_REGION:defaults.region,BACKUP_S3_ACCOUNT_ID:defaults.accountId,BACKUP_S3_PREFIX:defaults.backupPrefix,
     PATH:'/qualification-bin:/usr/local/sbin:/usr/local/bin:/usr/sbin:/usr/bin:/sbin:/bin',QUALIFICATION_S3_DIRECTORY:'/qualification-objects',
@@ -118,7 +125,7 @@ for (const [index,fault] of defaults.groups[group].entries()) {
   let stage='startup', provider;
   console.log(`CASE ${fault}: starting fresh pilot database`);
   try {
-    await compose('up','-d','--no-deps','--wait','postgres','proxy');
+    await compose('up','-d','--no-deps','--wait',databaseService,'proxy');
     await fixture('setup');
     await compose('up','-d','--no-deps','--wait','web','worker');
     const deadline=Date.now()+defaults.startupTimeoutMs;

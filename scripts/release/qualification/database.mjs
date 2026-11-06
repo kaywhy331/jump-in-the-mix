@@ -7,7 +7,7 @@ import { quoteIdentifier } from '../../lib/postgres-ops.mjs';
 
 // Runs only as an explicit fixture command, never inside a catalog job.
 const ownerUrl=process.env.MIGRATION_DATABASE_URL;
-assert.equal(new URL(ownerUrl).hostname,'postgres','Docker synthetic database only');
+assert.equal(new URL(ownerUrl).hostname,process.env.QUALIFICATION_DATABASE_HOST,'Docker synthetic database only');
 const db=new Client({connectionString:ownerUrl});
 await db.connect();
 try {
@@ -23,7 +23,8 @@ try {
       await db.query(`CREATE ROLE ${quoteIdentifier(url.username)} LOGIN NOINHERIT PASSWORD '${url.password}'`);
     }
     await db.query('REVOKE CREATE ON SCHEMA public FROM PUBLIC');
-    await db.query('REVOKE CREATE ON DATABASE jitm FROM PUBLIC');
+    const database=(await db.query('SELECT current_database() AS name')).rows[0].name;
+    await db.query(`REVOKE CREATE ON DATABASE ${quoteIdentifier(database)} FROM PUBLIC`);
     await grantRuntimeRole(db,{role:runtime.username});
     const role=quoteIdentifier(backup.username);
     await db.query(`GRANT USAGE ON SCHEMA public TO ${role}`);

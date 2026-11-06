@@ -17,6 +17,13 @@ export const settings = Object.freeze({
   startupTimeoutMs: 120000,
   commandTimeoutMs: 1800000,
   postgresClientMajor: 17,
+  runtimeRole: 'qualification_runtime',
+  backupRole: 'qualification_backup',
+  publicTrust: Object.freeze({
+    PUBLIC_OPERATOR_NAME: 'Synthetic qualification operator',
+    PUBLIC_SUPPORT_EMAIL: 'support@example.invalid',
+    PUBLIC_BACKUP_RETENTION_NOTICE: 'Synthetic backup objects remain only on this disposable runner and are discarded with it.',
+  }),
   bucket: 'synthetic-release-backups',
   region: 'us-east-1',
   accountId: '000000000000',
