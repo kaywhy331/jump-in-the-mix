@@ -10,6 +10,7 @@ import { run, requiredChecks } from '../workflow.mjs';
 import { assertNoUnresolved, verify, pending } from '../ledger.mjs';
 import { settings as defaults } from './settings.mjs';
 import { Providers } from './providers.mjs';
+import { diagnosticArguments } from './commands.mjs';
 import yaml from 'js-yaml';
 
 const group=process.argv[2];
@@ -177,16 +178,14 @@ for (const [index,fault] of defaults.groups[group].entries()) {
           const broken=join(directory,'failed-plan.json');await writeFile(broken,JSON.stringify({...plan,scenarios:[{...plan.scenarios[0],selector:'#seeded-missing-element'}]}));
           args.push('-v',`${broken}:/var/lib/jitm-release/smoke-plan.json:ro`);
         }
-        const result=await cmd('docker',[...args,'operator','sh','-c',startCommand],{cwd:source,env,allowed:true});
+        const result=await cmd('docker',[...args,'operator',...startCommand.split(' ')],{cwd:source,env,allowed:true});
         await writeFile(join(directory,`${step}.stderr.txt`),redact(result.stderr));
         if (step === 'postflight' && result.code !== 0) {
-          const diagnostic=await cmd('docker',[...args,'operator','sh','-c',
-            `${startCommand.split(' ')[0]} node scripts/release/qualification/diagnose-postflight.mjs`],{cwd:source,env,allowed:true});
+          const diagnostic=await cmd('docker',[...args,'operator',...diagnosticArguments(startCommand,'postflight')],{cwd:source,env,allowed:true});
           console.log(redact(diagnostic.stdout));
         }
         if (step === 'smoke' && result.code !== 0 && fault !== 'failed-smoke') {
-          const diagnostic=await cmd('docker',[...args,'operator','sh','-c',
-            `${startCommand.split(' ')[0]} node --import tsx scripts/release/qualification/diagnose-smoke.mjs`],{cwd:source,env,allowed:true});
+          const diagnostic=await cmd('docker',[...args,'operator',...diagnosticArguments(startCommand,'smoke')],{cwd:source,env,allowed:true});
           console.log(redact(diagnostic.stdout));
         }
         return {code:result.code,stdout:result.stdout};

@@ -86,7 +86,7 @@ export class Providers {
     }
     assert.equal(parts[2],'jobs'); assert.equal(service,s.operator);
     if (method === 'POST') {
-      const match=/^JITM_RELEASE_CONTEXT=([A-Za-z0-9+/=]+) (.+)$/.exec(body.startCommand); assert.ok(match);
+      const match=/^env JITM_RELEASE_CONTEXT=([A-Za-z0-9+/=]+) (node(?: [A-Za-z0-9_./:=@+-]+)+)$/.exec(body.startCommand); assert.ok(match);
       const context=JSON.parse(Buffer.from(match[1],'base64').toString());
       const step=context.operation_id.split('.').at(-1);
       assert.equal(context.candidate_sha,this.candidate);

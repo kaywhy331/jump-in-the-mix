@@ -130,5 +130,5 @@ alongside Docker qualification. Assertions were not disabled.
 
 NOT RUN: Docker-edition end-to-end qualification (S5), operator image build and
 installation, Render and production calls, and rehearsal h. In particular,
-whether Render interprets the `JITM_RELEASE_CONTEXT=<base64> <command>` prefix
-through a shell remains unverified; the orchestrator format is unchanged.
+how Render executes `env JITM_RELEASE_CONTEXT=<base64> <command>` remains
+UNVERIFIED until rehearsal h; the format supports a shell or an argument vector.

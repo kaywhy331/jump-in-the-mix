@@ -100,5 +100,6 @@ file. Both themes' phone screenshots remain in private evidence.
 
 NOT RUN: image build, Render private-network execution, provider calls,
 installation on production, and rehearsal h. In particular, whether Render
-executes `startCommand` through a shell remains unverified until h; the
-orchestrator's `JITM_RELEASE_CONTEXT=<base64 JSON> <command>` format is unchanged.
+executes `startCommand` through a shell remains UNVERIFIED until h. The
+orchestrator uses `env JITM_RELEASE_CONTEXT=<base64 JSON> <command>` so the image
+entrypoint can run it as either a shell command or an argument vector.

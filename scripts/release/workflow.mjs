@@ -30,6 +30,10 @@ const need = (condition, message) => { if (!condition) throw new Error(message);
 const id = (value) => { need(typeof value === 'string' && /^[A-Za-z0-9_-]+$/.test(value), 'Invalid provider identifier'); return value; };
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
+export function buildStartCommand(context, command) {
+  return `env JITM_RELEASE_CONTEXT=${Buffer.from(JSON.stringify(context)).toString('base64')} ${command}`;
+}
+
 export function settingsDigest(json) {
   const settings = JSON.parse(json);
   // This one-run ref-creation permission may be cleared once the ref exists.
@@ -83,6 +87,9 @@ export async function run(command, env = process.env) {
   for (const key of ['request_timeout_ms', 'operation_timeout_ms', 'poll_interval_ms']) need(Number.isSafeInteger(settings[key]) && settings[key] > 0, `Positive timeout setting required: ${key}`);
   need(Array.isArray(settings.health_paths) && settings.health_paths.length > 0, 'Health paths required');
   need(settings.ledger_branch !== settings.main_branch, 'Ledger must have a dedicated ref');
+  for (const spec of Object.values(settings.jobs)) {
+    need(typeof spec?.command === 'string' && /^node( [A-Za-z0-9_./:=@+-]+)+$/.test(spec.command), 'One-off command must start with node and use unquoted space-separated arguments');
+  }
   need(approval.candidate.candidate_sha === candidate && approval.release_name === env.RELEASE_NAME, 'Approval must name candidate and release');
   need(approval.migration_job === env.MIGRATION_JOB, 'Migration selection differs from approval');
   need(approval.reviewed_jobs_sha256 === digest(JSON.stringify(settings.jobs)), 'Reviewed job definitions changed');
@@ -183,8 +190,8 @@ export async function run(command, env = process.env) {
     need(spec?.review_ref && typeof spec.command === 'string' && spec.command.length, 'Reviewed one-off job definition required');
     if (step === 'migrate') need(spec.forward_only === true, 'Migration job must be reviewed as forward-only');
     const baseline = (await current('preflight'))?.evidence?.counts_sha256 ?? null;
-    const context = Buffer.from(JSON.stringify({ operation_id: `${runKey}.${step}`, candidate_sha: candidate, previous_sha: approval.previous_sha, candidate_binding: approval.candidate, release_started_at: (await checked('approval')).at, baseline_counts_sha256: baseline, receipt_prefix: settings.receipt_prefix, checks: requiredChecks[step] })).toString('base64');
-    await external(step, 'job', id(spec.service_id), { startCommand: `JITM_RELEASE_CONTEXT=${context} ${spec.command}` });
+    const context = { operation_id: `${runKey}.${step}`, candidate_sha: candidate, previous_sha: approval.previous_sha, candidate_binding: approval.candidate, release_started_at: (await checked('approval')).at, baseline_counts_sha256: baseline, receipt_prefix: settings.receipt_prefix, checks: requiredChecks[step] };
+    await external(step, 'job', id(spec.service_id), { startCommand: buildStartCommand(context, spec.command) });
   }
   function blueprintNames() {
     const yaml = git('show', `${candidate}:render.yaml`).split('\nservices:\n')[1];
