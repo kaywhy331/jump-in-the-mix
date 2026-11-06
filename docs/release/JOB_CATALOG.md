@@ -4,6 +4,7 @@ S1 provides `node scripts/release/jobs/preflight.mjs` and
 `node scripts/release/jobs/final.mjs`. These are operator-image commands, not
 application startup commands. No job is installed or qualified on Render yet.
 The receipt format remains the contract in [ENVIRONMENT_SPEC.md](ENVIRONMENT_SPEC.md).
+S4 provides the [operator image and settings examples](OPERATOR_IMAGE.md).
 
 The image must contain the clean candidate checkout, its Git objects and the
 previous and approved-main commits, dependencies, and the existing scripts.
