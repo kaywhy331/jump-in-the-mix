@@ -75,7 +75,7 @@ test("chosen work survives adding a person and exposes its actual first follow-u
   await settle(instance.id); await page.reload();
   await expect(page).toHaveURL(new RegExp(`work=${instance.id}`));
   const first = await prisma.jump.findFirstOrThrow({ where: { workflowInstanceId: instance.id }, orderBy: { scheduledAt: "asc" } });
-  const review = page.locator(`a[href*="jump=${first.id}"]`).first(); await expect(review).toBeVisible(); await review.click();
+  const review = page.locator(`a[href*="jump=${first.id}"]:visible`).first(); await expect(review).toBeVisible(); await review.click();
   await expect(page).toHaveURL(new RegExp(`jump=${first.id}`));
   await expect(page.locator(`[data-jump-workflow="${first.id}"]`).first()).toBeVisible();
 });
