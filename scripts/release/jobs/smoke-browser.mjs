@@ -33,13 +33,14 @@ export async function browserSmoke(context, fixture, env = process.env) {
   const directory = join(env.JITM_RELEASE_JOB_EVIDENCE_DIR, context.operation_id);
   await mkdir(directory,{recursive:true,mode:0o700});
   const browser = await chromium.launch();
+  let page;
   try {
     const browserContext = await browser.newContext({ viewport: settings.phoneViewport, reducedMotion: 'reduce' });
     browserContext.setDefaultTimeout(settings.browserTimeoutMs);
     // Even accidental UI navigation cannot send a request to a mail/provider
     // origin. The fixture has no recipient methods or automatic Beats.
     await browserContext.route('**/*', route => new URL(route.request().url()).origin === origin ? route.continue() : route.abort());
-    const page = await browserContext.newPage();
+    page = await browserContext.newPage();
     async function login(forged = false) {
       await browserContext.clearCookies();
       await browserContext.setExtraHTTPHeaders(forged ? { 'X-Forwarded-For': '192.0.2.42' } : {});
@@ -62,8 +63,10 @@ export async function browserSmoke(context, fixture, env = process.env) {
     await login();
     await login(true);
     await browserContext.setExtraHTTPHeaders({});
-    need(await page.getByRole('heading',{name:'Today',exact:true}).isVisible());
-    need(await page.getByText('Release contact',{exact:true}).first().isVisible());
+    // A client navigation can update its URL before streamed content appears.
+    // Keep the visibility requirement and give it the existing bounded timeout.
+    await page.getByRole('heading',{name:'Today',exact:true}).waitFor({state:'visible'});
+    await page.getByText('Release contact',{exact:true}).first().waitFor({state:'visible'});
     const colors = [];
     for (const theme of ['light','dark']) {
       await page.emulateMedia({colorScheme:theme});
@@ -78,16 +81,22 @@ export async function browserSmoke(context, fixture, env = process.env) {
       const response = await page.goto(`${origin}${scenario.path}`);
       need(response?.status() === 200 && new URL(page.url()).pathname === scenario.path);
       const target = page.locator(scenario.selector);
+      await target.waitFor({state:'visible'});
       need(await target.count() === 1 && await target.isVisible() && (await target.innerText()).includes(scenario.text));
     }
     await browserContext.clearCookies();
     const message = 'Synthetic release error';
     await page.goto(`${origin}${withSignedError('/login',message)}`);
-    need(await page.getByText(message,{exact:true}).isVisible());
+    await page.getByText(message,{exact:true}).waitFor({state:'visible'});
     await page.goto(`${origin}/login?error=${encodeURIComponent(message)}&sig=invalid`);
     need(await page.getByText(message,{exact:true}).count() === 0);
-    need(await page.getByText('Something went wrong. Please try again.',{exact:true}).isVisible());
+    await page.getByText('Something went wrong. Please try again.',{exact:true}).waitFor({state:'visible'});
     return { cookie_flags_and_lifetime:true,phone_today:true,client_address:true,signed_errors:true,
       both_theme_reflow_and_axe:true,release_changes:true };
+  } catch(error) {
+    // The browser is confined to the one synthetic owner and site origin.
+    // Capture the failed state without logging cookies, inputs or exceptions.
+    await page?.screenshot({path:join(directory,'smoke-failure.png'),fullPage:true}).catch(()=>{});
+    throw error;
   } finally { await browser.close(); }
 }

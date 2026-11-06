@@ -47,6 +47,7 @@ jobs:
             .artifacts/release-qualification/**/report.json
             .artifacts/release-qualification/**/today-light.png
             .artifacts/release-qualification/**/today-dark.png
+            .artifacts/release-qualification/**/smoke-failure.png
           include-hidden-files: true
           if-no-files-found: ignore
           retention-days: 7
