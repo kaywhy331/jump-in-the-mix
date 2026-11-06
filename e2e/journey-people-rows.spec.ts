@@ -74,8 +74,9 @@ test("both themes and the width/text matrix retain readable text, contrast, focu
       expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
     }
     const action = row.getByRole("link", { name: "Record outcome", exact: true }).first();
-    await page.keyboard.press("Tab"); await action.focus(); await expect(action).toBeFocused();
-    expect(await action.evaluate(el => parseFloat(getComputedStyle(el).outlineWidth))).toBeGreaterThanOrEqual(3);
+    await row.getByRole("button", { name: "View Alex Fixture's journey", exact: true }).focus();
+    await page.keyboard.press("Tab"); await page.keyboard.press("Tab"); await expect(action).toBeFocused();
+    await expect(action).toHaveCSS("outline-width", "3px");
     const audit = await axeInPage(page).include('[aria-label="Journey people"]').withRules(["color-contrast"]).analyze();
     expect(audit.violations).toEqual([]);
     measurements.push({ theme, width, textPercent: large ? 200 : 100, contrast: audit.passes.flatMap(rule => rule.nodes.flatMap(node => node.any.map(check => check.data))) });
