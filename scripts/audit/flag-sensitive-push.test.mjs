@@ -1,14 +1,17 @@
-import { afterEach, describe, expect, it } from "vitest";
-import { execFileSync, spawnSync } from "node:child_process";
+import { afterEach, describe, expect, it, vi } from "vitest";
+import { execFileSync } from "node:child_process";
 import { mkdtempSync, mkdirSync, readFileSync, rmSync, writeFileSync } from "node:fs";
 import { tmpdir } from "node:os";
-import { dirname, join, resolve } from "node:path";
-import { auditPush, classify, parsePatterns, settings } from "./flag-sensitive-push.mjs";
+import { dirname, join } from "node:path";
+import { auditPush, classify, main, parsePatterns, settings } from "./flag-sensitive-push.mjs";
 
 const patterns = parsePatterns(readFileSync(settings.sensitivePathsFile, "utf8"));
 const pkg = { scripts: { test: "vitest run", build: "next build" }, dependencies: { example: "1" } };
 const roots = [];
-afterEach(() => { for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true }); });
+afterEach(() => {
+  vi.restoreAllMocks();
+  for (const root of roots.splice(0)) rmSync(root, { recursive: true, force: true });
+});
 
 describe("classify", () => {
   it.each([
@@ -117,11 +120,8 @@ describe("push range and CLI", () => {
     r.put("src/example.js", "source only\n");
     const eventPath = join(r.cwd, "event.json"), output = join(r.cwd, "output"), report = join(r.cwd, "report.json");
     writeFileSync(eventPath, JSON.stringify(r.event(r.commit())));
-    const result = spawnSync(process.execPath, [resolve("scripts/audit/flag-sensitive-push.mjs")], {
-      cwd: r.cwd, encoding: "utf8",
-      env: { ...process.env, GITHUB_EVENT_PATH: eventPath, GITHUB_OUTPUT: output, AUDIT_REPORT_PATH: report },
-    });
-    expect(result.status).toBe(0);
+    const status = main({ GITHUB_EVENT_PATH: eventPath, GITHUB_OUTPUT: output, AUDIT_REPORT_PATH: report }, r.cwd);
+    expect(status).toBe(0);
     expect(JSON.parse(readFileSync(report, "utf8")).flagged).toEqual([]);
     expect(readFileSync(output, "utf8")).toBe("has_sensitive=false\n");
   });
@@ -137,10 +137,10 @@ describe("push range and CLI", () => {
 
   it("keeps a CLI infrastructure error advisory", () => {
     const r = repository();
-    const result = spawnSync(process.execPath, [resolve("scripts/audit/flag-sensitive-push.mjs")], {
-      cwd: r.cwd, encoding: "utf8", env: { ...process.env, GITHUB_EVENT_PATH: join(r.cwd, "missing.json") },
-    });
-    expect(result.status).toBe(0);
-    expect(result.stderr).toContain("::warning::");
+    let stderr = "";
+    vi.spyOn(console, "warn").mockImplementation((message) => { stderr += `${message}\n`; });
+    const status = main({ GITHUB_EVENT_PATH: join(r.cwd, "missing.json") }, r.cwd);
+    expect(status).toBe(0);
+    expect(stderr).toContain("::warning::");
   });
 });

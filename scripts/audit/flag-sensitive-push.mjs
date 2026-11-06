@@ -104,17 +104,22 @@ export function auditPush(event, cwd = process.cwd()) {
   return { ...base, flagged, warnings };
 }
 
-export function runCli(env = process.env) {
-  const report = auditPush(JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")));
+export function runCli(env = process.env, cwd = process.cwd()) {
+  const report = auditPush(JSON.parse(readFileSync(env.GITHUB_EVENT_PATH, "utf8")), cwd);
   writeFileSync(reportPath(env), `${JSON.stringify(report, null, 2)}\n`);
   if (env.GITHUB_OUTPUT) appendFileSync(env.GITHUB_OUTPUT, `has_sensitive=${report.flagged.length > 0}\n`);
   return report;
 }
 
-if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
-  try { runCli(); }
+export function main(env = process.env, cwd = process.cwd()) {
+  try { runCli(env, cwd); }
   catch {
     // Advisory only: a reporting outage must not fail the push or disclose data.
     console.warn("::warning::Post-merge audit could not classify this push; inspect the audit run.");
   }
+  return 0;
+}
+
+if (process.argv[1] && resolve(process.argv[1]) === fileURLToPath(import.meta.url)) {
+  process.exitCode = main();
 }
