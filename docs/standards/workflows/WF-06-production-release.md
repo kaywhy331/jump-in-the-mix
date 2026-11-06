@@ -2,9 +2,9 @@
 id: WF-06
 title: Production release
 status: active
-version: 3.0.0
+version: 4.0.0
 owner: Kevin
-last_reviewed: 2026-10-14
+last_reviewed: 2026-11-06
 standards: [JITM-12, JITM-13, JITM-14, JITM-15, JITM-16]
 skills: [jitm-release]
 ---
@@ -12,6 +12,15 @@ skills: [jitm-release]
 # WF-06 — Production release
 
 **Trigger:** the task explicitly asks to release, deploy or roll back production (jumpinthemix.com). A release never happens as a side effect of another task.
+
+**Proposed workflow activation:** after Kevin activates the protected environment
+and approves W1-1, A1 and rehearsal h, releases run through
+`.github/workflows/release.yml`, dispatched only from an owner-cut `releaser-*`
+tag. Before that activation this addition is a build-only proposal: no dispatch
+may reference the missing environment. The [environment specification](../../release/ENVIRONMENT_SPEC.md)
+defines the owner settings and [step map](../../release/STEP_MAP.md) identifies
+every automated and manual gate. This proposal does not authorize a release,
+merge, environment creation or settings change. [PROPOSED]
 **Inputs:**
 - the candidate, which is the merge commit on `main` after Kevin has merged the pull request;
 - the previous production tag;
@@ -23,8 +32,10 @@ skills: [jitm-release]
 1. **Confirm authority and timing.** Kevin's standing authority lets agents run these steps (JITM-16 §2.6). If your own operator or host instructions forbid releases, follow them and ask Kevin (JITM-16 §2.24). When the release changes customer-visible behavior, check that its merged pull requests have a WF-05 verdict (JITM-17 §2.10). Releases are batched and run in quiet hours, with testers told to reload afterwards (JITM-14 §2.26).
    **Gate:** the task asks for a release, and the candidate is on `main`.
 2. **Prepare the workspace.** Create a fresh worktree at the candidate commit, never a shared checkout. Run the committed release script and runbook in `scripts/release/` (JITM-14 §2.10); until they exist, adapt the previous release's scripts. Receipts and logs go in a new directory under the git-ignored `.artifacts/`, never in Git.
+   **After workflow activation:** candidate code runs only in the read-only `verify` job. The credential-bearing `release` job and `publish` job execute only the reviewed releaser tag. Bind the candidate, current approved main head, lockfile, blueprint and migration-set digests; changed main or digests require a new approval. Append public-safe operation metadata to the dedicated ledger ref before each provider request. A pending or unresolved request blocks further work until its named E1 observation or Kevin's recorded E3 decision resolves it; E2 timing cannot resolve it. [PROPOSED]
 3. **Verify the candidate locally.** Run tier 3 (JITM-12 §2.11) against a build of the previous production commit (JITM-12 §2.14).
    **Gate:** nothing new fails (JITM-12 §2.14): no failure only on the candidate, no intermittent failure that fails more often on the candidate, and no failure seen only in batch that fails more often in its batch on the candidate.
+   **After workflow activation:** the approval record references this local evidence; `verify` additionally runs the full CI tier. Hosted checks do not replace the local comparison. [PROPOSED]
 4. **Run the read-only preflight.** Confirm that:
    - the target is right: both service names and ids, the domain and the commit each runs (JITM-14 §2.3);
    - both services are live on the previous commit, with auto-deploy off;
@@ -35,8 +46,9 @@ skills: [jitm-release]
 
    Record the record-count baseline and hash the changed files.
    **Gate:** every check passes; otherwise stop.
+   **After workflow activation:** database preflight, backup, migration, counts and synthetic-row cleanup execute as reviewed one-off jobs inside Render's private network. Persist the returned job ID, or null with “none returned”; a missing ID or required receipt leaves the ledger unresolved. Qualify this provider contract in rehearsal h. [PROPOSED]
 5. **Take a fresh encrypted backup** immediately before any change, code-only releases included (JITM-14 §2.12).
-6. **Migrate, only when the release needs it.** Run the reviewed one-off job inside Render's network with the owner role. Then:
+6. **Migrate, only when the release needs it.** Run the reviewed forward-only one-off job inside Render's network with the owner role. A workflow input of `none` must prove the migration-set digest is unchanged; otherwise select the approved job key. Never reverse a migration in place. [PROPOSED] Then:
    - re-verify the runtime role;
    - check the new objects;
    - confirm the backup role can read new or altered tables (JITM-11 §2.33);
@@ -64,13 +76,14 @@ skills: [jitm-release]
     - both services are on the release commit with auto-deploy off.
 12. **Tag the release** with an annotated `prod-<UTC date>-<sha7>` tag. Its message names the release, the pull request, both deploy ids and the previous commit. Push the tag.
 13. **Write the record** following JITM-15 §2, in a record pull request titled `docs: record the <release> release (<sha7>)`, and update the JITM-01 §2.22 feature map there if statuses changed. Kevin merges, or an agent merges with his explicit authorization (JITM-16 §2.5).
+    **After workflow activation:** `publish` creates the annotated production tag, the record branch and the owner summary. Opening the record PR and updating the feature map remain manual; the workflow has no PR-write permission. A partial publication failure is reconciled from existing refs and must not redeploy. [PROPOSED]
 14. **List owner follow-ups:** the steps only Kevin can take.
 
 ## Rollback
 
 - **When:** a live check fails after deploy and no compatible forward correction is obvious (JITM-14 §2.22).
 - **Schema unchanged:** redeploy the previous tag, web first and then the worker, verify, and record.
-- **Migration included:** prefer a forward correction. Never reverse a migration in place.
+- **Migration included:** use a forward correction. Never reverse a migration in place. A separately reviewed recovery workflow must share the release concurrency group and the unresolved-ledger gate. [PROPOSED]
 
 ## Evidence to produce
 
@@ -93,6 +106,7 @@ skills: [jitm-release]
 
 ## Changelog
 
+- 4.0.0 — 2026-11-06 — Base 69ac59d. INFRA-W14-RELEASE-WF build-only proposal: conditional protected workflow activation, candidate binding, durable ledger, private-network one-off jobs, manual record PR and forward-only migrations. Environment/settings/dispatch remain outside the build authorization; see the environment specification and step map.
 - 1.0.0 — 2026-09-28 — Initial version, codifying the release sequence practiced since 2026-09-21.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. The committed release script (D18), the backup in every release (D17) and merge authorization (D30).
 - 2.0.0 — 2026-10-12 — Base 4e78545. Step 3's gate follows JITM-12 2.0.0: nothing new fails, so an intermittent failure that fails more often on the candidate blocks too (D101, proposed).
