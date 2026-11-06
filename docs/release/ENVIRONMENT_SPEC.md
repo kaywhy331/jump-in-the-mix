@@ -79,7 +79,9 @@ from the candidate's bound `render.yaml`, never copied into the workflow.
 `ledger_branch` is stored as `refs/heads/<ledger_branch>` and must differ from
 `main_branch`. For the first run only, Kevin sets `ledger_bootstrap_run` to
 that exact GitHub run ID before approving its environment gate. This permits
-the first ledger append to create the ref. Remove that value afterwards.
+the first ledger append to create the ref. Remove that value once the ref exists;
+only `ledger_bootstrap_run` is excluded from the settings digest, so clearing it
+does not invalidate publication. All other settings stay bound.
 A missing ledger on any other run fails closed. Never delete or rebuild the
 ledger to clear a hold. Non-force ref updates reject concurrent sibling commits;
 losing writers stop without issuing the associated provider request.
@@ -111,13 +113,16 @@ Generate the binding from a fetched checkout using:
 node scripts/release/candidate.mjs bind <full-candidate-sha> <current-main-sha> candidate.json
 ```
 
-The candidate must be an ancestor of the approved main head. Any main movement
-requires a new approval record, even when the candidate itself is unchanged.
+The candidate must be an ancestor of the approved main head. After dispatch,
+main may fast-forward from that approved head while the same candidate proceeds.
+A rewritten main that no longer contains the approved head is refused, even if
+it still contains the candidate. A new candidate always needs its own approval.
 The candidate binding hashes raw lockfile and blueprint bytes and a sorted list
 of every migration file path and content digest. No candidate scripts run to
 calculate the binding. Each provider request re-reads main and recomputes it.
-The release gate also binds the exact approval/settings strings; changes between
-release and publish are refused. Approval text is public-safe record material.
+The release gate also binds the exact approval string and parsed settings,
+excluding only `ledger_bootstrap_run`; other changes between release and publish
+are refused. Approval text is public-safe record material.
 
 ## Reviewed one-off job settings and receipt contract
 

@@ -30,6 +30,14 @@ const need = (condition, message) => { if (!condition) throw new Error(message);
 const id = (value) => { need(typeof value === 'string' && /^[A-Za-z0-9_-]+$/.test(value), 'Invalid provider identifier'); return value; };
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
 
+export function settingsDigest(json) {
+  const settings = JSON.parse(json);
+  // This one-run ref-creation permission may be cleared once the ref exists.
+  // Every other setting stays bound across release and publish jobs.
+  delete settings.ledger_bootstrap_run;
+  return digest(JSON.stringify(settings));
+}
+
 export async function changeManifest(cwd, previousSha, candidateSha) {
   const list = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).split('\0').filter(Boolean);
   const changed = list('diff', '--name-only', '-z', previousSha, candidateSha);
@@ -104,13 +112,13 @@ export async function run(command, env = process.env) {
   const checked = async (step) => { const r = await current(step); need(r?.status === 'succeeded', `Required step has not succeeded: ${step}`); return r; };
   if (command !== 'gate') {
     const bound = await checked('approval');
-    need(bound.evidence.approval_sha256 === digest(env.RELEASE_APPROVAL_JSON) && bound.evidence.settings_sha256 === digest(env.RELEASE_SETTINGS_JSON), 'Approval/settings changed after the environment approval gate');
+    need(bound.evidence.approval_sha256 === digest(env.RELEASE_APPROVAL_JSON) && bound.evidence.settings_sha256 === settingsDigest(env.RELEASE_SETTINGS_JSON), 'Approval/settings changed after the environment approval gate');
   }
 
   async function binding() {
     const main = await github(`git/ref/heads/${settings.main_branch}`);
     git('fetch', '--no-tags', 'origin', main.object.sha, candidate);
-    verifyCandidate(approval.candidate, await bind(process.cwd(), candidate, main.object.sha), main.object.sha);
+    verifyCandidate(approval.candidate, await bind(process.cwd(), candidate, main.object.sha), main.object.sha, { allowMainAdvance: true });
     return main.object.sha;
   }
   async function local(step, action) {
@@ -228,7 +236,7 @@ export async function run(command, env = process.env) {
       await ledger.write(previous, resolve(previous.text, resolution));
     }
     assertNoUnresolved(await history());
-    await local('approval', async () => ({ approval_sha256: digest(env.RELEASE_APPROVAL_JSON), settings_sha256: digest(env.RELEASE_SETTINGS_JSON), binding: approval.candidate, review_ref: approval.review_ref, previous_sha: approval.previous_sha }));
+    await local('approval', async () => ({ approval_sha256: digest(env.RELEASE_APPROVAL_JSON), settings_sha256: settingsDigest(env.RELEASE_SETTINGS_JSON), binding: approval.candidate, review_ref: approval.review_ref, previous_sha: approval.previous_sha }));
   } else if (command === 'preflight') {
     await checked('approval'); await local('preflight_services', () => serviceChecks(approval.previous_sha)); await job('preflight');
   } else if (command === 'backup') {

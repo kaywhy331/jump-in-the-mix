@@ -36,14 +36,21 @@ export async function bind(cwd, candidateSha, mainSha) {
   };
 }
 
-export function verifyCandidate(approved, actual, currentMainSha) {
+export function verifyCandidate(approved, actual, currentMainSha, { cwd = process.cwd(), allowMainAdvance = false } = {}) {
   sha(currentMainSha);
-  if (approved.approved_main_sha !== currentMainSha) throw new Error('Main moved: a new candidate approval is required');
-  const fields = ['candidate_sha', 'approved_main_sha', 'lockfile_sha256', 'render_yaml_sha256', 'migrations_sha256'];
+  sha(approved.approved_main_sha);
+  if (actual.approved_main_sha !== currentMainSha) throw new Error('Candidate binding mismatch: current main');
+  if (allowMainAdvance) {
+    // A running release may keep its approved candidate as main advances, but
+    // neither a new candidate nor rewritten approved history inherits approval.
+    git(cwd, 'merge-base', '--is-ancestor', sha(approved.candidate_sha), approved.approved_main_sha);
+    git(cwd, 'merge-base', '--is-ancestor', approved.approved_main_sha, currentMainSha);
+  } else if (approved.approved_main_sha !== currentMainSha) throw new Error('Main moved: a new candidate approval is required');
+  const fields = ['candidate_sha', 'lockfile_sha256', 'render_yaml_sha256', 'migrations_sha256'];
   for (const field of fields) {
     if (!approved[field] || approved[field] !== actual[field]) throw new Error(`Candidate binding mismatch: ${field}`);
   }
-  if (fields.slice(2).some((field) => !/^[a-f0-9]{64}$/.test(approved[field]))) throw new Error('Malformed candidate digest');
+  if (fields.slice(1).some((field) => !/^[a-f0-9]{64}$/.test(approved[field]))) throw new Error('Malformed candidate digest');
   return actual;
 }
 

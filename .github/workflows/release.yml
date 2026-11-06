@@ -100,7 +100,10 @@ jobs:
           test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
           git fetch --no-tags origin "refs/heads/$MAIN_BRANCH"
           git merge-base --is-ancestor "$CANDIDATE_SHA" FETCH_HEAD
-          test "$(git rev-parse FETCH_HEAD)" = "$(jq -r '.candidate.approved_main_sha' <<< "$APPROVAL")"
+          APPROVED_MAIN_SHA="$(jq -r '.candidate.approved_main_sha' <<< "$APPROVAL")"
+          [[ "$APPROVED_MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$CANDIDATE_SHA" "$APPROVED_MAIN_SHA"
+          git merge-base --is-ancestor "$APPROVED_MAIN_SHA" FETCH_HEAD
           test "$CANDIDATE_SHA" = "$(jq -r '.candidate.candidate_sha' <<< "$APPROVAL")"
       - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
         with:
