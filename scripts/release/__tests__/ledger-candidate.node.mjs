@@ -43,7 +43,9 @@ test('remote ledger appends a child commit and never forces a competing update',
   const api = async (path, options = {}) => {
     calls.push({ path, ...options });
     if (path.startsWith('git/ref/')) return { object: { sha: 'old' } };
-    if (path.startsWith('contents/')) return { encoding: 'base64', content: Buffer.from(unresolved).toString('base64') };
+    if (path === 'git/commits/old') return { tree: { sha: 'tree' } };
+    if (path === 'git/trees/tree') return { tree: [{ path: 'ledger.jsonl', type: 'blob', sha: 'blob' }] };
+    if (path === 'git/blobs/blob') return { encoding: 'base64', content: Buffer.from(unresolved).toString('base64') };
     if (path.startsWith('git/refs/')) throw new Error('non-fast-forward');
     return { sha: 'new' };
   };

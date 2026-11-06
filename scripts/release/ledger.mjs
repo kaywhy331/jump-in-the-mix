@@ -80,6 +80,7 @@ export function resolve(text, resolution, at = new Date().toISOString()) {
 export class GitLedger {
   constructor(api, { branch, file, bootstrap = false }) {
     if (!/^[a-zA-Z0-9][a-zA-Z0-9_/-]*$/.test(branch) || branch.includes('..')) fail('invalid ledger branch');
+    if (typeof file !== 'string' || file.split('/').some((part) => !part || part === '.' || part === '..')) fail('invalid ledger file');
     this.api = api; this.branch = branch; this.file = file; this.bootstrap = bootstrap;
   }
   async read() {
@@ -88,7 +89,19 @@ export class GitLedger {
       if (!this.bootstrap) fail('missing ledger ref; explicit first-run bootstrap required');
       return { text: '', head: null };
     }
-    const content = await this.api(`contents/${this.file}?ref=${ref.object.sha}`);
+    // Resolve the file at the captured ref, then read the Git blob API. The
+    // contents API omits base64 data once a file exceeds 1 MB.
+    const commit = await this.api(`git/commits/${ref.object.sha}`);
+    let objectSha = commit.tree.sha;
+    const parts = this.file.split('/');
+    for (const [index, part] of parts.entries()) {
+      const tree = await this.api(`git/trees/${objectSha}`);
+      if (tree.truncated || !Array.isArray(tree.tree)) fail('unreadable ledger tree');
+      const entry = tree.tree.find((entry) => entry.path === part);
+      if (!entry?.sha || entry.type !== (index === parts.length - 1 ? 'blob' : 'tree')) fail('missing ledger blob');
+      objectSha = entry.sha;
+    }
+    const content = await this.api(`git/blobs/${objectSha}`);
     if (content.encoding !== 'base64' || typeof content.content !== 'string') fail('unreadable ledger blob');
     const text = Buffer.from(content.content, 'base64').toString('utf8');
     read(text);
