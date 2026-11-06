@@ -1,5 +1,6 @@
 "use server";
 
+import { classifyMixEdit } from "@/lib/mix-edit-consequence";
 import { activeMixLimitRefusal } from "@/lib/plan-limits";
 import { randomUUID } from "node:crypto";
 import { MAX_STEP_OFFSET_DAYS, validateStepTiming } from "@/lib/step-timing";
@@ -129,7 +130,7 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   const afterMix = value(formData, "triggerMode", 40) === "AFTER_MIX";
   const previousCue = afterMix && mixIdRaw ? await prisma.mix.findFirst({ where: { id: mixIdRaw, workspaceId: workspace.id }, select: { triggerMode: true, dateTypeId: true } }) : null;
   const triggerMode = (afterMix ? previousCue?.triggerMode ?? "MANUAL_START" : value(formData, "triggerMode", 40)) as MixTriggerMode;
-  const status = value(formData, "status", 40) as MixStatus;
+  const status = value(formData, "status", 40) as Exclude<MixStatus, "ARCHIVED">;
   const dateTypeId = afterMix ? previousCue?.dateTypeId ?? "" : value(formData, "dateTypeId", 100);
   // The Contact stage people move to when they start this Mix (JITM-09 §2.79). The field is on the form only when the
   // business has Contact stages; without it the saved choice is kept. Blank names no stage.
@@ -240,21 +241,22 @@ export async function saveMixAction(formData: FormData): Promise<{ error: string
   // whatever the review preference says: turning the Mix on starts its whole audience (UX-01), and on one already on,
   // ticking Everyone or adding a tag starts everyone they cover (UX-02). Turning a paused one back on starts the tags
   // added while it was paused, after the same review (D65).
-  const turningOn = status === "ACTIVE" && (!existingMix || existingMix.status === "DRAFT");
-  const resuming = status === "ACTIVE" && existingMix?.status === "PAUSED";
   const activeAssignments = (existingMix?.assignments ?? []).filter((assignment) => assignment.isActive);
   const hadEveryone = Boolean(existingMix?.audienceEveryone || activeAssignments.some((assignment) => assignment.contactId && assignment.assignmentKey.includes(":audience:")));
-  const addedWhilePaused = (groupId: string) => resuming && activeAssignments.some((assignment) => assignment.groupId === groupId && assignment.addedWhilePaused);
-  const widens = status === "ACTIVE" && ((assignAllContacts && !hadEveryone) || groupIds.some((groupId) => !activeAssignments.some((assignment) => assignment.groupId === groupId) || addedWhilePaused(groupId)));
+  const consequence = classifyMixEdit(existingMix ? {
+    status: existingMix.status as "DRAFT" | "ACTIVE" | "PAUSED", triggerMode: existingMix.triggerMode,
+    dateTypeId: existingMix.dateTypeId, everyone: hadEveryone,
+    groupIds: activeAssignments.flatMap(assignment => assignment.groupId ? [assignment.groupId] : [])
+  } : null, { status, triggerMode: afterMix ? "AFTER_MIX" : triggerMode, dateTypeId, everyone: assignAllContacts, groupIds }, {
+    resumeGroupIds: activeAssignments.flatMap(assignment => assignment.groupId && assignment.addedWhilePaused ? [assignment.groupId] : [])
+  });
+  const { turningOn, resuming, widens, retriggers, pausedGroupIds } = consequence;
+  const addedWhilePaused = (groupId: string) => pausedGroupIds.includes(groupId);
   if ((turningOn ? assignAllContacts || groupIds.length > 0 : widens) && (stageId === undefined ? existingMix?.stageId : stageId) && value(formData, "activationConfirmed", 4) !== "1") fail(path, turningOn ? "Review who moves to the Mix’s stage before turning it on." : resuming ? "Review who moves to the Mix’s stage before turning it back on." : "Review who moves to the Mix’s stage before adding them.", session);
-  // Changing when a Mix that is on starts reschedules everyone it covers: "When I start it" starts them all at once, and a
-  // new date or trigger moves their follow-ups (MIX-03).
-  const retriggers = status === "ACTIVE" && (existingMix?.status === "ACTIVE" || existingMix?.status === "PAUSED") && !afterMix && (assignAllContacts || groupIds.length > 0)
-    && (existingMix.triggerMode !== triggerMode || (triggerMode === "DATE_TRIGGERED" && existingMix.dateTypeId !== dateTypeId));
   // With the review preference on, a save that starts people is reviewed first: turning the Mix on or back on, adding
   // Everyone or a tag to one that is on, or changing when it starts. A save that starts no one, such as a wording edit,
   // saves directly (TRU-02).
-  if ((turningOn || resuming || widens || retriggers) && value(formData, "activationConfirmed", 4) !== "1") {
+  if (consequence.startsPeople && value(formData, "activationConfirmed", 4) !== "1") {
     const preference = await prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } });
     if (preference?.reviewMixActivation !== false) fail(path, turningOn || resuming ? "Review who gets the Mix before turning it on." : retriggers ? "Review who this change reschedules before saving." : "Review who this save starts before saving.", session);
   }

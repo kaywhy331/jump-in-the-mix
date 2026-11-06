@@ -4,7 +4,7 @@ import Link from "next/link";
 import { AppIcon } from "@/components/AppIcon";
 import { RequiredFieldsNote } from "@/components/RequiredFieldsNote";
 import { SchedulePreview } from "@/components/SchedulePreview";
-import { type FormEvent, useMemo, useRef, useState } from "react";
+import { type FormEvent, useEffect, useMemo, useRef, useState } from "react";
 import { useAudiencePreview } from "@/components/useAudiencePreview";
 import { FormGuard } from "@/components/FormGuard";
 import styles from "@/components/MixEditor.module.css";
@@ -12,6 +12,7 @@ import { TimezonePicker } from "@/components/TimezonePicker";
 import { planGoalLabel } from "@/lib/business-taxonomy";
 import type { ContactStageChoices } from "@/lib/mix-stage";
 import { ReviewDialog } from "@/components/ReviewDialog";
+import { classifyMixEdit, mixEditConsequenceText, type MixEditState } from "@/lib/mix-edit-consequence";
 import { saveMixAction } from "@/lib/mix-editor-actions";
 import { generateVariant } from "@/lib/variant-generation";
 import { UNCONFIRMED_SAVE, isNavigationSignal } from "@/lib/unconfirmed-save";
@@ -140,28 +141,30 @@ export function MixEditor({
   // turning the Mix on starts its whole audience (UX-01); on one already on, ticking Everyone or adding a tag starts
   // everyone they cover (UX-02); turning a paused one back on starts the tags added while it was paused (D65).
   const savedStatus = mix?.savedStatus ?? mix?.status;
-  const turningOn = status === "ACTIVE" && (!mix?.id || savedStatus === "DRAFT");
-  const resuming = status === "ACTIVE" && savedStatus === "PAUSED";
-  const addsEveryone = assignAllContacts && !mix?.assignAllContacts;
-  const addedGroupIds = [...selectedGroupIds].filter((id) => !(mix?.groupIds ?? []).includes(id));
-  const pausedGroupIds = resuming ? (mix?.resumeGroupIds ?? []).filter((id) => selectedGroupIds.has(id) && groups.some((group) => group.id === id && group.isActive)) : [];
-  const startedGroupIds = [...addedGroupIds, ...pausedGroupIds];
-  // Resuming with Everyone still ticked also starts the people Everyone takes in then. That alone isn't reviewed, but a
-  // review that opens counts them too (UX-09).
-  const everyoneIntake = resuming && assignAllContacts && !addsEveryone;
-  const starts = turningOn ? (audienceChosen ? { all: assignAllContacts, groupIds: [...selectedGroupIds] } : null)
-    : status === "ACTIVE" && (addsEveryone || startedGroupIds.length || everyoneIntake) ? { all: addsEveryone, groupIds: startedGroupIds, resume: everyoneIntake } : null;
+  const submittedGroupIds = [...selectedGroupIds].filter(id => groups.some(group => group.id === id && group.isActive));
+  const nextSave: MixEditState = { status, triggerMode, dateTypeId, everyone: assignAllContacts, groupIds: submittedGroupIds };
+  const initialFields = useRef<Map<string, string> | null>(null);
+  const [changedFields, setChangedFields] = useState<string[]>([]);
+  // Compare the actual submitted fields, including uncontrolled settings and hidden Beat timing.
+  // After a render, hidden fields reflect additions, removals, reordering and timing controls too.
+  const readChanges = () => {
+    if (!formRef.current) return;
+    const data = new FormData(formRef.current);
+    const fields = new Map([...new Set(data.keys())].filter(key => key !== "activationConfirmed").map(key => [key, JSON.stringify(data.getAll(key))]));
+    if (!initialFields.current) { initialFields.current = fields; return; }
+    const changed = [...new Set([...initialFields.current.keys(), ...fields.keys()])].filter(key => initialFields.current?.get(key) !== fields.get(key)).sort();
+    setChangedFields(previous => JSON.stringify(previous) === JSON.stringify(changed) ? previous : changed);
+  };
+  useEffect(readChanges);
+  const consequence = classifyMixEdit(mix?.id ? {
+    status: savedStatus ?? "DRAFT", triggerMode: mix.triggerMode ?? "DATE_TRIGGERED", dateTypeId: mix.dateTypeId,
+    everyone: mix.assignAllContacts ?? false, groupIds: mix.groupIds ?? []
+  } : null, nextSave, { resumeGroupIds: mix?.resumeGroupIds, changedFields });
+  const { turningOn, resuming, retriggers, pausedGroupIds, starts, startsPeople } = consequence;
   const stageCounted = Boolean(stageName && starts);
   const stageReview = Boolean(stageName && starts && (turningOn || starts.all || starts.groupIds.length));
-  // Changing when a Mix that is on starts reschedules everyone it covers: "When I start it" starts them all at once, and a
-  // new date or trigger moves their follow-ups, so that save is reviewed as well (MIX-03).
-  const retriggers = status === "ACTIVE" && (savedStatus === "ACTIVE" || savedStatus === "PAUSED") && audienceChosen && triggerMode !== "AFTER_MIX" && Boolean(mix?.triggerMode)
-    && (triggerMode !== mix?.triggerMode || (triggerMode === "DATE_TRIGGERED" && dateTypeId !== (mix?.dateTypeId ?? "")));
-  // On a Mix already on, the review is about the people this save adds, not the whole audience (COPY-02).
-  // Turning a paused Mix back on is reviewed as a resume: it brings back what the pause held.
+  // On a Mix already on, count the people this save adds, not the whole audience.
   const savingMore = Boolean(starts) && !turningOn && !resuming;
-  // A save on a Mix that is already on and starts no one, such as a wording edit, saves without a review (TRU-02).
-  const startsPeople = turningOn || resuming || Boolean(starts) || retriggers;
   // What a review of this save is about. It opens with the review preference, and always when the save moves people to a stage.
   const reviewKind = turningOn ? "start" : resuming ? "resume" : retriggers ? "reschedule" : "add";
   const opensReview = status === "ACTIVE" && ((reviewBeforeActivation && startsPeople) || stageReview);
@@ -223,7 +226,7 @@ export function MixEditor({
     formRef.current?.requestSubmit();
   };
 
-  return <form ref={formRef} action={save} onReset={event => event.preventDefault()} className="mix-editor-form simple-plan-editor" onSubmit={submit} onInvalid={event => { let parent = event.target instanceof HTMLElement ? event.target.parentElement : null; while (parent) { if (parent instanceof HTMLDetailsElement) parent.open = true; parent = parent.parentElement; } }}>
+  return <form ref={formRef} action={save} onChange={readChanges} onReset={event => event.preventDefault()} className="mix-editor-form simple-plan-editor" onSubmit={submit} onInvalid={event => { let parent = event.target instanceof HTMLElement ? event.target.parentElement : null; while (parent) { if (parent instanceof HTMLDetailsElement) parent.open = true; parent = parent.parentElement; } }}>
     <FormGuard guardOtherForms />
     {mix?.id && <input type="hidden" name="mixId" value={mix.id} />}
     {mix?.id && openedAt && <input type="hidden" name="mixUpdatedAt" value={openedAt} />}
@@ -332,6 +335,6 @@ export function MixEditor({
       : stageReview && !reviewBeforeActivation ? "This Mix sets a Contact stage, so you’ll review who moves before saving."
       : reviewKind === "start" ? "You’ll review who gets this Mix before activating." : reviewKind === "resume" ? "You’ll review what turning it back on does before saving." : reviewKind === "reschedule" ? "You’ll review who this change reschedules before saving." : "You’ll review who this save starts before saving."} <Link href="/account/preferences">Change preference</Link></p>}
     {saveError && <p ref={saveErrorRef} tabIndex={-1} role="alert" className="notice error">{saveError}</p>}
-    <div className="sticky-form-actions">{status === "ACTIVE" && startsPeople && !opensReview && <button className="button" type="button" onClick={() => { if (formRef.current?.reportValidity()) setReviewOpen(true); }}>Review first</button>}<Link className="button" href={mix?.id ? `/mixes?mix=${encodeURIComponent(mix.id)}` : "/mixes"}><AppIcon name="close" />Cancel</Link><button className="button primary" type="submit"><AppIcon name="check" />{status === "ACTIVE" && startsPeople ? (opensReview ? (reviewKind === "start" ? "Review and start" : reviewKind === "resume" ? "Review and turn on" : "Review and save") : reviewKind === "start" || reviewKind === "resume" ? "Save and activate" : "Save Mix") : mix?.id ? "Save Mix" : "Create a Mix"}</button></div>
+    <div className="sticky-form-actions"><p id="mix-save-consequence" className="muted-copy" aria-live="polite">{mixEditConsequenceText(consequence, nextSave)}</p>{status === "ACTIVE" && startsPeople && !opensReview && <button className="button" type="button" onClick={() => { if (formRef.current?.reportValidity()) setReviewOpen(true); }}>Review first</button>}<Link className="button" href={mix?.id ? `/mixes?mix=${encodeURIComponent(mix.id)}` : "/mixes"}><AppIcon name="close" />Cancel</Link><button className="button primary" type="submit" aria-describedby="mix-save-consequence"><AppIcon name="check" />{status === "ACTIVE" && startsPeople ? (opensReview ? (reviewKind === "start" ? "Review and start" : reviewKind === "resume" ? "Review and turn on" : "Review and save") : reviewKind === "start" || reviewKind === "resume" ? "Save and activate" : "Save Mix") : mix?.id ? "Save Mix" : "Create a Mix"}</button></div>
   </form>;
 }
