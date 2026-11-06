@@ -61,5 +61,7 @@ Whole-catalog independent QA remains a separate coordinator-owned step.
 
 NOT RUN by this harness: production/Render calls, real offsite durability,
 production installation, release and rehearsal h. In particular, whether Render
-runs `JITM_RELEASE_CONTEXT=<base64> <command>` through a shell remains unverified;
-the Docker stub explicitly uses `sh -c` and does not prove that provider behavior.
+runs `env JITM_RELEASE_CONTEXT=<base64> <command>` through a shell remains
+UNVERIFIED until rehearsal h. The Docker stub splits the start command on single
+spaces and passes the argument vector directly to the image entrypoint; this
+does not prove Render's actual behavior.

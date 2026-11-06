@@ -137,6 +137,15 @@ entry contains `service_id`, `command`, and `review_ref`. A migration also needs
 never interpreted as a shell command or an arbitrary existing job to rerun.
 The returned Render job ID is a separate identity and is recorded immediately.
 
+Every configured `command` must match `^node( [A-Za-z0-9_./:=@+-]+)+$`:
+`node` followed by one or more unquoted arguments separated by single spaces.
+Assignments alone, other executables, quoted arguments and shell operators are
+refused for every entry at the gate before approval, including the selected
+migration command. The orchestrator builds each `startCommand` as
+`env JITM_RELEASE_CONTEXT=<base64 JSON> <command>`, which supports both shell
+execution and an argument vector. Starting the command with `node` also prevents
+`env` from treating it as assignments alone and printing the operator environment.
+
 Commands are operator-reviewed settings for the qualified service/image; they
 must implement the assertions listed in `requiredChecks` in `workflow.mjs`.
 Preflight verifies ready state, runtime grants, recovery hold, migration
