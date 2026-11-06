@@ -1,0 +1,2 @@
+{"operation_id":"synthetic.worker","candidate_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","step":"worker","render_deploy_id":null,"status":"requested","evidence":{"operation_kind":"deploy"},"at":"2026-11-06T00:00:00.000Z"}
+{"operation_id":"synthetic.worker","candidate_sha":"aaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaaa","step":"worker","render_deploy_id":"dep-synthetic","status":"unresolved","evidence":{"reason":"synthetic lost poll"},"at":"2026-11-06T00:00:01.000Z"}
