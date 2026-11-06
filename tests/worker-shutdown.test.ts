@@ -62,6 +62,39 @@ beforeEach(() => {
 afterEach(() => { vi.useRealTimers(); });
 
 describe("worker lease and pause release", () => {
+  it("completes the exact release no-op through the normal lease without customer work", async () => {
+    vi.stubEnv("RENDER_GIT_COMMIT", "a".repeat(40));
+    mocks.findJob.mockResolvedValueOnce(job({ workspaceId: null, task: "jitm.release.probe.noop", payload: { type: "release-noop", operation_id: "12.1.worker_gate" } }));
+    await runWorkerPass({ maxJobs: 1 });
+    expect(lastUpdate().data).toMatchObject({ completedAt: expect.any(Date), lockedBy: null });
+    expect(mocks.importBatch).not.toHaveBeenCalled();
+    expect(mocks.phoneSweep).not.toHaveBeenCalled();
+    expect(mocks.generate).not.toHaveBeenCalled();
+    expect(mocks.heartbeat.mock.calls[0][0].create.metadata).toEqual({ pid: process.pid, node: process.version, commit: "a".repeat(40) });
+    vi.unstubAllEnvs();
+  });
+
+  it.each([null, [], {}, { type: "wrong", operation_id: "12.1.worker_gate" },
+    { type: "release-noop", operation_id: "12.1.smoke" },
+    { type: "release-noop", operation_id: "12.1.worker_gate", extra: true }])("rejects a malformed release probe permanently: %j", async payload => {
+    mocks.findJob.mockResolvedValueOnce(job({ workspaceId: null, task: "jitm.release.probe.noop", payload }));
+    await runWorkerPass({ maxJobs: 1 });
+    expect(lastUpdate().data).toMatchObject({ failedAt: expect.any(Date), lockedBy: null });
+    expect(mocks.generate).not.toHaveBeenCalled();
+  });
+
+  it.each(["jitm.release.probe.unknown", "jitm.release.probe.noop"])("refuses unknown or workspace-bound probes: %s", async task => {
+    mocks.findJob.mockResolvedValueOnce(job({ task, payload: { type: "release-noop", operation_id: "12.1.worker_gate" } }));
+    await runWorkerPass({ maxJobs: 1 });
+    expect(lastUpdate().data).toMatchObject({ failedAt: expect.any(Date), lockedBy: null });
+  });
+
+  it.each([undefined, "invalid", "b".repeat(40)])("reports only a valid local build commit: %s", async value => {
+    vi.stubEnv("RENDER_GIT_COMMIT", ""); vi.stubEnv("JITM_BUILD_SHA", value);
+    await runWorkerPass({ maxJobs: 0 });
+    expect(mocks.heartbeat.mock.calls[0][0].create.metadata.commit).toBe(value?.length === 40 ? value : null);
+    vi.unstubAllEnvs();
+  });
   it("gives imports a lease that can tell them to stop", async () => {
     mocks.findJob.mockResolvedValueOnce(job({ id: "import-job", task: "contact-import", payload: { batchId: "batch" } }));
     await runWorkerPass({ maxJobs: 1 });
