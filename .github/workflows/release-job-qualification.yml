@@ -30,6 +30,7 @@ jobs:
         run: npm ci --no-audit --no-fund
       - name: Test qualification transport and catalog units
         run: |
+          node --test scripts/release/__tests__/*.node.mjs
           node scripts/release/qualification/stubs.node.mjs
           for test_file in scripts/release/jobs/__tests__/{receipt,mutations,runtime,http}.node.mjs; do
             node "$test_file"
