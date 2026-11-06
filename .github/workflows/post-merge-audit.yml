@@ -1,0 +1,63 @@
+name: Post-merge audit
+
+on:
+  push:
+    branches: [main]
+
+permissions:
+  contents: read
+  issues: write
+
+# Reruns share the push's run ID; different pushes never cancel one another.
+concurrency:
+  group: ${{ github.workflow }}-${{ github.run_id }}
+  cancel-in-progress: false
+
+jobs:
+  audit:
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    continue-on-error: true
+    steps:
+      - name: Check out the pushed commit and history
+        id: checkout
+        continue-on-error: true
+        uses: actions/checkout@34e114876b0b11c390a56381ad16ebd13914f8d5 # v4.3.1
+        with:
+          ref: ${{ github.event.after }}
+          fetch-depth: 0
+          # The CLI may need to fetch an old force-pushed commit with contents: read.
+          persist-credentials: true
+
+      - name: Use the repository's Node version
+        id: node
+        if: steps.checkout.outcome == 'success'
+        continue-on-error: true
+        uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version-file: package.json
+
+      - name: Classify the push
+        id: classify
+        if: steps.node.outcome == 'success'
+        continue-on-error: true
+        run: node scripts/audit/flag-sensitive-push.mjs
+
+      - name: Open one audit issue for this push
+        if: steps.classify.outputs.has_sensitive == 'true'
+        continue-on-error: true
+        uses: actions/github-script@60a0d83039c74a4aee543508d2ffcb1c3799cdea # v7.0.1
+        with:
+          script: |
+            try {
+              const { pathToFileURL } = require('node:url');
+              const { readFileSync } = require('node:fs');
+              const { join } = require('node:path');
+              const root = process.env.GITHUB_WORKSPACE;
+              const { reportPath } = await import(pathToFileURL(join(root, 'scripts/audit/flag-sensitive-push.mjs')));
+              const { reportSensitivePush } = await import(pathToFileURL(join(root, 'scripts/audit/report-sensitive-push.mjs')));
+              const report = JSON.parse(readFileSync(reportPath(), 'utf8'));
+              await reportSensitivePush({ github, context, report });
+            } catch {
+              core.warning('Post-merge audit could not open its issue; inspect this run and rerun it after recovery.');
+            }
