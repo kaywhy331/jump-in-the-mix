@@ -1,5 +1,5 @@
 import { createHash } from 'node:crypto';
-import { readFile, readdir } from 'node:fs/promises';
+import { readFile, readdir, stat } from 'node:fs/promises';
 import { join } from 'node:path';
 import { cli, need } from './receipt.mjs';
 import * as reads from './read-only.mjs';
@@ -19,6 +19,12 @@ export async function assetFiles(directory, prefix = '') {
   const paths = [];
   for (const entry of await readdir(directory, { withFileTypes: true })) {
     need(!entry.isSymbolicLink());
+    // Empty Git directory placeholders are not served assets. Keep dot paths
+    // such as .well-known/security.txt in the byte-for-byte inventory.
+    if (entry.isFile() && entry.name === settings.repositoryPlaceholderName) {
+      need((await stat(join(directory,entry.name))).size === 0);
+      continue;
+    }
     const path = `${prefix}/${entry.name}`;
     if (entry.isDirectory()) paths.push(...await assetFiles(join(directory, entry.name), path));
     else if (entry.isFile()) paths.push(path);
@@ -47,7 +53,13 @@ export async function assets(context, origin, io = reads, fetcher = fetch) {
     }
   }
   const deleted = (await io.git('diff', '--diff-filter=D', '--name-only', '-z', context.previous_sha, context.candidate_sha, '--', 'public')).split('\0').filter(Boolean);
-  for (const path of deleted) need((await getAsset(path.slice('public'.length), origin, fetcher)).status === 404);
+  for (const path of deleted) {
+    if (path.split('/').at(-1) === settings.repositoryPlaceholderName) {
+      need(await io.git('show',`${context.previous_sha}:${path}`) === '');
+      continue;
+    }
+    need((await getAsset(path.slice('public'.length), origin, fetcher)).status === 404);
+  }
 }
 export async function redirects(origin, fetcher = fetch) {
   for (const path of ['/jumps','/contacts','/mixes','/journey','/more']) {

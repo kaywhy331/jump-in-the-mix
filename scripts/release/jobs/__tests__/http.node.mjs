@@ -5,9 +5,21 @@ import { mkdtemp, mkdir, writeFile, rm } from 'node:fs/promises';
 import { tmpdir } from 'node:os';
 import { join } from 'node:path';
 import { randomUUID } from 'node:crypto';
-import { assets, postflight, redirects } from '../postflight.mjs';
+import { assetFiles, assets, postflight, redirects } from '../postflight.mjs';
 import { command } from '../read-only.mjs';
 import { capture } from './receipt.node.mjs';
+
+test('asset inventory excludes only empty repository placeholders and retains well-known files',async()=>{
+  const directory=await mkdtemp(join(tmpdir(),'jitm-release-assets-'));
+  try {
+    await mkdir(join(directory,'.well-known'));
+    await writeFile(join(directory,'.well-known/security.txt'),'Synthetic security contact');
+    await writeFile(join(directory,'.gitkeep'),'');
+    assert.deepEqual(await assetFiles(directory),['/.well-known/security.txt']);
+    await writeFile(join(directory,'.gitkeep'),'unexpected content');
+    await assert.rejects(assetFiles(directory));
+  } finally {await rm(directory,{recursive:true,force:true});}
+});
 
 test('postflight actual public-smoke process and asset bytes against loopback HTTP',async()=>{
   const cwd=process.cwd(),directory=await mkdtemp(join(tmpdir(),'jitm-release-http-'));
@@ -29,8 +41,9 @@ test('postflight actual public-smoke process and asset bytes against loopback HT
     const origin=`http://127.0.0.1:${server.address().port}`;
     process.chdir(directory);
     const io={reviewedSource:async()=>{},redirects,command:(_file,args,env)=>command(process.execPath,[join(cwd,args[0]),...args.slice(1)],env,cwd),
-      assets:(context,origin)=>assets(context,origin,{git:async()=> 'public/deleted.txt\0'})};
-    for(const variant of ['', 'health','hash','deleted','redirect']) {
+      assets:(context,origin)=>assets(context,origin,{git:async(command)=>command === 'diff'
+        ? 'public/deleted.txt\0public/.gitkeep\0' : fault === 'placeholder' ? 'unexpected content' : ''})};
+    for(const variant of ['', 'health','hash','deleted','redirect','placeholder']) {
       fault=variant;
       const result=await capture('postflight',c=>postflight(c,io,{...process.env,JITM_RELEASE_SITE_URL:origin}));
       assert.equal(result.code,variant?1:0,variant||'success');assert.equal(result.out.length,variant?0:1);

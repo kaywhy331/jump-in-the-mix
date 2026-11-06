@@ -16,6 +16,7 @@ export const settings = Object.freeze({
   browserTimeoutMs: 15000,
   cookieLifetimeToleranceSeconds: 120,
   syntheticName: 'Release smoke (synthetic)',
+  repositoryPlaceholderName: '.gitkeep',
   // These operational rows may change during a healthy release. All other
   // previous-release model tables participate, including customer history.
   volatileTables: Object.freeze(['Job', 'WorkerHeartbeat', 'AuthRateLimit',
