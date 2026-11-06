@@ -70,7 +70,10 @@ export async function browserSmoke(context, fixture, env = process.env) {
     const colors = [];
     for (const theme of ['light','dark']) {
       await page.emulateMedia({colorScheme:theme});
-      await page.evaluate(() => new Promise(resolve => requestAnimationFrame(() => requestAnimationFrame(resolve))));
+      await page.waitForFunction(value => getComputedStyle(document.documentElement).colorScheme === value,
+        theme,{timeout:settings.browserTimeoutMs});
+      if (colors.length) await page.waitForFunction(previous => getComputedStyle(document.body).color !== previous,
+        colors.at(-1),{timeout:settings.browserTimeoutMs});
       need(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth));
       colors.push(await page.evaluate(() => getComputedStyle(document.body).color));
       need((await new AxeBuilder({page}).withTags(['wcag2a','wcag2aa','wcag21aa']).analyze()).violations.length === 0);
