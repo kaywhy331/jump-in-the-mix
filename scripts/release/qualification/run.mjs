@@ -60,7 +60,7 @@ const binding=await bind(source,candidate,candidate);
 const changed=(await git('diff','--name-only',previous,candidate)).split('\n').filter(Boolean);
 await mkdir(sourceContext); await mkdir(webContext);
 const plan={candidate_sha:candidate,previous_sha:previous,review_ref:'synthetic-qualification-plan',changed_paths:changed,
-  scenarios:[{path:'/jumps',selector:'h1',text:'Today',covers:changed}]};
+  scenarios:[{path:'/jumps',selector:'main h1',text:'Today',covers:changed}]};
 await writeFile(join(sourceContext,'smoke-plan.json'),JSON.stringify(plan));
 await git('bundle','create',join(sourceContext,'catalog.bundle'),'HEAD');
 const previousDirectory=join(output,'previous'); await mkdir(previousDirectory);
