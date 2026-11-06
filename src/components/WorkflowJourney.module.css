@@ -44,7 +44,7 @@
 /* The count strip fades at the edge where more counts wait (see the shared rule in design-system.css). */
 @supports (animation-timeline:scroll()){.countStrip{mask-image:linear-gradient(to right,transparent,#000 var(--scroll-fade-start),#000 calc(100% - var(--scroll-fade-end)),transparent);animation-name:countStripFade;animation-timing-function:linear;animation-fill-mode:both;animation-timeline:scroll(self inline)}}
 @keyframes countStripFade{0%{--scroll-fade-start:0px;--scroll-fade-end:28px}12%,88%{--scroll-fade-start:28px;--scroll-fade-end:28px}100%{--scroll-fade-start:28px;--scroll-fade-end:0px}}
-.countStrip button{flex:1;min-width:90px;min-height:64px;border:1px solid transparent;border-radius:10px;background:transparent;text-align:left;padding:8px 10px;color:var(--text);font:inherit;cursor:pointer}
+.countStrip button,.countStrip .workCount{flex:1;min-width:90px;min-height:64px;border:1px solid transparent;border-radius:10px;background:transparent;text-align:left;padding:8px 10px;color:var(--text);font:inherit;cursor:pointer}
 .countStrip strong{display:block;font-size:24px;line-height:1.1;font-variant-numeric:tabular-nums}.countStrip span{display:block;margin-top:6px;font-size:12px;white-space:nowrap;color:var(--text-3)}
 .countStrip button[aria-pressed=true]{background:var(--violet-wash);border-color:var(--violet-mark)}.countStrip button[data-status=attention]:not([data-count="0"]) strong{color:var(--danger)}
 .countStrip button:focus-visible,.nodePopulation button:focus-visible{outline:2px solid var(--violet-mark);outline-offset:-2px}
@@ -61,11 +61,11 @@
 .resultTotals{display:flex;flex-wrap:wrap;gap:16px;width:100%}.resultTotals strong{font-size:18px}.metricControls details{width:100%;line-height:1.5}.metricControls summary{cursor:pointer}.metricControls details label{margin:10px 0}.metricControls details p{margin:10px 0;color:var(--text-3)}
 .connectionResults{padding-bottom:20px;margin-bottom:20px;border-bottom:1px solid var(--border)}.connectionResults h2{font-size:18px;margin:0}.connectionResults article{padding:12px 0;border-bottom:1px solid var(--border);font-size:13px}.connectionResults small{display:block;color:var(--text-3);margin-top:4px}.connectionResults p{font-size:12px;line-height:1.5}.connectionResults article>span{display:inline-block;margin-top:8px}
 .editor>p{margin:0;font-size:12px}.routeForm details>label{margin-top:10px}.sidebar{scroll-margin-top:16px}.people h2:focus{outline:none}.diagnostics li button{text-align:left;white-space:normal;line-height:1.5}
-@media(max-width:600px){.countStrip{padding:8px;gap:4px}.countStrip button{min-width:78px;padding:6px 8px;min-height:58px}.countStrip strong{font-size:21px}.countStrip span{font-size:11px}.toolbar{padding-top:10px;padding-bottom:10px;gap:6px}.toolbar>:global(.button){padding:6px 8px;font-size:13px}.tabs button{padding:6px 8px;font-size:13px}.canvasControls{padding:8px 12px}.canvasControls button{min-height:36px}.connectionHint{padding:0 12px 8px}.sidebar{padding:16px}.canvas{min-height:290px;max-height:400px}.footer{padding-top:8px;padding-bottom:8px}.footer>span:last-child{display:none}.rosterFilters{grid-template-columns:1fr 1fr}}
+@media(max-width:600px){.countStrip{padding:8px;gap:4px}.countStrip button,.countStrip .workCount{min-width:78px;padding:6px 8px;min-height:58px}.countStrip strong{font-size:21px}.countStrip span{font-size:11px}.toolbar{padding-top:10px;padding-bottom:10px;gap:6px}.toolbar>:global(.button){padding:6px 8px;font-size:13px}.tabs button{padding:6px 8px;font-size:13px}.canvasControls{padding:8px 12px}.canvasControls button{min-height:36px}.connectionHint{padding:0 12px 8px}.sidebar{padding:16px}.canvas{min-height:290px;max-height:400px}.footer{padding-top:8px;padding-bottom:8px}.footer>span:last-child{display:none}.rosterFilters{grid-template-columns:1fr 1fr}}
 .graph[data-overview=true] .nodePopulation button{font-size:inherit;white-space:nowrap;max-width:100%;overflow:hidden;text-overflow:ellipsis}.graph[data-overview=true] .nodePopulation strong{font-size:inherit}.connectionResults article>:global(.text-button){display:block;margin-top:10px}
 .connectionHint{position:relative;min-height:26px}.connectionHint[data-active=true] button{position:absolute;right:12px;top:-4px;min-height:32px;padding:4px 8px;background:var(--surface);border-radius:8px}.rosterLoading{font-size:12px;color:var(--text-3);margin:6px 0}.peopleRows[aria-busy=true]{opacity:.6}
 @media(min-width:768px) and (max-width:900px){.page>header{display:flex;align-items:center;min-height:44px;padding:0;margin:0 0 16px}.page>header :global(.page-actions){display:flex;width:auto;gap:8px}.page>header :global(.page-actions)>*{width:auto}}
-@media(max-width:600px){.countStrip button{flex:0 0 78px}.countStrip span{white-space:normal;min-height:26px;line-height:13px}}
+@media(max-width:600px){.countStrip button,.countStrip .workCount{flex:0 0 78px}.countStrip span{white-space:normal;min-height:26px;line-height:13px}}
 @media(max-width:600px){.toolbar .tabs button{padding-inline:6px}.toolbar>:global(.button){font-size:13px}}
 
 .pathActions{display:flex;align-items:center;justify-content:space-between;gap:12px;padding:12px 20px;border-bottom:1px solid var(--border);background:var(--violet-wash);flex-wrap:wrap;scroll-margin:16px}
@@ -117,7 +117,7 @@
 .mapHeader h2{margin:0;font-size:24px;line-height:1.3;letter-spacing:-.03em}
 .mapHeader p{font-size:13px;color:var(--text-3);margin:6px 0 0;overflow-wrap:anywhere}
 .main .countStrip{background:none;flex-wrap:wrap;overflow:visible;gap:4px;padding:0 12px 16px;border:0}
-.main .countStrip button{flex:1 0 78px;min-width:0;min-height:60px}
+.main .countStrip button,.main .countStrip .workCount{flex:1 0 78px;min-width:0;min-height:60px}
 .main .countStrip span{white-space:normal}
 .main .toolbar{border-top:1px solid var(--line);border-bottom:1px solid var(--line)}
 .main .canvas{height:clamp(360px,65dvh,900px);max-height:none;min-height:290px;background-image:radial-gradient(var(--line) .7px,transparent .7px);background-size:20px 20px}
@@ -269,3 +269,10 @@
 /* With a person chosen, the list marks the Mixes their work is in (D96). */
 .list article[data-person-here]{border-left:4px solid var(--violet-mark);padding-left:12px}
 .listHeading .personHere{color:var(--violet-text);font-weight:600}
+
+/* Count explanations stay readable outside the status controls. */
+.countStrip .workCount{cursor:default}
+.countStrip .workCount span,.countScope{font-size:.8125rem;line-height:1.5;color:var(--text-2)}
+.countScope{overflow-wrap:anywhere}
+.scope.countScope{margin:0}
+.countHelp{font-size:.875rem;color:var(--text-2)}

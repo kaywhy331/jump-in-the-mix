@@ -7,15 +7,21 @@ export type WorkflowStatus = typeof workflowStatuses[number];
 export const workflowStatusLabels: Record<WorkflowStatus, string> = { active: "Active", waiting: "Waiting", attention: "Needs attention", paused: "Paused", completed: "Completed", stopped: "Stopped", not_started: "Not started", no_mix: "No Mix" };
 export type WorkflowPosition = { mixId: string; stepId: string | null; instanceId: string | null; status: WorkflowStatus; reason: string; dueAt: string | null; jumpId?: string };
 export type WorkflowPerson = { id: string; displayName: string; stageId: string; stageName: string; positions: WorkflowPosition[]; noMix?: boolean };
-export type WorkflowCounts = Record<WorkflowStatus, number> & { total: number; current: number };
+export type WorkflowPeopleFilter = { node?: string; status?: string; stage?: string; query?: string; offset?: number };
+export type WorkflowCounts = Record<WorkflowStatus, number> & { total: number; current: number; workItems: number };
 export type WorkflowAnalytics = {
+  appliedFilters: Omit<WorkflowPeopleFilter, "offset">;
   summary: WorkflowCounts; nodes: Record<string, WorkflowCounts>;
   stages: Array<{ id: string; name: string; count: number }>;
   roster: Array<WorkflowPerson & { statuses: WorkflowStatus[]; next: Pick<NextAction, "title" | "action" | "href" | "dueAt" | "timing"> | null; nextActions: NextAction[] }>;
   nextProjection?: Omit<NextActionProjection, "items">;
   total: number; offset: number; pageSize: number;
 };
-export const emptyWorkflowCounts = (): WorkflowCounts => ({ total: 0, current: 0, active: 0, waiting: 0, attention: 0, paused: 0, completed: 0, stopped: 0, not_started: 0, no_mix: 0 });
+export const emptyWorkflowCounts = (): WorkflowCounts => ({ total: 0, current: 0, workItems: 0, active: 0, waiting: 0, attention: 0, paused: 0, completed: 0, stopped: 0, not_started: 0, no_mix: 0 });
+/** A handoff keeps the same piece of work (JITM-09 §2.55); positions describe its progress. */
+export function countWorkflowWorkItems(positions: WorkflowPosition[]): number {
+  return new Set(positions.flatMap(position => position.instanceId ? [`work:${position.instanceId}`] : position.jumpId ? [`follow-up:${position.jumpId}`] : [])).size;
+}
 const unfinished: WorkflowStatus[] = ["active", "waiting", "attention", "paused"];
 export function positionStatuses(positions: WorkflowPosition[]): WorkflowStatus[] {
   const statuses = new Set(positions.map(position => position.status));
@@ -57,9 +63,9 @@ export function workflowPositions(id: string, status: string, state: WorkflowSta
   }
   return positions;
 }
-export function summarizeWorkflowPeople(people: WorkflowPerson[], filter: { node?: string; status?: string; stage?: string; query?: string; offset?: number } = {}): WorkflowAnalytics {
+export function summarizeWorkflowPeople(people: WorkflowPerson[], filter: WorkflowPeopleFilter = {}): WorkflowAnalytics {
   const summary = emptyWorkflowCounts(), nodes: Record<string, WorkflowCounts> = {}, stages = new Map<string, { id: string; name: string; count: number }>();
-  const increment = (counts: WorkflowCounts, positions: WorkflowPosition[]) => { counts.total++; const statuses = positionStatuses(positions); if (statuses.some(status => unfinished.includes(status))) counts.current++; for (const status of statuses) counts[status]++; };
+  const increment = (counts: WorkflowCounts, positions: WorkflowPosition[]) => { counts.total++; counts.workItems += countWorkflowWorkItems(positions); const statuses = positionStatuses(positions); if (statuses.some(status => unfinished.includes(status))) counts.current++; for (const status of statuses) counts[status]++; };
   const matches: WorkflowAnalytics["roster"] = [];
   for (const person of people) {
     increment(summary, person.positions);
@@ -78,5 +84,5 @@ export function summarizeWorkflowPeople(people: WorkflowPerson[], filter: { node
   }
   matches.sort((a, b) => a.displayName.localeCompare(b.displayName) || a.id.localeCompare(b.id));
   const pageSize = 10, requested = Math.max(0, Math.floor(filter.offset ?? 0)), offset = Math.min(requested, Math.max(0, Math.floor((matches.length - 1) / pageSize) * pageSize));
-  return { summary, nodes, stages: [...stages.values()].sort((a, b) => a.name.localeCompare(b.name)), roster: matches.slice(offset, offset + pageSize), total: matches.length, offset, pageSize };
+  return { appliedFilters: { node: filter.node, status: filter.status, stage: filter.stage, query: filter.query }, summary, nodes, stages: [...stages.values()].sort((a, b) => a.name.localeCompare(b.name)), roster: matches.slice(offset, offset + pageSize), total: matches.length, offset, pageSize };
 }
