@@ -39,7 +39,7 @@
     "normal": {
       "nodes": {"a": {"width": 280, "height": 320}, "b": {"width": 280, "height": 343}, "c": {"width": 280, "height": 447}, "d": {"width": 280, "height": 281}, "e": {"width": 280, "height": 385}},
       "ports": {"a": 114, "b": 114, "c": 505, "d": 1000, "e": 114},
-      "labels": {"a-d": {"width": 280, "height": 57}, "a-b": {"width": 280, "height": 57}, "a-c": {"width": 280, "height": 57}, "rule-a-d-b-c:join:a-d": {"width": 280, "height": 38}, "rule-a-d-b-c:join:a-b": {"width": 280, "height": 38}, "rule-a-d-b-c:join:a-c": {"width": 280, "height": 38}},
+      "labels": {"a-d": {"width": 280, "height": 57}, "a-b": {"width": 280, "height": 57}, "a-c": {"width": 280, "height": 57}, "rule-a-d-b-c:join:a-d": {"width": 280, "height": 44}, "rule-a-d-b-c:join:a-b": {"width": 280, "height": 44}, "rule-a-d-b-c:join:a-c": {"width": 280, "height": 44}},
       "gap": 24,
       "padding": 48,
       "before": {"crossings": 0, "nodeOverlaps": 0, "labelNodeOverlaps": 0, "labelOverlaps": 0}
