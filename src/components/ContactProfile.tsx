@@ -26,7 +26,7 @@ import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { restoreContactAction } from "@/lib/contact-lifecycle-actions";
 import { assignMixToContactAction } from "@/lib/contact-mix-actions";
 import { contactMixRowRoute, contactMixRowStatus, contactMixRowSummary } from "@/lib/contact-mix-row-labels";
-import { readContactMixRows } from "@/lib/contact-mix-rows";
+import { personalMixStartsWhere, readContactMixRows } from "@/lib/contact-mix-rows";
 import { contactMixStatus } from "@/lib/contact-mix-status";
 import { setNoMixNeededAction } from "@/lib/contact-no-mix-actions";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
@@ -70,7 +70,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
         groupMemberships: { include: { group: true } },
         customFieldValues: { include: { definition: true }, orderBy: { definition: { name: "asc" } } },
         jumpDates: { where: { isActive: true }, include: { dateType: true }, orderBy: [{ dateValue: "asc" }, { month: "asc" }, { day: "asc" }] },
-        mixAssignments: { where: { isActive: true, contactId }, select: { id: true, mixId: true, assignmentKey: true }, orderBy: { createdAt: "asc" } }
+        mixAssignments: { where: personalMixStartsWhere(workspace.id, contactId), select: { id: true, mixId: true, assignmentKey: true }, orderBy: { createdAt: "asc" } }
       }
     }),
     prisma.dateType.findMany({ where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null }] }, orderBy: [{ isSystem: "asc" }, { name: "asc" }] }),

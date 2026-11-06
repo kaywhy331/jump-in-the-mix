@@ -268,6 +268,16 @@
 
 /* With a person chosen, the list marks the Mixes their work is in (D96). */
 .list article[data-person-here]{border-left:4px solid var(--violet-mark);padding-left:12px}
+.mixNode[data-person-here]{border-left:4px solid var(--violet-mark)}
+/* Keep unrelated work readable: subdue its surface and emphasis, never its text opacity. */
+.mixNode[data-subdued=true],.list article[data-subdued=true]{background:var(--raised)}
+.mixNode[data-subdued=true] .nodeHeading,.list article[data-subdued=true] .listHeading{color:var(--text-3)}
+.edge[data-person-path=true]:not([data-selected=true]) path:not(.edgeHit){stroke:var(--violet-mark);stroke-width:3}
+.edge[data-subdued=true]:not(:hover,:focus-visible,[data-selected=true]) path:not(.edgeHit){stroke:var(--text-3);stroke-width:1.5;opacity:1}
+.edgeLabel[data-person-path=true],.edgeLabel[data-subdued=true]{opacity:1}
+.edgeLabel[data-person-path=true] rect{stroke:var(--violet-mark);stroke-width:2}
+.edgeLabel[data-subdued=true]:not([data-selected=true]) rect{fill:var(--raised);stroke:var(--border)}
+.edgeLabel[data-subdued=true] text{fill:var(--text-3)}
 .listHeading .personHere{color:var(--violet-text);font-weight:600}
 
 /* Count explanations stay readable outside the status controls. */

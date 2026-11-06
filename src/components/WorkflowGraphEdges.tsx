@@ -4,7 +4,7 @@ import { useId, type ReactNode } from "react";
 import { connectionDirection, type ConnectionPath, type layoutWorkflowConnections } from "@/lib/workflow-connection-layout";
 import styles from "./WorkflowJourney.module.css";
 
-type Edge = ConnectionPath & { enabled: boolean; selected: boolean; description: string; progress?: string; health: string; result?: string };
+type Edge = ConnectionPath & { enabled: boolean; selected: boolean; personPath?: boolean; subdued?: boolean; description: string; progress?: string; health: string; result?: string };
 export function WorkflowGraphEdges({ edges, geometry, width, selectedMix, onSelect, preview }: {
   edges: Edge[]; geometry: ReturnType<typeof layoutWorkflowConnections>; width: number; selectedMix: string;
   onSelect: (id: string) => void; preview: ReactNode;
@@ -17,8 +17,8 @@ export function WorkflowGraphEdges({ edges, geometry, width, selectedMix, onSele
     {ordered.map(edge => {
       const shape = geometry.edges.find(item => item.id === edge.id); if (!shape) return null;
       const direction = connectionDirection(edge, selectedMix);
-      const color = direction === "return" ? "incoming" : direction === "incoming" || direction === "outgoing" ? direction : edge.selected ? "active" : edge.health === "strong" || edge.health === "weak" ? edge.health : edge.progress === "HELD" ? "weak" : edge.progress ? "active" : "neutral";
-      return <g key={edge.id} className={styles.edge} data-workflow-path={edge.id} data-direction={direction} data-selected={edge.selected} data-progress={edge.progress} data-health={edge.health} data-enabled={edge.enabled} role="button" tabIndex={0} aria-pressed={edge.selected} aria-label={edge.description} onClick={() => onSelect(edge.id)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(edge.id); } }}>
+      const color = direction === "return" ? "incoming" : direction === "incoming" || direction === "outgoing" ? direction : edge.selected || edge.personPath ? "active" : edge.health === "strong" || edge.health === "weak" ? edge.health : edge.progress === "HELD" ? "weak" : edge.progress ? "active" : "neutral";
+      return <g key={edge.id} className={styles.edge} data-workflow-path={edge.id} data-direction={direction} data-selected={edge.selected} data-person-path={edge.personPath} data-subdued={edge.subdued} data-progress={edge.progress} data-health={edge.health} data-enabled={edge.enabled} role="button" tabIndex={0} aria-pressed={edge.selected} aria-label={edge.description} onClick={() => onSelect(edge.id)} onKeyDown={event => { if (event.key === "Enter" || event.key === " ") { event.preventDefault(); onSelect(edge.id); } }}>
         <title>{edge.description}</title><path d={shape.line} className={styles.edgeHit} /><path d={shape.line} markerEnd={`url(#${id}-${color})`} />
       </g>;
     })}
@@ -26,7 +26,7 @@ export function WorkflowGraphEdges({ edges, geometry, width, selectedMix, onSele
     <g aria-hidden="true">{ordered.map(edge => {
       const shape = geometry.edges.find(item => item.id === edge.id); if (!shape) return null;
       const direction = connectionDirection(edge, selectedMix), { x, y, width, height } = shape.label;
-      return <g key={edge.id} className={styles.edgeLabel} data-workflow-edge-label={edge.id} data-direction={direction} data-selected={edge.selected} onClick={() => onSelect(edge.id)}>
+      return <g key={edge.id} className={styles.edgeLabel} data-workflow-edge-label={edge.id} data-direction={direction} data-selected={edge.selected} data-person-path={edge.personPath} data-subdued={edge.subdued} onClick={() => onSelect(edge.id)}>
         <rect x={x} y={y} width={width} height={height} rx={7} />
         <text x={x + width / 2} y={y + 20} textAnchor="middle">{shape.lines.map((line, index) => <tspan key={index} x={x + width / 2} dy={index ? 16 : 0}>{line}</tspan>)}{shape.resultLines.map((line, index) => <tspan key={`result-${index}`} className={styles.edgeResult} x={x + width / 2} dy={index ? 16 : 22}>{line}</tspan>)}</text>
       </g>;
