@@ -2,6 +2,7 @@ import assert from 'node:assert/strict';
 import { mkdir, writeFile } from 'node:fs/promises';
 import { Client } from 'pg';
 import { command } from '../jobs/read-only.mjs';
+import { settings as catalog } from '../jobs/settings.mjs';
 import { grantRuntimeRole } from '../../lib/runtime-database-role.mjs';
 import { quoteIdentifier } from '../../lib/postgres-ops.mjs';
 
@@ -36,17 +37,18 @@ try {
   } else if (action === 'count-drift') {
     await db.query(`INSERT INTO "User" (id,email,name,"updatedAt") VALUES ('count-drift','drift@example.invalid','Synthetic drift',now())`);
   } else if (action === 'recovery-hold') {
-    await db.query("ALTER DATABASE jitm SET jitm.recovery_hold='qualification'");
+    const database=(await db.query('SELECT current_database() AS name')).rows[0].name;
+    await db.query(`ALTER DATABASE ${quoteIdentifier(database)} SET jitm.recovery_hold='qualification'`);
   } else if (action === 'leftover-synthetic') {
     // A volatile table keeps counts unchanged, isolating the residue assertion.
-    await db.query(`INSERT INTO "Job" (id,task,payload,"completedAt","updatedAt") VALUES ('jitm-release-orphan','fixture-residue','{}',now(),now())`);
+    await db.query(`INSERT INTO "Job" (id,task,payload,"completedAt","updatedAt") VALUES ($1,'fixture-residue','{}',now(),now())`,[`${catalog.syntheticPrefix}orphan`]);
   } else if (action === 'idle') {
     const pending=(await db.query('SELECT count(*)::int AS n FROM "Job" WHERE "completedAt" IS NULL AND "failedAt" IS NULL')).rows[0].n;
     const heartbeat=(await db.query('SELECT count(*)::int AS n FROM "WorkerHeartbeat" WHERE status=\'RUNNING\'')).rows[0].n;
     assert.equal(pending,0); assert.equal(heartbeat,1);
   } else if (action === 'clean') {
     const {residue}=await import('../jobs/synthetic.mjs');
-    await residue(db,'jitm-release-');
+    await residue(db,catalog.syntheticPrefix);
     assert.equal((await db.query('SELECT count(*)::int AS n FROM "User"')).rows[0].n,1);
   } else if (action === 'migration-absent') {
     assert.equal((await db.query('SELECT to_regclass(\'public."QualificationObject"\') AS relation')).rows[0].relation,null);

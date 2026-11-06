@@ -181,6 +181,11 @@ for (const [index,fault] of defaults.groups[group].entries()) {
             `${startCommand.split(' ')[0]} node scripts/release/qualification/diagnose-postflight.mjs`],{cwd:source,env,allowed:true});
           console.log(redact(diagnostic.stdout));
         }
+        if (step === 'smoke' && result.code !== 0 && fault !== 'failed-smoke') {
+          const diagnostic=await cmd('docker',[...args,'operator','sh','-c',
+            `${startCommand.split(' ')[0]} node --import tsx scripts/release/qualification/diagnose-smoke.mjs`],{cwd:source,env,allowed:true});
+          console.log(redact(diagnostic.stdout));
+        }
         return {code:result.code,stdout:result.stdout};
       }});
     globalThis.fetch=provider.fetch.bind(provider);process.chdir(source);
@@ -223,6 +228,11 @@ for (const [index,fault] of defaults.groups[group].entries()) {
     console.error(`FAIL ${fault} at ${stage}: ${redact(error.message)}`);
   } finally {
     globalThis.fetch=originalFetch;process.chdir(root);
+    // The unprivileged operator and hosted runner use different UIDs. Let the
+    // runner traverse synthetic evidence directories to collect only the
+    // workflow's allowlisted captures; keep each file's existing permissions.
+    await compose('run','--rm','--no-deps','-T','operator','node','--input-type=module','-e',
+      'import {readdir,chmod} from "node:fs/promises"; async function walk(path){for(const e of await readdir(path,{withFileTypes:true}))if(e.isDirectory()){const p=`${path}/${e.name}`;await chmod(p,0o755);await walk(p)}}await walk("/var/lib/jitm-release")');
     await compose('down','--volumes','--remove-orphans');
     // Credentials were generated per case and never copied into public reports.
     await writeFile(override,JSON.stringify({removed:'ephemeral configuration'}),{mode:0o600});
