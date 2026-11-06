@@ -12,7 +12,7 @@ export function WorkflowGraphEdges({ edges, geometry, width, selectedMix, onSele
   const id = useId().replace(/:/g, "");
   const colors: Record<string, string> = { neutral: "var(--text-3)", incoming: "var(--journey-incoming)", outgoing: "var(--journey-outgoing)", strong: "var(--status-success-ink)", weak: "var(--danger)", active: "var(--violet-mark)" };
   const ordered = [...edges].sort((a, b) => Number(connectionDirection(a, selectedMix) !== "unrelated") - Number(connectionDirection(b, selectedMix) !== "unrelated"));
-  return <svg className={styles.edges} width={width} height={geometry.height} aria-label="Configured connections">
+  return <><svg className={styles.edges} width={width} height={geometry.height} aria-label="Configured connections">
     <defs>{Object.entries(colors).map(([name, fill]) => <marker key={name} id={`${id}-${name}`} markerWidth="8" markerHeight="8" refX="7" refY="4" orient="auto"><path d="M0,0 L8,4 L0,8" fill={fill} /></marker>)}</defs>
     {ordered.map(edge => {
       const shape = geometry.edges.find(item => item.id === edge.id); if (!shape) return null;
@@ -23,13 +23,11 @@ export function WorkflowGraphEdges({ edges, geometry, width, selectedMix, onSele
       </g>;
     })}
     {preview}
-    <g aria-hidden="true">{ordered.map(edge => {
+  </svg><div aria-hidden="true">{ordered.map(edge => {
       const shape = geometry.edges.find(item => item.id === edge.id); if (!shape) return null;
-      const direction = connectionDirection(edge, selectedMix), { x, y, width, height } = shape.label;
-      return <g key={edge.id} className={styles.edgeLabel} data-workflow-edge-label={edge.id} data-direction={direction} data-selected={edge.selected} data-person-path={edge.personPath} data-subdued={edge.subdued} onClick={() => onSelect(edge.id)}>
-        <rect x={x} y={y} width={width} height={height} rx={7} />
-        <text x={x + width / 2} y={y + 20} textAnchor="middle">{shape.lines.map((line, index) => <tspan key={index} x={x + width / 2} dy={index ? 16 : 0}>{line}</tspan>)}{shape.resultLines.map((line, index) => <tspan key={`result-${index}`} className={styles.edgeResult} x={x + width / 2} dy={index ? 16 : 22}>{line}</tspan>)}</text>
-      </g>;
-    })}</g>
-  </svg>;
+      const direction = connectionDirection(edge, selectedMix), { x, y } = shape.label;
+      return <div key={edge.id} className={styles.edgeLabel} style={{ left: x, top: y }} data-workflow-edge-label={edge.id} data-direction={direction} data-selected={edge.selected} data-person-path={edge.personPath} data-subdued={edge.subdued} onClick={() => onSelect(edge.id)}>
+        {edge.label}{edge.result && <span className={styles.edgeResult}>{edge.result}</span>}
+      </div>;
+    })}</div></>;
 }

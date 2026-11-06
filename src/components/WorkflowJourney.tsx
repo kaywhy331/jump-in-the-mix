@@ -25,6 +25,7 @@ import { BrandTermsHelp } from "@/components/BrandTermsHelp";
 import { compareJourneyNumbers, journeyTargetNumber, numberJourney } from "@/lib/journey-numbering";
 import { useCanvasPan } from "@/components/useCanvasPan";
 import { mixStatusLabel, zoneLabel } from "@/lib/display-labels";
+import { useWorkflowMeasurements } from "@/components/useWorkflowMeasurements";
 
 export function WorkflowJourney({ initial, displayPreferences, initialMixId = "", initialContactId = "", children, showCheckIns = false, initialStartOpen = false, initialWorkLabel = "", initialInstanceId = "", initialMegaMixId = "" }: { children?: ReactNode; showCheckIns?: boolean; initial: WorkflowGraphView; displayPreferences: DisplayFormatPreferences; initialMixId?: string; initialContactId?: string; initialStartOpen?: boolean; initialWorkLabel?: string; initialInstanceId?: string; initialMegaMixId?: string }) {
   const [data, setData] = useState(initial), [mode, setMode] = useState<"Setup" | "Progress" | "Results">(initialStartOpen ? "Setup" : initial.analytics.summary.total ? "Progress" : "Setup");
@@ -52,8 +53,7 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
   const mapHeadingRef = useRef<HTMLHeadingElement>(null);
   const canvasRef = useRef<HTMLDivElement>(null), graphRef = useRef<HTMLDivElement>(null);
   const connectionOrigin = useRef<HTMLButtonElement | null>(null);
-  const [ports, setPorts] = useState<Record<string, number>>({});
-  const [nodeHeights, setNodeHeights] = useState<Record<string, number>>({});
+  const measurements = useWorkflowMeasurements(graphRef, zoom);
   const [startRequestId, setStartRequestId] = useState(() => crypto.randomUUID());
   const [target, setTarget] = useState(""), [minimum, setMinimum] = useState(10);
   const [startSearch, setStartSearch] = useState("");
@@ -96,7 +96,8 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
   // Keep overview controls usable after the graph transform scales their cards.
   const overviewTargetHeight = zoom < .7 ? 28 / zoom : undefined;
   const minimumNodeHeight = zoom < .7 ? 64 / zoom : 0;
-  const layout = useMemo(() => layoutWorkflow(mixes, data.configuration.rules, expanded, minimumNodeHeight), [mixes, data.configuration.rules, expanded, minimumNodeHeight]);
+  const layout = useMemo(() => layoutWorkflow(mixes, data.configuration.rules, measurements), [mixes, data.configuration.rules, measurements]);
+  const nodesMeasured = mixes.every(mix => measurements.nodes[mix.id]?.height > 0);
   const canConfigure = data.canEdit && !data.historical;
   // Numbers follow the saved map, so they stay the same when archived Mixes are hidden.
   const journeyNumbers = useMemo(() => { const scoped = data.mixes.filter(mix => scope(mix.id)); const ids = new Set(scoped.map(mix => mix.id)); return numberJourney(scoped, { rules: data.configuration.rules.filter(rule => ids.has(rule.source.mixId)) }); }, [data.mixes, data.configuration, scope]);
@@ -125,7 +126,8 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
   useEffect(() => { if (!editing) void refresh().catch(reason => setError(reason.message)); }, [contactId, peopleFilter, resultDays, offset, savedView, selectedInstance]); // eslint-disable-line react-hooks/exhaustive-deps
 
   // Fit map is the overview: the whole map, its width and its height, in the map's fixed frame (D75).
-  const fitMap = () => { const canvas = canvasRef.current; if (canvas && canvas.clientWidth > 0) { setFitMode(true); setZoom(Math.min(1, Math.max(.15, Math.min((canvas.clientWidth - 20) / layout.width, (canvas.clientHeight - 20) / connectionLayout.height)))); canvas.scrollTo({ left: 0, top: 0 }); } };
+  const fitRequested = useRef(false);
+  const fitMap = () => { const canvas = canvasRef.current; fitRequested.current = true; if (canvas && canvas.clientWidth > 0 && nodesMeasured && connectionLayout.edges.every(edge => measurements.labels[edge.id])) { fitRequested.current = false; setFitMode(true); setZoom(Math.min(1, Math.max(.15, Math.min((canvas.clientWidth - 20) / layout.width, (canvas.clientHeight - 20) / connectionLayout.height)))); canvas.scrollTo({ left: 0, top: 0 }); } };
   const latestFit = useRef(fitMap); latestFit.current = fitMap;
   // The map opens at 100%, scrolled to the selected Mix or else the first numbered one (D75): when it first shows, after
   // List → Map and after a Mega-Mix change. On a tablet that opens on Details, the map's pane has no width yet, so the
@@ -143,7 +145,7 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
     if (list || !canvas) return;
     const consume = () => {
       const { pending, id, zoom: scale, fit, nodes } = scrollTo.current, node = nodes.find(item => item.id === id);
-      if (!pending || !canvas.clientWidth || !node) return;
+      if (!pending || !canvas.clientWidth || !node || !nodesMeasured) return;
       // Fit map is the owner's overview; it replaces the opening scroll rather than waiting behind it.
       scrollTo.current.pending = false;
       if (fit) return;
@@ -152,14 +154,14 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
     consume();
     const observer = new ResizeObserver(consume); observer.observe(canvas);
     return () => observer.disconnect();
-  }, [list, megaMix]);
+  }, [list, megaMix, nodesMeasured]);
   // Reveal only after the pane is visible; returning to Mixes gets a fresh reveal (JRN-02).
   // Background refreshes and the owner's own panning keep their position (JITM-09 §2.59).
   const revealedFor = useRef("");
   useEffect(() => {
     if (pane !== "map" && window.matchMedia("(max-width: 1199px)").matches) { revealedFor.current = ""; return; }
     const key = `${contactId}:${list ? "list" : "map"}:${megaMix}:${data.historical}`;
-    if (!contactId || !personFirstMixId || revealedFor.current === key) return;
+    if (!contactId || !personFirstMixId || revealedFor.current === key || !list && !nodesMeasured) return;
     const frame = requestAnimationFrame(() => {
       const canvas = canvasRef.current, node = scrollTo.current.nodes.find(item => item.id === personFirstMixId);
       const row = document.querySelector<HTMLElement>(`[data-list-mix="${CSS.escape(personFirstMixId)}"]`);
@@ -171,21 +173,13 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
       }
     });
     return () => cancelAnimationFrame(frame);
-  }, [contactId, personFirstMixId, list, pane, megaMix, data.historical]);
+  }, [contactId, personFirstMixId, list, pane, megaMix, data.historical, nodesMeasured]);
   useEffect(() => {
     const canvas = canvasRef.current; if (!canvas || !fitMode) return;
     const observer = new ResizeObserver(() => latestFit.current()); observer.observe(canvas);
     return () => observer.disconnect();
   }, [fitMode, list]);
-  useLayoutEffect(() => {
-    const graph = graphRef.current; if (!graph) return;
-    const origin = graph.getBoundingClientRect(); const next: Record<string, number> = {};
-    graph.querySelectorAll<HTMLElement>("[data-workflow-beat]").forEach(element => { const rect = element.getBoundingClientRect(); if (!rect.width || !rect.height) return; next[element.dataset.workflowBeat!] = (rect.top - origin.top + rect.height / 2) / zoom; });
-    setPorts(previous => JSON.stringify(previous) === JSON.stringify(next) ? previous : next);
-    const heights: Record<string, number> = {};
-    graph.querySelectorAll<HTMLElement>("[data-workflow-node]").forEach(element => { heights[element.dataset.workflowNode!] = element.getBoundingClientRect().height / zoom; });
-    setNodeHeights(previous => JSON.stringify(previous) === JSON.stringify(heights) ? previous : heights);
-  }, [layout, zoom, list]);
+  useEffect(() => { if (fitRequested.current) latestFit.current(); }, [measurements, pane, list]);
   const chosen = data.mixes.find(mix => mix.id === selected);
   const focusedInstances = data.instances.filter(item => !contactId || item.contactId === contactId);
   const instance = focusedInstances.find(item => item.id === selectedInstance);
@@ -237,7 +231,9 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
       description: `${path.label}: ${data.mixes.find(mix => mix.id === path.source)?.name} to ${data.mixes.find(mix => mix.id === path.destination)?.name}. ${path.rule.enabled ? "On" : "Draft or paused"}${mode === "Results" ? `. ${metricLabel(path.id)}. ${health === "strong" ? "Strong" : health === "weak" ? "Needs attention" : "No comparison"}` : ""}`,
     };
   });
-  const connectionLayout = layoutWorkflowConnections(layout.nodes.map(node => ({ ...node, height: nodeHeights[node.id] ?? node.height })), connectionEdges, ports, layout.height, mode === "Results");
+  const connectionLayout = layoutWorkflowConnections(layout.nodes, connectionEdges, measurements.ports, layout.height, mode === "Results", measurements);
+  // Leave room to align a late Mix at the top (D75); Fit uses only content bounds.
+  const canvasHeight = fitMode ? connectionLayout.height * zoom : Math.max(connectionLayout.height * zoom, ...layout.nodes.map(node => node.y * zoom + (measurements.viewportHeight ?? 0)));
   const selectPeople = (node: string, status = "all") => {
     if (editing) return;
     setPathSelection(null); setPane("people");
@@ -297,9 +293,9 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
         <div className={styles.canvasControls}><button className="button small" aria-label="Zoom out" type="button" onClick={() => { setFitMode(false); setZoom(Math.max(.15, zoom - .1)); }}><AppIcon name="zoomOut" /></button><button className="button small" type="button" aria-label="Reset zoom to 100%" onClick={() => { setFitMode(false); setZoom(1); }}>{Math.round(zoom * 100)}%</button><button className="button small" aria-label="Zoom in" type="button" onClick={() => { setFitMode(false); setZoom(Math.min(1.5, zoom + .1)); }}><AppIcon name="zoomIn" /></button><button className="button small" type="button" onClick={() => fitMap()}><AppIcon name="fit" />Fit map</button><details className={styles.mapHelp}><summary>Help</summary><p>Move around the map: drag an empty area, hold Space and drag, or drag with the middle mouse button. On a phone, drag with one finger. Arrow keys scroll the focused map.</p>{mode === "Setup" && <><p>Drag + to →, or select both points. Expand a Mix to connect its Beats. Review the connection before saving. Select a line to edit or delete a path.</p><p>Use Tab and Enter to select points. Escape cancels.</p></>}</details></div>
         <div className={styles.connectionLegend} aria-label="Connection colors"><span data-direction="incoming">Into the selected Mix</span><span data-direction="outgoing">From the selected Mix</span><small>Select a Mix to follow its connections.{zoom < .7 && " Zoom in for line labels."}</small></div>
         {showConnectionPoints && connections.hint}
-        <div ref={canvasRef} className={styles.canvas} data-pan={panMode || undefined} onClick={event => { if (!(event.target as Element).closest("[data-workflow-node], [data-workflow-path], [data-workflow-edge-label]")) { setPathSelection(null); setSelectedRoute(""); } }} tabIndex={0} role="region" aria-label="Scrollable journey diagram. Drag the background, or hold Space and drag, to move around. Choose List above for a structured list."><div style={{ width: layout.width * zoom, height: connectionLayout.height * zoom }}><div ref={graphRef} className={styles.graph} data-overview={zoom < .7} style={{ width: layout.width, height: connectionLayout.height, transform: `scale(${zoom})` }}>
+        <div ref={canvasRef} className={styles.canvas} data-pan={panMode || undefined} onClick={event => { if (!(event.target as Element).closest("[data-workflow-node], [data-workflow-path], [data-workflow-edge-label]")) { setPathSelection(null); setSelectedRoute(""); } }} tabIndex={0} role="region" aria-label="Scrollable journey diagram. Drag the background, or hold Space and drag, to move around. Choose List above for a structured list."><div style={{ width: layout.width * zoom, height: canvasHeight }}><div ref={graphRef} className={styles.graph} data-overview={zoom < .7} style={{ width: layout.width, height: connectionLayout.height, transform: `scale(${zoom})` }}>
           <WorkflowGraphEdges edges={connectionEdges} geometry={connectionLayout} width={layout.width} selectedMix={selected} preview={connections.preview} onSelect={id => { const path = allPaths.find(path => path.id === id); if (path) selectPath({ id: path.id, rule: path.rule, removal: path.removal }); }} />
-          {layout.nodes.map(node => { const mix = mixes.find(item => item.id === node.id)!, rules = data.configuration.rules.filter(rule => rule.source.mixId === mix.id); return <article key={mix.id} className={styles.mixNode} data-selected={selected === mix.id} data-active={activeMixIds.has(mix.id)} data-person-here={personMixIds.has(mix.id) || undefined} data-subdued={Boolean(personFocus && !personMixIds.has(mix.id))} style={{ left: node.x, top: node.y, width: node.width, minHeight: node.height }} data-workflow-node={mix.id}>{showConnectionPoints && mix.source !== "ONE_TIME" && mix.status !== "ARCHIVED" && <>{connections.port({ mixId: mix.id, stepId: null }, `${mix.name} · Mix`, "input")}{connections.port({ mixId: mix.id, stepId: null }, `${mix.name} · Mix`, "output")}</>}<button className={styles.nodeHeading} style={{ minHeight: overviewTargetHeight }} disabled={Boolean(editing)} type="button" onClick={() => selectMix(mix.id)} aria-pressed={selected === mix.id}><span className={styles.nodeIcon}><AppIcon name="mixes" /></span><span><strong style={{ fontSize: zoom < .7 ? `${(zoom < .3 ? 8 : 13) / zoom}px` : undefined }}>{mix.name}</strong><small>{mixStatusLabel(mix.status)} · {mix.source === "ONE_TIME" ? "One-time follow-ups" : mix.triggerMode === "MANUAL_START" ? "Manual or connected start" : mix.triggerMode === "BROADCAST" ? "Fixed-date start" : "Date-based start"}</small>{mixNumbers[mix.id] && <span className={styles.nodeNumber} style={{ fontSize: zoom < .7 ? `${(zoom < .3 ? 8 : 12) / zoom}px` : undefined }}><span className="sr-only">Mix </span>{mixNumbers[mix.id]}</span>}{selectedPerson && personMixIds.has(mix.id) && <span className={styles.personHere}>{selectedPerson.displayName} is here</span>}</span></button><div className={styles.nodePopulation} style={{ fontSize: zoom < .7 ? `${11 / zoom}px` : undefined }}><button type="button" style={{ minHeight: overviewTargetHeight }} disabled={Boolean(editing)} aria-label={`${mix.name}: ${population(`mix:${mix.id}`).current} people here, ${population(`mix:${mix.id}`).total} total`} onClick={() => { setSelected(mix.id); selectPeople(`mix:${mix.id}`); }}><strong>{population(`mix:${mix.id}`).current}</strong> here <span>· {population(`mix:${mix.id}`).total} total</span></button>{population(`mix:${mix.id}`).attention > 0 && <span data-status="attention">{population(`mix:${mix.id}`).attention} need attention</span>}</div><div className={styles.nodeSummary}><span>{mix.steps.length} {mix.steps.length === 1 ? "Beat" : "Beats"}</span><button type="button" aria-expanded={expanded.has(mix.id)} onClick={() => toggle(mix.id)}>{expanded.has(mix.id) ? "Collapse Beats" : "Show Beats"}</button></div>{expanded.has(mix.id) && <ol className={styles.nodeBeats}>{mix.steps.map(step => <li key={step.id} data-workflow-beat={step.id} data-active={instance?.state.visits.some(visit => visit.stepId === step.id && visit.status === "PENDING")}>{beatNumbers[step.id] ? <BeatNumber value={beatNumbers[step.id]} /> : <i aria-hidden="true" />}{showConnectionPoints && mix.source !== "ONE_TIME" && mix.status !== "ARCHIVED" && <>{connections.port({ mixId: mix.id, stepId: step.id }, `${numbered(step)} · Beat in ${mix.name}`, "input")}{connections.port({ mixId: mix.id, stepId: step.id }, `${numbered(step)} · Beat in ${mix.name}`, "output")}</>}<button type="button" disabled={Boolean(editing)} className={styles.beatHeading} onClick={() => { setSelected(mix.id); selectPeople(`beat:${step.id}`); }}><strong>{step.name}</strong><small>{data.configuration.gatedStepIds.includes(step.id) ? "After a connection" : step.anchor === "CALENDAR_DAY" ? `Day ${step.dayOffset} from start` : "From appointment"}</small><span className={styles.beatCount}>{population(`beat:${step.id}`).current} here · {population(`beat:${step.id}`).completed} completed</span></button></li>)}</ol>}<div className={styles.nodeRules}>{rules.map(rule => <button key={rule.id} type="button" disabled={Boolean(editing) || mode === "Setup" && !canConfigure} onClick={() => { selectMix(mix.id); if (mode === "Setup") setEditing(rule); else setSelectedRoute(rule.routes[0]?.id ?? ""); }}>{rule.mode === "CHOICE" ? "◇" : "⑂"} {rule.name}{!rule.enabled ? " · off" : ""}</button>)}</div>{!rules.length && <small className={styles.endpoint}>{data.configuration.intentionalEnds.includes(`mix:${mix.id}`) ? "✓ Finish here" : "No next connection"}</small>}</article>; })}
+          {layout.nodes.map(node => { const mix = mixes.find(item => item.id === node.id)!, rules = data.configuration.rules.filter(rule => rule.source.mixId === mix.id); return <article key={mix.id} className={styles.mixNode} data-selected={selected === mix.id} data-active={activeMixIds.has(mix.id)} data-person-here={personMixIds.has(mix.id) || undefined} data-subdued={Boolean(personFocus && !personMixIds.has(mix.id))} style={{ left: node.x, top: node.y, minHeight: minimumNodeHeight }} data-workflow-node={mix.id}>{showConnectionPoints && mix.source !== "ONE_TIME" && mix.status !== "ARCHIVED" && <>{connections.port({ mixId: mix.id, stepId: null }, `${mix.name} · Mix`, "input")}{connections.port({ mixId: mix.id, stepId: null }, `${mix.name} · Mix`, "output")}</>}<button className={styles.nodeHeading} style={{ minHeight: overviewTargetHeight }} disabled={Boolean(editing)} type="button" onClick={() => selectMix(mix.id)} aria-pressed={selected === mix.id}><span className={styles.nodeIcon}><AppIcon name="mixes" /></span><span><strong style={{ fontSize: zoom < .7 ? `${(zoom < .3 ? 8 : 13) / zoom}px` : undefined }}>{mix.name}</strong><small>{mixStatusLabel(mix.status)} · {mix.source === "ONE_TIME" ? "One-time follow-ups" : mix.triggerMode === "MANUAL_START" ? "Manual or connected start" : mix.triggerMode === "BROADCAST" ? "Fixed-date start" : "Date-based start"}</small>{mixNumbers[mix.id] && <span className={styles.nodeNumber} style={{ fontSize: zoom < .7 ? `${(zoom < .3 ? 8 : 12) / zoom}px` : undefined }}><span className="sr-only">Mix </span>{mixNumbers[mix.id]}</span>}{selectedPerson && personMixIds.has(mix.id) && <span className={styles.personHere}>{selectedPerson.displayName} is here</span>}</span></button><div className={styles.nodePopulation} style={{ fontSize: zoom < .7 ? `${11 / zoom}px` : undefined }}><button type="button" style={{ minHeight: overviewTargetHeight }} disabled={Boolean(editing)} aria-label={`${mix.name}: ${population(`mix:${mix.id}`).current} people here, ${population(`mix:${mix.id}`).total} total`} onClick={() => { setSelected(mix.id); selectPeople(`mix:${mix.id}`); }}><strong>{population(`mix:${mix.id}`).current}</strong> here <span>· {population(`mix:${mix.id}`).total} total</span></button>{population(`mix:${mix.id}`).attention > 0 && <span data-status="attention">{population(`mix:${mix.id}`).attention} need attention</span>}</div><div className={styles.nodeSummary}><span>{mix.steps.length} {mix.steps.length === 1 ? "Beat" : "Beats"}</span><button type="button" aria-expanded={expanded.has(mix.id)} onClick={() => toggle(mix.id)}>{expanded.has(mix.id) ? "Collapse Beats" : "Show Beats"}</button></div>{expanded.has(mix.id) && <ol className={styles.nodeBeats}>{mix.steps.map(step => <li key={step.id} data-workflow-beat={step.id} data-active={instance?.state.visits.some(visit => visit.stepId === step.id && visit.status === "PENDING")}>{beatNumbers[step.id] ? <BeatNumber value={beatNumbers[step.id]} /> : <i aria-hidden="true" />}{showConnectionPoints && mix.source !== "ONE_TIME" && mix.status !== "ARCHIVED" && <>{connections.port({ mixId: mix.id, stepId: step.id }, `${numbered(step)} · Beat in ${mix.name}`, "input")}{connections.port({ mixId: mix.id, stepId: step.id }, `${numbered(step)} · Beat in ${mix.name}`, "output")}</>}<button type="button" disabled={Boolean(editing)} className={styles.beatHeading} onClick={() => { setSelected(mix.id); selectPeople(`beat:${step.id}`); }}><strong>{step.name}</strong><small>{data.configuration.gatedStepIds.includes(step.id) ? "After a connection" : step.anchor === "CALENDAR_DAY" ? `Day ${step.dayOffset} from start` : "From appointment"}</small><span className={styles.beatCount}>{population(`beat:${step.id}`).current} here · {population(`beat:${step.id}`).completed} completed</span></button></li>)}</ol>}<div className={styles.nodeRules}>{rules.map(rule => <button key={rule.id} type="button" disabled={Boolean(editing) || mode === "Setup" && !canConfigure} onClick={() => { selectMix(mix.id); if (mode === "Setup") setEditing(rule); else setSelectedRoute(rule.routes[0]?.id ?? ""); }}>{rule.mode === "CHOICE" ? "◇" : "⑂"} {rule.name}{!rule.enabled ? " · off" : ""}</button>)}</div>{!rules.length && <small className={styles.endpoint}>{data.configuration.intentionalEnds.includes(`mix:${mix.id}`) ? "✓ Finish here" : "No next connection"}</small>}</article>; })}
         </div></div></div>
       </>}
       {chosen && !list && <section className={styles.connectionFocus} aria-label={`Connections for ${chosen.name}`}>

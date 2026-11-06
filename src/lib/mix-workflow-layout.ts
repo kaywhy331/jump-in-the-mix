@@ -1,7 +1,8 @@
 import type { WorkflowRule } from "@/lib/mix-workflow-types";
+import type { WorkflowMeasurements } from "@/lib/workflow-connection-layout";
 
 /** Collapse strongly connected components before ranking; returns never break layout. */
-export function layoutWorkflow(mixes: Array<{ id: string; steps: Array<{ id: string }> }>, rules: WorkflowRule[], expanded: Set<string>, minimumNodeHeight = 0) {
+export function layoutWorkflow(mixes: Array<{ id: string; steps: Array<{ id: string }> }>, rules: WorkflowRule[], measurements: WorkflowMeasurements) {
   const ids = new Set(mixes.map(mix => mix.id));
   const edges = new Map(mixes.map(mix => [mix.id, [] as string[]]));
   for (const rule of rules) for (const route of rule.routes) {
@@ -27,12 +28,22 @@ export function layoutWorkflow(mixes: Array<{ id: string; steps: Array<{ id: str
     const a = componentOf.get(source)!, b = componentOf.get(target)!;
     if (a !== b) ranks[b] = Math.max(ranks[b], ranks[a] + 1);
   }
+  const { gap, padding } = measurements;
+  const columnWidths = new Map<number, number>();
+  for (const mix of mixes) {
+    const rank = ranks[componentOf.get(mix.id)!];
+    columnWidths.set(rank, Math.max(columnWidths.get(rank) ?? 0, measurements.nodes[mix.id]?.width ?? 0));
+  }
+  const labelWidth = Math.max(0, ...Object.values(measurements.labels).map(label => label.width));
+  const columns = new Map<number, number>();
+  let x = padding;
+  for (const rank of [...columnWidths.keys()].sort((a, b) => a - b)) { columns.set(rank, x); x += columnWidths.get(rank)! + labelWidth + gap * 2; }
   const heights = new Map<number, number>();
   const nodes = mixes.map(mix => {
-    const rank = ranks[componentOf.get(mix.id)!], height = Math.max(minimumNodeHeight, 195 + (expanded.has(mix.id) ? mix.steps.length * 62 : 0) + rules.filter(rule => rule.source.mixId === mix.id).length * 28);
-    const node = { id: mix.id, x: 60 + rank * 390, y: heights.get(rank) ?? 35, width: 280, height };
-    heights.set(rank, node.y + height + 100);
+    const rank = ranks[componentOf.get(mix.id)!], size = measurements.nodes[mix.id] ?? { width: 0, height: 0 };
+    const node = { id: mix.id, x: columns.get(rank)!, y: heights.get(rank) ?? padding, ...size };
+    heights.set(rank, node.y + node.height + gap * 2);
     return node;
   });
-  return { nodes, width: Math.max(760, ...nodes.map(node => node.x + node.width + 100)), height: Math.max(350, ...nodes.map(node => node.y + node.height + 90)) };
+  return { nodes, width: Math.max(0, ...nodes.map(node => node.x + node.width + padding)), height: Math.max(0, ...nodes.map(node => node.y + node.height + padding)) };
 }
