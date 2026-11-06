@@ -65,7 +65,7 @@ export async function browserSmoke(context, fixture, env = process.env) {
     await browserContext.setExtraHTTPHeaders({});
     // A client navigation can update its URL before streamed content appears.
     // Keep the visibility requirement and give it the existing bounded timeout.
-    await page.getByRole('heading',{name:'Today',exact:true}).waitFor({state:'visible'});
+    await page.getByRole('heading',{name:'Today',level:1,exact:true}).waitFor({state:'visible'});
     await page.getByText('Release contact',{exact:true}).first().waitFor({state:'visible'});
     const colors = [];
     for (const theme of ['light','dark']) {

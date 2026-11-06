@@ -8,6 +8,9 @@ try {
 } catch(error) {
   const locations=String(error.stack).split('\n').slice(1)
     .map(line=>line.match(/(?:file:\/\/)?(\/app\/(?:scripts|src)\/[^\s():]+:\d+:\d+)/)?.[1]).filter(Boolean).slice(0,8);
-  console.log(JSON.stringify({diagnostic:'smoke',result:'failed',locations}));
+  const message=String(error.message);
+  const reason=message.includes('strict mode violation') ? 'ambiguous-locator'
+    : message.includes('Timeout') ? 'timeout' : message === 'Release assertion failed' ? 'assertion' : 'other';
+  console.log(JSON.stringify({diagnostic:'smoke',result:'failed',reason,locations}));
   process.exitCode=1;
 }
