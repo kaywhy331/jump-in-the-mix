@@ -1,0 +1,52 @@
+name: Release job catalog qualification
+
+# Temporary S5 venue, explicitly excluded from later landing unless retained
+# by a separate owner decision. This never invokes the release workflow.
+on:
+  push:
+    branches: [infra/release-job-catalog]
+
+permissions:
+  contents: read
+
+jobs:
+  docker-pilot:
+    runs-on: ubuntu-24.04
+    timeout-minutes: 60
+    strategy:
+      fail-fast: false
+      matrix:
+        group: [code, migration, reversible]
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683
+        with:
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020
+        with:
+          node-version: '22'
+          cache: npm
+      - name: Install locked test dependencies
+        run: npm ci --no-audit --no-fund
+      - name: Test qualification transport and catalog units
+        run: |
+          node scripts/release/qualification/stubs.node.mjs
+          for test_file in scripts/release/jobs/__tests__/{receipt,mutations,runtime,http}.node.mjs; do
+            node "$test_file"
+          done
+      - name: Qualify Docker pilot with synthetic providers
+        env:
+          QUALIFICATION_GROUP: ${{ matrix.group }}
+        run: node scripts/release/qualification/run.mjs "$QUALIFICATION_GROUP"
+      - name: Retain synthetic reports and browser captures
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02
+        with:
+          name: catalog-qualification-${{ matrix.group }}
+          path: |
+            .artifacts/release-qualification/**/report.json
+            .artifacts/release-qualification/**/today-light.png
+            .artifacts/release-qualification/**/today-dark.png
+          include-hidden-files: true
+          if-no-files-found: ignore
+          retention-days: 7
