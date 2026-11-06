@@ -2,9 +2,9 @@
 id: WF-06
 title: Production release
 status: active
-version: 4.0.0
+version: 3.0.0
 owner: Kevin
-last_reviewed: 2026-11-06
+last_reviewed: 2026-10-14
 standards: [JITM-12, JITM-13, JITM-14, JITM-15, JITM-16]
 skills: [jitm-release]
 ---
@@ -21,6 +21,9 @@ may reference the missing environment. The [environment specification](../../rel
 defines the owner settings and [step map](../../release/STEP_MAP.md) identifies
 every automated and manual gate. This proposal does not authorize a release,
 merge, environment creation or settings change. [PROPOSED]
+
+Merging this change needs Kevin's word (agent-instruction text)
+
 **Inputs:**
 - the candidate, which is the merge commit on `main` after Kevin has merged the pull request;
 - the previous production tag;
@@ -106,7 +109,7 @@ merge, environment creation or settings change. [PROPOSED]
 
 ## Changelog
 
-- 4.0.0 — 2026-11-06 — Base 69ac59d. INFRA-W14-RELEASE-WF build-only proposal: conditional protected workflow activation, candidate binding, durable ledger, private-network one-off jobs, manual record PR and forward-only migrations. Environment/settings/dispatch remain outside the build authorization; see the environment specification and step map.
+- [PROPOSED; not adopted] 4.0.0 — 2026-11-06 — Base 69ac59d. INFRA-W14-RELEASE-WF build-only proposal: conditional protected workflow activation, candidate binding, durable ledger, private-network one-off jobs, manual record PR and forward-only migrations. Environment/settings/dispatch remain outside the build authorization; see the environment specification and step map. Version and review-date changes await Kevin's word and merge.
 - 1.0.0 — 2026-09-28 — Initial version, codifying the release sequence practiced since 2026-09-21.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. The committed release script (D18), the backup in every release (D17) and merge authorization (D30).
 - 2.0.0 — 2026-10-12 — Base 4e78545. Step 3's gate follows JITM-12 2.0.0: nothing new fails, so an intermittent failure that fails more often on the candidate blocks too (D101, proposed).

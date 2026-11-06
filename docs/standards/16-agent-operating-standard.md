@@ -2,9 +2,9 @@
 id: JITM-16
 title: Agent operating standard
 status: active
-version: 3.0.0
+version: 2.0.0
 owner: Kevin
-last_reviewed: 2026-11-06
+last_reviewed: 2026-09-28
 applies_to: [agents, claude-code, codex, all-tasks]
 supersedes: []
 sources:
@@ -51,6 +51,8 @@ It governs how agents start a task, what they may decide alone, how they report,
 **2.6** Agents MAY run production release steps on Kevin's behalf, but only when the task explicitly asks for a release, deploy or rollback, and only through WF-06 and JITM-14. [OWNER 2026-09-24 O3] [PROPOSED]
 
 After Kevin activates the release workflow under the [environment specification](../release/ENVIRONMENT_SPEC.md), releases MUST use its protected, dispatch-only path from an owner-cut releaser tag. Candidate code executes only in the read-only verification job; deployment credentials stay with the reviewed releaser code. A build-only workflow task grants no merge, dispatch, tag, environment, variable or secret creation authority. Unresolved operations require the named E1 observation or Kevin's recorded E3 decision before proceeding; elapsed time is not a resolution. Migrations are forward-only, including recovery; never reverse one in place. [PROPOSED]
+
+Merging this change needs Kevin's word (agent-instruction text)
 
 **2.7** Agents MUST NOT decide new product behavior, pricing, access rules, customer promises or vocabulary. They propose the change and ask, following the concept-fit test in JITM-01 §2. [OWNER 2026-09-28 O6] [OWNER 2026-09-28 D11] [PROPOSED]
 
@@ -141,6 +143,6 @@ They MUST NOT route around a blocked step. [OWNER 2026-09-28 O6] [PROPOSED]
 
 ## 7. Changelog
 
-- 3.0.0 — 2026-11-06 — Base 69ac59d. §2.6 adds the INFRA-W14-RELEASE-WF conditional activation proposal, owner-code credential boundary, build-only authority limit, unresolved-operation gate and forward-only migrations. Dependent skill changes are deferred to activation; the existing router still points at WF-06.
+- [PROPOSED; not adopted] 3.0.0 — 2026-11-06 — Base 69ac59d. §2.6 adds the INFRA-W14-RELEASE-WF conditional activation proposal, owner-code credential boundary, build-only authority limit, unresolved-operation gate and forward-only migrations. Dependent skill changes are deferred to activation; the existing router still points at WF-06. Version and review-date changes await Kevin's word and merge.
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. §2.5: agents merge only with Kevin's explicit authorization for a pull request or a defined batch (D30). §6 records D27.
