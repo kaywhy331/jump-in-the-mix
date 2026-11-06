@@ -169,6 +169,11 @@ for (const [index,fault] of defaults.groups[group].entries()) {
         }
         const result=await cmd('docker',[...args,'operator','sh','-c',startCommand],{cwd:source,env,allowed:true});
         await writeFile(join(directory,`${step}.stderr.txt`),redact(result.stderr));
+        if (step === 'postflight' && result.code !== 0) {
+          const diagnostic=await cmd('docker',[...args,'operator','sh','-c',
+            `${startCommand.split(' ')[0]} node scripts/release/qualification/diagnose-postflight.mjs`],{cwd:source,env,allowed:true});
+          console.log(redact(diagnostic.stdout));
+        }
         return {code:result.code,stdout:result.stdout};
       }});
     globalThis.fetch=provider.fetch.bind(provider);process.chdir(source);
