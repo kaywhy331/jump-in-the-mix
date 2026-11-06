@@ -435,7 +435,6 @@ jobs:
       contents: write # Required for synchronous ledger appends, per INFRA-DELIB-2.
     env:
       GH_TOKEN: ${{ github.token }}
-      RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
     steps:
       - name: Checkout owner releaser tag only
         uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
@@ -449,26 +448,45 @@ jobs:
       - name: Bind approval and refuse unresolved operations
         env:
           LEDGER_RESOLUTION: ${{ inputs.ledger_resolution }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: node scripts/release/workflow.mjs gate
       - name: WF-06 step 4 - Read-only preflight and private-network counts
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: node scripts/release/workflow.mjs preflight
       - name: WF-06 step 5 - Fresh encrypted backup one-off job
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: node scripts/release/workflow.mjs backup
       - name: WF-06 step 6 - Reviewed forward migration or proven none
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: node scripts/release/workflow.mjs migrate
       - name: WF-06 step 7 - Worker deploy, drain and queue probe
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: node scripts/release/workflow.mjs worker
       - name: WF-06 step 8 - Web deploy with retained cache
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: node scripts/release/workflow.mjs web
       - name: WF-06 step 9 - Postflight
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: node scripts/release/workflow.mjs postflight
       - name: WF-06 step 10 - Synthetic-owner live smoke
         id: smoke
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: node scripts/release/workflow.mjs smoke
       - name: WF-06 step 10 - Private-network synthetic-row cleanup
         if: always() && (steps.smoke.outcome == 'success' || steps.smoke.outcome == 'failure')
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: node scripts/release/workflow.mjs cleanup
       - name: WF-06 step 11 - Final counts, services and three health rounds
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
         run: node scripts/release/workflow.mjs final
 
   publish:
