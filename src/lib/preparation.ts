@@ -6,12 +6,12 @@ type Reader = Pick<Prisma.TransactionClient, "$queryRaw">;
 
 // Read this before reading the follow-ups it describes. A completion between
 // queries may leave a conservative preparing state, never a stale empty/ready one.
-export async function readPreparationStatus(workspaceId: string, contactId?: string, db: Reader = prisma): Promise<PreparationStatus> {
-  const now = new Date();
+export async function readPreparationStatus(workspaceId: string, contactId?: string | string[], db: Reader = prisma, now = new Date()): Promise<PreparationStatus> {
   // For one person: a job for them, or one for the whole account or a whole Mix. A bulk start's job lists the people it
   // started (`contactIds`), so it covers only them, as the person's Mix status counts it (TRU-04).
-  const scope = contactId ? Prisma.sql`AND (j.payload ->> 'contactId' = ${contactId}
-    OR (j.payload ->> 'contactId' IS NULL AND (j.payload -> 'contactIds' IS NULL OR j.payload -> 'contactIds' @> jsonb_build_array(${contactId}::text))))` : Prisma.empty;
+  const ids = typeof contactId === "string" ? [contactId] : contactId;
+  const scope = ids ? ids.length ? Prisma.sql`AND (${Prisma.join(ids.map(id => Prisma.sql`(j.payload ->> 'contactId' = ${id}
+    OR (j.payload ->> 'contactId' IS NULL AND (j.payload -> 'contactIds' IS NULL OR j.payload -> 'contactIds' @> jsonb_build_array(${id}::text))))`), " OR ")})` : Prisma.sql`AND FALSE` : Prisma.empty;
   const [result] = await db.$queryRaw<Array<{ pending: boolean; delayed: boolean; failed: boolean }>>(Prisma.sql`
     WITH relevant AS (
       SELECT j."createdAt", j.attempts, j."completedAt", j."failedAt", j.payload FROM "Job" j

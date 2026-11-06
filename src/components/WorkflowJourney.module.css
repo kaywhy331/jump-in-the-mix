@@ -241,12 +241,21 @@
 .canvas[data-pan=ready]{cursor:grab}
 .canvas[data-pan=active]{cursor:grabbing;user-select:none}
 .canvas[data-pan] *{cursor:inherit}
-/* Compact people rows: name over the numbered Mix, one tap target of at least 44px. */
-.directory .personRow{align-items:center}
+/* Visible person context and sibling action links, with one article per person. */
+.directory .personRow{display:grid;grid-template-columns:minmax(0,1fr) 44px;align-items:start;gap:var(--space-2);padding-block:var(--space-3);border-bottom:1px solid var(--line)}
 .personSelect{align-items:center;min-height:44px;padding-block:7px}
 .personContact{margin-top:0}
-.personCopy>strong,.personMix{overflow:hidden;text-overflow:ellipsis;white-space:nowrap}
-.personMix{display:block;margin-top:1px;font-size:12px;line-height:1.4;color:var(--text-2)}
+.personCopy>strong,.personMix{white-space:normal;overflow-wrap:anywhere}
+.personMix{display:block;margin-top:var(--space-1);font-size:.8125rem;line-height:1.5;color:var(--text-2)}
+.personDetails{grid-column:1/-1;margin:0;padding-inline:var(--space-3);display:grid;gap:var(--space-2);font-size:.8125rem;line-height:1.5;overflow-wrap:anywhere}
+.personDetails dt{font-weight:600;color:var(--text)}.personDetails dd{margin:0;color:var(--text-2)}
+.personDetails>div{display:flex;flex-wrap:wrap;column-gap:var(--space-2)}.personDetails>div:has(.personNext) dd{flex-basis:100%}.personNext strong{font-size:inherit;color:var(--text)}
+.personNext{list-style:none;padding:0;margin:0;display:grid;gap:var(--space-2)}
+.personNext li{display:flex;flex-wrap:wrap;align-items:start;gap:var(--space-2)}.personNext li>span{flex:1 1 100%;min-width:0}
+.people>.personPreview{font-size:.8125rem}
+.personDetails .personPreview{font-size:inherit;margin:0;color:var(--text-2)}
+.personAction{display:inline-flex;align-items:center;min-height:44px;min-width:44px;padding-inline:var(--space-2);color:var(--violet-text);text-decoration:underline;border-radius:var(--space-2)}
+.personAction:focus-visible{outline:3px solid var(--focus);outline-offset:-3px}
 /* Journey's segmented controls meet the 44px floor and keep 8px between segments on touch widths (TGT-01). */
 .tabs button{min-width:44px}
 @media(max-width:900px){.tabs{gap:8px}}

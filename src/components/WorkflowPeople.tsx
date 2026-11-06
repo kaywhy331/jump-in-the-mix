@@ -4,6 +4,7 @@ import Link from "next/link";
 import { AppIcon } from "@/components/AppIcon";
 import { useRef } from "react";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
+import { nextActionEmptyText, nextActionTime } from "@/lib/next-action";
 import { workflowStatuses, workflowStatusLabels, type WorkflowAnalytics, type WorkflowCounts } from "@/lib/workflow-analytics";
 import type { WorkflowGraphMix } from "@/lib/mix-workflow-view";
 import styles from "@/components/WorkflowJourney.module.css";
@@ -23,16 +24,32 @@ export function WorkflowPeople({ selectedContactId = "", data, mixes, mixNumbers
     <div className={styles.rosterFilters}><label><span className="sr-only">Workflow status</span><select aria-label="Workflow status" value={status} onChange={event => onFilter({ status: event.target.value, offset: 0 })}><option value="all">All statuses</option>{workflowStatuses.map(value => <option key={value} value={value}>{workflowStatusLabels[value]}</option>)}</select></label><label><span className="sr-only">Contact stage</span><select aria-label="Contact stage" value={stage} onChange={event => onFilter({ stage: event.target.value, offset: 0 })}><option value="">All contact stages</option>{data.stages.map(item => <option key={item.id} value={item.id}>{item.name} · {item.count}</option>)}</select></label></div>
     {(status !== "all" || stage || query) && <button type="button" className="text-button" onClick={() => onFilter({ status: "all", stage: "", query: "", offset: 0 })}>Clear filters</button>}
     {pending && <p className={styles.rosterLoading} role="status">Updating people…</p>}
-    {/* One line per person: their name and the Mix they are in. Details stay in the tooltip and on their journey. */}
+    {data.nextProjection && data.nextProjection.state !== "ready" && <p role="status" className={styles.personPreview}>{nextActionEmptyText({ ...data.nextProjection, items: [] })}</p>}
+    {/* One article per person; every obligation remains visible beside the journey selector. */}
     <div className={styles.peopleRows} inert={pending} aria-busy={pending}>{data.roster.map(person => {
       const position = person.positions[0], mix = mixes.find(item => item.id === position?.mixId), beat = mix?.steps.find(item => item.id === position?.stepId);
       const where = position ? `${mix && mixNumbers[mix.id] ? `${mixNumbers[mix.id]} · ` : ""}${mix?.name ?? "Previous Mix"}` : person.statuses.map(value => workflowStatusLabels[value]).join(", ");
       const details = [person.stageName, person.statuses.map(value => workflowStatusLabels[value]).join(", "), beat?.name, position?.reason, position?.dueAt ? formatDateTime(position.dueAt, displayPreferences) : ""].filter(Boolean).join(" · ");
+      const currentMixes = [...new Set(person.positions.map(item => item.mixId))].map(id => {
+        const current = mixes.find(item => item.id === id);
+        return `${current && mixNumbers[id] ? `${mixNumbers[id]} · ` : ""}${current?.name ?? "Previous Mix"}`;
+      });
       return <article key={person.id} className={styles.personRow} data-selected={selectedContactId === person.id}>
         <button className={styles.personSelect} type="button" title={details} aria-label={`View ${person.displayName}'s journey`} aria-pressed={selectedContactId === person.id} onClick={() => onPerson(person.id, person.positions.find(item => item.instanceId)?.instanceId ?? undefined)}>
-          <span className={styles.personCopy}><strong>{person.displayName}</strong>{where && <span className={styles.personMix}>{where}{person.positions.length > 1 ? ` +${person.positions.length - 1}` : ""}</span>}</span>
+          <span className={styles.personCopy}><strong>{person.displayName}</strong><span className={styles.personMix}>Current Mix: {currentMixes.join(", ") || where}</span></span>
         </button>
         <Link className={styles.personContact} href={`/contacts/${person.id}`} aria-label={`Open ${person.displayName}'s contact`} title="Open contact"><AppIcon name="external" /></Link>
+        <dl className={styles.personDetails}>
+          <div><dt>Stage</dt><dd>{person.stageName}</dd></div>
+          <div><dt>Status</dt><dd>{person.statuses.map(value => workflowStatusLabels[value]).join(", ")}</dd></div>
+          <div><dt>Next action</dt><dd>
+            {person.nextActions.length ? <ul className={styles.personNext}>{person.nextActions.map(item => <li key={item.id}>
+              <span><strong>{item.title}</strong><span className={styles.personPreview}>{item.detail}</span>{data.nextProjection && <span className={styles.personPreview}>{nextActionTime(item, data.nextProjection, displayPreferences)}</span>}</span>
+              <Link className={styles.personAction} href={item.href}>{item.action}</Link>
+            </li>)}</ul> : data.nextProjection && nextActionEmptyText({ ...data.nextProjection, items: [] })}
+          </dd></div>
+          {person.positions.length > 0 && <div><dt className="sr-only">Progress</dt><dd>{[...new Set(person.positions.map(item => [mixes.find(mix => mix.id === item.mixId)?.steps.find(step => step.id === item.stepId)?.name, item.reason, item.dueAt ? formatDateTime(item.dueAt, displayPreferences) : ""].filter(Boolean).join(" · ")))].map(detail => <p key={detail} className={styles.personPreview}>{detail}</p>)}</dd></div>}
+        </dl>
       </article>;
     })}</div>
     {!data.total && <p className={styles.emptyPeople}>No people match this view.</p>}

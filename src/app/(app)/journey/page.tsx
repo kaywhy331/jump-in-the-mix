@@ -10,7 +10,7 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
   const [{ workspace, user, impersonation }, query] = await Promise.all([requireWorkspace(), searchParams]);
   const display = await displayPreferencesForUser(user.id);
   const [graph, quietDays] = await Promise.all([
-    readWorkflowGraph(workspace.id, { contactId: query.contactId, focusedInstance: query.work?.slice(0, 160), query: query.q, canEdit: !impersonation }),
+    readWorkflowGraph(workspace.id, { now: new Date(), timeZone: display.timeZone, contactId: query.contactId, focusedInstance: query.work?.slice(0, 160), query: query.q, canEdit: !impersonation }),
     readQuietDays({ workspaceId: workspace.id, timezone: display.timeZone, query: query.q })
   ]);
   return <div className={`page ${styles.page}`}>

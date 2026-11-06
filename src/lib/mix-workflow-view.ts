@@ -28,7 +28,7 @@ export type WorkflowGraphView = {
   megaMixes: Array<{ id: string; name: string; mixIds: string[] }>;
 };
 
-export async function readWorkflowGraph(workspaceId: string, options: { contactId?: string; query?: string; offset?: number; canEdit: boolean; instanceId?: string; node?: string; status?: string; stage?: string; peopleOffset?: number; days?: number; focusedInstance?: string }): Promise<WorkflowGraphView> {
+export async function readWorkflowGraph(workspaceId: string, options: { now?: Date; timeZone?: string; contactId?: string; query?: string; offset?: number; canEdit: boolean; instanceId?: string; node?: string; status?: string; stage?: string; peopleOffset?: number; days?: number; focusedInstance?: string }): Promise<WorkflowGraphView> {
   const snapshot = options.instanceId ? await prisma.mixWorkflowInstance.findFirst({ where: { id: options.instanceId, workspaceId }, select: { definition: true } }) : null;
   if (options.instanceId && !snapshot) throw new UserFacingError("That journey instance is unavailable.");
   const definition = snapshot ? workflowDefinition(snapshot.definition) : await readWorkflowDefinition(prisma, workspaceId);
@@ -39,7 +39,7 @@ export async function readWorkflowGraph(workspaceId: string, options: { contactI
     prisma.mixWorkflowInstance.count({ where }),
     prisma.contact.findMany({ where: { workspaceId, archivedAt: null, ...(options.query ? { displayName: { contains: options.query, mode: "insensitive" as const } } : {}) }, select: { id: true, displayName: true }, orderBy: [{ displayName: "asc" }, { id: "asc" }], take: 50 }),
     // Selecting work changes the map focus and details, while the directory stays browsable.
-    readWorkflowAnalytics(workspaceId, { node: options.node, status: options.status, stage: options.stage, query: options.query, offset: options.peopleOffset }),
+    readWorkflowAnalytics(workspaceId, { now: options.now, timeZone: options.timeZone, node: options.node, status: options.status, stage: options.stage, query: options.query, offset: options.peopleOffset }),
     prisma.megaMixPipeline.findMany({ where: { workspaceId }, orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, members: { orderBy: { position: "asc" }, select: { mixId: true } } } }),
     prisma.mix.findMany({ where: { workspaceId, id: { in: definition.mixes.map(mix => mix.id) } }, select: { id: true, createdAt: true } })
   ]);

@@ -1,4 +1,5 @@
 import type { WorkflowState } from "@/lib/mix-workflow-types";
+import type { NextAction, NextActionProjection } from "@/lib/next-action";
 
 // "No Mix" belongs to a person, not to a position: no Mix has work to come for them (JITM-09 §2.76).
 export const workflowStatuses = ["active", "waiting", "attention", "paused", "completed", "stopped", "not_started", "no_mix"] as const;
@@ -10,7 +11,8 @@ export type WorkflowCounts = Record<WorkflowStatus, number> & { total: number; c
 export type WorkflowAnalytics = {
   summary: WorkflowCounts; nodes: Record<string, WorkflowCounts>;
   stages: Array<{ id: string; name: string; count: number }>;
-  roster: Array<WorkflowPerson & { statuses: WorkflowStatus[] }>;
+  roster: Array<WorkflowPerson & { statuses: WorkflowStatus[]; next: Pick<NextAction, "title" | "action" | "href" | "dueAt" | "timing"> | null; nextActions: NextAction[] }>;
+  nextProjection?: Omit<NextActionProjection, "items">;
   total: number; offset: number; pageSize: number;
 };
 export const emptyWorkflowCounts = (): WorkflowCounts => ({ total: 0, current: 0, active: 0, waiting: 0, attention: 0, paused: 0, completed: 0, stopped: 0, not_started: 0, no_mix: 0 });
@@ -72,7 +74,7 @@ export function summarizeWorkflowPeople(people: WorkflowPerson[], filter: { node
     // Show current positions first; old visits remain available in work history.
     const relevant = positions.filter(position => statuses.includes(position.status));
     const unique = new Map(relevant.map(position => [`${position.instanceId}:${position.mixId}:${position.stepId}:${position.status}:${position.reason}`, position]));
-    matches.push({ ...person, positions: [...unique.values()], statuses });
+    matches.push({ ...person, positions: [...unique.values()], statuses, next: null, nextActions: [] });
   }
   matches.sort((a, b) => a.displayName.localeCompare(b.displayName) || a.id.localeCompare(b.id));
   const pageSize = 10, requested = Math.max(0, Math.floor(filter.offset ?? 0)), offset = Math.min(requested, Math.max(0, Math.floor((matches.length - 1) / pageSize) * pageSize));
