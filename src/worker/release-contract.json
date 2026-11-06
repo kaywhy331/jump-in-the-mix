@@ -1,0 +1,5 @@
+{
+  "probeTask": "jitm.release.probe.noop",
+  "probeType": "release-noop",
+  "commitEnvironment": ["RENDER_GIT_COMMIT", "JITM_BUILD_SHA"]
+}

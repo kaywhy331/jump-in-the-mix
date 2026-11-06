@@ -21,6 +21,8 @@ import { PHONE_KEYS_TASK, runPhoneKeySweep } from "@/lib/phone-canonicalization"
 import { MARKETPLACE_REFRESH_INTERVAL_MS, refreshStaleListings, type ListingRefreshCursor } from "@/lib/marketplace-service";
 import { SUPPORT_OPERATOR_ALERT_TASK, sendSupportOperatorAlert } from "@/lib/support-operator-alert";
 
+import releaseContract from "./release-contract.json";
+
 const workerId = `worker-${randomUUID().slice(0, 8)}`;
 const workerStartedAt = new Date();
 const heartbeatIntervalMs = 15_000;
@@ -67,6 +69,7 @@ function safeJobError(error: unknown): string {
 
 async function recordHeartbeat(lastJobAt?: Date) {
   const now = new Date();
+  const buildCommit = releaseContract.commitEnvironment.map(key => process.env[key]).find(Boolean);
   await prisma.workerHeartbeat.upsert({
     where: { workerId },
     create: {
@@ -75,7 +78,7 @@ async function recordHeartbeat(lastJobAt?: Date) {
       startedAt: workerStartedAt,
       lastSeenAt: now,
       lastJobAt,
-      metadata: { pid: process.pid, node: process.version }
+      metadata: { pid: process.pid, node: process.version, commit: /^[a-f0-9]{40}$/.test(buildCommit ?? "") ? buildCommit : null }
     },
     update: {
       status: "RUNNING",
@@ -157,6 +160,18 @@ function phoneSweepScope(job: ClaimedJob): { workspaceId?: string } {
 }
 
 async function executeJob(job: ClaimedJob, lease: JobLease): Promise<void> {
+  if (job.task === releaseContract.probeTask) {
+    const payload = job.payload as { type?: unknown; operation_id?: unknown } | null;
+    if (job.workspaceId || !payload || Array.isArray(payload) || typeof payload !== "object"
+      || Object.keys(payload).sort().join(",") !== "operation_id,type"
+      || payload.type !== releaseContract.probeType || typeof payload.operation_id !== "string"
+      || !/^[0-9]+\.[0-9]+\.worker_gate$/.test(payload.operation_id)) {
+      throw new PermanentJobError("Release probe has an invalid payload.");
+    }
+    // Intentionally no customer reads, writes or provider calls. Completion is
+    // recorded by the same lease path as every other successful job.
+    return;
+  }
   if (job.task === "mix-workflow") {
     const payload = job.payload as { instanceId?: string } & Partial<WorkflowCommand>;
     if (!job.workspaceId || typeof payload.instanceId !== "string") throw new PermanentJobError("Workflow job is missing its instance.");
