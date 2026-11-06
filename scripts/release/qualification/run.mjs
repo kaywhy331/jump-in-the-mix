@@ -109,7 +109,7 @@ for (const [index,fault] of defaults.groups[group].entries()) {
     volumes:[`${wrapper}:/qualification-bin:ro`,`${store}:/qualification-objects`,`${evidence}:/var/lib/jitm-release`,
       `${previousDirectory}:/previous:ro`,`${sourceContext}/smoke-plan.json:/var/lib/jitm-release/smoke-plan.json:ro`]};
   const config={services:{web:{image:images['previous-web'],environment:common},worker:{image:images['previous-worker'],environment:{...common,JITM_BUILD_SHA:previous}},
-    proxy:{image:images.worker,command:['node','scripts/release/qualification/proxy.mjs'],ports:[`127.0.0.1::${new URL(defaults.siteOrigin).port}`]},operator},
+    proxy:{image:images.worker,command:['node','scripts/release/qualification/proxy.mjs']},operator},
     networks:{default:{internal:true}}};
   await writeFile(override,JSON.stringify(config),{mode:0o600});
   const compose=async(...args)=>cmd('docker',['compose','-p',project,'-f',join(source,'docker-compose.yml'),'-f',join(source,'compose.pilot.yml'),'-f',override,...args],{cwd:source,env});
@@ -123,8 +123,6 @@ for (const [index,fault] of defaults.groups[group].entries()) {
     await compose('up','-d','--no-deps','--wait','web','worker');
     const deadline=Date.now()+defaults.startupTimeoutMs;
     while ((await fixture('idle',true)).code !== 0) {assert.ok(Date.now()<deadline,'Worker did not settle');await delay(1000);}
-    const proxyPort=(await compose('port','proxy',new URL(defaults.siteOrigin).port)).stdout.trim().split(':').at(-1);
-    const healthOrigin=`http://127.0.0.1:${proxyPort}`;
     const names=Object.fromEntries([...(await readFile(join(source,'render.yaml'),'utf8')).matchAll(/^  - type: (web|worker)\n    name: ([A-Za-z0-9_-]+)$/gm)].map(m=>[m[1],m[2]]));
     const jobs=Object.fromEntries(Object.keys(requiredChecks).map(step=>[step,{service_id:defaults.operator,
       command:`node ${step === 'smoke' ? '--import tsx ' : ''}scripts/release/jobs/${step}.mjs`,review_ref:'synthetic-reviewed-catalog',...(step === 'migrate' ? {forward_only:true} : {})}]));
@@ -143,7 +141,14 @@ for (const [index,fault] of defaults.groups[group].entries()) {
       GITHUB_REF:'refs/tags/synthetic-releaser-fixture',GITHUB_SHA:candidate,GITHUB_API_URL:defaults.githubOrigin,GITHUB_REPOSITORY:defaults.repository,
       GH_TOKEN:random(),RENDER_API_KEY:random(),GITHUB_STEP_SUMMARY:join(directory,'summary.md')};
     provider=new Providers({settings,candidate,previous,names,fault,
-      health:(url,options)=>originalFetch(new URL(url.pathname,healthOrigin),options),
+      health:async(url)=>{
+        // Internal Docker networks intentionally have no host-published port.
+        // Make the exact health request from the proxy's network namespace.
+        const result=await compose('exec','-T','proxy','node','-e',
+          'fetch(process.argv[1],{redirect:"error",signal:AbortSignal.timeout(Number(process.argv[2]))}).then(async r=>{console.log(r.status);await r.body?.cancel()}).catch(()=>process.exit(1))',
+          url.href,String(defaults.requestTimeoutMs));
+        return new Response(null,{status:Number(result.stdout.trim())});
+      },
       deploy:async(kind)=>{
         config.services[kind].image=images[kind];
         if (kind === 'worker') config.services.worker.environment.JITM_BUILD_SHA=candidate;
@@ -155,6 +160,7 @@ for (const [index,fault] of defaults.groups[group].entries()) {
         }
       },
       executeJob:async(step,startCommand)=>{
+        if (fault === 'recovery-hold' && step === 'preflight') await fixture(fault);
         const args=['compose','-p',project,'-f',join(source,'docker-compose.yml'),'-f',join(source,'compose.pilot.yml'),'-f',override,'run','--rm','--no-deps','-T'];
         // A failed browser plan tests the smoke finally block plus the workflow cleanup.
         if (fault === 'failed-smoke' && step === 'smoke') {
@@ -169,10 +175,9 @@ for (const [index,fault] of defaults.groups[group].entries()) {
     const completed=[];let refused=null;
     for (const step of ['gate','preflight','backup','migrate','worker','web','postflight','smoke','cleanup','final','publish']) {
       stage=step;
-      if (fault === 'recovery-hold' && step === 'preflight') await fixture(fault);
       if (['count-drift','leftover-synthetic'].includes(fault) && step === 'final') await fixture(fault);
       try {await run(step,workflowEnv);completed.push(step);}
-      catch {refused=step;break;}
+      catch(error) {refused=step;console.log(`REFUSED ${fault} at ${step}: ${redact(error.message)}`);break;}
     }
     if (fault === 'failed-smoke' && refused === 'smoke') {stage='cleanup-after-failure';await run('cleanup',workflowEnv);await fixture('clean');}
     const records=provider.ledger(), latest=[...verify(records).values()];
