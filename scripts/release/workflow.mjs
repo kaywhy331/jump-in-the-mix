@@ -3,7 +3,7 @@
 import { execFileSync } from 'node:child_process';
 import { appendFileSync, mkdirSync, writeFileSync } from 'node:fs';
 import { pathToFileURL } from 'node:url';
-import { bind, verifyCandidate, digest } from './candidate.mjs';
+import { bind, verifyCandidate, digest, blobDigest } from './candidate.mjs';
 import { GitLedger, read, resolve, verify, assertNoUnresolved } from './ledger.mjs';
 
 export const requiredChecks = Object.freeze({
@@ -29,6 +29,15 @@ export function terminalStatus(kind, object) {
 const need = (condition, message) => { if (!condition) throw new Error(message); };
 const id = (value) => { need(typeof value === 'string' && /^[A-Za-z0-9_-]+$/.test(value), 'Invalid provider identifier'); return value; };
 const git = (...args) => execFileSync('git', args, { encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
+
+export async function changeManifest(cwd, previousSha, candidateSha) {
+  const list = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).split('\0').filter(Boolean);
+  const changed = list('diff', '--name-only', '-z', previousSha, candidateSha);
+  const exists = new Set(list('ls-tree', '-r', '--name-only', '-z', candidateSha));
+  const manifest = [];
+  for (const path of changed) manifest.push([path, exists.has(path) ? await blobDigest(cwd, candidateSha, path) : null]);
+  return manifest;
+}
 
 // Injected transport makes the lost-response boundary testable without a
 // provider call. No timeout or transport exception triggers a second request.
@@ -101,7 +110,7 @@ export async function run(command, env = process.env) {
   async function binding() {
     const main = await github(`git/ref/heads/${settings.main_branch}`);
     git('fetch', '--no-tags', 'origin', main.object.sha, candidate);
-    verifyCandidate(approval.candidate, bind(process.cwd(), candidate, main.object.sha), main.object.sha);
+    verifyCandidate(approval.candidate, await bind(process.cwd(), candidate, main.object.sha), main.object.sha);
     return main.object.sha;
   }
   async function local(step, action) {
@@ -174,11 +183,6 @@ export async function run(command, env = process.env) {
     need(yaml, 'Blueprint services required');
     return Object.fromEntries([...yaml.matchAll(/^  - type: (web|worker)\n    name: ([A-Za-z0-9_-]+)$/gm)].map((m) => [m[1], m[2]]));
   }
-  function changeManifest() {
-    const changed = git('diff', '--name-only', '-z', approval.previous_sha, candidate).split('\0').filter(Boolean);
-    const exists = new Set(git('ls-tree', '-r', '--name-only', '-z', candidate).split('\0').filter(Boolean));
-    return changed.map((path) => [path, exists.has(path) ? digest(execFileSync('git', ['show', `${candidate}:${path}`], { stdio: ['ignore', 'pipe', 'pipe'] })) : null]);
-  }
   async function serviceChecks(expectedSha) {
     const names = blueprintNames();
     for (const type of ['worker', 'web']) {
@@ -199,7 +203,7 @@ export async function run(command, env = process.env) {
         need(response.status === 200, 'Health check failed'); await response.body?.cancel();
       }
     }
-    return { target_checks: true, changed_files_sha256: digest(JSON.stringify(changeManifest())) };
+    return { target_checks: true, changed_files_sha256: digest(JSON.stringify(await changeManifest(process.cwd(), approval.previous_sha, candidate))) };
   }
 
   if (command === 'gate') {
@@ -232,7 +236,7 @@ export async function run(command, env = process.env) {
   } else if (command === 'migrate') {
     await checked('backup');
     if (env.MIGRATION_JOB === 'none') {
-      const previous = bind(process.cwd(), approval.previous_sha, approval.candidate.approved_main_sha);
+      const previous = await bind(process.cwd(), approval.previous_sha, approval.candidate.approved_main_sha);
       need(previous.migrations_sha256 === approval.candidate.migrations_sha256, 'Changed migration set requires a reviewed job');
       await local('migrate', async () => ({ migration_job: 'none', reason: 'Migration set unchanged' }));
     } else await job('migrate', env.MIGRATION_JOB);

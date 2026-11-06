@@ -55,7 +55,7 @@ test('remote ledger appends a child commit and never forces a competing update',
   await assert.rejects(new GitLedger(async () => null, { branch: 'release-ledger', file: 'ledger.jsonl' }).read(), /missing ledger/);
 });
 
-test('real Git candidate binding rejects non-main history, moved main and every digest mismatch', () => {
+test('real Git candidate binding rejects non-main history, moved main and every digest mismatch', async () => {
   mkdirSync('.artifacts/tmp', { recursive: true });
   const cwd = mkdtempSync(join(process.cwd(), '.artifacts/tmp/release-candidate-'));
   const git = (...args) => execFileSync('git', args, { cwd, encoding: 'utf8', stdio: ['ignore', 'pipe', 'pipe'] }).trim();
@@ -66,16 +66,17 @@ test('real Git candidate binding rejects non-main history, moved main and every 
     writeFileSync(join(cwd, 'prisma/migrations/001/migration.sql'), 'SELECT 1;');
     git('add', '.'); git('commit', '-m', 'baseline');
     const initial = git('rev-parse', 'HEAD');
-    const approved = bind(cwd, initial, initial);
-    assert.deepEqual(verifyCandidate(approved, bind(cwd, initial, initial), initial), approved);
+    const approved = await bind(cwd, initial, initial);
+    assert.deepEqual(verifyCandidate(approved, await bind(cwd, initial, initial), initial), approved);
     for (const field of ['lockfile_sha256', 'render_yaml_sha256', 'migrations_sha256']) {
       assert.throws(() => verifyCandidate(approved, { ...approved, [field]: 'b'.repeat(64) }, initial), /binding mismatch/);
     }
     writeFileSync(join(cwd, 'package-lock.json'), '{"changed":true}'); git('add', '.'); git('commit', '-m', 'advance');
     const moved = git('rev-parse', 'HEAD');
-    assert.throws(() => verifyCandidate(approved, bind(cwd, initial, moved), moved), /Main moved/);
-    assert.throws(() => bind(cwd, moved, initial));
-    assert.notEqual(bind(cwd, moved, moved).lockfile_sha256, approved.lockfile_sha256);
-    assert.throws(() => bind(cwd, 'main', moved), /full commit SHA/);
+    const actual = await bind(cwd, initial, moved);
+    assert.throws(() => verifyCandidate(approved, actual, moved), /Main moved/);
+    await assert.rejects(bind(cwd, moved, initial));
+    assert.notEqual((await bind(cwd, moved, moved)).lockfile_sha256, approved.lockfile_sha256);
+    await assert.rejects(bind(cwd, 'main', moved), /full commit SHA/);
   } finally { rmSync(cwd, { recursive: true, force: true }); }
 });
