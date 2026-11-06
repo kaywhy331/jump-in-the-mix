@@ -3,7 +3,7 @@
 .github/audit/**
 scripts/audit/**
 **/vitest.config.*
-**/playwright.config.*
+**/playwright*.config.*
 **/vitest.setup.*
 **/test-setup.*
 **/test.setup.*

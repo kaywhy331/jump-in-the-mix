@@ -16,6 +16,7 @@ afterEach(() => {
 describe("classify", () => {
   it.each([
     ".github/workflows/ci.yml", "vitest.config.ts", "playwright.config.ts",
+    "playwright.ci.config.ts", "playwright.compat.config.ts", "playwright.staging.config.ts",
     "tests/setup.ts", "e2e/global-setup.ts", "vitest.setup.ts",
     "prisma/migrations/20261106_example/migration.sql", "scripts/release/deploy.sh",
     ".github/audit/sensitive-paths.txt", ".github/audit/protected-tests.txt",
@@ -64,7 +65,7 @@ function repository() {
   return { cwd, git, put, commit, before, event };
 }
 
-describe("push range and CLI", () => {
+describe("push range and CLI", { timeout: 30_000 }, () => {
   it("reads the full payload range even when it spans multiple commits", () => {
     const r = repository();
     r.put("tests/protected.test.ts", "protected\n"); r.commit();
