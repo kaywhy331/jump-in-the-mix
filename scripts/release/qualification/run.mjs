@@ -20,6 +20,8 @@ const baseCompose=yaml.safeLoad(await readFile('docker-compose.yml','utf8'));
 const databaseService=Object.keys(baseCompose.services).find(name=>baseCompose.services[name].image?.startsWith('postgres:'));
 assert.ok(databaseService,'Pilot PostgreSQL service required');
 const databaseSettings=pilot.services[databaseService].environment;
+const webPort=Number(String(pilot.services.web.ports[0]).split(':').at(-1));
+assert.ok(Number.isSafeInteger(webPort) && webPort > 0 && webPort <= 65535,'Pilot web target port required');
 await mkdir(output,{recursive:true,mode:0o700});
 const source=join(output,'candidate'), sourceContext=join(output,'release-source'), webContext=join(output,'release-web');
 const secrets=[];
@@ -116,7 +118,8 @@ for (const [index,fault] of defaults.groups[group].entries()) {
     volumes:[`${wrapper}:/qualification-bin:ro`,`${store}:/qualification-objects`,`${evidence}:/var/lib/jitm-release`,
       `${previousDirectory}:/previous:ro`,`${sourceContext}/smoke-plan.json:/var/lib/jitm-release/smoke-plan.json:ro`]};
   const config={services:{web:{image:images['previous-web'],environment:common},worker:{image:images['previous-worker'],environment:{...common,JITM_BUILD_SHA:previous}},
-    proxy:{image:images.worker,command:['node','scripts/release/qualification/proxy.mjs']},operator},
+    proxy:{image:images.worker,command:['node','scripts/release/qualification/proxy.mjs'],
+      environment:{QUALIFICATION_UPSTREAM_URL:`http://web:${webPort}`}},operator},
     networks:{default:{internal:true}}};
   await writeFile(override,JSON.stringify(config),{mode:0o600});
   const compose=async(...args)=>cmd('docker',['compose','-p',project,'-f',join(source,'docker-compose.yml'),'-f',join(source,'compose.pilot.yml'),'-f',override,...args],{cwd:source,env});
