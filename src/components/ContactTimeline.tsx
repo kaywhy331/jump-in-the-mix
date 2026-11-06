@@ -44,7 +44,7 @@ function label(item: TimelineItem): string {
   if (item.outcome === "RESCHEDULED") return "Rescheduled";
   if (item.outcome === "SKIPPED") return "Follow-up skipped";
   if (item.outcome === "REOPENED") return "Follow-up reopened";
-  return "Follow-up completed";
+  return "Marked complete";
 }
 
 export function ContactTimeline({
@@ -136,7 +136,7 @@ export function ContactTimeline({
 
   return (
     <div className={styles.timeline}>
-      <div className="contact-section-heading"><h2>History</h2><Sheet trigger={<button type="button" className="contact-icon-button" aria-label="History options"><AppIcon name="more" /></button>} title="History options">      <div className="filter-bar" aria-label="Timeline filters">
+      <div className="contact-section-heading"><h2>Recent activity</h2><Sheet trigger={<button type="button" className="contact-icon-button" aria-label="History options"><AppIcon name="more" /></button>} title="History options">      <div className="filter-bar" aria-label="Timeline filters">
         <button className={filter === "ALL" ? "button primary" : "button"} type="button" aria-pressed={filter === "ALL"} onClick={() => setFilter("ALL")}>All</button>
         <button className={filter === "COMMUNICATIONS" ? "button primary" : "button"} type="button" aria-pressed={filter === "COMMUNICATIONS"} onClick={() => setFilter("COMMUNICATIONS")}>Communications</button>
         <button className={filter === "NOTES" ? "button primary" : "button"} type="button" aria-pressed={filter === "NOTES"} onClick={() => setFilter("NOTES")}>Notes</button>
@@ -166,8 +166,8 @@ export function ContactTimeline({
               <time className={styles.timelineDate} dateTime={item.occurredAt} title={formatDateTime(item.occurredAt, displayPreferences)}>{formatDate(item.occurredAt, displayPreferences, { year: undefined })}</time>
               <div className={styles.timelineBody}>
                 <div className={styles.timelineMeta}>
-                  {(!item.summary || item.kind === "JUMP_OUTCOME" || item.conversation) && <strong>{label(item)}</strong>}
-                  {item.channel && <span>{channelName(item.channel)}</span>}
+                  <strong>{item.channel ? `${channelName(item.channel)} · ` : ""}{label(item)}</strong>
+                  {item.kind === "JUMP_OUTCOME" && !["SKIPPED", "REOPENED", "RESCHEDULED"].includes(item.outcome ?? "") && <span>Recorded outcome · delivery not verified</span>}
                   {item.visibility === "PRIVATE" && <span className={styles.privateBadge}>Private</span>}
 
                 </div>

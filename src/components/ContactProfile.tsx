@@ -35,6 +35,7 @@ import { listGroupStates } from "@/lib/group-activity";
 import { createImportantDateAction, deactivateImportantDateAction, updateImportantDateAction } from "@/lib/important-date-actions";
 import { formatDateInput } from "@/lib/mix-broadcast";
 import { prisma } from "@/lib/prisma";
+import { phoneDisplay, workspacePhoneRegion } from "@/lib/phone-number";
 import { readPreparationStatus } from "@/lib/preparation";
 import { recurrenceLabel } from "@/lib/display-labels";
 
@@ -88,6 +89,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
   if (!contact) notFound();
 
   const displayPreferences = await displayPreferencesForUser(user.id);
+  const phoneRegion = await workspacePhoneRegion(prisma, workspace.id);
   const todayKey = logicalDateKey(logicalDateInTimezone(new Date(), displayPreferences.timeZone));
   // Where a started plan counts from; a plan that follows a saved date uses the person's own date when they have one.
   const startDateField = <label className="field"><span>Start on</span><input type="date" name="startDate" required min={todayKey} defaultValue={todayKey} /></label>;
@@ -114,17 +116,17 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
     );
   }
   const activeByGroupId = new Map(groupStates.map((state) => [state.groupId, state.isActive]));
+  const nextActions = await readNextActions(workspace.id, { contactId, now, timeZone: displayPreferences.timeZone });
   const [pendingCount, mixStatus, mixRows] = await Promise.all([
     prisma.jump.count({ where: { workspaceId: workspace.id, contactId, status: "PENDING" } }),
     contactMixStatus(workspace.id, contactId),
-    readContactMixRows(workspace.id, { id: contact.id, mixAssignments: contact.mixAssignments, groupIds: contact.groupMemberships.map(membership => membership.groupId) }, new Set(contact.groupMemberships.flatMap(({ groupId }) => activeByGroupId.get(groupId) === false ? [] : [groupId]))).catch(() => null)
+    readContactMixRows(workspace.id, { id: contact.id, mixAssignments: contact.mixAssignments, groupIds: contact.groupMemberships.map(membership => membership.groupId) }, new Set(contact.groupMemberships.flatMap(({ groupId }) => activeByGroupId.get(groupId) === false ? [] : [groupId])), nextActions).catch(() => null)
   ]);
   const followUpType = dateTypes.find((type) => type.slug === "follow-up");
   const primaryEmail = contact.emails.find((item) => item.isPrimary)?.email ?? contact.emails[0]?.email ?? null;
   const primaryPhone = contact.phones.find((item) => item.isPrimary)?.phone ?? contact.phones[0]?.phone ?? null;
   const state = relationshipState ?? { preferredChannel: null, priority: "NORMAL" as const, doNotContact: false, relationshipStatus: null, nextCommitmentAt: null, version: 0 };
 
-  const nextActions = await readNextActions(workspace.id, { contactId, now, timeZone: displayPreferences.timeZone });
   const shortDate = (date: Date) => formatDate(date, displayPreferences, { year: undefined });
   const sequenceCandidates = nextFollowUp ? await prisma.jump.findMany({
     where: { workspaceId: workspace.id, contactId, mixId: nextFollowUp.mixId, status: { not: "CANCELED" },
@@ -151,11 +153,6 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
   ].sort((a, b) => a.date.getTime() - b.date.getTime()).slice(0, 5);
   const stageNames = new Map(journeyStages.map(stage => [stage.id, stage.name]));
   const moves = recordedStageChanges([...journeyEvents].reverse()).slice(-5);
-  if (contact.journey && !moves.some(move => move.resultingStageId === contact.journey!.stageId && move.occurredAt.getTime() === contact.journey!.stageSince.getTime())) {
-    if (moves.at(-1)?.resultingStageId === contact.journey.stageId) moves.pop();
-    moves.push({ id: "current-stage", workspaceId: workspace.id, contactId, eventKey: "current-stage", eventType: "MANUAL", source: "", resultingStageId: contact.journey.stageId, occurredAt: contact.journey.stageSince });
-  }
-  const futureStages = journeyStages.filter(stage => stage.isActive && contact.journey && stage.position > contact.journey.stage.position).slice(0, 3);
   // Where this person goes next: a Mix, a one-time follow-up, or the owner's confirmation that they need no Mix (JITM-09 §2.76).
   // Docked beside Contacts, the list's filters and this person come back with the notice (D47).
   const returnTo = embedded ? directoryHref ?? `/contacts?person=${encodeURIComponent(contact.id)}` : `/contacts/${contact.id}`;
@@ -171,18 +168,15 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
     {noMixChoice}
   </ClosesOnSubmit>;
   const addToMix = <Sheet trigger={<button type="button" className="contact-inline-action contact-add-mix"><AppIcon name="add" />Add to a Mix</button>} title={`Add ${contact.displayName} to a Mix`}>{mixChoices}</Sheet>;
-  const mixChip = mixRows !== null && (mixStatus === "no-mix" || mixStatus === "no-mix-needed") ? <Sheet trigger={<button type="button" className="contact-mix-chip" data-status={mixStatus} aria-label={`${mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}: choose what's next for ${contact.displayName}`}>{mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}<AppIcon name="chevronDown" /></button>} title={`What’s next for ${contact.displayName}`} description={mixStatus === "no-mix" ? "No Mix has work to come for this person." : undefined}>{mixChoices}</Sheet> : null;
-  const journeyTrack = <>
-    <div className="contact-section-heading"><h2>Stage</h2></div>
-    {contact.journey ? <div className="contact-journey-track" role="region" tabIndex={0} aria-label="Recorded stage history and possible next stages">
-      <ol className="contact-stage-history">{moves.map((move, index) => <li key={move.id} className={index === moves.length - 1 ? "is-current" : "is-complete"} aria-current={index === moves.length - 1 ? "step" : undefined}><strong>{stageNames.get(move.resultingStageId!) ?? "Previous stage"}</strong><time dateTime={move.occurredAt.toISOString()}>{shortDate(move.occurredAt)}</time><i aria-hidden="true" /></li>)}</ol>
-      <div className="contact-journey-today"><i aria-hidden="true" /><span>Today</span></div>
-      {futureStages.length > 0 && <ol className="contact-stage-future" aria-label="Possible next stages, not scheduled">{futureStages.map(stage => <li key={stage.id}><span>{stage.name}</span><i aria-hidden="true" /></li>)}</ol>}
-    </div> : <p className="contact-empty-copy">No stage yet. Choose a stage beside this person’s name.</p>}
-  </>;
+  const mixChip = mixRows !== null && (mixStatus === "no-mix" || mixStatus === "no-mix-needed") ? <Sheet trigger={<button type="button" className="contact-mix-chip" data-status={mixStatus} aria-label={`${mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}: choose what's next for ${contact.displayName}`}>{mixStatus === "no-mix" ? "No Mix" : "No Mix needed"}<AppIcon name="chevronDown" /></button>} title={`What’s next for ${contact.displayName}`} description={mixStatus === "no-mix" ? "This person has No Mix. A one-time follow-up can still be scheduled." : undefined}>{mixChoices}</Sheet> : null;
+  const journeyTrack = <details className="contact-stage-records">
+    <summary>Stage history</summary>
+    {moves.length ? <ol className="contact-stage-history">{moves.map(move => <li key={move.id}><strong>{stageNames.get(move.resultingStageId!) ?? "Previous stage"}</strong><time dateTime={move.occurredAt.toISOString()}>{shortDate(move.occurredAt)}</time></li>)}</ol>
+      : <p className="contact-empty-copy">No stage changes recorded.</p>}
+  </details>;
   const mixRowsView: ContactMixesRow[] = (mixRows ?? []).map(row => {
     const status = contactMixRowStatus(row, now, displayPreferences), route = contactMixRowRoute(row);
-    return { mixId: row.mixId, name: row.name, status, route, summary: `${contactMixRowSummary(row, contact.displayName, now, displayPreferences)}${route ? ` ${route}.` : ""}`, assignmentId: row.assignmentId, everyoneStart: row.everyoneStart, hasTags: row.tags.length > 0, stopped: Boolean(row.stop), workIds: row.workIds };
+    return { mixId: row.mixId, name: row.name, status, route, group: row.group, archived: row.mixStatus === "ARCHIVED", summary: `${contactMixRowSummary(row, contact.displayName, now, displayPreferences)}${route ? ` ${route}.` : ""}`, assignmentId: row.assignmentId, everyoneStart: row.everyoneStart, hasTags: row.tags.length > 0, stopped: Boolean(row.stop), workIds: row.workIds };
   });
   // Opens it in Calendar's editor on its own day, as the agenda's links do. Synced calendar entries are never meetings.
   const meetingLink = nextMeeting && `/calendar?${new URLSearchParams({ edit: nextMeeting.id, date: logicalDateKey(logicalDateInTimezone(nextMeeting.startsAt, displayPreferences.timeZone)) })}#schedule-event`;
@@ -242,6 +236,13 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
         {(state.doNotContact || !primaryPhone || !primaryEmail) && <p className="contact-quick-action-hint">{state.doNotContact ? "Do not contact is on, so Text, Email and Call are off." : !primaryPhone && !primaryEmail ? "Add a phone number or email in Details to reach them." : !primaryPhone ? "Add a phone number in Details to text or call." : "Add an email address in Details to email."}</p>}
       </header>
 
+        {/* Lasting context stays beside the work, with three lines visible before expansion. */}
+        <section className="contact-notes" aria-labelledby="contact-notes-heading">
+          <div className="contact-section-heading"><h2 id="contact-notes-heading">Notes to remember</h2><Link className="contact-inline-action" href={`/contacts/${contact.id}/edit#contact-notes`} aria-label={contact.publicNotes || contact.privateNotes ? "Edit notes to remember" : "Add notes to remember"}><AppIcon name="edit" />{contact.publicNotes || contact.privateNotes ? "Edit" : "Add"}</Link></div>
+          {contact.publicNotes ? <ClampedText className="note-copy" text={contact.publicNotes} what="notes" /> : !contact.privateNotes && <p className="contact-empty-copy">No notes yet.</p>}
+          {contact.privateNotes && <div className="private-note"><strong>Private</strong><ClampedText className="note-copy" text={contact.privateNotes} what="private notes" /></div>}
+        </section>
+
       <NextActionSummary projection={nextActions} displayPreferences={displayPreferences} restricted={state.doNotContact} retryHref={`/contacts/${contact.id}`} sequenceJumpId={nextFollowUp?.id}>
         {nextFollowUp && nextFollowUp.mix.source !== "ONE_TIME" && <><span className="next-action-sequence-label">Beat {currentBeat} of {sequenceSteps.length}</span>
           <ol className="contact-beat-track" aria-label={`Beats in ${nextFollowUp.mix.name}`}>{sequenceSteps.map(step => {
@@ -260,32 +261,25 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
         return <span className={`group-chip ${isActive ? "" : "inactive"}`} key={group.id}><span className="group-dot" style={{ background: group.color ?? "#dfe4ee" }} />{group.name}</span>;
       })}</div>}
 
+      <section className="contact-timeline-card" id="contact-history"><ContactTimeline key={contact.id} contactId={contact.id} displayPreferences={displayPreferences} /></section>
       <aside className="contact-profile-details">
         <div className="contact-section-heading"><h2>Details</h2><Link className="contact-details-edit contact-inline-action" href={`/contacts/${contact.id}/edit`}><AppIcon name="edit" />Edit</Link></div>
         <div className="contact-details-rows">
           {contact.company && <div className="contact-detail-row"><AppIcon name="business" /><span>{contact.company}</span><small>company</small></div>}
-          {contact.phones.map(item => <div className="contact-detail-row" key={item.id}><AppIcon name="phone" />{state.doNotContact ? <span>{item.phone}</span> : <a href={`tel:${item.phone}`}>{item.phone}</a>}<small>{item.label || "phone"}</small></div>)}
+          {contact.phones.map(item => <div className="contact-detail-row" key={item.id}><AppIcon name="phone" />{state.doNotContact ? <span>{phoneDisplay(item.phone, phoneRegion)}</span> : <a href={`tel:${item.phone}`}>{phoneDisplay(item.phone, phoneRegion)}</a>}<small>{item.label || "phone"}</small></div>)}
           {contact.emails.map(item => <div className="contact-detail-row" key={item.id}><AppIcon name="email" />{state.doNotContact ? <span>{item.email}</span> : <a href={`mailto:${item.email}`}>{item.email}</a>}<small>{item.label || "email"}</small></div>)}
           {contact.addresses.map(item => <div className="contact-detail-row" key={item.id}><AppIcon name="mapPin" />{addressText(item) ? <a href={`https://www.google.com/maps/search/?api=1&query=${encodeURIComponent(addressText(item))}`} target="_blank" rel="noopener noreferrer">{addressText(item)}</a> : <span>Address incomplete</span>}<small>{item.label || "address"}</small></div>)}
           {importantDates.filter(date => /birthday/i.test(date.type)).slice(0, 1).map(date => <div className="contact-detail-row contact-birthday" key={date.id}><AppIcon name="calendar" /><span>{shortDate(date.date)}</span><small>birthday</small></div>)}
         </div>
         <Link className="contact-add-details contact-inline-action" href={`/contacts/${contact.id}/edit`}><AppIcon name="add" />Add company, phone or email</Link>
-        {/* Lasting context stays open beside the details (D77), its first three lines at once. */}
-        <section className="contact-notes" aria-labelledby="contact-notes-heading">
-          <div className="contact-section-heading"><h2 id="contact-notes-heading">Notes to remember</h2><Link className="contact-inline-action" href={`/contacts/${contact.id}/edit#contact-notes`} aria-label={contact.publicNotes || contact.privateNotes ? "Edit notes to remember" : "Add notes to remember"}><AppIcon name="edit" />{contact.publicNotes || contact.privateNotes ? "Edit" : "Add"}</Link></div>
-          {contact.publicNotes ? <ClampedText className="note-copy" text={contact.publicNotes} what="notes" /> : !contact.privateNotes && <p className="contact-empty-copy">No notes yet.</p>}
-          {contact.privateNotes && <div className="private-note"><strong>Private</strong><ClampedText className="note-copy" text={contact.privateNotes} what="private notes" /></div>}
-        </section>
-        <section className="contact-coming-up"><div className="contact-section-heading"><h2>Coming up</h2></div>{upcoming.length ? <ol>{upcoming.map(item => <li key={item.id}><time dateTime={item.date.toISOString()}>{shortDate(item.date)}</time><Link href={item.href}>{item.title}</Link></li>)}</ol> : <p className="contact-empty-copy">Nothing else scheduled.</p>}</section>
+        {upcoming.length > 0 && <section className="contact-coming-up"><div className="contact-section-heading"><h2>Coming up</h2></div>{upcoming.length ? <ol>{upcoming.map(item => <li key={item.id}><time dateTime={item.date.toISOString()}>{shortDate(item.date)}</time><Link href={item.href}>{item.title}</Link></li>)}</ol> : null}</section>}
       </aside>
-      <div className="contact-detail-primary">
-        <section className="contact-priority-card">{journeyTrack}</section>
-        <section className="contact-timeline-card" id="contact-history"><ContactTimeline key={contact.id} contactId={contact.id} displayPreferences={displayPreferences} /></section>
-      </div>
+      <section className="contact-journey-track" aria-label="Recorded stage history and possible next stages" tabIndex={0}>
       <details className="card contact-detail-more" id="dates-and-mixes" open={Boolean(query.stateUpdated || query.error)}>
         <summary><span><strong>More</strong><small>Dates, preferences and custom fields</small></span><AppIcon name="chevronDown" /></summary>
         <div className="contact-more-sections">
-          <section className="contact-mobile-journey">{journeyTrack}</section>
+          {journeyTrack}
+          <Link className="contact-inline-action contact-journey-link" href={`/journey?contactId=${encodeURIComponent(contact.id)}`}>View Journey</Link>
           <section><h2>Preferences</h2><ContactRelationshipStatePanel contactId={contact.id} state={state} /></section>
 
           <section>
@@ -306,6 +300,7 @@ export async function ContactProfile({ contactId, query = {}, embedded = false, 
           {mergeHistory.length > 0 && <small className="muted-copy">{mergeHistory.length} duplicate merge{mergeHistory.length === 1 ? "" : "s"} recorded.</small>}
         </div>
       </details>
+      </section>
     </div>
   );
 }

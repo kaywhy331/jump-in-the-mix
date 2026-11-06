@@ -69,6 +69,13 @@ function possibleNumber(parsed: ParsedPhone): boolean {
   return parsed.isPossible() && (parsed.countryCallingCode !== "1" || /^[2-9]/.test(parsed.nationalNumber));
 }
 
+/** Display only; storage and handoff targets keep the original value. Unknown numbers remain verbatim. */
+export function phoneDisplay(value: string, region: string): string {
+  const parsed = parsePhone(value.trim(), isPhoneRegion(region) ? region as CountryCode : undefined);
+  if (!parsed || !possibleNumber(parsed)) return value;
+  return parsed.country === region ? parsed.formatNational() : parsed.formatInternational();
+}
+
 /**
  * The key for a value that is a possible number, or null. Strict parsing: the whole value must be a
  * phone number (an extension is allowed), and the region supplies both the national reading and the

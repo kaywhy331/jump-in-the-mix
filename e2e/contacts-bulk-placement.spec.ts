@@ -154,30 +154,45 @@ async function barReading(page: Page) {
 
 test("Add to a Mix comes first in the bar, labeled and spaced at every width and at 200% text, and the page buttons stay clear of it", async ({ page }, testInfo) => {
   test.skip(testInfo.project.name !== "desktop-chromium", "Widths are set directly.");
-  await page.goto("/contacts"); await ready(page);
-  await page.getByRole("button", { name: "Select", exact: true }).click();
-  for (const name of names) await page.getByRole("checkbox", { name: `Select ${name}`, exact: true }).check();
-  const problems: string[] = [];
-  for (const text of ["100%", "200%"]) {
-    if (text === "200%") await page.addStyleTag({ content: "html { font-size: 200% !important }" });
-    for (const width of text === "100%" ? [320, 390, 768, 900, 901, 1024, 1280, 1440] : [320, 390]) {
-      await page.setViewportSize({ width, height: text === "100%" ? 600 : 800 });
-      await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-      const reading = await barReading(page);
-      if (reading.first !== "Add to a Mix" || !reading.primary || reading.misfit.length || reading.smallest < 44 || (width <= 900 && reading.gap < 8) || reading.reach > 0 || reading.slack > 1) problems.push(`${width} ${text}: ${JSON.stringify(reading)}`);
-      // Scrolled to the end, the last person and the page buttons sit above the bar. The page scrolls smoothly, so jump there at once.
-      await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
-      const edges = await page.evaluate(() => { const rows = document.querySelectorAll(".contact-row"); return { last: Math.round(rows[rows.length - 1]!.getBoundingClientRect().bottom), pages: Math.round(document.querySelector(".pagination-bar")!.getBoundingClientRect().bottom), bar: Math.round(document.querySelector(".bulk-contact-bar")!.getBoundingClientRect().top) }; });
-      if (edges.last > edges.bar || edges.pages > edges.bar) problems.push(`${width} ${text}: the bar covers the list ${JSON.stringify(edges)}`);
+  const fillerIds = Array.from({ length: 48 }, (_, index) => `bulk-geometry-${suffix}-${index}`);
+  try {
+    await prisma.contact.createMany({ data: fillerIds.map((id, index) => ({ id, workspaceId, displayName: `ZZZ Geometry ${String(index).padStart(2, "0")}`, lastName: null })) });
+    await page.goto("/contacts"); await ready(page);
+    const pages = page.getByRole("navigation", { name: "Contact result pages", exact: true });
+    await expect(pages).toBeVisible();
+    await expect(pages.getByText("Page 1 of 2", { exact: true })).toBeVisible();
+    await expect(page.locator(".pagination-bar")).toHaveCount(1);
+    await expect(page.locator(".pagination-bar")).toBeVisible();
+    await expect(page.locator('p[role="status"][aria-live="polite"]')).toHaveText("51 Contacts found. Showing 1 through 50.");
+    await expect(page.locator(".contact-row")).toHaveCount(50);
+    await page.getByRole("button", { name: "Select", exact: true }).click();
+    for (const name of names) await page.getByRole("checkbox", { name: `Select ${name}`, exact: true }).check();
+    for (const name of names) await expect(page.getByRole("checkbox", { name: `Deselect ${name}`, exact: true })).toBeChecked();
+    await expect(page.locator('.contact-row input[type="checkbox"]:checked')).toHaveCount(3);
+    const problems: string[] = [];
+    for (const text of ["100%", "200%"]) {
+      if (text === "200%") await page.addStyleTag({ content: "html { font-size: 200% !important }" });
+      for (const width of text === "100%" ? [320, 390, 768, 900, 901, 1024, 1280, 1440] : [320, 390]) {
+        await page.setViewportSize({ width, height: text === "100%" ? 600 : 800 });
+        await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
+        const reading = await barReading(page);
+        if (reading.first !== "Add to a Mix" || !reading.primary || reading.misfit.length || reading.smallest < 44 || (width <= 900 && reading.gap < 8) || reading.reach > 0 || reading.slack > 1) problems.push(`${width} ${text}: ${JSON.stringify(reading)}`);
+        // Scrolled to the end, the last person and the page buttons sit above the bar. The page scrolls smoothly, so jump there at once.
+        await page.evaluate(() => window.scrollTo({ top: document.documentElement.scrollHeight, behavior: "instant" }));
+        const edges = await page.evaluate(() => { const rows = document.querySelectorAll(".contact-row"); return { last: Math.round(rows[rows.length - 1]!.getBoundingClientRect().bottom), pages: Math.round(document.querySelector(".pagination-bar")!.getBoundingClientRect().bottom), bar: Math.round(document.querySelector(".bulk-contact-bar")!.getBoundingClientRect().top) }; });
+        if (edges.last > edges.bar || edges.pages > edges.bar) problems.push(`${width} ${text}: the bar covers the list ${JSON.stringify(edges)}`);
+      }
     }
-  }
-  expect(problems).toEqual([]);
-  await page.setViewportSize({ width: 1440, height: 900 });
-  await page.addStyleTag({ content: "html { font-size: 100% !important }" });
-  for (const theme of ["light", "dark"]) {
-    await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
-    const audit = await axeInPage(page).include(".bulk-contact-bar").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
-    expect(audit.violations.map(item => item.id), theme).toEqual([]);
+    expect(problems).toEqual([]);
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await page.addStyleTag({ content: "html { font-size: 100% !important }" });
+    for (const theme of ["light", "dark"]) {
+      await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
+      const audit = await axeInPage(page).include(".bulk-contact-bar").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze();
+      expect(audit.violations.map(item => item.id), theme).toEqual([]);
+    }
+  } finally {
+    await prisma.contact.deleteMany({ where: { workspaceId, id: { in: fillerIds } } });
   }
 });
 
