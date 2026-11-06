@@ -1,0 +1,27 @@
+{
+  "purpose": "REHEARSAL, not tier-3; rehearsal, not go-live",
+  "candidate": {
+    "candidate_sha": "{{CANDIDATE_FULL_SHA}}",
+    "approved_main_sha": "{{APPROVED_MAIN_FULL_SHA}}",
+    "lockfile_sha256": "{{LOCKFILE_SHA256}}",
+    "render_yaml_sha256": "{{RENDER_YAML_SHA256}}",
+    "migrations_sha256": "{{MIGRATIONS_SHA256}}"
+  },
+  "release_name": "{{REHEARSAL_RUN_NAME}}",
+  "migration_job": "none",
+  "reviewed_jobs_sha256": "{{JOBS_JSON_SHA256}}",
+  "review_ref": "{{REHEARSAL_OWNER_EXCEPTION_AND_REVIEW_REF}}",
+  "pull_requests": ["{{REVIEWED_MERGED_PR_ID}}"],
+  "previous_sha": "{{PREVIOUS_FULL_SHA}}",
+  "previous_tag": "{{PREVIOUS_REHEARSAL_TAG_OR_INITIAL_COMMIT_REF}}",
+  "tier3": {
+    "passed": "{{REHEARSAL_EXCEPTION_APPROVED_BOOLEAN}}",
+    "reference": "REHEARSAL, not tier-3: {{REHEARSAL_OWNER_EXCEPTION_AND_CHECK_REF}}"
+  },
+  "dependencies": "{{REVIEWED_DEPENDENCIES}}",
+  "changes": "{{REVIEWED_CHANGES_AND_COMMITS}}",
+  "rollback": "{{REHEARSAL_RECOVERY_PLAN}}",
+  "owner_followups": "REHEARSAL, not tier-3; rehearsal, not go-live; {{OWNER_FOLLOWUPS}}",
+  "not_run": "migrate; production go-live; production tier-3; {{OTHER_NOT_RUN}}",
+  "carried_followups": "A1 and settings f remain; {{CARRIED_FOLLOWUPS}}"
+}

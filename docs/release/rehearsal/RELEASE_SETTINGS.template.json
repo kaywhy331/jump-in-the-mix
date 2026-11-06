@@ -1,0 +1,40 @@
+{
+  "main_branch": "main",
+  "releaser_prefix": "rehearsal-releaser-",
+  "production_environment": "rehearsal",
+  "production_tag_prefix": "rehearsal-published-",
+  "record_branch_prefix": "rehearsal/record-",
+  "record_directory": "docs/release",
+  "ledger_branch": "rehearsal/ledger",
+  "ledger_file": "ledger.jsonl",
+  "ledger_bootstrap_run": "{{BOOTSTRAP_RUN_ID}}",
+  "concurrency_group": "rehearsal-release-and-recovery",
+  "render_api_url": "https://api.render.com/v1/",
+  "render_owner_id": "{{REHEARSAL_OWNER_ID}}",
+  "site_url": "{{REHEARSAL_SITE_URL}}",
+  "services": { "web": "{{REHEARSAL_WEB_ID}}", "worker": "{{REHEARSAL_WORKER_ID}}" },
+  "health_paths": ["/api/health/ready", "/api/health/live"],
+  "request_timeout_ms": 30000,
+  "operation_timeout_ms": 1200000,
+  "poll_interval_ms": 10000,
+  "receipt_prefix": "JITM_RELEASE_RECEIPT:",
+  "jobs": {
+    "preflight": { "service_id": "{{REHEARSAL_OPERATOR_ID}}", "command": "node scripts/release/jobs/preflight.mjs", "review_ref": "{{CATALOG_REVIEW_REF}}" },
+    "backup": { "service_id": "{{REHEARSAL_OPERATOR_ID}}", "command": "node scripts/release/jobs/backup.mjs", "review_ref": "{{CATALOG_REVIEW_REF}}" },
+    "worker_gate": { "service_id": "{{REHEARSAL_OPERATOR_ID}}", "command": "node scripts/release/jobs/worker_gate.mjs", "review_ref": "{{CATALOG_REVIEW_REF}}" },
+    "postflight": { "service_id": "{{REHEARSAL_OPERATOR_ID}}", "command": "node scripts/release/jobs/postflight.mjs", "review_ref": "{{CATALOG_REVIEW_REF}}" },
+    "smoke": { "service_id": "{{REHEARSAL_OPERATOR_ID}}", "command": "node --import tsx scripts/release/jobs/smoke.mjs", "review_ref": "{{CATALOG_REVIEW_REF}}" },
+    "cleanup": { "service_id": "{{REHEARSAL_OPERATOR_ID}}", "command": "node scripts/release/jobs/cleanup.mjs", "review_ref": "{{CATALOG_REVIEW_REF}}" },
+    "final": { "service_id": "{{REHEARSAL_OPERATOR_ID}}", "command": "node scripts/release/jobs/final.mjs", "review_ref": "{{CATALOG_REVIEW_REF}}" }
+  },
+  "rehearsal": {
+    "operator_service_id": "{{REHEARSAL_OPERATOR_ID}}",
+    "operator_sha": "{{OPERATOR_FULL_SHA}}",
+    "previous_sha": "{{PREVIOUS_FULL_SHA}}",
+    "database_host": "{{REHEARSAL_DATABASE_HOST}}",
+    "egress_url": "{{REVIEWED_PLAIN_IP_HTTPS_URL}}",
+    "expected_egress_addresses": ["{{EXPECTED_OPERATOR_EGRESS_IP}}"],
+    "overlap_hold_ms": 20000,
+    "receipt_wait_ms": 60000
+  }
+}
