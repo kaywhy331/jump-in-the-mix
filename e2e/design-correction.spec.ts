@@ -126,7 +126,7 @@ test("Mix library exposes editable Beats, real membership, and mobile library ta
   // The Mix workspace previews each Beat's wording with readable merge fields; editing is under Edit.
   const selected = page.getByRole("region", { name: "Selected Mix", exact: true });
   await expect(selected.getByText(", shall we catch up?")).toBeVisible();
-  await expect(selected.getByTitle("Filled in from the person or your business details when you send; blank when that detail is missing", { exact: true }).filter({ hasText: "First Name" }).first()).toBeVisible();
+  await expect(selected.getByTitle("Filled in from saved person or business details; missing details may use default wording or stay blank", { exact: true }).filter({ hasText: "First Name" }).first()).toBeVisible();
   await expect(selected.getByRole("link", { name: "Edit", exact: true })).toBeVisible();
   await expect(page.getByRole("complementary", { name: "People and Journey connections", exact: true })).toContainText("Ava Zoom");
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/mixes");
