@@ -1,0 +1,515 @@
+name: Production release
+
+# BUILD ONLY until owner settings, protection rules and rehearsal h are complete.
+# This file deliberately has no automatic trigger and must not be dispatched
+# while its production environment is absent (GitHub would create it unprotected).
+on:
+  workflow_dispatch:
+    inputs:
+      candidate_sha:
+        description: Approved full main commit SHA
+        required: true
+        type: string
+      release_name:
+        description: Owner-reviewed release name
+        required: true
+        type: string
+      migration_job:
+        description: none or an owner-reviewed job key in RELEASE_SETTINGS_JSON
+        required: true
+        type: string
+        default: none
+      ledger_resolution:
+        description: Optional JSON naming one unresolved operation and E1 or E3 evidence
+        required: false
+        type: string
+
+permissions: {}
+
+# The SAME repository setting is mandatory for every future recovery workflow.
+concurrency:
+  group: ${{ fromJSON(vars.RELEASE_SETTINGS_JSON).concurrency_group }}
+  cancel-in-progress: false
+
+env:
+  RELEASE_SETTINGS_JSON: ${{ vars.RELEASE_SETTINGS_JSON }}
+  RELEASE_APPROVAL_JSON: ${{ vars.RELEASE_APPROVAL_JSON }}
+  CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+  RELEASE_NAME: ${{ inputs.release_name }}
+  MIGRATION_JOB: ${{ inputs.migration_job }}
+
+jobs:
+  verify:
+    permissions:
+      contents: read
+    runs-on: ubuntu-latest
+    # The serial 810-case browser matrix outgrew the previous 60-minute whole-job cap.
+    # Keep every test and its timeout; reserve time for later gates and failure artifacts.
+    timeout-minutes: 100
+    env:
+      APP_URL: http://127.0.0.1:3000
+      PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
+      # Fixture suites require an explicitly named, loopback-only test database.
+      DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_design_ci?schema=public
+      DATA_ENCRYPTION_KEY: "0000000000000000000000000000000000000000000000000000000000000000"
+      BACKUP_ENCRYPTION_KEY: "1111111111111111111111111111111111111111111111111111111111111111"
+      AUTH_RATE_LIMIT_SECRET: ci-auth-rate-limit-secret
+      AUTH_REQUIRE_EMAIL_VERIFICATION: "false"
+      AUTH_REQUIRE_ADMIN_MFA: "true"
+      AUTH_ADMIN_MFA_MAX_AGE_MINUTES: "720"
+      WORKER_HEARTBEAT_STALE_SECONDS: "90"
+      DEMO_MODE: "false"
+      # The suites exercise automatic customer email; production keeps it off for the beta.
+      AUTOMATIC_CUSTOMER_EMAIL: "true"
+      PUBLIC_OPERATOR_NAME: Synthetic CI operator
+      PUBLIC_SUPPORT_EMAIL: support@example.test
+      PUBLIC_BACKUP_RETENTION_NOTICE: Synthetic fixture backups expire after 30 days. This is test configuration and does not describe a live customer service.
+      E2E_USER_EMAIL: demo@jumpinthemix.local
+      E2E_USER_PASSWORD: JumpInTheMix123!
+      E2E_ADMIN_EMAIL: admin-e2e@jumpinthemix.local
+      E2E_ADMIN_PASSWORD: AdminJumpInTheMix123!
+    services:
+      postgres:
+        image: postgres:16-alpine
+        env:
+          POSTGRES_DB: jitm_design_ci
+          POSTGRES_USER: jitm
+          POSTGRES_PASSWORD: jitm
+        ports:
+          - 5432:5432
+        options: >-
+          --health-cmd "pg_isready -U jitm -d jitm_design_ci"
+          --health-interval 5s
+          --health-timeout 5s
+          --health-retries 20
+
+    steps:
+      - uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ inputs.candidate_sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - name: Verify approved candidate ancestry and current main
+        env:
+          CANDIDATE_SHA: ${{ inputs.candidate_sha }}
+          MAIN_BRANCH: ${{ fromJSON(vars.RELEASE_SETTINGS_JSON).main_branch }}
+          APPROVAL: ${{ vars.RELEASE_APPROVAL_JSON }}
+        run: |
+          set -euo pipefail
+          [[ "$CANDIDATE_SHA" =~ ^[0-9a-f]{40}$ ]]
+          test "$(git rev-parse HEAD)" = "$CANDIDATE_SHA"
+          git fetch --no-tags origin "refs/heads/$MAIN_BRANCH"
+          git merge-base --is-ancestor "$CANDIDATE_SHA" FETCH_HEAD
+          APPROVED_MAIN_SHA="$(jq -r '.candidate.approved_main_sha' <<< "$APPROVAL")"
+          [[ "$APPROVED_MAIN_SHA" =~ ^[0-9a-f]{40}$ ]]
+          git merge-base --is-ancestor "$CANDIDATE_SHA" "$APPROVED_MAIN_SHA"
+          git merge-base --is-ancestor "$APPROVED_MAIN_SHA" FETCH_HEAD
+          test "$CANDIDATE_SHA" = "$(jq -r '.candidate.candidate_sha' <<< "$APPROVAL")"
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+          cache: npm
+          cache-dependency-path: package-lock.json
+      - run: npm ci --no-audit --no-fund
+      - name: Release ledger, candidate and orchestration unit tests
+        run: node --test scripts/release/__tests__/*.node.mjs
+      - name: Audit production dependencies
+        run: npm run security:audit
+      - name: Install PostgreSQL client tools
+        shell: bash
+        run: |
+          set -euo pipefail
+          # Browser checks use Playwright's pinned Chromium. The runner's unused
+          # Chrome repository has returned inconsistent signed index/package
+          # hashes and must not block Ubuntu dependencies or Playwright's apt step.
+          for apt_source in /etc/apt/sources.list.d/google-chrome.list /etc/apt/sources.list.d/google-chrome.sources; do
+            if [[ -f "$apt_source" ]]; then
+              sudo mv -- "$apt_source" "$apt_source.disabled"
+            fi
+          done
+          sudo apt-get update
+          sudo apt-get install -y postgresql-client
+      - name: Verify committed existing-MVP baseline SQL
+        shell: bash
+        run: |
+          set -euo pipefail
+          baseline=prisma/migrations/20260715000000_existing_mvp_baseline/migration.sql
+          test -s "$baseline"
+          grep -q 'CREATE TABLE "User"' "$baseline"
+          grep -q 'CREATE TABLE "Workspace"' "$baseline"
+          grep -q 'CREATE TABLE "Jump"' "$baseline"
+      - run: npm run db:generate
+      - name: Validate Prisma schema
+        run: npm run validate:schema
+      - name: Validate source syntax
+        run: npm run validate:syntax
+      - name: Validate local imports and Server Action boundaries
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run validate:imports 2>&1 | tee import-validation.log
+      - name: Upload import-boundary diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: import-validation-diagnostics
+          path: import-validation.log
+          retention-days: 7
+      - name: Populated migration, rollback, and reapply rehearsal
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run db:rehearse-migration 2>&1 | tee migration-rehearsal.log
+      - name: Upload migration rehearsal diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: migration-rehearsal-diagnostics
+          path: migration-rehearsal.log
+          retention-days: 7
+      - name: Deploy committed migrations to the test database
+        run: npm run db:deploy
+      - name: Verify the database matches the application release
+        run: npm run db:verify-release
+      - name: TypeScript semantic validation
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run typecheck 2>&1 | tee typecheck.log
+      - name: Check optional scheduler types and package without deployment
+        run: npm run scheduler:check
+      - name: Upload TypeScript diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: typecheck-diagnostics
+          path: typecheck.log
+          retention-days: 7
+      - name: Unit and integration tests
+        env:
+          RECOVERY_TEST_DATABASE_URL: postgresql://jitm:jitm@localhost:5432/jitm_design_ci?schema=public
+          OPS_ALERT_WEBHOOK_URL: ""
+          RUN_PUSH_DATABASE_TESTS: "true"
+          RUN_PLAN_DATABASE_TESTS: "true"
+          RUN_WORKER_UNATTENDED_TESTS: "true"
+        shell: bash
+        run: |
+          set -o pipefail
+          npm test 2>&1 | tee test.log
+      - name: Upload test diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: test-diagnostics
+          path: test.log
+          retention-days: 7
+      - name: Generate isolated browser-test push keys
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from "node:fs";
+          import webPush from "web-push";
+          const keys = webPush.generateVAPIDKeys();
+          fs.appendFileSync(process.env.GITHUB_ENV, `WEB_PUSH_VAPID_PUBLIC_KEY=${keys.publicKey}\nWEB_PUSH_VAPID_PRIVATE_KEY=${keys.privateKey}\n`);
+          NODE
+      - name: Production build
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run build 2>&1 | tee build.log
+      - name: Upload build diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: build-diagnostics
+          path: build.log
+          retention-days: 7
+      - name: Seed browser-test workspaces
+        env:
+          DEMO_MODE: "true"
+          RESET_DEMO_DATA: "true"
+        run: npm run db:seed && npm run db:seed:e2e-admin
+      - name: Encrypted backup and restore rehearsal
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run db:rehearse-restore 2>&1 | tee backup-restore-rehearsal.log
+      - name: Upload backup and restore diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: backup-restore-diagnostics
+          path: |
+            backup-restore-rehearsal.log
+            .artifacts/backup-restore
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Install Playwright Chromium
+        run: npx playwright install --with-deps chromium
+      - name: Prepare standalone browser server
+        shell: bash
+        run: |
+          set -euo pipefail
+          mkdir -p .next/standalone/.next
+          cp -R public .next/standalone/public
+          cp -R .next/static .next/standalone/.next/static
+      - name: Qualify restored-database isolation on the packaged server
+        env:
+          RUN_RECOVERY_WEB_TESTS: "true"
+        run: npx vitest run tests/recovery-hold-runtime.integration.test.mjs
+      - name: Qualify authenticated pages with isolated load fixtures
+        env:
+          LOAD_FIXTURE_ACCOUNTS: "2"
+          LOAD_FIXTURE_CONTACTS: "100"
+          LOAD_FIXTURE_HISTORY: "2"
+          LOAD_FIXTURE_MIXES: "10"
+          LOAD_SMOKE_CONCURRENCY: "3"
+          LOAD_SMOKE_DURATION_SECONDS: "15"
+          LOAD_SMOKE_MAX_REQUESTS: "120"
+          LOAD_SMOKE_MAX_P95_MS: "3000"
+          LOAD_FIXTURE_REPORT_FILE: customer-load-report.json
+        run: npm run load:qualify
+      - name: Rehearse hosted fixture isolation, restarts and background imports locally
+        env:
+          RUN_HOSTED_LOAD_WEB_TESTS: "true"
+        run: npx vitest run tests/hosted-load-fixture.integration.test.mjs
+      - name: Use restricted runtime credentials for customer and staff browser flows
+        shell: bash
+        run: |
+          node --input-type=module <<'NODE'
+          import fs from 'node:fs';
+          import { randomBytes } from 'node:crypto';
+          import { Client } from 'pg';
+          import { grantRuntimeRole } from './scripts/lib/runtime-database-role.mjs';
+          const url = new URL(process.env.DATABASE_URL);
+          if (!['localhost', '127.0.0.1'].includes(url.hostname) || !url.pathname.startsWith('/jitm_design_')) throw Error('Isolated CI database required');
+          const password = randomBytes(24).toString('hex');
+          const owner = new Client({ connectionString: url.href }); await owner.connect();
+          try {
+            await owner.query(`CREATE ROLE jitm_browser_runtime LOGIN NOSUPERUSER NOCREATEDB NOCREATEROLE NOINHERIT NOREPLICATION NOBYPASSRLS PASSWORD '${password}'`);
+            const proof = await grantRuntimeRole(owner, { role: 'jitm_browser_runtime' });
+            console.log(JSON.stringify(proof));
+          } finally { await owner.end(); }
+          url.username = 'jitm_browser_runtime'; url.password = password;
+          console.log(`::add-mask::${password}`);
+          fs.appendFileSync(process.env.GITHUB_ENV, `DATABASE_URL=${url.href}\n`);
+          NODE
+          # The next steps receive the restricted URL from GITHUB_ENV. This step
+          # retains owner access only until it exits; no role memberships carry it.
+      - name: Upload authenticated load report
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: authenticated-load-report
+          path: customer-load-report.json
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Browser fixture preflight
+        timeout-minutes: 10
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright test e2e/ui-ux-admin.spec.ts e2e/ui-ux-workflows.spec.ts --project desktop-chromium 2>&1 | tee browser-fixture-e2e.log
+      - name: Invited registration with captured synthetic mail
+        timeout-minutes: 10
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node --import ./scripts/browser-mail-fixture.mjs .next/standalone/server.js
+          PLAYWRIGHT_MAIL_FIXTURE: "1"
+          RESEND_API_KEY: jitm-e2e-mail-fixture
+          EMAIL_FROM: test@example.test
+          BILLING_ENABLED: "false"
+          AUTOMATIC_CUSTOMER_EMAIL: "false"
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright test e2e/registration.spec.ts 2>&1 | tee registration-e2e.log
+      - name: Browser-driven end-to-end tests
+        timeout-minutes: 60
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
+          PUBLIC_TRUST_E2E: "1"
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:e2e -- --config playwright.ci.config.ts 2>&1 | tee e2e.log
+      - name: Upload browser diagnostics
+        if: failure() || cancelled()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: browser-e2e-diagnostics
+          path: |
+            browser-fixture-e2e.log
+            registration-e2e.log
+            e2e.log
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Staff onboarding, library, admission and voice capture with required MFA
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
+          STAFF_ONBOARDING_E2E: "1"
+          ADMISSION_E2E: "1"
+          LIBRARY_E2E: "1"
+          ADMIN_UX_E2E: "1"
+          SYSTEM_MIX_E2E: "1"
+          REPORTS_E2E: "1"
+          SUPPORT_CASES_E2E: "1"
+          EMAIL_RECOVERY_E2E: "1"
+          OPS_ALERTS_E2E: "1"
+          DATA_RETENTION_E2E: "1"
+          SUPPORT_EMAIL_E2E: "1"
+          VOICE_E2E: "1"
+          AUTH_REQUIRE_ADMIN_MFA: "true"
+          PLAYWRIGHT_CAPTURE: "off"
+          RESEND_API_KEY: local-test-placeholder
+          RESEND_WEBHOOK_SECRET: whsec_bG9jYWwtZW1haWwtd2ViaG9vay10ZXN0LXNlY3JldA==
+          EMAIL_FROM: test@example.test
+          NETLIFY_WORKER_SECRET: ""
+          WORKER_DISPATCH_MODE: ""
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright test e2e/staff-onboarding.spec.ts e2e/voice-capture.spec.ts e2e/admission-controls.spec.ts e2e/admission-mfa.spec.ts e2e/admin-workspace.spec.ts e2e/admin-workflow-regressions.spec.ts e2e/library-administration.spec.ts e2e/system-mix-administration.spec.ts e2e/admin-reports.spec.ts e2e/support-cases.spec.ts e2e/email-recovery.spec.ts e2e/operational-alerts.spec.ts e2e/data-retention.spec.ts e2e/support-email.spec.ts --project desktop-chromium 2>&1 | tee staff-onboarding-e2e.log
+      - name: Staff and waitlist browser flows with isolated fixtures
+        env:
+          PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
+          STAFF_E2E: "1"
+          WAITLIST_E2E: "1"
+          # These fixture accounts skip MFA only in this separate test process.
+          # The main browser suite and staff request integration suite enforce MFA.
+          AUTH_REQUIRE_ADMIN_MFA: "false"
+          RESEND_API_KEY: local-test-placeholder
+          RESEND_WEBHOOK_SECRET: whsec_bG9jYWwtZW1haWwtd2ViaG9vay10ZXN0LXNlY3JldA==
+          EMAIL_FROM: test@example.test
+          NETLIFY_WORKER_SECRET: ""
+          WORKER_DISPATCH_MODE: ""
+        shell: bash
+        run: |
+          set -o pipefail
+          npx playwright test e2e/staff-permissions.spec.ts e2e/waitlist-admin.spec.ts e2e/email-operations.spec.ts e2e/user-administration.spec.ts --project desktop-chromium 2>&1 | tee staff-waitlist-e2e.log
+      - name: Upload staff and waitlist diagnostics
+        if: failure()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: staff-waitlist-diagnostics
+          path: |
+            staff-waitlist-e2e.log
+            staff-onboarding-e2e.log
+            playwright-report
+            test-results
+          if-no-files-found: ignore
+          retention-days: 7
+      - name: Mobile Lighthouse quality budgets
+        shell: bash
+        run: |
+          set -o pipefail
+          npm run test:lighthouse 2>&1 | tee lighthouse.log
+      - name: Upload Lighthouse diagnostics
+        # Every run, and including the dot-directory the reports live in: with the default
+        # include-hidden-files, only lighthouse.log reached the artifact and a failed budget
+        # could not be diagnosed from CI.
+        if: always()
+        uses: actions/upload-artifact@ea165f8d65b6e75b540449e92b4886f43607fa02 # v4.6.2
+        with:
+          name: lighthouse-diagnostics
+          path: |
+            lighthouse.log
+            .artifacts/lighthouse
+          if-no-files-found: ignore
+          include-hidden-files: true
+          retention-days: 7
+      - name: Build production web and worker images
+        shell: bash
+        run: |
+          set -euo pipefail
+          docker build --target production --tag jump-in-the-mix-web:${{ github.sha }} .
+          docker build --target worker --tag jump-in-the-mix-worker:${{ github.sha }} .
+
+  release:
+    needs: verify
+    if: startsWith(github.ref, format('refs/tags/{0}', fromJSON(vars.RELEASE_SETTINGS_JSON).releaser_prefix))
+    runs-on: ubuntu-latest
+    timeout-minutes: 120
+    environment: ${{ fromJSON(vars.RELEASE_SETTINGS_JSON).production_environment }}
+    permissions:
+      contents: write # Required for synchronous ledger appends, per INFRA-DELIB-2.
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout owner releaser tag only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: Bind approval and refuse unresolved operations
+        env:
+          LEDGER_RESOLUTION: ${{ inputs.ledger_resolution }}
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/release/workflow.mjs gate
+      - name: WF-06 step 4 - Read-only preflight and private-network counts
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/release/workflow.mjs preflight
+      - name: WF-06 step 5 - Fresh encrypted backup one-off job
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/release/workflow.mjs backup
+      - name: WF-06 step 6 - Reviewed forward migration or proven none
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/release/workflow.mjs migrate
+      - name: WF-06 step 7 - Worker deploy, drain and queue probe
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/release/workflow.mjs worker
+      - name: WF-06 step 8 - Web deploy with retained cache
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/release/workflow.mjs web
+      - name: WF-06 step 9 - Postflight
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/release/workflow.mjs postflight
+      - name: WF-06 step 10 - Synthetic-owner live smoke
+        id: smoke
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/release/workflow.mjs smoke
+      - name: WF-06 step 10 - Private-network synthetic-row cleanup
+        if: always() && (steps.smoke.outcome == 'success' || steps.smoke.outcome == 'failure')
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/release/workflow.mjs cleanup
+      - name: WF-06 step 11 - Final counts, services and three health rounds
+        env:
+          RENDER_API_KEY: ${{ secrets.RENDER_API_KEY }}
+        run: node scripts/release/workflow.mjs final
+
+  publish:
+    needs: release
+    if: startsWith(github.ref, format('refs/tags/{0}', fromJSON(vars.RELEASE_SETTINGS_JSON).releaser_prefix))
+    runs-on: ubuntu-latest
+    timeout-minutes: 10
+    permissions:
+      contents: write
+    env:
+      GH_TOKEN: ${{ github.token }}
+    steps:
+      - name: Checkout owner releaser tag only
+        uses: actions/checkout@11bd71901bbe5b1630ceea73d27597364c9af683 # v4.2.2
+        with:
+          ref: ${{ github.sha }}
+          fetch-depth: 0
+          persist-credentials: false
+      - uses: actions/setup-node@49933ea5288caeca8642d1e84afbd3f7d6820020 # v4.4.0
+        with:
+          node-version: 22
+      - name: WF-06 steps 12-14 - Annotated tag, record branch and owner summary
+        run: node scripts/release/workflow.mjs publish
