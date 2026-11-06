@@ -84,7 +84,9 @@ export async function browserSmoke(context, fixture, env = process.env) {
       const response = await page.goto(`${origin}${scenario.path}`);
       need(response?.status() === 200 && new URL(page.url()).pathname === scenario.path);
       const target = page.locator(scenario.selector);
-      await target.waitFor({state:'visible'});
+      // A visible loading heading can occupy the same selector until the
+      // server stream resolves. Wait for the reviewed content, then assert it.
+      await target.filter({hasText:scenario.text}).waitFor({state:'visible'});
       need(await target.count() === 1 && await target.isVisible() && (await target.innerText()).includes(scenario.text));
     }
     await browserContext.clearCookies();
