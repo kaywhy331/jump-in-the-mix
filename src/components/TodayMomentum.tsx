@@ -147,13 +147,13 @@ export function LiveAttentionSummary() {
 }
 
 /** Separate from the established headline so it remains a complete sentence. */
-export function LiveWorkCategories() {
+export function LiveWorkCategories({ locale }: { locale: string }) {
   const live = useContext(CountsContext);
   if (!live) return null;
   const categories = todayWorkCategories(live.counts, live.overdue, live.categoryActions);
   if (!categories.length) return null;
   return <ul className="today-work-categories" aria-label="Work categories">
-    {categories.map(({ label, count }) => <li key={label}>{label} · {count.toLocaleString("en-US")}</li>)}
+    {categories.map(({ label, count }) => <li key={label}>{label} · {count.toLocaleString(locale)}</li>)}
   </ul>;
 }
 

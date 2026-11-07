@@ -584,7 +584,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           {activeFilterCount > 0 && <TodayLink className="button" href="/jumps">Clear filters</TodayLink>}
         </Sheet></div>
       </header>
-      <LiveWorkCategories />
+      <LiveWorkCategories locale={displayPreferences.locale} />
 
       <NeedsReviewLink today count={nextActions.state === "unavailable" ? null : nextActions.items.filter(item => item.kind === "intake-review").length} />
       <NextActionSummary projection={plainDueView ? nextActions : filteredNextActions} displayPreferences={displayPreferences} today retryHref={firstHref} emptyLabel={plainDueView ? undefined : "Nothing matches this view."} />
