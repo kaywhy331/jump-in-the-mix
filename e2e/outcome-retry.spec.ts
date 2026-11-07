@@ -164,7 +164,7 @@ test.describe("Today outcome retries", () => {
       window.dispatchEvent(new CustomEvent("jitm:jump-opened", { detail }));
     }, { jumpId, contactName: name });
     const tray = page.getByLabel(`Finish follow-up with ${name}`).filter({ visible: true });
-    await expect(tray.getByText(`How did the follow-up with ${name} go?`)).toBeVisible();
+    await expect(tray.getByText(`Did you send the message to ${name}?`)).toBeVisible();
 
     // The quick outcome commits, but its answer is lost.
     await tray.getByRole("button", { name: "Sent", exact: true }).click();
@@ -182,7 +182,7 @@ test.describe("Today outcome retries", () => {
     expect(requestIds[1]).not.toBe(requestIds[0]);
 
     await expect(page.getByRole("status").filter({ hasText: "Already marked done. Your note wasn't added." })).toBeVisible();
-    await expect(page.getByText(`How did the follow-up with ${name} go?`)).toHaveCount(0);
+    await expect(page.getByText(`Did you send the message to ${name}?`)).toHaveCount(0);
     await expect(page.getByText(`Outcome not recorded for ${name}.`)).toHaveCount(0);
     await expect(page.getByText("Your outcome is saved")).toHaveCount(0);
     // This follow-up was never opened in the detail pane, so once done it leaves the pending list.

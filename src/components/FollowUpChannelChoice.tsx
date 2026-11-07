@@ -29,7 +29,7 @@ export function FollowUpChannelChoice({ jumpId, contactName, options, selected, 
   const [current, setCurrent] = useState(selected);
   const [busy, setBusy] = useState(false);
   const [error, setError] = useState("");
-  const unavailable = options.filter(option => option.unavailable);
+  const selectedOption = options.find(option => option.family === current);
 
   const choose = async (family: PreparationFamily) => {
     if (family === current || busy) return;
@@ -56,12 +56,15 @@ export function FollowUpChannelChoice({ jumpId, contactName, options, selected, 
     <div className="follow-up-channel-choice" data-follow-up-channel-choice={current} aria-busy={busy || refreshing}>
       <div className="when-chips" role="group" aria-label={`How to reach ${contactName}`}>
         {options.map((option) => (
-          <button key={option.family} type="button" className="when-chip" aria-pressed={option.family === current} disabled={busy || Boolean(option.unavailable)} aria-describedby={option.unavailable ? `${jumpId}-channel-missing` : undefined} onClick={() => { void choose(option.family); }}>
+          <div key={option.family} className="channel-choice-option">
+          <button type="button" className="when-chip" aria-pressed={option.family === current} disabled={busy || Boolean(option.unavailable)} aria-describedby={option.unavailable ? `${jumpId}-channel-${option.family}-missing` : undefined} onClick={() => { void choose(option.family); }}>
             <AppIcon name={option.icon} /><span>{option.label}</span>{option.recommended && <small className="channel-recommended">Recommended</small>}
           </button>
+          {option.unavailable && <small id={`${jumpId}-channel-${option.family}-missing`} className="muted-copy">{option.unavailable}.{missingMethodHref && option.unavailable.startsWith("Needs") && <> <a className="inline-action" href={missingMethodHref}>Add {option.family === "EMAIL" ? "email" : "phone"}</a></>}</small>}
+          </div>
         ))}
       </div>
-      {unavailable.length > 0 && <p id={`${jumpId}-channel-missing`} className="muted-copy channel-missing">{unavailable.map(option => `${option.label}: ${option.unavailable!.toLowerCase()}`).join(" · ")}.{missingMethodHref && <> <a className="inline-action" href={missingMethodHref}>Add {unavailable.some(option => option.family === "EMAIL") ? "an email address" : "a phone number"}</a></>}</p>}
+      {selectedOption?.unavailable && <p className="muted-copy channel-missing">{selectedOption.label}: {selectedOption.unavailable.toLowerCase()}.</p>}
       {heldNote && <p className="muted-copy" data-follow-up-held>{heldNote}</p>}
       {error && <p className="notice error compact" role="alert">{error}</p>}
     </div>

@@ -459,7 +459,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
     const ownLabel = otherIds.length ? alsoDueLabel(followUp) : "";
     const dueWhen = ownLabel ? `: ${ownLabel}${reason && others.some(other => alsoDueLabel(other) === ownLabel) ? ` (${reason})` : ""}` : "";
     return (
-      <JumpWorkflowCard nextScheduledLabel={nextScheduled ? formatDateTime(nextScheduled.scheduledAt, displayPreferences) : undefined} jumpId={followUp.id} contactName={followUp.contact.displayName} revision={followUp.updatedAt.toISOString()} key={followUp.id}>
+      <JumpWorkflowCard displayPreferences={displayPreferences} nextScheduledLabel={nextScheduled ? formatDateTime(nextScheduled.scheduledAt, displayPreferences) : undefined} jumpId={followUp.id} contactName={followUp.contact.displayName} revision={followUp.updatedAt.toISOString()} key={followUp.id}>
         <article id={`jump-${followUp.id}`} className={`jump-card jump-task-card ${isNext ? "next-follow-up" : ""} ${isPending ? "" : "jump-task-complete"}`} data-today-due={isPending && followUp.scheduledAt < endToday ? followUp.scheduledAt < startToday ? "overdue" : "today" : undefined}>
           <div className="jump-card-main"><span className="person-initials jump-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>
             {isNext && <span className="eyebrow">Next up</span>}
