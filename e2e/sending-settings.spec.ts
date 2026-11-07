@@ -80,7 +80,7 @@ for (const theme of ["light", "dark"]) {
       const response = await preview;
       expect(response.status()).toBe(200);
       expect(new URL(response.url()).searchParams.get("minutes")).toBe(String(DEFAULT_AUTOMATIC_DELIVERY_WINDOW));
-      await expect(page.locator('p[role="status"]')).toContainText("0 pending candidates");
+      await expect(page.locator('.sending-settings-page p[role="status"]')).toContainText("0 pending candidates");
       const off = page.getByRole("button", { name: "Turn off automatic sending" });
       for (const textSize of [100, 200]) {
         await page.addStyleTag({ content: `html { font-size: ${textSize}% !important; }` });
