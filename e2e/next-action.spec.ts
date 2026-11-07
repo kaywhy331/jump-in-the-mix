@@ -54,7 +54,10 @@ test("outcome-only work leads both surfaces, preserves secondary obligations and
     if (identity) expect(current).toBe(identity); else identity = current;
     await expect(next(page).locator(".contact-review-button")).toHaveText("Record outcome");
     const secondary = next(page).locator("summary");
-    await secondary.focus(); await page.keyboard.press("Enter");
+    await expect(secondary).toBeVisible();
+    await secondary.focus();
+    await expect(secondary).toBeFocused();
+    await secondary.press("Enter");
     await expect(next(page).locator(".next-action-secondary")).toHaveAttribute("open", "");
     await expect(next(page).locator("[data-next-action-kind=outcome]")).toHaveCount(2);
     await next(page).locator(".contact-review-button").focus();

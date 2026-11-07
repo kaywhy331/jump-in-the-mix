@@ -75,7 +75,7 @@ test("chosen work survives adding a person and exposes its actual first follow-u
   await settle(instance.id); await page.reload();
   await expect(page).toHaveURL(new RegExp(`work=${instance.id}`));
   const first = await prisma.jump.findFirstOrThrow({ where: { workflowInstanceId: instance.id }, orderBy: { scheduledAt: "asc" } });
-  const review = page.locator(`a[href*="jump=${first.id}"]`).first(); await expect(review).toBeVisible(); await review.click();
+  const review = page.locator(`a[href*="jump=${first.id}"]:visible`).first(); await expect(review).toBeVisible(); await review.click();
   await expect(page).toHaveURL(new RegExp(`jump=${first.id}`));
   await expect(page.locator(`[data-jump-workflow="${first.id}"]`).first()).toBeVisible();
 });
@@ -213,7 +213,8 @@ test("a missing appointment carries the person and work through Calendar and bac
   await page.goto(`/journey?contactId=${person.id}&work=${id}`);
   await page.getByRole("link", { name: "Open Calendar", exact: true }).click();
   await expect(page).toHaveURL(/calendar\?.*returnTo=/);
-  await expect(page.getByRole("combobox", { name: "Contact (optional)", exact: true })).toHaveValue(person.id);
+  await expect(page.locator('.calendar-entry-form input[name="contactId"]')).toHaveValue(person.id);
+  await expect(page.getByRole("combobox", { name: "Contact (optional)", exact: true })).toHaveValue(person.displayName);
   await page.locator(".calendar-entry-form").getByRole("group", { name: "Starts", exact: true }).getByRole("button", { name: /Starts, date:/ }).click();
   await page.getByRole("dialog", { name: "Starts", exact: true }).getByRole("button", { name: "Tomorrow", exact: true }).click();
   if (await page.getByRole("button", { name: "Close Starts", exact: true }).isVisible()) await page.getByRole("button", { name: "Close Starts", exact: true }).click();

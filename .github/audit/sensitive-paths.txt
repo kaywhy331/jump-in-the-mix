@@ -1,0 +1,21 @@
+# Repository-relative globs; blank lines and whole-line comments are ignored.
+.github/workflows/**
+.github/audit/**
+scripts/audit/**
+**/vitest.config.*
+**/playwright*.config.*
+**/vitest.setup.*
+**/test-setup.*
+**/test.setup.*
+**/setupTests.*
+**/global-setup.*
+**/globalSetup.*
+**/tests/setup.*
+**/tests/setup/**
+**/test/setup.*
+**/test/setup/**
+**/e2e/setup.*
+**/e2e/setup/**
+scripts/release/**
+prisma/migrations/**
+# protected-tests.txt is also loaded; package.json scripts are compared separately.

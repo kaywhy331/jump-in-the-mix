@@ -2,10 +2,13 @@ import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { contactIdsWithMixStatus, contactMixStatuses } from "@/lib/contact-mix-status";
 import { workflowState } from "@/lib/mix-workflow";
+import { readNextActions } from "@/lib/next-action-reader";
+import { timezoneForWorkspace } from "@/lib/display-preferences";
 import { summarizeWorkflowPeople, workflowPositions, type WorkflowPerson } from "@/lib/workflow-analytics";
 
 /** Scan bounded database pages, then count distinct people across all matching work. */
-export async function readWorkflowAnalytics(workspaceId: string, options: { contactId?: string; node?: string; status?: string; stage?: string; query?: string; offset?: number }) {
+export async function readWorkflowAnalytics(workspaceId: string, options: { now?: Date; timeZone?: string; contactId?: string; node?: string; status?: string; stage?: string; query?: string; offset?: number }) {
+  const observedAt = options.now ?? new Date(), timeZone = options.timeZone ?? await timezoneForWorkspace(workspaceId);
   const people = new Map<string, WorkflowPerson>();
   const contactWhere = { workspaceId, archivedAt: null, ...(options.contactId ? { id: options.contactId } : {}) };
   let cursor: string | undefined;
@@ -14,7 +17,7 @@ export async function readWorkflowAnalytics(workspaceId: string, options: { cont
     for (const person of page) people.set(person.id, { id: person.id, displayName: person.displayName, stageId: person.journey?.stage.id ?? "unassigned", stageName: person.journey?.stage.name ?? "No stage", positions: [] });
     if (page.length < 250) break; cursor = page.at(-1)!.id;
   }
-  cursor = undefined; const now = Date.now();
+  cursor = undefined; const now = observedAt.getTime();
   const where = { workspaceId, contact: contactWhere };
   for (;;) {
     const page: Array<{ id: string; contactId: string; status: string; state: Prisma.JsonValue; jumps: Array<{ id: string; workflowVisitId: string | null; scheduledAt: Date; status: string }> }> = await prisma.mixWorkflowInstance.findMany({ where, orderBy: { id: "asc" }, ...(cursor ? { cursor: { id: cursor }, skip: 1 } : {}), take: 250, select: { id: true, contactId: true, status: true, state: true, jumps: { select: { id: true, workflowVisitId: true, scheduledAt: true, status: true } } } });
@@ -34,5 +37,12 @@ export async function readWorkflowAnalytics(workspaceId: string, options: { cont
   // The same No Mix definition as Contacts and Today, so the counts agree (JITM-09 §2.77).
   const noMix = new Set(options.contactId ? (await contactMixStatuses(workspaceId, [options.contactId])).get(options.contactId) === "no-mix" ? [options.contactId] : [] : await contactIdsWithMixStatus(workspaceId, "no-mix"));
   for (const person of people.values()) if (noMix.has(person.id)) person.noMix = true;
-  return summarizeWorkflowPeople([...people.values()], options);
+  const analytics = summarizeWorkflowPeople([...people.values()], options);
+  const { items, ...nextProjection } = await readNextActions(workspaceId, { now: observedAt, timeZone, contactIds: analytics.roster.map(person => person.id) });
+  analytics.nextProjection = nextProjection;
+  for (const person of analytics.roster) {
+    person.nextActions = items.filter(item => item.contactId === person.id);
+    person.next = person.nextActions[0] ?? null;
+  }
+  return analytics;
 }

@@ -126,7 +126,7 @@ test("Mix library exposes editable Beats, real membership, and mobile library ta
   // The Mix workspace previews each Beat's wording with readable merge fields; editing is under Edit.
   const selected = page.getByRole("region", { name: "Selected Mix", exact: true });
   await expect(selected.getByText(", shall we catch up?")).toBeVisible();
-  await expect(selected.getByTitle("Filled in from the person or your business details when you send; blank when that detail is missing", { exact: true }).filter({ hasText: "First Name" }).first()).toBeVisible();
+  await expect(selected.getByTitle("Filled in from saved person or business details; missing details may use default wording or stay blank", { exact: true }).filter({ hasText: "First Name" }).first()).toBeVisible();
   await expect(selected.getByRole("link", { name: "Edit", exact: true })).toBeVisible();
   await expect(page.getByRole("complementary", { name: "People and Journey connections", exact: true })).toContainText("Ava Zoom");
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/mixes");
@@ -170,8 +170,10 @@ test("More keeps compact destinations reachable and secondary navigation tracks 
   await page.goto("/settings/business");
   const navigation = page.getByRole("navigation", { name: "Account and help" });
   await expect(navigation.locator('[aria-current="page"]')).toHaveText("Settings");
-  await navigation.getByRole("link", { name: "My account", exact: true }).click();
-  await expect(navigation.locator('[aria-current="page"]')).toHaveText("My account");
+  await expect(navigation.getByRole("link")).toHaveText(["Settings", "Help"]);
+  await page.getByRole("button", { name: "Design fixture", exact: true }).click();
+  await page.getByRole("dialog", { name: "Account", exact: true }).getByRole("link", { name: "My account", exact: true }).click();
+  await expect(page.getByRole("button", { name: "Design fixture", exact: true })).toHaveAttribute("aria-current", "page");
   await navigation.getByRole("link", { name: "Help", exact: true }).click();
   await expect(navigation.locator('[aria-current="page"]')).toHaveText("Help");
   // Journey is the three-pane workflow map (6c8927d); phones and tablets switch panes instead of an options menu.
@@ -212,7 +214,7 @@ test("short laptop rails keep account controls reachable by keyboard", async ({ 
     await page.goto("/contacts");
     const rail = page.locator(".sidebar");
     const quickAdd = rail.getByRole("button", { name: "Quick Add", exact: true });
-    const profile = rail.getByRole("button", { name: "Profile", exact: true });
+    const profile = rail.getByRole("button", { name: "Design fixture", exact: true });
     await quickAdd.focus();
     // Follow the real tab order so the browser must reveal each focused control.
     for (let step = 0; step < 20; step++) {
@@ -223,7 +225,7 @@ test("short laptop rails keep account controls reachable by keyboard", async ({ 
     await expect(profile).toBeInViewport({ ratio: 1 });
     expect(await rail.evaluate(node => node.scrollTop)).toBeGreaterThan(0);
     await page.keyboard.press("Enter");
-    await expect(page.getByRole("dialog", { name: "Profile and settings", exact: true })).toBeVisible();
+    await expect(page.getByRole("dialog", { name: "Account", exact: true })).toBeVisible();
     await page.keyboard.press("Escape");
     await expect(profile).toBeFocused();
     await expect(profile).toBeInViewport({ ratio: 1 });

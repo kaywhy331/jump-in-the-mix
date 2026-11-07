@@ -53,7 +53,7 @@ export default async function SettingsPage() {
     { id: "people", title: "People and leads", rows: [
       { href: "/settings/journey", title: "Contact stages", value: stages ? `${countLabel(stageCount, "stage")} · Rules ${stages.enabled ? "on" : "paused"}` : "Not set up", icon: "journey" },
       { href: "/settings/new-contacts", title: "New contacts", value: placement.placement === "ASK" ? "Ask each time" : placement.mix?.name ?? "No Mix", icon: "userPlus" },
-      { href: "/settings/connections", title: "Lead connections", value: `${countLabel(leadCount, "connection")} on`, icon: "link" },
+      { href: "/settings/connections", title: "Lead sources", value: `${countLabel(leadCount, "connection")} on`, icon: "link" },
       { href: "/settings/jump-date-types", title: "Date types", value: `${countLabel(dateCount, "date type")} available`, icon: "calendar" }
     ] },
     { id: "you", title: "You", rows: [

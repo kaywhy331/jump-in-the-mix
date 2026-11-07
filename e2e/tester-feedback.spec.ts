@@ -16,7 +16,7 @@ test.afterEach(async () => { if (fixture) await fixture.cleanup(); });
 
 test("a tester reviews safe diagnostics, submits feedback, and finds the conversation", async ({ page }, info) => {
   await page.goto("/help");
-  await page.getByRole("link", { name: "Share feedback", exact: true }).click();
+  await page.getByRole("link", { name: "Contact support", exact: true }).click();
   const form = page.locator("#contact-support form");
   await expect(form.locator('input[name="supportDiagnostics"]')).toHaveCount(0);
   await form.getByLabel("Short title").fill("A synthetic save problem");
@@ -25,7 +25,7 @@ test("a tester reviews safe diagnostics, submits feedback, and finds the convers
   await form.getByLabel("Include basic diagnostics (optional)").check();
   await form.getByLabel("Affected section").selectOption("Contacts");
   await expect(form.locator(".support-diagnostics-preview")).toContainText("Contacts;");
-  await form.getByRole("button", { name: "Send feedback", exact: true }).click();
+  await form.getByRole("button", { name: "Send request", exact: true }).click();
   await expect(page).toHaveURL(/\/account\/tickets\/[^/?]+\?created=1/);
   await expect(page.getByRole("heading", { name: "A synthetic save problem" })).toBeVisible();
   const ticket = await prisma.supportTicket.findFirstOrThrow({ where: { workspaceId: fixture.workspace.id, title: "A synthetic save problem" }, include: { messages: true } });
@@ -55,7 +55,7 @@ test("feedback fields reflow, remain keyboard accessible, and meet automated acc
   await expect(page.getByLabel("What happened?")).toBeFocused();
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
-  await expect(page.getByRole("button", { name: "Send feedback", exact: true })).toBeVisible();
+  await expect(page.getByRole("button", { name: "Send request", exact: true })).toBeVisible();
 });
 
 test("an empty Today offers a working first-person action", async ({ page }) => {

@@ -2,9 +2,9 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 10.0.1
+version: 10.0.2
 owner: Kevin
-last_reviewed: 2026-10-17
+last_reviewed: 2026-11-06
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
 supersedes: [docs/UX_WORKFLOW_OPTIMIZATION.md]
 sources:
@@ -337,7 +337,8 @@ Decided on 2026-09-28 (D15, D16, D21, D26, D29) but not yet built or verified; e
 - Invitation email after an explicit Send invitation is not built (§2.18; B-16). The owner expected inbox delivery on 2026-09-27 (`docs/INVITE_PAGE_RELEASE_2026-09-27.md:73`).
 - The status and stage labels (§2.71), resume review (§2.72), target states (§2.58) and the stop-only early update (§2.73) have not been checked against shipped behavior (B-15).
 - The Ready-made mixes library keeps its own entries in More and Mix tools (`src/app/(app)/more/page.tsx:28`), against §2.74 (B-19).
-- Journey people-row details sit only in a hover tooltip (`src/components/WorkflowPeople.tsx:32`), against JITM-10 §2.17 (B-05).
+
+Built (M4-S1, not yet released): Journey People rows show Stage, Current Mix, Status and every shared next-action obligation as visible text, with sibling action links and preparation/failure context (B-05; JITM-10 §2.17). Journey retains D75’s opening behavior.
 
 Known deviations:
 - Three links still say "customer journey" for Contact stages or the Journey map, against §2.7 and D4 (JITM-05 §6 lists them).
@@ -384,3 +385,5 @@ Known deviations:
 - 10.0.0 — 2026-10-13 — Base 4d5c307. Kevin's answers to the open points of PRs #150 and #151 (D112–D121). Major, because §2.82 changes meaning: in "Review overdue" a contacted person's card stays under Overdue (D113). §2.82 also defines contacted (D119), and LIV-01's fix is Kevin's (D112). §2.20: the new starter's name (D116), the call hint (D118) and the stored reason (D120). §6: D89, D90, D93, D94, D97–D99 and D103 are built, D63–D65 shipped, and D102 found nothing to write.
 
 - 10.0.1 — 2026-10-17 — Base 32e5181. §2.76–§2.77 cite Kevin's confirmation of PR #125 defaults 1–8 (D125), retain No Mix for visit-only waiting (D126), and describe fixed-date work as due under the existing sending policy. §2.19 records the owner staff-console publication handoff (D127). §6 closes those input gates.
+
+- 10.0.2 — 2026-11-06 — §6: mark B-05 built in M4-S1; visible People context and shared next actions, with D75 unchanged.

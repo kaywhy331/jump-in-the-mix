@@ -136,6 +136,12 @@
 .calendar-entry-form .calendar-form-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 8px 16px; margin: 0; padding-block: 14px; border-top: 1px solid var(--line); }
 .calendar-form-row > span:first-child { color: var(--text-2); font-size: .875rem; font-weight: 500; }
 .calendar-form-row > input, .calendar-form-row > select { background: transparent; }
+.calendar-contact-picker { display: grid; gap: 8px; min-width: 0; }
+.calendar-contact-picker > .button { justify-self: start; }
+.calendar-contact-options { list-style: none; margin: 0; padding: 0; max-height: 240px; overflow-y: auto; border: 1px solid var(--field-border); border-radius: var(--radius-control); background: var(--surface); }
+.calendar-contact-options > li { display: flex; align-items: center; min-height: 44px; padding: 8px 12px; overflow-wrap: anywhere; cursor: pointer; }
+.calendar-contact-options > li[aria-selected="true"] { background: var(--selected); }
+.calendar-new-contact { grid-column: 1 / -1; min-width: 0; }
 .calendar-form-row > .when-ends-summary, .calendar-form-row > small, .calendar-form-row > .when-duration-custom { grid-column: 2; margin: 0; }
 .calendar-form-row .when-chips { gap: 6px; }
 .calendar-form-row .when-chip { min-height: 44px; padding: 8px 12px; font-size: .8125rem; }
@@ -286,9 +292,13 @@
 .calendar-date-strip strong { width: max(36px, 1.5rem); height: max(36px, 1.5rem); }
 @media (max-width: 900px) {
   html { scroll-padding-bottom: calc(6rem + env(safe-area-inset-bottom)); }
-  .mobile-nav .app-nav { grid-template-rows: minmax(66px, auto); }
-  .mobile-nav .nav-link { grid-template-columns: minmax(0, 1fr); text-align: center; overflow-wrap: anywhere; }
-  .mobile-nav .nav-link > span { min-width: 0; max-width: 100%; }
+  html:has(.mobile-nav) { scroll-padding-bottom: calc(var(--phone-nav-height, 0px) + var(--space-4)); }
+  .mobile-nav { --phone-nav-slot: calc(100% / 5); }
+  .mobile-nav .app-nav { display: flex; flex-wrap: wrap; }
+  .mobile-nav .nav-link { flex: 1 0 var(--phone-nav-slot); min-width: min-content; grid-template-columns: auto; text-align: center; overflow-wrap: normal; word-break: normal; }
+  /* The bubble keeps its own width inside the same slot as each destination. */
+  .mobile-nav .nav-quick-add { flex: 0 0 var(--phone-quick-add-width); margin-inline: max(0px, calc((var(--phone-nav-slot) - var(--phone-quick-add-width)) / 2)); }
+  .mobile-nav .nav-link > span { min-width: min-content; }
 }
 @media (max-width: 900px) {
   .mix-editor-form .sticky-form-actions { position: static; }

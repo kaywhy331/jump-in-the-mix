@@ -1,3 +1,4 @@
+import { readIntakeReviewWorkItems } from "@/lib/intake-review-reader";
 import type { Prisma } from "@/generated/prisma/client";
 import { prisma } from "@/lib/prisma";
 import { readPreparationStatus } from "@/lib/preparation";
@@ -8,7 +9,7 @@ import { logicalDateInTimezone, logicalDateKey } from "@/lib/jump-schedule";
 import { resolveNextActions, type NextActionCandidate, type NextActionProjection } from "@/lib/next-action";
 
 export type NextActionReadOptions = {
-  now: Date; timeZone: string; contactId?: string;
+  now: Date; timeZone: string; contactId?: string; contactIds?: string[];
   /** Trusted server-built follow-up filter, never a client-supplied workspace selector. */
   followUpWhere?: Prisma.JumpWhereInput;
   query?: string; includeOtherActions?: boolean; overdueOnly?: boolean;
@@ -32,11 +33,15 @@ async function allPages<T extends { id: string }>(read: (after?: string) => Prom
 
 /** Read-only projection from one database snapshot. Both callers obtain workspaceId from requireWorkspace(). */
 export async function readNextActionSnapshot(db: Prisma.TransactionClient, workspaceId: string, options: NextActionReadOptions): Promise<NextActionProjection> {
+  const requestedIds = options.contactId ? [options.contactId].filter(id => !options.contactIds || options.contactIds.includes(id)) : options.contactIds;
   const activeContact: Prisma.ContactWhereInput = { workspaceId, archivedAt: null,
     OR: [{ relationshipState: null }, { relationshipState: { doNotContact: false } }],
-    ...(options.contactId ? { id: options.contactId } : {}) };
+    ...(requestedIds ? { id: { in: requestedIds } } : {}) };
+  // Resolve the requested people inside this workspace before reading their preparation jobs.
+  const contactIds = requestedIds ? (await db.contact.findMany({ where: activeContact, select: { id: true } })).map(person => person.id) : undefined;
+  if (contactIds && !contactIds.length) return resolveNextActions([], options);
   // Read preparation in the same snapshot, before the obligations it describes.
-  const preparation = await readPreparationStatus(workspaceId, options.contactId, db);
+  const preparation = await readPreparationStatus(workspaceId, contactIds, db, options.now);
   const jumps = await allPages(after => db.jump.findMany({
     where: { workspaceId, status: "PENDING", contact: activeContact, ...(after ? { id: { gt: after } } : {}) },
     select: { id: true, contactId: true, reason: true, scheduledAt: true, updatedAt: true, mixId: true,
@@ -109,7 +114,7 @@ export async function readNextActionSnapshot(db: Prisma.TransactionClient, works
       }
     }
     preparing ||= Boolean(await db.job.findFirst({ where: { workspaceId, task: "mix-workflow", completedAt: null, failedAt: null,
-      ...(options.contactId ? { OR: [{ payload: { path: ["contactId"], equals: options.contactId } },
+      ...(contactIds ? { OR: [...contactIds.map(id => ({ payload: { path: ["contactId"], equals: id } })),
         ...instances.map(instance => ({ payload: { path: ["instanceId"], equals: instance.id } }))] } : {}) }, select: { id: true } }));
     const commitments = await allPages(after => db.contactRelationshipState.findMany({
       where: { workspaceId, nextCommitmentAt: { not: null }, contact: activeContact, ...(after ? { id: { gt: after } } : {}) },
@@ -133,6 +138,7 @@ export async function readNextActionSnapshot(db: Prisma.TransactionClient, works
         dueAt: needsOutcome ? null : appointment.startsAt.toISOString(), updatedAt: appointment.updatedAt.toISOString() });
     }
   }
+  if (!contactIds) other.push(...await readIntakeReviewWorkItems(db, workspaceId));
   const query = options.query?.toLocaleLowerCase();
   candidates.push(...other.map(item => ({ ...item, inView: options.includeOtherActions !== false && (!query || `${item.contactName} ${item.title} ${item.detail}`.toLocaleLowerCase().includes(query))
     && (!options.overdueOnly || item.dueAt !== null && new Date(item.dueAt) < options.now)
@@ -149,7 +155,7 @@ export async function readNextActions(workspaceId: string, options: NextActionRe
 }
 
 /** The existing paged queues are a view of the projection, never a second count of the same obligation. */
-export function nextActionAttention(projection: NextActionProjection, offset = 0, futureOffset = 0, upcomingProjection = projection): WorkflowAttention | null {
+export function nextActionAttention(projection: NextActionProjection, offset = 0, futureOffset = 0, upcomingProjection = projection): WorkflowAttention<string | null> | null {
   if (projection.state === "unavailable") return null;
   const current = projection.items.filter(item => item.kind !== "follow-up" && item.timing !== "future");
   // Today's upcoming queue keeps the complete snapshot's future context, outside its due filters.

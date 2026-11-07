@@ -9,6 +9,11 @@ const STAGE_EXIT_STOP = "journey.stage.exit";
 const EVERYONE_PLACE_REMOVED_STOP = "mix.everyone.removed";
 const payloadOf = (payload: unknown) => payload && typeof payload === "object" && !Array.isArray(payload) ? payload as Record<string, unknown> : {};
 
+/** Personal starts only: tags, stops and pending follow-ups are separate profile rows. */
+export const personalMixStartsWhere = (workspaceId: string, contactId: string) => ({
+  workspaceId, contactId, isActive: true, contact: { workspaceId }, mix: { workspaceId },
+});
+
 /**
  * The person's Mixes for the profile's Mixes section (D77): their own starts, the shown tags a Mix runs for,
  * the Mixes they were stopped in, any Mix with a Beat still to come for them, and their open Journey work.

@@ -27,6 +27,11 @@ export function mixStatusLabel(status: string): string {
   return ({ ACTIVE: "On", PAUSED: "Paused", DRAFT: "Draft", ARCHIVED: "Archived" } as Record<string, string>)[status] ?? sentenceCase(status);
 }
 
+/** Counts prepared PENDING follow-ups, not every kind of waiting Journey work. */
+export function pendingFollowUpsLabel(count: number): string {
+  return `${count} pending ${count === 1 ? "follow-up" : "follow-ups"}`;
+}
+
 /** A contact import's status in plain words. A finished import that saved no one says so, though only some rows failed. */
 export function importStatusLabel(status: string, imported?: number): string {
   if (status === "PARTIAL" && imported === 0) return "Not imported";

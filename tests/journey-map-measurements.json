@@ -1,0 +1,74 @@
+{
+  "dense": {
+    "normal": {
+      "nodes": {"a": {"width": 280, "height": 320}, "b": {"width": 280, "height": 340}, "c": {"width": 280, "height": 444}, "d": {"width": 280, "height": 281}, "e": {"width": 280, "height": 385}, "f": {"width": 280, "height": 405}},
+      "ports": {"a": 114, "b": 482, "c": 870, "d": 114, "e": 443, "f": 876},
+      "labels": {"a-f": {"width": 280, "height": 57}, "a-e": {"width": 280, "height": 57}, "a-d": {"width": 280, "height": 57}, "b-d": {"width": 280, "height": 57}, "b-e": {"width": 280, "height": 57}, "b-f": {"width": 280, "height": 57}, "c-f": {"width": 280, "height": 57}, "c-d": {"width": 280, "height": 57}, "c-e": {"width": 280, "height": 57}},
+      "gap": 24,
+      "padding": 48,
+      "before": {"crossings": 11, "nodeOverlaps": 0, "labelNodeOverlaps": 0, "labelOverlaps": 0}
+    },
+    "text200": {
+      "nodes": {"a": {"width": 280, "height": 343}, "b": {"width": 280, "height": 363}, "c": {"width": 280, "height": 467}, "d": {"width": 280, "height": 324}, "e": {"width": 280, "height": 428}, "f": {"width": 280, "height": 448}},
+      "ports": {"a": 114, "b": 505, "c": 916, "d": 114, "e": 486, "f": 962},
+      "labels": {"a-f": {"width": 280, "height": 174}, "a-e": {"width": 280, "height": 174}, "a-d": {"width": 280, "height": 174}, "b-d": {"width": 280, "height": 174}, "b-e": {"width": 280, "height": 174}, "b-f": {"width": 280, "height": 174}, "c-f": {"width": 280, "height": 174}, "c-d": {"width": 280, "height": 174}, "c-e": {"width": 280, "height": 174}},
+      "gap": 24,
+      "padding": 48,
+      "before": {"crossings": 11, "nodeOverlaps": 1, "labelNodeOverlaps": 0, "labelOverlaps": 0}
+    }
+  },
+  "fork": {
+    "normal": {
+      "nodes": {"a": {"width": 280, "height": 320}, "b": {"width": 280, "height": 343}, "c": {"width": 280, "height": 447}, "d": {"width": 280, "height": 281}},
+      "ports": {"a": 114, "b": 114, "c": 505, "d": 1000},
+      "labels": {"a-d": {"width": 280, "height": 57}, "a-b": {"width": 280, "height": 57}, "a-c": {"width": 280, "height": 57}},
+      "gap": 24,
+      "padding": 48,
+      "before": {"crossings": 0, "nodeOverlaps": 0, "labelNodeOverlaps": 0, "labelOverlaps": 0}
+    },
+    "text200": {
+      "nodes": {"a": {"width": 280, "height": 343}, "b": {"width": 280, "height": 386}, "c": {"width": 280, "height": 490}, "d": {"width": 280, "height": 324}},
+      "ports": {"a": 114, "b": 114, "c": 548, "d": 1086},
+      "labels": {"a-d": {"width": 280, "height": 174}, "a-b": {"width": 280, "height": 174}, "a-c": {"width": 280, "height": 174}},
+      "gap": 24,
+      "padding": 48,
+      "before": {"crossings": 0, "nodeOverlaps": 1, "labelNodeOverlaps": 0, "labelOverlaps": 0}
+    }
+  },
+  "join": {
+    "normal": {
+      "nodes": {"a": {"width": 280, "height": 320}, "b": {"width": 280, "height": 343}, "c": {"width": 280, "height": 447}, "d": {"width": 280, "height": 281}, "e": {"width": 280, "height": 385}},
+      "ports": {"a": 114, "b": 114, "c": 505, "d": 1000, "e": 114},
+      "labels": {"a-d": {"width": 280, "height": 57}, "a-b": {"width": 280, "height": 57}, "a-c": {"width": 280, "height": 57}, "rule-a-d-b-c:join:a-d": {"width": 280, "height": 44}, "rule-a-d-b-c:join:a-b": {"width": 280, "height": 44}, "rule-a-d-b-c:join:a-c": {"width": 280, "height": 44}},
+      "gap": 24,
+      "padding": 48,
+      "before": {"crossings": 0, "nodeOverlaps": 0, "labelNodeOverlaps": 0, "labelOverlaps": 0}
+    },
+    "text200": {
+      "nodes": {"a": {"width": 280, "height": 343}, "b": {"width": 280, "height": 386}, "c": {"width": 280, "height": 490}, "d": {"width": 280, "height": 324}, "e": {"width": 280, "height": 428}},
+      "ports": {"a": 114, "b": 114, "c": 548, "d": 1086, "e": 114},
+      "labels": {"a-d": {"width": 280, "height": 174}, "a-b": {"width": 280, "height": 174}, "a-c": {"width": 280, "height": 174}, "rule-a-d-b-c:join:a-d": {"width": 280, "height": 96}, "rule-a-d-b-c:join:a-b": {"width": 280, "height": 96}, "rule-a-d-b-c:join:a-c": {"width": 280, "height": 96}},
+      "gap": 24,
+      "padding": 48,
+      "before": {"crossings": 0, "nodeOverlaps": 1, "labelNodeOverlaps": 0, "labelOverlaps": 0}
+    }
+  },
+  "return": {
+    "normal": {
+      "nodes": {"a": {"width": 280, "height": 320}, "b": {"width": 280, "height": 368}, "c": {"width": 280, "height": 444}},
+      "ports": {"a": 114, "b": 114, "c": 114},
+      "labels": {"a-b": {"width": 280, "height": 57}, "b-c": {"width": 280, "height": 57}, "c-a": {"width": 280, "height": 57}, "b-b": {"width": 280, "height": 57}},
+      "gap": 24,
+      "padding": 48,
+      "before": {"crossings": 1, "nodeOverlaps": 0, "labelNodeOverlaps": 0, "labelOverlaps": 0}
+    },
+    "text200": {
+      "nodes": {"a": {"width": 280, "height": 343}, "b": {"width": 280, "height": 391}, "c": {"width": 280, "height": 467}},
+      "ports": {"a": 114, "b": 114, "c": 114},
+      "labels": {"a-b": {"width": 280, "height": 174}, "b-c": {"width": 280, "height": 174}, "c-a": {"width": 280, "height": 174}, "b-b": {"width": 280, "height": 174}},
+      "gap": 24,
+      "padding": 48,
+      "before": {"crossings": 1, "nodeOverlaps": 0, "labelNodeOverlaps": 0, "labelOverlaps": 0}
+    }
+  }
+}

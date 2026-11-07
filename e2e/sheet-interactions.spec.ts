@@ -80,9 +80,9 @@ test("message drafts, snooze fields, nested confirmation and focus survive closi
   await page.keyboard.press("Enter"); await expect(date.locator('input[name="customDate"]')).toHaveValue(chosen.toISOString().slice(0, 10)); await closeSheet(page);
 
   await page.setViewportSize({ width: 1440, height: 1000 });
-  const profile = page.getByRole("button", { name: "Profile", exact: true }); await profile.focus(); await page.keyboard.press("Enter");
-  const profileSheet = page.getByRole("dialog", { name: "Profile and settings", exact: true });
-  await expect(profileSheet).toBeVisible(); await expect(profileSheet.getByRole("heading", { name: "Profile and settings", exact: true, level: 2 })).toBeFocused(); await audit(page);
+  const profile = page.getByRole("button", { name: "Sheet fixture owner", exact: true }); await profile.focus(); await page.keyboard.press("Enter");
+  const profileSheet = page.getByRole("dialog", { name: "Account", exact: true });
+  await expect(profileSheet).toBeVisible(); await expect(profileSheet.getByRole("heading", { name: "Account", exact: true, level: 2 })).toBeFocused(); await audit(page);
   await closeSheet(page); await expect(profile).toBeFocused();
   expect(await prisma.jump.count({ where: { workspaceId, status: "PENDING" } })).toBe(3);
 });
@@ -386,7 +386,7 @@ test("Calendar directs focus to an ambiguous person choice and saves the reviewe
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/calendar?new=1&date=2026-10-15"); await ready(page);
   const form = page.locator(".calendar-entry-form");
   await form.getByRole("textbox", { name: "Title", exact: true }).fill("Visit with reviewed person");
-  await form.getByText("Add a new person for this visit", { exact: true }).click();
+  await form.getByRole("button", { name: "Create new contact", exact: true }).click();
   await form.getByLabel("Name", { exact: true }).fill("Keep this entered name");
   await form.getByLabel("Phone (optional)", { exact: true }).fill("+15550101991");
   await form.getByLabel("Email (optional)", { exact: true }).fill("choice@example.test");

@@ -1,0 +1,2 @@
+# Explicitly empty: no current repo standard names an acceptance test as protected.
+# Add one repository-relative protected test path (or glob) per line when named.

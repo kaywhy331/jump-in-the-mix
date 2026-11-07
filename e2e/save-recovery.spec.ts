@@ -50,12 +50,12 @@ test("Calendar warns before filters replace a draft and preserves it during cont
   await expect(page).toHaveURL(/date=2027-10-15/);
   await expect(page.getByLabel("Starting date", { exact: true })).toHaveValue("2027-10-15");
   await expect(title).toHaveValue("Keep this new event");
-  await page.getByRole("combobox", { name: "Contact (optional)", exact: true }).selectOption(contactId);
-  await page.getByText("Find a contact for this event", { exact: true }).click();
-  await page.getByRole("searchbox", { name: "Find a calendar contact", exact: true }).fill("No matching people");
+  await page.getByRole("combobox", { name: "Contact (optional)", exact: true }).fill("Recovery fixture person");
+  await page.getByRole("option", { name: "Recovery fixture person", exact: true }).click();
+  await page.getByRole("combobox", { name: "Contact (optional)", exact: true }).fill("No matching people");
   await expect(page).toHaveURL(/q=No/); await ready(page);
   expect(new URL(page.url()).searchParams.get("new")).toBe("1");
-  await expect(page.getByRole("combobox", { name: "Contact (optional)", exact: true })).toHaveValue(contactId);
+  await expect(page.locator('.calendar-entry-form input[name="contactId"]')).toHaveValue(contactId);
   await expect(title).toHaveValue("Keep this new event");
   await expect(page.getByRole("button", { name: "Save event", exact: true })).toBeVisible();
   if (!(await page.getByLabel("Starting date", { exact: true }).isVisible())) await page.locator(".calendar-filter-options > summary").click();

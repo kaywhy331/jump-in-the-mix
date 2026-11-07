@@ -185,3 +185,166 @@ test("expanded rule editing remains accessible across widths, themes and keyboar
   }
   expect(errors).toEqual([]);
 });
+
+async function newContactSettings(page: Page) {
+  await prisma.workspacePreference.upsert({ where: { workspaceId }, create: { workspaceId, newContactPlacement: "NONE" }, update: { newContactPlacement: "NONE", newContactMixId: null } });
+  await visit(page, "/settings/new-contacts");
+  return prisma.mix.findFirstOrThrow({ where: { workspaceId, name: "Discovery follow-up" } });
+}
+
+test("saved rules name the entry Mix and controls explain stage consequences", async ({ page }) => {
+  const mix = await prisma.mix.findFirstOrThrow({ where: { workspaceId, name: "Discovery follow-up" } });
+  const assignment = await prisma.mixAssignment.create({ data: { workspaceId, mixId: mix.id, contactId, assignmentKey: `stage-pause-${randomUUID()}`, startDate: new Date("2026-01-01T12:00:00Z") } });
+  try {
+    await visit(page);
+    const pause = page.getByRole("button", { name: "Pause automatic transitions", exact: true });
+    await expect(pause.locator("..")).toContainText("Existing follow-ups continue when you pause.");
+    const stage = page.locator(`#stage-${stages[0].id}`);
+    await open(stage.locator(":scope > summary"));
+    await expect(stage.locator(".journey-rule-row > div > p").filter({ hasText: /^A conversation starts/ })).toHaveText("A conversation starts → Qualified → Entry Mix: Discovery follow-up");
+    await expect(stage.locator(".journey-rule-row > div > p").filter({ hasText: /^A sale is confirmed/ })).toHaveText("A sale is confirmed → Customer → No automatic Mix on entry");
+    await expect(stage.getByLabel("Follow-up Mix on entry")).toHaveAccessibleDescription("Applies when someone next enters this stage. People already here keep their current Mix.");
+    await expect(stage.locator(".journey-stage-mixes")).toContainText("No Mix sets this stage.");
+    await pause.click();
+    await expect(page.getByRole("heading", { name: "Automatic transitions are paused", exact: true })).toBeVisible();
+    expect((await prisma.mixAssignment.findUniqueOrThrow({ where: { id: assignment.id } })).isActive).toBe(true);
+    await prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED" } });
+    await visit(page);
+    await open(stage.locator(":scope > summary"));
+    await expect(stage.locator(".journey-rule-row > div > p").filter({ hasText: /^A conversation starts/ })).toHaveText("A conversation starts → Qualified → No automatic Mix on entry");
+  } finally {
+    await prisma.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } });
+    await prisma.mixAssignment.delete({ where: { id: assignment.id } });
+  }
+});
+
+test("new-contact modes save with a required picker only for MIX and preserve toggled choices", async ({ page }) => {
+  const mix = await newContactSettings(page);
+  const picker = page.getByLabel("Mix for new contacts", { exact: true });
+  const saveButton = page.getByRole("button", { name: "Save", exact: true });
+  await expect(picker).toHaveCount(0);
+  await page.getByRole("radio", { name: /^Add them to a Mix automatically/ }).check();
+  await expect(picker).toHaveAttribute("required", "");
+  await saveButton.click();
+  await expect(picker).toBeFocused();
+  expect(await picker.evaluate((element: HTMLSelectElement) => element.validity.valueMissing)).toBe(true);
+  expect((await prisma.workspacePreference.findUniqueOrThrow({ where: { workspaceId } })).newContactPlacement).toBe("NONE");
+  await picker.selectOption(mix.id);
+  for (const label of [/^Choose when adding/, /^Save without a default Mix/]) {
+    await page.getByRole("radio", { name: label }).check();
+    await expect(picker).toHaveCount(0);
+    await page.getByRole("radio", { name: /^Add them to a Mix automatically/ }).check();
+    await expect(picker).toHaveValue(mix.id);
+  }
+  for (const mode of ["MIX", "ASK", "NONE"] as const) {
+    await page.locator(`input[name="placement"][value="${mode}"]`).check();
+    await saveButton.click();
+    await expect(page.locator(".notice.success")).toHaveText("New contacts setting saved.");
+    await expect.poll(async () => {
+      const saved = await prisma.workspacePreference.findUniqueOrThrow({ where: { workspaceId } });
+      return [saved.newContactPlacement, saved.newContactMixId];
+    }).toEqual([mode, mode === "MIX" ? mix.id : null]);
+    await page.reload();
+    await expect(page.locator(`input[name="placement"][value="${mode}"]`)).toBeChecked();
+    if (mode === "MIX") await expect(picker).toHaveValue(mix.id);
+    else await expect(picker).toHaveCount(0);
+  }
+});
+
+test("a refused new-contact Mix save keeps the chosen mode and unavailable Mix", async ({ page }) => {
+  const mix = await newContactSettings(page);
+  const replacement = await prisma.mix.create({ data: { workspaceId, name: "Replacement follow-up", status: "ACTIVE", triggerMode: "MANUAL_START" } });
+  try {
+    await page.getByRole("radio", { name: /^Add them to a Mix automatically/ }).check();
+    const picker = page.getByLabel("Mix for new contacts", { exact: true });
+    await picker.selectOption(mix.id);
+    await prisma.mix.update({ where: { id: mix.id }, data: { status: "PAUSED" } });
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    const error = page.locator("form").getByRole("alert");
+    await expect(error).toContainText("Choose a Mix that is on");
+    await expect(error).toBeFocused();
+    await expect(page.getByRole("radio", { name: /^Add them to a Mix automatically/ })).toBeChecked();
+    await expect(picker).toHaveValue(mix.id);
+    await expect(picker.locator("option:checked")).toHaveText("Discovery follow-up (not available)");
+    await picker.selectOption(replacement.id);
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.locator(".notice.success")).toHaveText("New contacts setting saved.");
+    await expect(error).toHaveCount(0);
+    expect((await prisma.workspacePreference.findUniqueOrThrow({ where: { workspaceId } })).newContactMixId).toBe(replacement.id);
+  } finally {
+    await prisma.mix.update({ where: { id: mix.id }, data: { status: "ACTIVE" } });
+    await prisma.mix.delete({ where: { id: replacement.id } });
+  }
+});
+
+test("an unconfirmed new-contact save keeps its draft for retry", async ({ page }) => {
+  const mix = await newContactSettings(page);
+  await page.getByRole("radio", { name: /^Add them to a Mix automatically/ }).check();
+  const picker = page.getByLabel("Mix for new contacts", { exact: true });
+  await picker.selectOption(mix.id);
+  await page.route("**/settings/new-contacts*", route => route.request().method() === "POST" ? route.abort("failed") : route.continue());
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.locator("form").getByRole("alert")).toContainText("couldn’t confirm this save");
+  await expect(page.locator("form").getByRole("alert")).toBeFocused();
+  await expect(picker).toHaveValue(mix.id);
+  await expect(page.getByRole("radio", { name: /^Add them to a Mix automatically/ })).toBeChecked();
+  await page.unroute("**/settings/new-contacts*");
+  await page.getByRole("button", { name: "Save", exact: true }).click();
+  await expect(page.locator(".notice.success")).toHaveText("New contacts setting saved.");
+  await expect(page.locator("form").getByRole("alert")).toHaveCount(0);
+});
+
+test("no eligible Mix keeps NONE and ASK saveable and explains source overrides", async ({ page }) => {
+  await newContactSettings(page);
+  const active = await prisma.mix.findMany({ where: { workspaceId, status: "ACTIVE" }, select: { id: true } });
+  try {
+    await prisma.mix.updateMany({ where: { id: { in: active.map(mix => mix.id) } }, data: { status: "PAUSED" } });
+    await visit(page, "/settings/new-contacts");
+    await page.getByRole("radio", { name: /^Add them to a Mix automatically/ }).check();
+    await expect(page.getByRole("link", { name: "Create a Mix", exact: true })).toHaveAttribute("href", "/mixes/new?custom=1");
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.getByLabel("Mix for new contacts", { exact: true })).toBeFocused();
+    await page.getByRole("radio", { name: /^Choose when adding/ }).check();
+    await page.getByRole("button", { name: "Save", exact: true }).click();
+    await expect(page.locator(".notice.success")).toBeVisible();
+    await expect(page.getByLabel("Mix for new contacts", { exact: true })).toHaveCount(0);
+    await expect(page.getByText("Contact stage and Everyone rules still apply.", { exact: false })).toBeVisible();
+    const disclosure = page.locator("details").filter({ hasText: "Where this applies and what can override it" });
+    await expect(disclosure).not.toHaveAttribute("open", "");
+    await open(disclosure.locator(":scope > summary"));
+    await expect(disclosure).toContainText("Each lead connection can follow this setting, choose its own Mix or start none.");
+    await expect(disclosure).toContainText("Nothing starts from an import without your confirmation.");
+    await expect(disclosure.getByRole("link", { name: "Today", exact: true })).toHaveAttribute("href", "/jumps");
+    await expect(disclosure.getByRole("link", { name: "Contact stage", exact: true })).toHaveAttribute("href", "/settings/journey");
+  } finally {
+    await prisma.mix.updateMany({ where: { id: { in: active.map(mix => mix.id) } }, data: { status: "ACTIVE" } });
+  }
+});
+
+test("placement choices and stage consequences fit both themes with keyboard and enlarged text", async ({ page }, testInfo) => {
+  await newContactSettings(page);
+  for (const path of ["/settings/new-contacts", "/settings/journey"]) {
+    await visit(page, path);
+    if (path.endsWith("new-contacts")) {
+      const option = page.getByRole("radio", { name: /^Add them to a Mix automatically/ });
+      await option.focus(); await option.press("Space");
+      await open(page.getByText("Where this applies and what can override it", { exact: true }));
+    } else await open(page.locator(`#stage-${stages[0].id} > summary`));
+    for (const theme of ["light", "dark"]) for (const width of [320, 390, 834, 1194, 1920]) {
+      await page.evaluate(value => { document.documentElement.dataset.theme = value; }, theme);
+      await page.setViewportSize({ width, height: 900 });
+      const zoom = width === 320 ? await page.addStyleTag({ content: "html { font-size: 200% !important; }" }) : null;
+      await page.evaluate(() => document.fonts.ready);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1), `${path} ${theme} ${width}`).toBe(true);
+      const control = path.endsWith("new-contacts") ? page.getByLabel("Mix for new contacts", { exact: true }) : page.locator(`#stage-${stages[0].id}`).getByLabel("Follow-up Mix on entry");
+      await control.focus();
+      await expect(control).toBeFocused();
+      expect(await control.evaluate(element => getComputedStyle(element).outlineStyle)).not.toBe("none");
+      const box = (await control.boundingBox())!;
+      expect(box.height).toBeGreaterThanOrEqual(44); expect(box.width).toBeGreaterThanOrEqual(44);
+      expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
+      await page.screenshot({ path: testInfo.outputPath(`${path.split("/").at(-1)}-${theme}-${width}.png`), fullPage: true });
+      if (zoom) await zoom.evaluate(element => element.parentNode?.removeChild(element));
+    }
+  }
+});

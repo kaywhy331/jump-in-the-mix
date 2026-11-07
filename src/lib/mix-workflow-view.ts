@@ -6,6 +6,7 @@ import { prisma } from "@/lib/prisma";
 import { readWorkflowDefinition, workflowDefinition, workflowState } from "@/lib/mix-workflow";
 import { workflowNodeKey, type WorkflowConfiguration, type WorkflowMix, type WorkflowState } from "@/lib/mix-workflow-types";
 import { UserFacingError } from "@/lib/user-facing-error";
+import { readJourneyPersonFocus, type JourneyPersonFocus } from "@/lib/journey-person-focus";
 
 export type WorkflowGraphMix = Pick<WorkflowMix, "id" | "name" | "status" | "source" | "triggerMode"> & { steps: Array<Pick<WorkflowMix["steps"][number], "id" | "name" | "dayOffset" | "anchor" | "channel">>; pending: number; completed: number;
   /** When the Mix was created; the Journey letters its starting points in this order. */
@@ -20,6 +21,7 @@ export type WorkflowInstanceView = {
   beats: Array<{ visitId: string; jumpId: string | null; mixName: string; name: string; status: string; scheduledAt: string | null }>;
 };
 export type WorkflowGraphView = {
+  personFocus?: JourneyPersonFocus | null;
   analytics: WorkflowAnalytics;
   revision: number; historical: boolean; configuration: WorkflowConfiguration; mixes: WorkflowGraphMix[]; canEdit: boolean;
   metrics: Record<string, { started: number; eligible: number; waiting: number; held: number; canceled: number; selected: number; decisions: number; undecided: number }>;
@@ -28,20 +30,21 @@ export type WorkflowGraphView = {
   megaMixes: Array<{ id: string; name: string; mixIds: string[] }>;
 };
 
-export async function readWorkflowGraph(workspaceId: string, options: { contactId?: string; query?: string; offset?: number; canEdit: boolean; instanceId?: string; node?: string; status?: string; stage?: string; peopleOffset?: number; days?: number; focusedInstance?: string }): Promise<WorkflowGraphView> {
+export async function readWorkflowGraph(workspaceId: string, options: { now?: Date; timeZone?: string; contactId?: string; query?: string; offset?: number; canEdit: boolean; instanceId?: string; node?: string; status?: string; stage?: string; peopleOffset?: number; days?: number; focusedInstance?: string }): Promise<WorkflowGraphView> {
   const snapshot = options.instanceId ? await prisma.mixWorkflowInstance.findFirst({ where: { id: options.instanceId, workspaceId }, select: { definition: true } }) : null;
   if (options.instanceId && !snapshot) throw new UserFacingError("That journey instance is unavailable.");
   const definition = snapshot ? workflowDefinition(snapshot.definition) : await readWorkflowDefinition(prisma, workspaceId);
   const where = { workspaceId, ...(options.contactId ? { contactId: options.contactId } : {}) };
-  const [counts, instances, instanceTotal, people, analytics, megaMixes, created] = await Promise.all([
+  const [counts, instances, instanceTotal, people, analytics, megaMixes, created, personFocus] = await Promise.all([
     prisma.jump.groupBy({ by: ["mixId", "status"], where, _count: true }),
     prisma.mixWorkflowInstance.findMany({ where, orderBy: [{ updatedAt: "desc" }, { id: "asc" }], skip: options.offset ?? 0, take: 50, include: { contact: { select: { displayName: true } }, jumps: { select: { id: true, workflowVisitId: true, scheduledAt: true, status: true } } } }),
     prisma.mixWorkflowInstance.count({ where }),
     prisma.contact.findMany({ where: { workspaceId, archivedAt: null, ...(options.query ? { displayName: { contains: options.query, mode: "insensitive" as const } } : {}) }, select: { id: true, displayName: true }, orderBy: [{ displayName: "asc" }, { id: "asc" }], take: 50 }),
     // Selecting work changes the map focus and details, while the directory stays browsable.
-    readWorkflowAnalytics(workspaceId, { node: options.node, status: options.status, stage: options.stage, query: options.query, offset: options.peopleOffset }),
+    readWorkflowAnalytics(workspaceId, { now: options.now, timeZone: options.timeZone, node: options.node, status: options.status, stage: options.stage, query: options.query, offset: options.peopleOffset }),
     prisma.megaMixPipeline.findMany({ where: { workspaceId }, orderBy: [{ name: "asc" }, { id: "asc" }], select: { id: true, name: true, members: { orderBy: { position: "asc" }, select: { mixId: true } } } }),
-    prisma.mix.findMany({ where: { workspaceId, id: { in: definition.mixes.map(mix => mix.id) } }, select: { id: true, createdAt: true } })
+    prisma.mix.findMany({ where: { workspaceId, id: { in: definition.mixes.map(mix => mix.id) } }, select: { id: true, createdAt: true } }),
+    readJourneyPersonFocus(workspaceId, options.contactId)
   ]);
   if (options.focusedInstance && !instances.some(instance => instance.id === options.focusedInstance)) {
     const focused = await prisma.mixWorkflowInstance.findFirst({ where: { ...where, id: options.focusedInstance }, include: { contact: { select: { displayName: true } }, jumps: { select: { id: true, workflowVisitId: true, scheduledAt: true, status: true } } } });
@@ -96,7 +99,7 @@ export async function readWorkflowGraph(workspaceId: string, options: { contactI
       steps: mix.steps.map(({ id, name, dayOffset, anchor, channel }) => ({ id, name, dayOffset, anchor, channel })),
       pending: counts.find(item => item.mixId === mix.id && item.status === "PENDING")?._count ?? 0,
       completed: counts.find(item => item.mixId === mix.id && item.status === "DONE")?._count ?? 0 })),
-    analytics, metrics, instanceTotal, people, issues, updatedAt: new Date().toISOString(),
+    analytics, metrics, instanceTotal, people, personFocus, issues, updatedAt: new Date().toISOString(),
     megaMixes: megaMixes.map(item => ({ id: item.id, name: item.name, mixIds: item.members.map(member => member.mixId) })),
     instances: instances.map(instance => {
       const saved = workflowDefinition(instance.definition), state = workflowState(instance.state);

@@ -70,7 +70,7 @@ export function NextActionSummary({ projection, displayPreferences, today = fals
   const live = withoutSettledActionVersions(snapshot, settled);
   const primary = restricted ? undefined : live.items[0];
   // Other people's work remains in Today's queues. A person's concurrent obligations stay together here.
-  const secondary = primary ? live.items.filter(item => item.id !== primary.id && item.contactId === primary.contactId && item.timing !== "future") : [];
+  const secondary = primary?.contactId ? live.items.filter(item => item.id !== primary.id && item.contactId === primary.contactId && item.timing !== "future") : [];
   const future = primary ? live.items.filter(item => item.id !== primary.id && item.contactId === primary.contactId && item.timing === "future") : [];
   const NavigationLink = today ? TodayLink : Link;
   return <section className={today ? "next-action-summary" : "contact-next-line"} aria-label={today ? "Next action" : "Next follow-up"} data-next-action-state={live.state}

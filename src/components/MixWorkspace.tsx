@@ -20,14 +20,16 @@ import { MarketplaceNotices, MarketplaceShare } from "@/components/MarketplaceSh
 import { archiveShareEffect } from "@/lib/marketplace-service";
 import { contactStageChoices } from "@/lib/mix-stage";
 import { localDateTimeLabel, mixStatusLabel, zoneLabel } from "@/lib/display-labels";
+import { previewBeatWording, readBeatPreviewContext } from "@/lib/workflow-start-preview";
+import { UserFacingError } from "@/lib/user-facing-error";
 
 
-export type MixWorkspaceSearchParams = { view?: string; activate?: string; error?: string; at?: string; sig?: string; created?: string; updated?: string; imported?: string };
+export type MixWorkspaceSearchParams = { view?: string; activate?: string; error?: string; at?: string; sig?: string; created?: string; updated?: string; imported?: string; previewContact?: string; previewSearch?: string };
 
 export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: string; query?: MixWorkspaceSearchParams; embedded?: boolean; libraryHref?: string }) {
   const { session, workspace, user, impersonation } = await requireWorkspace();
   const workflow = await workflowEditorData(workspace.id);
-  const [timezone, activationPreference] = await Promise.all([timezoneForUser(user.id), prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true, locale: true } })]);
+  const [timezone, activationPreference] = await Promise.all([timezoneForUser(workspace.ownerId), prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true, locale: true } })]);
   const [mix, broadcastSchedule] = await Promise.all([
     prisma.mix.findFirst({
       where: { id: mixId, workspaceId: workspace.id, status: { not: "ARCHIVED" } },
@@ -75,6 +77,19 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
   const archiveCopy = `This Mix stops creating new follow-ups. Completed history stays available.${shareEffect?.mix ? " It also stops being shared on the Marketplace; copies people already added stay theirs." : ""}${shareEffect?.megaMix ? ` Your shared Mega-Mix “${shareEffect.megaMix}” stops being shared too, because none of its other Mixes can be shared.` : ""}`;
   const editing = query.view === "edit" || query.activate === "1" || Boolean(query.error);
   const baseHref = libraryHref ?? `/mixes?mix=${encodeURIComponent(mix.id)}`;
+  const previewSearch = typeof query.previewSearch === "string" ? query.previewSearch.trim().slice(0, 160) : "";
+  const previewContactId = typeof query.previewContact === "string" ? query.previewContact : "";
+  const previewPageSize = 20;
+  const previewPeople = editing ? [] : await prisma.contact.findMany({ where: { workspaceId: workspace.id, archivedAt: null, ...(previewSearch ? { displayName: { contains: previewSearch, mode: "insensitive" as const } } : {}) }, select: { id: true, displayName: true }, orderBy: [{ displayName: "asc" }, { id: "asc" }], take: previewPageSize });
+  let previewContext: Awaited<ReturnType<typeof readBeatPreviewContext>> | undefined;
+  let previewError = "";
+  if (!editing && previewContactId) {
+    try { previewContext = await readBeatPreviewContext(workspace.id, previewContactId); }
+    catch (error) { if (!(error instanceof UserFacingError)) throw error; previewError = error.message; }
+  }
+  const previewFields = [...new URLSearchParams(baseHref.split("?")[1])].filter(([name]) => !["view", "previewSearch", "previewContact"].includes(name));
+  const previewOptions = previewContext && !previewPeople.some(person => person.id === previewContext.contact.id) ? [previewContext.contact, ...previewPeople] : previewPeople;
+  const wording = previewContext ? Object.fromEntries(mix.steps.map(beat => [beat.id, previewBeatWording(beat.stepVersion, previewContext.contact, previewContext.workspace.profile, previewContext.workspace.owner, beat.stepVersion.stepTemplate.channel)])) : undefined;
   const related = workflow.configuration.rules.filter(rule => rule.source.mixId === mix.id || rule.routes.some(route => route.target?.mixId === mix.id) || rule.join?.target.mixId === mix.id);
   return <div className="mix-edit-columns">
     <section id="selected-mix" className="mix-editor-workspace" aria-label="Selected Mix">
@@ -87,6 +102,24 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
       {query.imported && <Notice type="success">Your copy is ready to edit.</Notice>}
       <UrlErrorNotice params={query} viewer={session} />
       {!editing && mix.description && <p className="mix-selected-description">{mix.description}</p>}
+      {!editing && <details open={Boolean(previewContactId || previewSearch)}>
+        <summary>Preview for a person</summary>
+        <div className="form-stack">
+        <form className="form-stack" method="get" action={baseHref.split("?")[0]}>
+          {previewFields.map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
+          <label className="field"><span>Find a person for the preview</span><input type="search" name="previewSearch" defaultValue={previewSearch} maxLength={160} /></label>
+          <div><button className="button small" type="submit">Find person</button></div>
+        </form>
+        <form className="form-stack" method="get" action={baseHref.split("?")[0]}>
+          {previewFields.map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}
+          <input type="hidden" name="previewSearch" value={previewSearch} />
+          <label className="field"><span>Person for preview</span><select name="previewContact" defaultValue={previewContext?.contact.id ?? ""}><option value="">Show template fields</option>{previewOptions.map(person => <option value={person.id} key={person.id}>{person.displayName}</option>)}</select></label>
+          <div><button className="button small" type="submit">Update preview</button></div>
+        </form>
+        <p className="muted-copy">{previewPeople.length === previewPageSize ? `Showing the first ${previewPageSize} matches. Search by name to narrow the list.` : previewPeople.length ? "Choose a saved person to check their wording." : "No matching people. Try another name or add a person in Contacts."}</p>
+        </div>
+      </details>}
+      {previewError && <Notice type="error">{previewError}</Notice>}
       {editing && !impersonation ? <MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
         workflowSources={workflow.mixes.filter(item => item.status !== "ARCHIVED" && item.source !== "ONE_TIME").map(({ id, name }) => ({ id, name }))}
         workflowRevision={workflow.revision}
@@ -137,7 +170,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
             variants: step.stepVersion.variants.map((variant) => ({ family: variant.family, subject: variant.subject, body: variant.body, script: variant.script }))
           }))
         }}
-      /> : <MixBeatPreview steps={mix.steps} gatedStepIds={workflow.configuration.gatedStepIds} timezone={timezone} locale={activationPreference?.locale ?? "en-US"} />}
+      /> : <MixBeatPreview steps={mix.steps} gatedStepIds={workflow.configuration.gatedStepIds} timezone={timezone} locale={activationPreference?.locale ?? "en-US"} triggerMode={mix.triggerMode} wording={wording} contactName={previewContext?.contact.displayName} />}
     </section>
     <aside className="mix-context-pane" aria-label="People and Journey connections">
       <section><h3><AppIcon name="clock" />Starts</h3><p>{mix.triggerMode === "MANUAL_START" ? "When you start it or a connected path arrives." : mix.triggerMode === "BROADCAST" ? "On a scheduled date." : "When its date is added."}</p>{mix.stage?.isActive && <p>Moves people to the {mix.stage.name} stage.{contactStages?.paused ? " Automatic transitions are paused, so no one moves for now." : ""}</p>}{broadcastSchedule && <p>{localDateTimeLabel(formatDateInput(broadcastSchedule.localDate), formatTimeInput(broadcastSchedule.timeMinutes), activationPreference?.locale ?? "en-US", new Date(), broadcastSchedule.timezone)} · {zoneLabel(broadcastSchedule.timezone)}</p>}</section>

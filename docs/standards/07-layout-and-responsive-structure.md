@@ -2,9 +2,9 @@
 id: JITM-07
 title: Layout and responsive structure
 status: active
-version: 2.0.0
+version: 2.1.1
 owner: Kevin
-last_reviewed: 2026-10-13
+last_reviewed: 2026-11-06
 applies_to: [ui, layout, navigation, responsive, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
@@ -68,6 +68,7 @@ Supporting values are 600 (small-phone spacing), 760 (the public menu and staff 
 **2.5** From 901 to 1279px, an 80px compact rail shows each destination's icon with its label below (size floor: JITM-10 §2.2). Quick Add and the account links are icons with accessible names. [SHIPPED 9439fd6 src/styles/design-workspaces.css:195-206] [SHIPPED 9439fd6 e2e/a2-css-checks.spec.ts:78-86]
 
 **2.6** At 900px and below, a fixed bottom navigation shows the phone destinations of JITM-09 §2.3 in five equal columns, with the Quick Add bubble in the center. The bar respects the safe area, and its rows grow when labels wrap. [SHIPPED 9439fd6 src/styles/base.css:280-282] [SHIPPED 9439fd6 src/styles/design-workspaces.css:130-145] [SHIPPED 9439fd6 src/components/Nav.tsx:40] [SHIPPED 9439fd6 src/styles/design-details.css:287-291]
+When enlarged text cannot fit the phone labels as whole words in five equal columns, the bar wraps into a second row instead of breaking words or overlapping, keeping the destination order and 44px targets; the five equal columns with the central Quick Add apply at normal text sizes. [OWNER 2026-11-03 D128]
 
 **2.7** Both rails scroll on their own when the window is short. Their controls keep full size, focus scrolls into view, and Appearance and Profile stay reachable on a 600px-high laptop. [SHIPPED 9439fd6 src/styles/design-workspaces.css:3-4] [SOURCE docs/design/DESIGN_FOLLOWTHROUGH_2026-09-20.md:10] [SOURCE docs/design/DESIGN_GUIDELINES.md:23]
 
@@ -193,9 +194,9 @@ Known deviations:
 
 Built: §2.20's opening at 100% from 768px and in the list view on phones (D75, PR #143).
 
-Built: §2.19's tabs and pane heading (D95) and §2.20's person (D96, D117), in PR #150, `prod-2026-10-13-4d5c307`. Known gap (JRN-02 in PR #150): on a phone, Open in Journey opens Details, and choosing Mixes then leaves the person's row out of view (1,710px down in the round-2 capture), against §2.20's scroll.
+Built: §2.19's tabs and pane heading (D95) and §2.20's person (D96, D117), in PR #150, `prod-2026-10-13-4d5c307`. Built (M4-S3): JRN-02 now reveals the chosen person's first Mix when the phone returns from Details to Mixes, including repeated visits; background refreshes preserve panning.
 
-Decided, not built (D121, backlog B-21): with a person chosen, Journey marks only the Mixes their Journey work is in, so in an account with no Journey connection it marks none of the Mixes whose rows count them (JRN-03 in PR #150), against §2.20.
+Built (D121, B-21, M4-S3): Journey marks active personal Mix starts and the Mixes in the person's non-canceled Journey runs. Follow-up-only rows do not add marks. Recorded transitions emphasize the real path only when their saved endpoints match the displayed connection; shared membership never implies a transition. See `src/lib/journey-person-focus.ts`, `tests/journey-person-focus.integration.test.ts` and `e2e/journey-person-focus.spec.ts`.
 
 Open for Kevin: which of a person's other Mixes Journey marks. JRN-03 asked about Mix starts and follow-ups; the recommendation Kevin accepted named Mix starts (D121). JITM-09 §2.32 counts more as a person's Mixes: the Mixes their tags run, every Mix they are stopped in and any Mix with a Beat still to come.
 
@@ -208,8 +209,11 @@ Question for Kevin:
 
 ## 7. Changelog
 
+- 2.1.0 — 2026-11-03 — Base c9a90405. §2.6 allows a second phone-navigation row only when enlarged whole-word labels cannot fit, preserving destination order and targets; normal text retains five equal columns and the central Quick Add (D128).
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §6 updated for D20 and D24.
 - 1.1.0 — 2026-10-08 — Base f23db11. §2.20 Journey opens at 100% from 768px and in the list view on phones (D75); §2.21 the Calendar agenda leads with appointments (D74); §2.22 Settings groups its rows (D81). §6 lists the three as decided, not built.
 - 1.2.0 — 2026-10-12 — Base 4e78545. §2.19: the pane tabs below 1200px read People / Mixes / Details (D95). §2.20: with a person chosen, Journey goes to their work (D96); the phone list's scroll to the first of their Mixes is proposed. §6: D75 is built; D95 and D96 are decided and not yet built.
 - 2.0.0 — 2026-10-13 — Base 4d5c307. Major, because §2.20 changes meaning: with a person chosen, Journey also marks the Mixes of their Mix starts, not only those their Journey work is in (D121, not built). §2.20: the phone list's scroll is Kevin's (D117). §6: D95 and D96 are built (PR #150), with JRN-02's gap; which of a person's other Mixes Journey marks is open.
+
+- 2.1.1 — 2026-11-06 — Base 682b8ac7. §6 records D121/B-21 and JRN-02 built in M4-S3; D75 and the open follow-up-membership decision remain unchanged.
