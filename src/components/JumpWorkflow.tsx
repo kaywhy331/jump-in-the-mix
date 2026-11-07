@@ -13,6 +13,7 @@ import { useConfirmDialog } from "@/components/useConfirmDialog";
 import { addDays, dateKeyOf } from "@/lib/when-picker";
 import type { MixEndQuestion } from "@/lib/mix-end-question";
 import { useConfirmationTarget } from "@/components/useConfirmationTarget";
+import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 import { setFollowUpDue } from "@/components/useFollowUpDue";
 export type { OpenedJumpDetail } from "@/lib/opened-jump-state";
 
@@ -65,6 +66,8 @@ export type JumpStateDetail = {
   notice?: string;
   /** The follow-up this outcome scheduled, named in the confirmation instead of the plan's next step. */
   nextFollowUpAt?: string | null;
+  /** Context from the outcome form's existing read, never evidence that nothing is scheduled. */
+  nextStepNotice?: string;
   mixEnd?: MixEndQuestion | null;
   /** Where the owner recorded it: in a review, or in the tray after returning from their app. Today opens the next
    * review only after those, not after a quick action from the list (D70). */
@@ -175,8 +178,10 @@ function focusAfterQuickAction(jumpId: string, group: HTMLElement | null): void 
   (group?.querySelector<HTMLElement>("article.jump-card [data-review-trigger]") ?? document.querySelector<HTMLElement>(`[data-follow-up-undo][data-jump-workflow="${CSS.escape(jumpId)}"] button`))?.focus();
 }
 
-function formatNextFollowUp(value: string): string {
-  return new Date(value).toLocaleString(undefined, { weekday: "short", month: "short", day: "numeric", hour: "numeric", minute: "2-digit", hour12: true });
+function nextStepNotice(workflow: Pick<ReturnType<typeof useWorkflowChoices>, "status" | "choices">, decisions: Record<string, string>): string | undefined {
+  if (workflow.status !== "ready") return "The next Journey step could not be checked yet. Any step needing your input stays in Today.";
+  if (workflow.choices.some(choice => !decisions[choice.id])) return "Record the required outcome in Needs your input to prepare what comes next.";
+  return undefined;
 }
 
 function dispatchJumpState(detail: JumpStateDetail): void {
@@ -198,7 +203,8 @@ async function saveOutcome(
   requestId: string,
   details: OutcomeDetails = {},
   attempt?: OutcomeAttempt,
-  origin?: JumpStateDetail["origin"]
+  origin?: JumpStateDetail["origin"],
+  nextStepNotice?: string
 ): Promise<SaveResult> {
   const response = await fetch(`/api/jumps/${encodeURIComponent(jumpId)}/outcome`, {
     method: "POST",
@@ -211,11 +217,11 @@ async function saveOutcome(
   if (response.status === 409 && outcome === "REOPENED" && payload.status === "PENDING") return { recorded: false, status: payload.status, updatedAt };
   if (!response.ok) throw new Error(payload.error || "The follow-up outcome could not be saved.");
   const stored = payload as OutcomeResponse;
-  dispatchJumpState({ jumpId, status: stored.status, updatedAt, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null, mixEnd: stored.mixEnd ?? null, origin, reached: stored.status === "DONE" && !UNREACHED_OUTCOMES.has(outcome) });
+  dispatchJumpState({ jumpId, status: stored.status, updatedAt, nextFollowUpAt: stored.nextJumpId ? stored.nextCommitmentAt : null, nextStepNotice, mixEnd: stored.mixEnd ?? null, origin, reached: stored.status === "DONE" && !UNREACHED_OUTCOMES.has(outcome) });
   return { recorded: true, response: stored };
 }
 
-type HostedConfirmation = { jumpId: string; status: "DONE" | "SKIPPED"; contactName: string; notice: string; nextFollowUpAt: string | null; nextScheduledLabel?: string };
+type HostedConfirmation = { jumpId: string; status: "DONE" | "SKIPPED"; contactName: string; notice: string; nextFollowUpAt: string | null; nextScheduledLabel?: string; nextStepNotice?: string; displayPreferences: DisplayFormatPreferences };
 
 /** A recorded outcome's confirmation: what happened, for whom, what comes next, and its Undo. */
 function ConfirmationView({ ref, entry, undoing, error, onUndo }: { ref: Ref<HTMLDivElement>; entry: HostedConfirmation; undoing: boolean; error: string; onUndo: () => void }) {
@@ -226,7 +232,8 @@ function ConfirmationView({ ref, entry, undoing, error, onUndo }: { ref: Ref<HTM
           <strong>{entry.status === "SKIPPED" ? "Follow-up skipped" : "Follow-up completed"}</strong>
           {entry.notice && <small>{entry.notice}</small>}
           <small>{entry.contactName} · you can undo this for a moment</small>
-          {entry.nextFollowUpAt ? <small>Next follow-up: {formatNextFollowUp(entry.nextFollowUpAt)}</small> : entry.nextScheduledLabel && <small>Next scheduled: {entry.nextScheduledLabel}</small>}
+          {entry.nextFollowUpAt ? <small>Next follow-up: {formatDateTime(entry.nextFollowUpAt, entry.displayPreferences)}</small> : entry.nextScheduledLabel ? <small>Next scheduled: {entry.nextScheduledLabel}</small> : !entry.nextStepNotice && <small>Next date: not known yet.</small>}
+          {entry.nextStepNotice && <small>{entry.nextStepNotice}</small>}
         </span>
         <button className="button small" type="button" onClick={onUndo} disabled={undoing}>{undoing ? "Restoring…" : "Undo"}</button>
         {error && <p className={styles.confirmationError} role="alert">{error}</p>}
@@ -304,12 +311,14 @@ export function JumpWorkflowCard({
   jumpId,
   contactName,
   nextScheduledLabel,
+  displayPreferences,
   revision,
   children
 }: {
   jumpId: string;
   contactName: string;
   nextScheduledLabel?: string;
+  displayPreferences: DisplayFormatPreferences;
   revision: string;
   children: ReactNode;
 }) {
@@ -341,12 +350,12 @@ export function JumpWorkflowCard({
       recordedDone.current = detail.status === "DONE" && detail.reached === true;
       // The confirmation and its Undo show outside the list, so the card leaves the list now. A fresh read that still
       // lists it (one already on its way), or lists it again after a reopening elsewhere, brings it back (D99).
-      hostConfirmation({ jumpId, status: detail.status, contactName, notice: detail.notice ?? "", nextFollowUpAt: detail.nextFollowUpAt ?? null, nextScheduledLabel });
+      hostConfirmation({ jumpId, status: detail.status, contactName, notice: detail.notice ?? "", nextFollowUpAt: detail.nextFollowUpAt ?? null, nextScheduledLabel, nextStepNotice: detail.nextStepNotice, displayPreferences });
       setState("HIDDEN");
     };
     window.addEventListener("jitm:jump-state", onState);
     return () => window.removeEventListener("jitm:jump-state", onState);
-  }, [jumpId, contactName, nextScheduledLabel]);
+  }, [jumpId, contactName, nextScheduledLabel, displayPreferences]);
 
   if (state === "HIDDEN") return null;
   return <div className={styles.cardWrapper} data-jump-workflow={jumpId}>{children}</div>;
@@ -392,7 +401,7 @@ export function JumpOutcomeButton({
     const details: OutcomeDetails = { workflowDecisions: Object.entries(completionOnly ? {} : decisions).filter(([, outcome]) => outcome).map(([ruleId, outcome]) => ({ ruleId, outcome })) };
     const key = outcomeRequestKey(jumpId, outcome, details);
     try {
-      const result = await saveOutcome(jumpId, outcome, ids.claim(key), details, undefined, root.current?.closest(".follow-up-review-sheet") ? "review" : undefined);
+      const result = await saveOutcome(jumpId, outcome, ids.claim(key), details, undefined, root.current?.closest(".follow-up-review-sheet") ? "review" : undefined, nextStepNotice(workflow, completionOnly ? {} : decisions));
       ids.release(key);
       setShowDecisions(false);
       if (!result.recorded) {
@@ -542,7 +551,7 @@ export function JumpReturnTray() {
         nextTime: wantsNext ? nextTime : undefined
       } : {}), workflowDecisions: Object.entries(workflowDecisions).filter(([, outcome]) => outcome).map(([ruleId, outcome]) => ({ ruleId, outcome })) };
       const key = outcomeRequestKey(session.jumpId, selected, payload, session.attemptId);
-      const result = await saveOutcome(session.jumpId, selected, ids.claim(key), payload, attempt, "tray");
+      const result = await saveOutcome(session.jumpId, selected, ids.claim(key), payload, attempt, "tray", nextStepNotice(workflowChoices, workflowDecisions));
       ids.release(key);
       if (!result.recorded) {
         // Finished already under another request, so this handoff is over. Whatever was typed here did
@@ -574,7 +583,7 @@ export function JumpReturnTray() {
       {notice && <p role="status">{notice}</p>}
       <div className={styles.trayHeading}>
         <div>
-          <strong>How did the follow-up with {session.contactName} go?</strong>
+          <strong>{isCall ? `How did the follow-up with ${session.contactName} go?` : `Did you send the message to ${session.contactName}?`}</strong>
           <p>Step 3 · Record what happened. Opening an app does not send it.</p>
         </div>
         <button className="button small" type="button" onClick={close} aria-label="Record outcome later">Later</button>

@@ -104,7 +104,7 @@ function copyWithFallback(text: string): boolean {
   return copied;
 }
 
-export function JumpCopyButton({ jumpId, text, label = "Copy prepared content" }: { jumpId: string; text: string; label?: string }) {
+export function JumpCopyButton({ jumpId, text, label = "Copy prepared content", onCopied }: { jumpId: string; text: string; label?: string; onCopied?: () => void }) {
   const [status, setStatus] = useState<"IDLE" | "COPIED" | "FAILED">("IDLE");
 
   const copy = async () => {
@@ -113,12 +113,14 @@ export function JumpCopyButton({ jumpId, text, label = "Copy prepared content" }
       else if (!copyWithFallback(text)) throw new Error("Copy was not accepted by the browser.");
       await recordAction(jumpId, "COPIED");
       setStatus("COPIED");
+      onCopied?.();
       window.setTimeout(() => setStatus("IDLE"), 1600);
     } catch {
       const copied = copyWithFallback(text);
       if (copied) {
         void recordAction(jumpId, "COPIED").catch(() => undefined);
         setStatus("COPIED");
+        onCopied?.();
       } else {
         setStatus("FAILED");
       }

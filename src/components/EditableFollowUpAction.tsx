@@ -148,6 +148,7 @@ export function EditableFollowUpAction({
   const contentKey: "body" | "script" = family === "CALL" ? "script" : "body";
   const templateSource = useMemo<Source>(() => ({ subject: template?.subject ?? "", content: template?.[contentKey] ?? "" }), [template, contentKey]);
   const [ready, setReady] = useState(false);
+  const [copiedContent, setCopiedContent] = useState<string | null>(null);
   useEffect(() => { setReady(true); }, []);
 
   // Legacy path for rows without stored plan text: edits live in memory only, as before.
@@ -442,6 +443,7 @@ export function EditableFollowUpAction({
       </div>}
       <p className="review-send-hint">{url ? `To ${channel === "EMAIL" ? email : phone}. ` : ""}Open your app to send, then record what happened.</p>
       <div className="review-action-bar">
+      {family !== "CALL" && copiedContent === copyContent && <p className="review-copy-question" role="status">Did you send the message to {contactName}?</p>}
       <div className="editable-follow-up-actions">
         {url ? <JumpActionLink
           jumpId={jumpId}
@@ -458,11 +460,11 @@ export function EditableFollowUpAction({
           <a className="button primary" href={`/contacts/${contactId}/edit?returnTo=${encodeURIComponent(`/jumps?jump=${jumpId}`)}`}><AppIcon name="add" />Add {methodLabel}</a>
         )}
         <div className="workflow-option-actions">
-        {copyContent && <span className={longSms ? "copy-primary" : ""}><JumpCopyButton jumpId={jumpId} text={copyContent} label="Copy" /></span>}
+        {copyContent && <span className={longSms ? "copy-primary" : ""}><JumpCopyButton jumpId={jumpId} text={copyContent} label="Copy" onCopied={family === "CALL" ? undefined : () => setCopiedContent(copyContent)} /></span>}
         </div>
+        {outcomeActions}
         {unsaved && <button type="button" hidden data-discard-follow-up-draft onClick={revertUnsaved} tabIndex={-1} aria-hidden="true">Keep the saved version</button>}
       </div>
-      {outcomeActions}
       </div>
       {(label || (hasDraft && !conflict)) && <div className="review-draft-status">
         {label && <small className={status === "signed-out" ? "draft-status-warning" : "muted-copy"} role="status" data-draft-status={status}>{label}{status === "signed-out" && <> <a className="inline-action" href={`/login?next=${encodeURIComponent(`/jumps?jump=${jumpId}&range=all`)}`} target="_blank" rel="noopener">Sign in in a new tab</a> <button type="button" className="text-button" onClick={() => { setStopped(false); setStatus("idle"); }}>Try saving again</button></>}</small>}

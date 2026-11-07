@@ -286,3 +286,12 @@
 .countScope{overflow-wrap:anywhere}
 .scope.countScope{margin:0}
 .countHelp{font-size:.875rem;color:var(--text-2)}
+
+/* Archived Mixes keep their pending follow-ups reachable in the list and map. */
+.nodeHeading .archivedMark,.listHeading .archivedMark{display:inline-block;padding-inline:var(--space-1);border-radius:var(--space-1);background:var(--raised);color:var(--text-2);font-weight:600}
+.nodePopulation .archivedPeople,.listPeople .archivedPeople{display:flex;flex-wrap:wrap;gap:var(--space-2);align-items:center;min-height:44px;min-width:44px;max-width:100%;padding:var(--space-2);font-size:.8125rem;line-height:1.5;text-align:left;border-radius:var(--space-2);white-space:normal;overflow-wrap:anywhere}
+.nodePopulation .archivedPeople>span,.listPeople .archivedPeople>span{color:var(--text-2)}
+.nodePopulation .archivedPeople>span:last-child,.listPeople .archivedPeople>span:last-child{color:var(--violet-text);text-decoration:underline}
+.nodePopulation .archivedPeople:focus-visible,.listPeople .archivedPeople:focus-visible{outline:3px solid var(--focus);outline-offset:-3px}
+.graph[data-overview=true] .nodePopulation:has(.archivedPeople){position:static}
+.graph[data-overview=true] .nodePopulation .archivedPeople>span{display:inline}
