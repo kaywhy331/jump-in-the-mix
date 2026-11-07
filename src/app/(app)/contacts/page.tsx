@@ -380,14 +380,14 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         noMixHref={noMixHref}
         intent={intent}
       />
-      <nav className="pagination-bar" aria-label="Contact result pages">
+      {totalPages > 1 && <nav className="pagination-bar" aria-label="Contact result pages">
         <span>{resultMessage}</span>
         <div className="page-actions">
           {page > 1 && <Link className="button" href={pageHref({ page: page - 1, q, groupId, priority, permission, mix: mixFilter, viewId: selectedView?.id ?? "", intent, importBatchId, sort })}>Previous</Link>}
           <span>Page {Math.min(page, totalPages)} of {totalPages}</span>
           {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, priority, permission, mix: mixFilter, viewId: selectedView?.id ?? "", intent, importBatchId, sort })}>Next</Link>}
         </div>
-      </nav>
+      </nav>}
       </section>{selectedContactId && <section className="contacts-selected" aria-label="Selected contact"><ContactProfile key={selectedContactId} contactId={selectedContactId} embedded directoryHref={pageHref({ ...filters, page, person: selectedContactId })} /></section>}</div>
     </div>
   );
