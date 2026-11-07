@@ -6,13 +6,14 @@ import { setOpenReviewSlot } from "@/components/useConfirmationTarget";
 import { useTodayReviewPlacement } from "@/components/TodayReviewPlacement";
 import { placeTodayGroups, type TodayDueGroup } from "@/lib/today-review-placement";
 import { nextActionEmptyText, withoutSettledActions, type NextActionProjection } from "@/lib/next-action";
+import { todayWorkCategories } from "@/lib/today-work-categories";
 
 type Section = "overdue" | "today" | "upcoming";
 type Counts = Record<Section | "done", number>;
 type Moved = { section: Section; overdue: boolean; skipped: boolean };
 
 type DueGroup = TodayDueGroup & { content: ReactNode };
-const CountsContext = createContext<{ counts: Counts; overdue: number; zero: string; groups: { overdue: DueGroup[]; today: DueGroup[] }; nextActions?: NextActionProjection } | null>(null);
+const CountsContext = createContext<{ counts: Counts; overdue: number; zero: string; groups: { overdue: DueGroup[]; today: DueGroup[] }; nextActions?: NextActionProjection; categoryActions?: NextActionProjection } | null>(null);
 const DUE_CARDS = '[data-today-section="overdue"] [data-jump-workflow], [data-today-section="today"] [data-jump-workflow]';
 // The card's own Review button; the review's "open your app" link records a handoff and is never clicked.
 const REVIEW_TRIGGER = ".sheet-trigger > [data-review-trigger]";
@@ -39,7 +40,7 @@ function isOverdue(jumpId: string): boolean {
  * server would show with nothing due. The sections count the follow-ups they show; `overdue`, for the header, counts
  * every overdue one, including one on a person's card under Today (D71).
  */
-export function TodayLiveCounts({ initial, overdue, readAt, doneCounts, zero, dueGroups, children, nextActions }: { initial: Counts; overdue: number; readAt: string; doneCounts: { done: boolean; skipped: boolean }; zero: string; dueGroups: DueGroup[]; children: ReactNode; nextActions?: NextActionProjection }) {
+export function TodayLiveCounts({ initial, overdue, readAt, doneCounts, zero, dueGroups, children, nextActions, categoryActions = nextActions }: { initial: Counts; overdue: number; readAt: string; doneCounts: { done: boolean; skipped: boolean }; zero: string; dueGroups: DueGroup[]; children: ReactNode; nextActions?: NextActionProjection; categoryActions?: NextActionProjection }) {
   const { pin } = useTodayReviewPlacement();
   const groups = useMemo(() => placeTodayGroups(dueGroups, pin), [dueGroups, pin]);
   const key = `${readAt}:${initial.overdue}:${initial.today}:${initial.upcoming}:${initial.done}:${overdue}`;
@@ -81,8 +82,9 @@ export function TodayLiveCounts({ initial, overdue, readAt, doneCounts, zero, du
       if (item.overdue) overdueLeft = Math.max(0, overdueLeft - 1);
       if (item.skipped ? doneCounts.skipped : doneCounts.done) counts.done += 1;
     }
-    return { counts, overdue: overdueLeft, zero, groups, nextActions: nextActions && withoutSettledActions(nextActions, new Set(items.keys())) };
-  }, [initial, overdue, items, doneCounts.done, doneCounts.skipped, zero, groups, nextActions]);
+    const settled = new Set(items.keys());
+    return { counts, overdue: overdueLeft, zero, groups, nextActions: nextActions && withoutSettledActions(nextActions, settled), categoryActions: categoryActions && withoutSettledActions(categoryActions, settled) };
+  }, [initial, overdue, items, doneCounts.done, doneCounts.skipped, zero, groups, nextActions, categoryActions]);
   return <CountsContext.Provider value={value}>{children}</CountsContext.Provider>;
 }
 
@@ -142,6 +144,17 @@ export function LiveAttentionSummary() {
   const attention = counts.overdue + counts.today;
   if (!attention) return <>{zero}</>;
   return <>{`${attention.toLocaleString("en-US")} follow-up${attention === 1 ? " needs" : "s need"} your attention${overdue ? ` · ${overdue.toLocaleString("en-US")} overdue` : ""}.`}</>;
+}
+
+/** Separate from the established headline so it remains a complete sentence. */
+export function LiveWorkCategories() {
+  const live = useContext(CountsContext);
+  if (!live) return null;
+  const categories = todayWorkCategories(live.counts, live.overdue, live.categoryActions);
+  if (!categories.length) return null;
+  return <ul className="today-work-categories" aria-label="Work categories">
+    {categories.map(({ label, count }) => <li key={label}>{label} · {count.toLocaleString("en-US")}</li>)}
+  </ul>;
 }
 
 /**

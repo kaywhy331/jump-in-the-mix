@@ -63,7 +63,7 @@ const select = {
     relationshipState: { select: { preferredChannel: true } }
   } },
   mix: { select: { name: true, source: true } },
-  stepVersion: { select: { stepTemplate: { select: { channel: true } } } }
+  stepVersion: { select: { stepTemplate: { select: { channel: true, name: true } } } }
 } satisfies Prisma.JumpSelect;
 
 /**
