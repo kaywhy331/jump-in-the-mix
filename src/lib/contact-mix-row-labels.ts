@@ -6,7 +6,7 @@ import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
  * work to come from, whatever placed them there. Pure, so the server builds the rows and a test can check them.
  */
 export type ContactMixRowInput = {
-  /** The person's Mixes that still exist: not archived, and not a one-time follow-up. */
+  /** Known Mixes, including archived ones; never one-time follow-up pseudo-Mixes. */
   mixes: Array<{ id: string; name: string; status: "DRAFT" | "ACTIVE" | "PAUSED" | "ARCHIVED" }>;
   /** Their own active starts; `everyone` for a place in a Mix for Everyone, whose Remove stops the Mix for them (D64). */
   starts: Array<{ assignmentId: string; mixId: string; everyone?: boolean }>;
@@ -22,6 +22,12 @@ export type ContactMixRowInput = {
   preparing: { mixIds: string[]; all: boolean };
   /** Their open Journey work, with the Mixes it is still running, and whether a connection started each one. */
   work: Array<{ id: string; paused: boolean; runs: Array<{ mixId: string; viaConnection: boolean }> }>;
+  /** Proven open work from the existing enrollment reader and shared next-action projection. */
+  currentMixIds?: string[];
+  /** Real settled follow-ups, not merely an empty pending list. */
+  completedMixIds?: string[];
+  /** An archived Mix remains visible only for an outstanding obligation. */
+  outstandingMixIds?: string[];
 };
 
 export type ContactMixRow = {
@@ -41,15 +47,16 @@ export type ContactMixRow = {
   workPaused: boolean;
   /** A Journey connection started the work, rather than the owner from the Journey page. */
   workViaConnection: boolean;
+  group: "current" | "completed" | "inactive";
 };
 
 export function buildContactMixRows(input: ContactMixRowInput): ContactMixRow[] {
   const rows = new Map<string, ContactMixRow>();
   const row = (mixId: string) => {
     const mix = input.mixes.find(item => item.id === mixId);
-    if (!mix || mix.status === "ARCHIVED") return null;
+    if (!mix || (mix.status === "ARCHIVED" && !input.pending.some(item => item.mixId === mixId) && !input.outstandingMixIds?.includes(mixId))) return null;
     let found = rows.get(mixId);
-    if (!found) rows.set(mixId, found = { mixId, name: mix.name, mixStatus: mix.status, assignmentId: null, everyoneStart: false, tags: [], stop: null, everyoneRemoved: false, everyonePlaceBack: false, nextBeatAt: null, preparing: false, workIds: [], workPaused: false, workViaConnection: false });
+    if (!found) rows.set(mixId, found = { mixId, name: mix.name, mixStatus: mix.status, assignmentId: null, everyoneStart: false, tags: [], stop: null, everyoneRemoved: false, everyonePlaceBack: false, nextBeatAt: null, preparing: false, workIds: [], workPaused: false, workViaConnection: false, group: "inactive" });
     return found;
   };
   for (const start of input.starts) { const found = row(start.mixId); if (found && !found.assignmentId) { found.assignmentId = start.assignmentId; found.everyoneStart = Boolean(start.everyone); } }
@@ -64,7 +71,13 @@ export function buildContactMixRows(input: ContactMixRowInput): ContactMixRow[] 
     found.workIds.push(work.id);
     found.workPaused ||= work.paused;
   }
-  for (const found of rows.values()) found.preparing = !found.stop && (input.preparing.all || input.preparing.mixIds.includes(found.mixId));
+  for (const mixId of [...input.completedMixIds ?? [], ...input.outstandingMixIds ?? []]) row(mixId);
+  for (const found of rows.values()) {
+    found.preparing = !found.stop && found.mixStatus !== "ARCHIVED" && (input.preparing.all || input.preparing.mixIds.includes(found.mixId));
+    const current = input.currentMixIds?.includes(found.mixId) ?? Boolean(found.nextBeatAt || found.preparing);
+    found.group = current || input.outstandingMixIds?.includes(found.mixId) ? "current"
+      : !found.stop && input.completedMixIds?.includes(found.mixId) ? "completed" : "inactive";
+  }
   // Work to come first, soonest first; then the rest by how much is still going on, then by name.
   const rank = (item: ContactMixRow) => item.nextBeatAt ? 0 : item.stop ? 3 : item.preparing ? 1 : 2;
   return [...rows.values()].sort((a, b) => rank(a) - rank(b) || (a.nextBeatAt && b.nextBeatAt ? a.nextBeatAt.getTime() - b.nextBeatAt.getTime() : 0) || a.name.localeCompare(b.name) || a.mixId.localeCompare(b.mixId));
@@ -74,6 +87,8 @@ export type ContactMixRowStatus = { label: string; tone: "late" | "running" | "p
 
 /** What the row says about the Mix for this person, in the order the Mix itself decides it. */
 export function contactMixRowStatus(row: ContactMixRow, now: Date, preferences: DisplayFormatPreferences): ContactMixRowStatus {
+  if (row.mixStatus === "ARCHIVED") return { label: "Archived Mix · action outstanding", tone: "running" };
+  if (row.group === "completed") return { label: "Completed", tone: "idle" };
   if (row.stop === "plan-limit") return { label: "Not started: plan limit", tone: "stopped" };
   if (row.stop === "stage-exit") return { label: "Ended at a stage change", tone: "stopped" };
   if (row.stop) return { label: "Stopped", tone: "stopped" };
@@ -82,6 +97,7 @@ export function contactMixRowStatus(row: ContactMixRow, now: Date, preferences: 
   if (row.workPaused) return { label: "Journey work paused", tone: "paused" };
   if (row.nextBeatAt) return { label: `Next Beat · ${contactDueLabel(row.nextBeatAt, now, preferences)}`, tone: row.nextBeatAt < now ? "late" : "running" };
   if (row.preparing) return { label: "Getting follow-ups ready", tone: "running" };
+  if (row.group === "current") return { label: "Waiting for the next step", tone: "running" };
   return { label: "No follow-ups to come", tone: "idle" };
 }
 
@@ -95,6 +111,8 @@ export function contactMixRowRoute(row: ContactMixRow): string | null {
 
 /** The row menu's one sentence on where the Mix stands for the person. */
 export function contactMixRowSummary(row: ContactMixRow, name: string, now: Date, preferences: DisplayFormatPreferences): string {
+  if (row.mixStatus === "ARCHIVED") return "This Mix is archived. An outstanding action is still available; reviewing it does not reactivate the Mix.";
+  if (row.group === "completed") return `The recorded follow-ups from this Mix are complete for ${name}.`;
   if (row.stop === "plan-limit") return `Not started for ${name}: your plan’s people limit was reached.`;
   if (row.stop) {
     // Resume brings back what the stop removed, for whatever still places them in the Mix: their start, a tag, or
@@ -116,5 +134,6 @@ export function contactMixRowSummary(row: ContactMixRow, name: string, now: Date
   if (row.workPaused) return `${name}’s Journey work in this Mix is paused.`;
   if (row.nextBeatAt) return `Next Beat ${row.nextBeatAt < now ? "was due" : "is due"} ${formatDateTime(row.nextBeatAt, preferences)}.`;
   if (row.preparing) return `${name}’s follow-ups from this Mix are being prepared.`;
+  if (row.group === "current") return `This Mix still has work to come for ${name}.`;
   return `No follow-ups to come for ${name} from this Mix.`;
 }

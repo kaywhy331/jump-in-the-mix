@@ -2,6 +2,8 @@ import { buildContactMixRows, type ContactMixRow } from "@/lib/contact-mix-row-l
 import { workflowState } from "@/lib/mix-workflow";
 import { PLAN_LIMIT_STOP } from "@/lib/plan-limits";
 import { prisma } from "@/lib/prisma";
+import { contactIdsInMix } from "@/lib/contact-mix-status";
+import type { NextActionProjection } from "@/lib/next-action";
 
 /** The reason a stage change gives the stop it writes on the old stage's Mix (src/lib/journey.ts). */
 const STAGE_EXIT_STOP = "journey.stage.exit";
@@ -18,17 +20,18 @@ export const personalMixStartsWhere = (workspaceId: string, contactId: string) =
  * The person's Mixes for the profile's Mixes section (D77): their own starts, the shown tags a Mix runs for,
  * the Mixes they were stopped in, any Mix with a Beat still to come for them, and their open Journey work.
  */
-export async function readContactMixRows(workspaceId: string, contact: { id: string; mixAssignments: Array<{ id: string; mixId: string; assignmentKey: string }>; groupIds: string[] }, shownGroupIds: Set<string>): Promise<ContactMixRow[]> {
+export async function readContactMixRows(workspaceId: string, contact: { id: string; mixAssignments: Array<{ id: string; mixId: string; assignmentKey: string }>; groupIds: string[] }, shownGroupIds: Set<string>, nextActions?: NextActionProjection): Promise<ContactMixRow[]> {
   const contactId = contact.id;
-  const [tagStarts, stops, pending, work, jobs, offPlaces] = await Promise.all([
+  const [tagStarts, stops, pending, work, jobs, offPlaces, completed] = await Promise.all([
     contact.groupIds.length ? prisma.mixAssignment.findMany({ where: { workspaceId, isActive: true, groupId: { in: contact.groupIds } }, select: { mixId: true, groupId: true, group: { select: { name: true } } } }) : [],
     prisma.mixStop.findMany({ where: { workspaceId, contactId }, select: { mixId: true, reason: true } }),
     prisma.jump.groupBy({ by: ["mixId"], where: { workspaceId, contactId, status: "PENDING" }, _min: { scheduledAt: true } }),
-    prisma.mixWorkflowInstance.findMany({ where: { workspaceId, contactId, status: { in: ["ACTIVE", "PAUSED"] } }, select: { id: true, status: true, state: true } }),
+    prisma.mixWorkflowInstance.findMany({ where: { workspaceId, contactId, status: { in: ["ACTIVE", "PAUSED", "FINISHED"] } }, select: { id: true, status: true, state: true } }),
     // Preparation still to run that names this person, alone or among a bulk start's people.
     prisma.job.findMany({ where: { workspaceId, task: "generate-jumps", completedAt: null, failedAt: null, OR: [{ payload: { path: ["contactId"], equals: contactId } }, { payload: { path: ["contactIds"], array_contains: [contactId] } }] }, select: { payload: true } }),
     // Their places in Mixes for Everyone that are off, which Resume gives back (src/lib/mix-stop-actions.ts).
-    prisma.mixAssignment.findMany({ where: { workspaceId, contactId, isActive: false, assignmentKey: { endsWith: `:audience:${contactId}` } }, select: { mixId: true, assignmentKey: true } })
+    prisma.mixAssignment.findMany({ where: { workspaceId, contactId, isActive: false, assignmentKey: { endsWith: `:audience:${contactId}` } }, select: { mixId: true, assignmentKey: true } }),
+    prisma.jump.groupBy({ by: ["mixId"], where: { workspaceId, contactId, status: { in: ["DONE", "SKIPPED"] } } })
   ]);
   const offEveryone = new Set(offPlaces.filter(place => place.assignmentKey === `${workspaceId}:${place.mixId}:audience:${contactId}`).map(place => place.mixId));
   const tags = tagStarts.flatMap(start => start.groupId && shownGroupIds.has(start.groupId) && start.group ? [{ mixId: start.mixId, tag: start.group.name }] : []);
@@ -45,6 +48,10 @@ export async function readContactMixRows(workspaceId: string, contact: { id: str
     const runs = (open.length ? open : latest ? [latest] : []).map(run => ({ mixId: run.mixId, viaConnection: Boolean(run.parentTransitionId) }));
     return runs.length ? [{ id: instance.id, paused: instance.status === "PAUSED", runs }] : [];
   });
+  // A finished run is recorded completion even when it had no follow-up rows. Any real remaining
+  // obligation still takes precedence through currentMixIds/outstandingMixIds below.
+  const completedMixIds = [...new Set([...completed.map(item => item.mixId), ...work.flatMap(instance =>
+    workflowState(instance.state).runs.filter(run => run.status === "FINISHED").map(run => run.mixId))])];
   const preparing = { mixIds: [] as string[], all: false };
   for (const job of jobs) {
     const payload = payloadOf(job.payload);
@@ -54,14 +61,23 @@ export async function readContactMixRows(workspaceId: string, contact: { id: str
     else preparing.all = true;
   }
   const pendingRows = pending.flatMap(item => item._min.scheduledAt ? [{ mixId: item.mixId, at: item._min.scheduledAt }] : []);
-  const mixIds = [...new Set([...contact.mixAssignments.map(start => start.mixId), ...tags.map(tag => tag.mixId), ...stops.map(stop => stop.mixId), ...pendingRows.map(item => item.mixId), ...workRows.flatMap(item => item.runs.map(run => run.mixId))])];
-  const mixes = mixIds.length ? await prisma.mix.findMany({ where: { workspaceId, id: { in: mixIds }, status: { not: "ARCHIVED" }, source: { not: "ONE_TIME" } }, select: { id: true, name: true, status: true, audienceEveryone: true } }) : [];
+  const outstandingMixIds = [...new Set((nextActions?.items ?? []).flatMap(item => item.mixId ? [item.mixId]
+    : item.workId ? workRows.filter(work => work.id === item.workId).flatMap(work => work.runs.map(run => run.mixId)) : []))];
+  const mixIds = [...new Set([...contact.mixAssignments.map(start => start.mixId), ...tags.map(tag => tag.mixId), ...stops.map(stop => stop.mixId), ...pendingRows.map(item => item.mixId), ...workRows.flatMap(item => item.runs.map(run => run.mixId)), ...completedMixIds, ...outstandingMixIds])];
+  const mixes = mixIds.length ? await prisma.mix.findMany({ where: { workspaceId, id: { in: mixIds }, source: { not: "ONE_TIME" } }, select: { id: true, name: true, status: true, audienceEveryone: true } }) : [];
+  // Reuse the lifecycle predicate: an ACTIVE record alone is not proof of work to come.
+  const now = nextActions ? new Date(nextActions.observedAt) : new Date();
+  const currentMixIds: string[] = [];
+  for (const mix of mixes) {
+    if ((await contactIdsInMix(prisma, workspaceId, mix.id, [contactId], now)).has(contactId)) currentMixIds.push(mix.id);
+  }
   return buildContactMixRows({
     mixes,
+    currentMixIds, completedMixIds, outstandingMixIds,
     starts: contact.mixAssignments.map(start => ({ assignmentId: start.id, mixId: start.mixId, everyone: start.assignmentKey.includes(":audience:") })),
     tags,
     // Resume gives an Everyone place that is off back while the Mix is still for Everyone, whatever wrote the stop
-    // (src/lib/mix-stop-actions.ts); the archived and one-time Mixes are already left out of `mixes`.
+    // (src/lib/mix-stop-actions.ts); archived rows expose no resume control.
     stops: stops.map(stop => ({ mixId: stop.mixId, planLimit: stop.reason === PLAN_LIMIT_STOP, stageExit: stop.reason === STAGE_EXIT_STOP, everyonePlace: offEveryone.has(stop.mixId) && mixes.some(mix => mix.id === stop.mixId && mix.audienceEveryone), removed: stop.reason === EVERYONE_PLACE_REMOVED_STOP })),
     pending: pendingRows,
     preparing,

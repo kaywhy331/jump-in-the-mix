@@ -17,6 +17,7 @@ import type { WorkflowGraphView } from "@/lib/mix-workflow-view";
 import type { NextActionProjection } from "@/lib/next-action";
 
 export type ContactMixesRow = {
+  group: "current" | "completed" | "inactive"; archived: boolean;
   mixId: string; name: string; status: ContactMixRowStatus; route: string | null;
   /** The sheet's one-line summary of where the Mix stands for the person. */
   summary: string;
@@ -54,7 +55,12 @@ export function ContactMixes({ contactId, contactName, rows, displayPreferences,
   const returnTo = `/contacts/${contactId}`;
   return <section className="contact-mixes" aria-labelledby="contact-mixes-heading">
     <div className="contact-section-heading"><h2 id="contact-mixes-heading">Mixes</h2></div>
-    {unavailable ? <p role="status" className="contact-empty-copy">Mixes could not be checked. <button type="button" className="text-button" onClick={() => router.refresh()}>Try again</button></p> : rows.length ? <ul className="contact-mix-list">{rows.map(row => {
+    {unavailable ? <p role="status" className="contact-empty-copy">Mixes could not be checked. <button type="button" className="text-button" onClick={() => router.refresh()}>Try again</button></p> : rows.length ? (["current", "completed", "inactive"] as const).map(group => {
+      const grouped = rows.filter(row => row.group === group);
+      return grouped.length > 0 && <div className="contact-mix-group" key={group} data-mix-group={group}>
+      <h3>{group === "current" ? "Current Mixes" : group === "completed" ? "Completed" : "Other Mixes"}</h3>
+      {group === "current" && <p className="contact-empty-copy">Active or waiting</p>}
+      <ul className="contact-mix-list">{grouped.map(row => {
       const instances = work?.instances.filter(instance => row.workIds.includes(instance.id)) ?? [];
       const needs = nextActions.items.find(item => item.workId && row.workIds.includes(item.workId) && item.kind !== "follow-up" && item.timing !== "future");
       return <li className="contact-mix-row" key={row.mixId} data-mix-row={row.mixId}>
@@ -68,10 +74,11 @@ export function ContactMixes({ contactId, contactName, rows, displayPreferences,
           <ClosesOnSubmit><div className="contact-tools-links contact-menu-list">
             <Link href={`/mixes/${row.mixId}/edit`}><AppIcon name="mixes" />Open the Mix</Link>
             {row.workIds.length > 0 && <Link href={`/journey?${new URLSearchParams({ contactId, work: row.workIds[0] })}`}><AppIcon name="journey" />Open in Journey</Link>}
-            {row.stopped
+            {!row.archived && <>{row.stopped
               ? <form action={resumeMixForContactAction} data-closes-menu><input type="hidden" name="mixId" value={row.mixId} /><input type="hidden" name="contactId" value={contactId} /><input type="hidden" name="returnTo" value={returnTo} /><FormSubmitButton label={`Resume for ${contactName}`} pendingLabel="Resuming…" className="" icon={<AppIcon name="play" />} disabled={viewOnly} /></form>
               : <ConfirmDialog trigger={<><AppIcon name="pause" />Stop for {contactName}…</>} triggerClassName="" title={`Stop ${row.name} for ${contactName}?`} description={`Their follow-ups still to come from ${row.name} are removed, and the Mix won’t prepare more for them, through a tag or a new start, until you resume it here. Completed history stays.`}><form action={stopMixForContactAction} data-closes-menu><input type="hidden" name="mixId" value={row.mixId} /><input type="hidden" name="contactId" value={contactId} /><input type="hidden" name="returnTo" value={returnTo} /><FormSubmitButton label="Stop the Mix" pendingLabel="Stopping…" className="button danger" disabled={viewOnly} /></form></ConfirmDialog>}
             {row.assignmentId && <ConfirmDialog trigger={<><AppIcon name="close" />Remove from this Mix…</>} triggerClassName="is-danger" title={`Remove ${contactName} from ${row.name}?`} description={row.everyoneStart ? `This Mix is for Everyone, so removing stops it for ${contactName}: its follow-ups still to come are removed, and saving or starting the Mix again won’t add them back, but you can resume it here. Completed history stays.` : `This ends your start of ${row.name} for them: its follow-ups still to come are removed, and you can start the Mix for them again later.${row.hasTags ? " A tag of theirs also runs this Mix, so its follow-ups from the tag continue." : ""} Completed history stays.`} danger><form action={removeMixAssignmentAction} data-closes-menu><input type="hidden" name="assignmentId" value={row.assignmentId} /><input type="hidden" name="contactId" value={contactId} /><FormSubmitButton label="Remove" pendingLabel="Removing…" className="button danger" disabled={viewOnly} /></form></ConfirmDialog>}
+            </>}
           </div></ClosesOnSubmit>
           {row.workIds.length > 0 && <div className="contact-mix-work">
             <h3>Journey work</h3>
@@ -81,7 +88,7 @@ export function ContactMixes({ contactId, contactName, rows, displayPreferences,
           </div>}
         </Sheet>
       </li>;
-    })}</ul> : <p className="contact-empty-copy">Not in a Mix yet.</p>}
+    })}</ul></div>; }) : <p className="contact-empty-copy">Not in a Mix yet.</p>}
     {addControl}
   </section>;
 }
