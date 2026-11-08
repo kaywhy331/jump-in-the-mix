@@ -32,14 +32,14 @@ export default function TemplatesPage() {
     <section className="template-hub" aria-labelledby="template-pages-title">
       <h2 id="template-pages-title">Templates by situation</h2>
       <div className="relationship-use-cases">
-        {TEMPLATE_PAGES.map(item => <article key={item.href}><span className="relationship-icon"><AppIcon name={item.icon} /></span><h3><Link href={item.href}>{item.title}</Link></h3><p>{item.summary}</p><p className="relationship-example">{item.audience}</p></article>)}
+        {TEMPLATE_PAGES.map(item => <article key={item.href}><span className="relationship-icon"><AppIcon name={item.icon} /></span><h3><Link className="text-link" href={item.href}>{item.title}</Link></h3><p>{item.summary}</p><p className="relationship-example">{item.audience}</p></article>)}
       </div>
       <p className="public-article-note">More situations are added as their examples are reviewed. Nothing is published as a placeholder.</p>
     </section>
     <section aria-labelledby="routes-title">
       <h2 id="routes-title">Follow-up plans by profession</h2>
       <p>Each page opens the demo with that profession’s own situations, so you can see the follow-up before you read the template.</p>
-      <ul>{PERSONAS.map(item => <li key={item.id}><Link href={`/for/${item.slug}`}>{item.navLabel}</Link>: {ROUTE_LINES[item.id]}</li>)}</ul>
+      <ul>{PERSONAS.map(item => <li key={item.id}><Link className="text-link" href={`/for/${item.slug}`}>{item.navLabel}</Link>: {ROUTE_LINES[item.id]}</li>)}</ul>
     </section>
     <section className="public-article-cta" aria-labelledby="hub-cta-title">
       <h2 id="hub-cta-title">Ready to put one follow-up in the mix?</h2>

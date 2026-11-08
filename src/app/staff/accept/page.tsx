@@ -18,7 +18,7 @@ export default async function AcceptStaffPage({ searchParams }: { searchParams: 
   return <main className="auth-shell"><section className="auth-card"><Logo />
     <h1>Set up your staff access</h1>
     {error && <Notice type="error">{error}</Notice>}
-    {!invitation ? <><p>This invitation is unavailable. Ask a Jump in the Mix Owner for a new invitation or access to your existing account.</p><Link href="/login">Sign in to an existing account</Link></> : <>
+    {!invitation ? <><p>This invitation is unavailable. Ask a Jump in the Mix Owner for a new invitation or access to your existing account.</p><Link className="text-link" href="/login">Sign in to an existing account</Link></> : <>
       <p>You’ve been invited as {invitation.role.toLowerCase()}. Create your staff account, then set up an authenticator to open the admin tools.</p>
       <details><summary>Review the access offered</summary><ul>{effectiveAdminPermissions({ ...invitation, status: "ACTIVE" }).map(permission => <li key={permission}>{ADMIN_PERMISSIONS[permission]}</li>)}</ul></details>
       <p>Invitation expires {invitation.expiresAt.toISOString().slice(0, 16).replace("T", " ")} UTC.</p>
@@ -31,7 +31,7 @@ export default async function AcceptStaffPage({ searchParams }: { searchParams: 
         <button className="button primary" type="submit">Create staff account</button>
       </form>
       <p>Already have an account? Ask an Owner to add staff access to that verified account.</p>
-      <Link href="/waitlist/leave">Stop invitation emails</Link>
+      <Link className="text-link" href="/waitlist/leave">Stop invitation emails</Link>
     </>}
   </section></main>;
 }
