@@ -1,6 +1,8 @@
 import { createHash, randomUUID } from "node:crypto";
 import { expect, test, type Locator, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
+import { applyRenderedTheme } from "./theme-fixture";
+import { axeInPage } from "./axe-in-page";
 
 // One person's follow-ups due the same day share one card on Today, which names the other one ("also due") and offers
 // to skip the earlier one; each keeps its own review, outcome and Undo (D71, JITM-09 §2.82). Rows say the reason, then
@@ -401,10 +403,14 @@ test("a row says the reason, then the Mix, on one line; a one-time follow-up nev
   await page.goto("/jumps"); await ready(page);
   const lead = card(page, id.gwenText);
   expect(await metaParts(lead)).toEqual(["Referral follow-up", "Estimate follow-up"]);
+  await expect(lead.locator(".jump-task-line")).toHaveText("Text · Beat: Check in");
+  await expect(card(page, id.gwenCall).locator(".jump-task-line")).toHaveText("Call · Beat: Call");
   expect(await lead.locator(".jump-meta > span").nth(1).evaluate(element => getComputedStyle(element, "::before").content)).toBe('" · "');
   expect(await lead.locator(".jump-meta").evaluate(element => getComputedStyle(element).whiteSpace)).toBe("nowrap");
   expect(await metaParts(card(page, id.pat))).toEqual(["Check in", "Estimate follow-up"]);
+  await expect(card(page, id.pat).locator(".jump-task-line")).toHaveText("Text · Beat: Check in");
   expect(await metaParts(card(page, id.una))).toEqual(["Bring the paint samples"]);
+  await expect(card(page, id.una).locator(".jump-task-line")).toHaveText("Text · One-time follow-up");
   await expect(page.getByText("One-time follow-ups")).toHaveCount(0);
   // The review gives the reason under the Mix name; a one-time follow-up's review leads with its reason.
   await lead.getByRole("button", { name: "Review message for Gwen Group: Text, 1 day overdue", exact: true }).click();
@@ -416,4 +422,61 @@ test("a row says the reason, then the Mix, on one line; a one-time follow-up nev
   const unaReview = card(page, id.una).locator(".follow-up-review-sheet[open]");
   await expect(unaReview.locator(".review-mix-name")).toHaveText("Bring the paint samples");
   await expect(unaReview.locator(".review-reason")).toHaveCount(0);
+});
+
+test("work categories and real task lines remain usable at 320px with 200% text", async ({ page }, testInfo) => {
+  const contactId = (await prisma.jump.findUniqueOrThrow({ where: { id: id.gwenText }, select: { contactId: true } })).contactId;
+  const commitment = await prisma.contactRelationshipState.create({ data: { workspaceId, contactId, nextCommitmentAt: new Date(midnight.getTime() - 86_400_000) } });
+  const appointment = await prisma.calendarEntry.create({ data: { workspaceId, contactId, kind: "MEETING", title: "Estimate visit", startsAt: new Date(midnight.getTime() + 2 * 86_400_000), endsAt: new Date(midnight.getTime() + 2 * 86_400_000 + 3_600_000), timezone: "UTC" } });
+  try {
+    await page.setViewportSize({ width: 320, height: 844 });
+    await page.goto("/jumps"); await ready(page);
+    await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+    const categories = page.getByRole("list", { name: "Work categories" });
+    await expect(categories.locator("li")).toHaveText(["Overdue · 2", "Due today · 3", "Needs your input · 1", "Upcoming · 1"]);
+    expect((await categories.boundingBox())!.width).toBeGreaterThan(240);
+    await expect(gwen(page)).toHaveCount(1);
+    const attention = page.locator("#needs-your-input .contact-method-row");
+    await expect(attention).toContainText("Gwen Group");
+    await expect(attention).toContainText("Review commitment · Your next commitment · Check the commitment you saved.");
+    await expect(attention).toContainText("1 day late");
+    await expect(page.locator('[data-today-section="upcoming"]')).toContainText("View appointment · Estimate visit");
+    const done = page.locator("details.today-queue-group").filter({ has: page.locator("summary", { hasText: /^Done/ }) });
+    await expect(done).not.toHaveAttribute("open");
+    for (const theme of ["light", "dark"] as const) {
+      await applyRenderedTheme(page, theme);
+      await page.evaluate(() => document.fonts.ready);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
+      for (const line of [categories, card(page, id.gwenText).locator(".jump-task-line"), card(page, id.gwenCall).locator(".jump-task-line")]) {
+        await expect(line).toBeVisible();
+        expect(await line.evaluate(element => element.scrollWidth <= element.clientWidth + 1)).toBe(true);
+      }
+      const action = attention.getByRole("link", { name: "Review commitment", exact: true });
+      await action.focus();
+      await expect(action).toBeFocused();
+      expect(await action.evaluate(element => getComputedStyle(element).outlineStyle)).not.toBe("none");
+      const box = (await action.boundingBox())!;
+      expect(box.width).toBeGreaterThanOrEqual(44);
+      expect(box.height).toBeGreaterThanOrEqual(44);
+      expect((await axeInPage(page).include(".today-work-categories").include("#needs-your-input").withTags(["wcag2a", "wcag2aa"]).analyze()).violations).toEqual([]);
+      await page.screenshot({ path: `.artifacts/m5s4-ui/${testInfo.project.name}-${theme}-320-text200.png`, fullPage: true });
+    }
+    // A real outcome and Undo update categories along with the established headline counts.
+    await card(page, id.gwenText).getByRole("button", { name: /^Review message for Gwen Group/ }).click();
+    await record(page, openReview(page).getByRole("button", { name: "Skip Beat", exact: true }), id.gwenText);
+    await expect(categories.locator("li")).toHaveText(["Overdue · 1", "Due today · 3", "Needs your input · 1", "Upcoming · 1"]);
+    await page.locator(`[data-follow-up-undo][data-jump-workflow="${id.gwenText}"]`).getByRole("button", { name: "Undo", exact: true }).click();
+    await expect(categories.locator("li")).toHaveText(["Overdue · 2", "Due today · 3", "Needs your input · 1", "Upcoming · 1"]);
+    await prisma.calendarEntry.deleteMany({ where: { id: appointment.id } });
+    await prisma.contactRelationshipState.deleteMany({ where: { id: commitment.id } });
+    await prisma.jump.updateMany({ where: { id: { in: all } }, data: { status: "CANCELED" } });
+    await page.goto("/jumps"); await ready(page);
+    await expect(page.getByRole("list", { name: "Work categories" })).toHaveCount(0);
+    await expect(page.locator('[data-today-section="upcoming"]')).not.toHaveAttribute("open");
+    await expect(done).not.toHaveAttribute("open");
+  } finally {
+    await prisma.calendarEntry.deleteMany({ where: { id: appointment.id } });
+    await prisma.contactRelationshipState.deleteMany({ where: { id: commitment.id } });
+    await prisma.jump.updateMany({ where: { id: { in: all } }, data: { status: "PENDING", completedAt: null, completionMethod: null } });
+  }
 });
