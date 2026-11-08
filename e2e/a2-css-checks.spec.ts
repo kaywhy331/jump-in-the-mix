@@ -118,6 +118,9 @@ test("with nothing due or done, Today's link to completed follow-ups is a full-h
     for (const viewport of [phone, { width: 1440, height: 900 }]) {
       await page.setViewportSize(viewport);
       await page.goto("/jumps");
+      const done = page.locator("details.today-queue-group").filter({ has: page.locator("summary", { hasText: /^Done/ }) });
+      await expect(done).not.toHaveAttribute("open");
+      await done.locator("summary").click();
       const link = page.getByRole("link", { name: "View completed follow-ups", exact: true });
       await expect(link).toBeVisible();
       expect(Math.round((await link.boundingBox())!.height)).toBeGreaterThanOrEqual(44);
