@@ -6,6 +6,9 @@
 .situation select { flex: 1; width: 0; }
 .situation > span { font-size: .8125rem; }
 .situation select { min-height: 44px; font-size: .875rem; }
+@media (width < 768px) {
+  .situation select { font-size: var(--font-size-md); }
+}
 .workspace { min-width: 0; }
 .today { display: flex; justify-content: space-between; align-items: center; gap: 12px; padding-block: 8px; border-block: 1px solid var(--line); }
 .today > span:first-child { display: flex; align-items: center; gap: 8px; font-weight: 700; }

@@ -140,6 +140,9 @@
 .calendar-title input:focus { border-color: var(--border); }
 .calendar-entry-fields > .calendar-kind { grid-column: 2; align-self: start; }
 .calendar-kind select { border: 0; border-radius: 24px; font-size: .8125rem; width: 128px; }
+@media (width < 768px) {
+  .calendar-kind select { font-size: var(--font-size-md); }
+}
 .calendar-entry-form .calendar-form-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 8px 16px; margin: 0; padding-block: 14px; border-top: 1px solid var(--line); }
 .calendar-form-row > span:first-child { color: var(--text-2); font-size: .875rem; font-weight: 500; }
 .calendar-form-row > input, .calendar-form-row > select { background: transparent; }
