@@ -250,6 +250,10 @@
 
 .sending-options { min-width: 0; margin: 0; padding: 0; border: 0; display: grid; gap: 18px; }
 .sending-options > .button { justify-self: start; }
+.sending-settings-page .sending-options > .button { max-width: 100%; min-width: 0; overflow-wrap: anywhere; }
+.sending-settings-page .sending-options .checkbox-card { align-items: flex-start; }
+.sending-settings-page .sending-options .checkbox-card > input { flex: none; }
+.sending-settings-page .sending-options .checkbox-card > span { display: grid; gap: 4px; min-width: 0; overflow-wrap: anywhere; }
 .sending-status { border-inline-start: 3px solid var(--brand); }
 .sending-status h2 { margin-bottom: 8px; }
 .sending-status p { max-width: 65ch; color: var(--muted); }

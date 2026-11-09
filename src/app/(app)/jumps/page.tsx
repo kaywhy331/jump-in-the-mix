@@ -51,7 +51,7 @@ import { planLimits, recentPlanLimitSkips } from "@/lib/plan-limits";
 import { readPreparationStatus } from "@/lib/preparation";
 import { snoozeJumpAction } from "@/lib/snooze-actions";
 import { snoozeChoices, type SnoozePreset } from "@/lib/snooze-schedule";
-import { LiveAttentionSummary, LiveCount, TodayDueSections, TodayLiveCounts, TodayMomentum } from "@/components/TodayMomentum";
+import { LiveAttentionSummary, LiveCount, LiveWorkCategories, TodayDueSections, TodayLiveCounts, TodayMomentum } from "@/components/TodayMomentum";
 import { AlsoDueNote, ContactedToday, WhileAlsoDue } from "@/components/AlsoDue";
 import { TODAY_PAGE_SIZE, followUpPhone, parseTodayCursor, readAlsoDueElsewhere, readTodayPage } from "@/lib/today-list";
 import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice, groupDueFollowUps } from "@/lib/today-view";
@@ -464,6 +464,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           <div className="jump-card-main"><span className="person-initials jump-person-avatar" aria-hidden="true">{followUp.contact.displayName.split(/\s+/).filter(Boolean).slice(0, 2).map(part => part[0]).join("")}</span>
             {isNext && <span className="eyebrow">Next up</span>}
             <div className="jump-card-heading"><h3>{followUp.contact.displayName}</h3><span title={dueLabel} className={isPending && followUp.scheduledAt < startToday ? "due-pill overdue" : "due-pill"}>{isPending && followUp.scheduledAt >= startToday && followUp.scheduledAt < endToday ? timeToday(followUp.scheduledAt) : dueLabel}</span><span className="channel-pill">{channelName(followUpChannel)}</span></div>
+            <p className="jump-task-line">{channelName(followUpChannel)} · {followUp.mix.source === "ONE_TIME" ? "One-time follow-up" : `Beat: ${followUp.stepVersion.stepTemplate.name}`}</p>
             <div className="jump-meta">{!isPending && followUp.completedAt && <JumpStampEditor jumpId={followUp.id} completedAt={followUp.completedAt.toISOString()} label={formatDateTime(followUp.completedAt, displayPreferences)} />}{failure && <span className="jump-delivery-failed" data-delivery-failed={failure.kind}><AppIcon name="alert" />{failure.kind === "uncertain" ? "Send not confirmed" : "Automatic send failed"}</span>}{reason && <span>{reason}</span>}{mixShown && <span>{followUp.mix.name}</span>}</div>
             <p className="jump-snippet">{snippet}</p>
             {otherIds.length > 0 && <p className="jump-also-due-row">Also due: {alsoDueLabel(followUp)}</p>}
@@ -544,7 +545,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
-      <TodayLiveCounts nextActions={filteredNextActions} dueGroups={dueGroups} readAt={now.toISOString()} overdue={overdueCount} doneCounts={doneCounts} zero={zeroLine} initial={{ overdue: overdueCount - movedOverdue, today: attentionCount - overdueCount + movedOverdue, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
+      <TodayLiveCounts nextActions={filteredNextActions} categoryActions={plainDueView ? nextActions : filteredNextActions} dueGroups={dueGroups} readAt={now.toISOString()} overdue={overdueCount} doneCounts={doneCounts} zero={zeroLine} initial={{ overdue: overdueCount - movedOverdue, today: attentionCount - overdueCount + movedOverdue, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
       <TodayMomentum />
       <JumpReturnTray />
       <MixEndPrompt mixes={startableMixes} todayKey={logicalDateKey(logicalDateInTimezone(new Date(), timezone))} address={JSON.stringify(params)} viewOnly={Boolean(impersonation)} />
@@ -583,6 +584,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
           {activeFilterCount > 0 && <TodayLink className="button" href="/jumps">Clear filters</TodayLink>}
         </Sheet></div>
       </header>
+      <LiveWorkCategories locale={displayPreferences.locale} />
 
       <NeedsReviewLink today count={nextActions.state === "unavailable" ? null : nextActions.items.filter(item => item.kind === "intake-review").length} />
       <NextActionSummary projection={plainDueView ? nextActions : filteredNextActions} displayPreferences={displayPreferences} today retryHref={firstHref} emptyLabel={plainDueView ? undefined : "Nothing matches this view."} />
@@ -603,7 +605,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       <QuietDaySuggestions locale={displayPreferences.locale} initial={quietDays} canResolve={!impersonation} compact />
       {noMixCount > 0 && <p className="today-no-mix-line"><AppIcon name="people" /><span>{noMixTodayLine(noMixCount)}</span><Link href="/contacts?mix=no-mix">Review</Link></p>}
       <details className="today-queue-group" data-today-section="upcoming" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Next 7 days" : "Upcoming"} <span><LiveCount name="upcoming" /></span></summary><UpcomingWorkflowCommitments viewHref={firstHref} attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(followUp => renderCard(followUp))}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
-      <details className="today-queue-group" open={status === "done" || status === "skipped" || pendingCount === 0 || undefined}><summary>Done <span><LiveCount name="done" /></span></summary>{completed.length ? <div className="jump-list">{completed.map(followUp => renderCard(followUp))}</div> : <TodayLink className="today-queue-link" href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
+      <details className="today-queue-group" open={completed.length > 0 && (status === "done" || status === "skipped" || pendingCount === 0) || undefined}><summary>Done <span><LiveCount name="done" /></span></summary>{completed.length ? <div className="jump-list">{completed.map(followUp => renderCard(followUp))}</div> : <TodayLink className="today-queue-link" href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
       {totalCount > 0 && <nav className="pagination-bar today-pagination" aria-label="Follow-up pages">
         <span role="status">Showing {ordered.length} of {totalCount.toLocaleString()} follow-up{totalCount === 1 ? "" : "s"} in this view.</span>
         <div className="page-actions">

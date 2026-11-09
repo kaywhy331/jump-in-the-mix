@@ -2,13 +2,14 @@
 import { useEffect, useRef, useState } from "react";
 import { channelName, zoneLabel } from "@/lib/display-labels";
 import { formatDateTime } from "@/lib/format";
+import { DEFAULT_AUTOMATIC_DELIVERY_WINDOW } from "@/lib/automatic-delivery-window-options";
 type Preview = { count: number; page: number; pages: number; timezone: string; observedAt: string; items: Array<{ id: string; name: string; reason: string; channel: string; recipient: string | null; earliestAt: string | null; blockedReason?: string | null }> };
 export function AutomaticSendPreview({ locale = "en-US" }: { locale?: string }) {
   const requestVersion = useRef(0);
   const marker = useRef<HTMLDivElement>(null); const [query, setQuery] = useState(""); const [enabled, setEnabled] = useState(false); const [data, setData] = useState<Preview | null>(null); const [error, setError] = useState(""); const [busy, setBusy] = useState(false); const [reviewed, setReviewed] = useState(false);
   useEffect(() => {
     const form = marker.current?.closest("form"); if (!form) return;
-    const changed = (event?: Event) => { if (event?.target instanceof HTMLElement && marker.current?.contains(event.target)) return; const values = new FormData(form); setEnabled(values.get("automationEnabled") === "on"); setQuery(new URLSearchParams({ email: values.get("automationEmailEnabled") === "on" ? "1" : "0", sms: values.get("automationSmsEnabled") === "on" ? "1" : "0", minutes: String(values.get("reviewWindowMinutes") ?? 30) }).toString()); requestVersion.current += 1; setBusy(false); setData(null); setReviewed(false); };
+    const changed = (event?: Event) => { if (event?.target instanceof HTMLElement && marker.current?.contains(event.target)) return; const values = new FormData(form); setEnabled(values.get("automationEnabled") === "on"); setQuery(new URLSearchParams({ email: values.get("automationEmailEnabled") === "on" ? "1" : "0", sms: values.get("automationSmsEnabled") === "on" ? "1" : "0", minutes: String(values.get("reviewWindowMinutes") ?? DEFAULT_AUTOMATIC_DELIVERY_WINDOW) }).toString()); requestVersion.current += 1; setBusy(false); setData(null); setReviewed(false); };
     changed(); form.addEventListener("change", changed); return () => { requestVersion.current += 1; form.removeEventListener("change", changed); };
   }, []);
   const preview = async (page = 1) => { const version = ++requestVersion.current; setBusy(true); setError(""); try { const response = await fetch(`/api/settings/sending-preview?${query}&page=${page}`); const value = await response.json(); if (!response.ok) throw new Error(value.error); if (version === requestVersion.current) setData(value); } catch (cause) { if (version === requestVersion.current) setError(cause instanceof Error ? cause.message : "The sending queue could not be reviewed."); } finally { if (version === requestVersion.current) setBusy(false); } };

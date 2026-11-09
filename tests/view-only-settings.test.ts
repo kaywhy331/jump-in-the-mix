@@ -46,11 +46,13 @@ describe("settings during a view-only support session", () => {
   it("Sending shows the notice, keeps the queue preview usable and disables saving", async () => {
     const owner = renderToStaticMarkup(await SendingSettingsPage(noSearch));
     expect(owner).not.toContain(VIEW_ONLY_SETTINGS_MESSAGE);
+    expect(owner).toContain('<details class="card"><summary>Configure automatic sending</summary>');
     expect(disabled(button(owner, "Save automatic sending"))).toBe(false);
 
     state.impersonation = { id: "support-view" };
     const view = renderToStaticMarkup(await SendingSettingsPage(noSearch));
     expect(view).toContain(VIEW_ONLY_SETTINGS_MESSAGE);
+    expect(view).toContain('<details class="card"><summary>Configure automatic sending</summary>');
     expect(disabled(button(view, "Save automatic sending"))).toBe(true);
     expect(disabled(button(view, "Preview affected messages"))).toBe(false);
     expect(view).toMatch(/<fieldset class="sending-options">/);

@@ -479,6 +479,9 @@
 /* A row says what the follow-up is about on one line: its reason, then its Mix (TDY-02). A completed row's time
    editor opens in that line, so completed rows still wrap. The review gives the reason under the Mix name. Only
    Today's rows join their parts with " · ". */
+.today-work-categories { display: flex; flex-wrap: wrap; gap: 4px 16px; padding: 0; margin: 8px 0; list-style: none; color: var(--text-2); font-size: .875rem; }
+.today-work-categories li { min-width: 0; overflow-wrap: anywhere; }
+.jump-task-line { margin: 2px 0; color: var(--text-2); font-size: .875rem; overflow-wrap: anywhere; }
 .today-page .jump-task-card:not(.jump-task-complete) .jump-meta { display: block; overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }
 .today-page .jump-meta > span + span::before { content: " · "; }
 .review-reason, .review-also-due { margin: 2px 0 0; color: var(--text-2); font-size: .8125rem; }

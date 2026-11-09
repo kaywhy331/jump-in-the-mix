@@ -7,7 +7,7 @@ import { randomBytes, createHash } from 'node:crypto';
 import { Providers } from './providers.mjs';
 import { settings } from './settings.mjs';
 import { GitLedger, assertNoUnresolved } from '../ledger.mjs';
-import { performOperation, requiredChecks, checkReceipt } from '../workflow.mjs';
+import { performOperation, requiredChecks, checkReceipt, buildStartCommand } from '../workflow.mjs';
 import { awsStub } from './aws-stub.mjs';
 
 const candidate='a'.repeat(40),previous='b'.repeat(40);
@@ -27,12 +27,12 @@ function fixture(fault,executeJob=async()=>({code:0,stdout:'receipt\n'})) {
   const request={operation_id:'1.1.preflight',candidate_sha:candidate,step:'preflight',render_deploy_id:null,status:'requested',
     evidence:{operation_kind:'job',service_id:settings.operator},at:new Date().toISOString()};
   const context={operation_id:request.operation_id,candidate_sha:candidate};
-  const startCommand=`JITM_RELEASE_CONTEXT=${Buffer.from(JSON.stringify(context)).toString('base64')} ${config.jobs.preflight.command}`;
+  const startCommand=buildStartCommand(context,config.jobs.preflight.command);
   const invoke=async()=>{
     const response=await provider.fetch(`${settings.renderOrigin}/services/${settings.operator}/jobs`,{method:'POST',body:JSON.stringify({startCommand})});
     return response.json();
   };
-  return {provider,ledger,request,invoke};
+  return {provider,ledger,request,invoke,startCommand};
 }
 
 test('GitHub ref stub persists the real ledger and refuses a sibling ref update',async()=>{
@@ -60,6 +60,15 @@ test('accepted job response loss stays unresolved and prevents a second request'
 test('provider refuses a job without the write-ahead entry and any unknown origin',async()=>{
   const {provider,invoke}=fixture();await assert.rejects(invoke);
   await assert.rejects(provider.fetch('https://example.invalid/services/synthetic/jobs'));
+});
+
+test('provider refuses the old assignment-first command even with write-ahead evidence',async()=>{
+  const {provider,ledger,request,startCommand}=fixture();
+  await ledger.append(request);
+  await assert.rejects(provider.fetch(`${settings.renderOrigin}/services/${settings.operator}/jobs`,{
+    method:'POST',body:JSON.stringify({startCommand:startCommand.slice('env '.length)}),
+  }));
+  assert.equal(provider.jobs.size,0);
 });
 
 test('successful transport job returns one bound receipt through logs',async()=>{

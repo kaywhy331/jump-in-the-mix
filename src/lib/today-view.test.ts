@@ -1,8 +1,49 @@
 import { describe, expect, it } from "vitest";
 import { zonedDateTimeToUtc } from "@/lib/jump-schedule";
 import { calendarDaysOverdue, doneGrowth, doneSummaryCount, failedDeliveryNotice, groupDueFollowUps } from "@/lib/today-view";
+import { todayWorkCategories } from "@/lib/today-work-categories";
+import { resolveNextActions, withoutSettledActions, type NextActionCandidate } from "@/lib/next-action";
 
 const NEW_YORK = "America/New_York";
+
+describe("Today work categories", () => {
+  const now = new Date("2026-11-07T12:00:00Z");
+  const options = { now, timeZone: "UTC" };
+  const counts = { overdue: 0, today: 2, upcoming: 0 };
+  const obligation = (id: string, kind: NextActionCandidate["kind"], dueAt: string | null): NextActionCandidate => ({
+    id, kind, dueAt, contactId: "same-person", contactName: "Avery", title: "Estimate", detail: "Review", action: "Review", href: "/jumps", updatedAt: now.toISOString(), ...(kind === "follow-up" ? { jumpId: id } : {})
+  });
+
+  it("shows a shared person card once but counts every distinct obligation", () => {
+    const late = obligation("late", "follow-up", "2026-11-06T12:00:00Z");
+    const today = obligation("today", "follow-up", "2026-11-07T14:00:00Z");
+    const grouped = groupDueFollowUps([late, today].map(item => ({ ...item, contactId: item.contactId!, scheduledAt: new Date(item.dueAt!) })), new Date("2026-11-07T00:00:00Z"));
+    expect(grouped.today).toHaveLength(1);
+    expect(grouped.today[0]).toHaveLength(2);
+    const projection = resolveNextActions([late, today, obligation("decision-1", "outcome", null), obligation("decision-2", "outcome", null), obligation("future", "commitment", "2026-11-08T12:00:00Z"), late], options);
+    expect(todayWorkCategories(counts, 1, projection)).toEqual([
+      { label: "Overdue", count: 1 }, { label: "Due today", count: 1 }, { label: "Needs your input", count: 2 }, { label: "Upcoming", count: 1 }
+    ]);
+    expect(todayWorkCategories(counts, 1, projection).reduce((sum, item) => sum + item.count, 0)).toBe(projection.items.length);
+  });
+
+  it("counts a repair replacing a follow-up once and keeps dated input work in its queue", () => {
+    const followUp = obligation("blocked", "follow-up", "2026-11-08T12:00:00Z");
+    const projection = resolveNextActions([followUp, { ...followUp, kind: "repair", dueAt: null }, obligation("callback", "commitment", "2026-11-06T12:00:00Z")], options);
+    expect(todayWorkCategories(counts, 0, projection)).toEqual([{ label: "Needs your input", count: 2 }]);
+  });
+
+  it("omits zeros, removes completed obligations at once, and restores them on Undo", () => {
+    const projection = resolveNextActions([obligation("today", "follow-up", "2026-11-07T14:00:00Z")], options);
+    expect(todayWorkCategories(counts, 0, withoutSettledActions(projection, new Set(["today"])))).toEqual([]);
+    expect(todayWorkCategories(counts, 0, withoutSettledActions(projection, new Set()))).toEqual([{ label: "Due today", count: 1 }]);
+    expect(todayWorkCategories(counts, 0, { ...projection, state: "unavailable" })).toEqual([]);
+  });
+
+  it("uses ungrouped overdue counts when only the legacy live totals are available", () => {
+    expect(todayWorkCategories(counts, 1)).toEqual([{ label: "Overdue", count: 1 }, { label: "Due today", count: 1 }]);
+  });
+});
 
 /** The page's former arithmetic: elapsed milliseconds since the start of today, rounded down, plus one. */
 function elapsedDaysOverdue(scheduledAt: Date, startToday: Date): number {

@@ -1,3 +1,4 @@
+import { isAutomaticDeliveryWindowChoice } from "@/lib/automatic-delivery-window-options";
 import { NextResponse } from "next/server";
 import { getCurrentSession } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -33,7 +34,7 @@ export async function GET(request: Request) {
   if (!workspaceId) return NextResponse.json({ error: "Sign in again to review sending." }, { status: 401, headers });
   const query = new URL(request.url).searchParams;
   const minutes = Number(query.get("minutes"));
-  if (![15, 30, 60, 240, 1440].includes(minutes)) return NextResponse.json({ error: "Choose a listed review window." }, { status: 400, headers });
+  if (!isAutomaticDeliveryWindowChoice(minutes)) return NextResponse.json({ error: "Choose a listed review window." }, { status: 400, headers });
   const channels: Channel[] = [...(query.get("email") === "1" ? ["EMAIL" as const] : []), ...(query.get("sms") === "1" ? ["SMS" as const] : [])];
   const now = new Date(); const horizon = new Date(now.getTime() + 24 * 3600_000);
   const latestBase = new Date(horizon.getTime() - minutes * 60_000);

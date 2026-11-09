@@ -56,9 +56,9 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
         {textInvitation && <label className="field"><span>Confirm email</span><input name="confirmEmail" type="email" autoComplete="off" maxLength={254} required /></label>}
         <label className="field"><span>Password</span><PasswordInput aria-label="Password" name="password"  autoComplete="new-password" minLength={12} maxLength={72} required /><small>Use at least 12 characters.</small></label>
         <FormSubmitButton label="Create free account" pendingLabel="Please wait…" />
-      </ActionForm><p>Already have an account? <Link href="/login">Sign in</Link>.</p>
+      </ActionForm><p>Already have an account? <Link className="text-link" href="/login">Sign in</Link>.</p>
     </>}
-    <p><Link href="/contact">Get help with an invitation or account</Link>.</p>
+    <p><Link className="text-link" href="/contact">Get help with an invitation or account</Link>.</p>
     <PublicTrustLinks />
   </section></main>;
 }
