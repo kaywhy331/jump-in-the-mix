@@ -1,3 +1,4 @@
+import { DemoNote } from "@/components/DemoNote";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CopyText } from "@/components/CopyText";
@@ -45,7 +46,7 @@ export default function EstimateFollowUpPage() {
       <h2 id="cta-title">Make “I’ll follow up” a plan</h2>
       <p>Jump in the Mix keeps the next check-in on your list and brings the draft back when it’s due. You still decide what to say and whether to send it.</p>
       <Link className="button primary" href="/for/contractors#sample">Try this estimate follow-up plan</Link>
-      <small>A fictional contact and editable drafts. The demo sends nothing itself. If you choose to open the draft in your own text, email or phone app, the recipient is a non-working example and you decide whether to send or call.</small>
+      <DemoNote />
     </section>
     <nav className="public-article-related" aria-labelledby="related-title">
       <h2 id="related-title">Related</h2>

@@ -1,3 +1,4 @@
+import { DemoNote } from "@/components/DemoNote";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CopyText } from "@/components/CopyText";
@@ -40,7 +41,7 @@ export default function ProposalFollowUpPage() {
       <h2 id="cta-title">Give the proposal a next step</h2>
       <p>Keep proposal follow-ups and past-client check-ins on a plan while you deliver current work. Review each draft and send it yourself.</p>
       <Link className="button primary" href="/for/consultants#sample">Try this proposal follow-up plan</Link>
-      <small>Preview a fictional contact and an editable draft. Nothing goes out unless you open your own email app and send it.</small>
+      <DemoNote />
     </section>
     <nav className="public-article-related" aria-labelledby="related-title">
       <h2 id="related-title">Related</h2>

@@ -100,8 +100,8 @@ test("each Beat hands the exact edited text to its native link; repeats only req
   const sms = demo.getByRole("link", { name: "Open text", exact: true });
   await expect(sms).toHaveAttribute("href", `sms:+12025550142?body=${encodeURIComponent(`${MARKER}\n\nHi Alex & co, 100% ready?\nSecond line`)}`);
   const href = await sms.getAttribute("href");
-  await sms.click();
-  await sms.click();
+  // Repeat before the outcome prompt: separate awaited clicks can wait through mobile smooth scrolling.
+  await sms.dblclick();
   await expect(demo.getByRole("button", { name: "Sent", exact: true })).toBeVisible();
   await expect(demo.getByText("Today’s Beat done", { exact: true })).toHaveCount(0);
   const clicks = await nativeClicks(page);

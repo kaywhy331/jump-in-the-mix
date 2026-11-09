@@ -5,7 +5,7 @@ test("profession access links carry the demonstrated short example", async ({ pa
   // The consulting demo opens on its first situation (now "Proposal sent"); the waitlist links carry that example.
   const scenario = `consulting~${demoSituations("consulting")[0].id}`;
   await page.goto("/for/consultants");
-  await expect(page.locator("#sample textarea")).toBeEnabled();
+  await expect(page.locator("#sample textarea:visible")).toBeEnabled();
   await expect(page.locator("#sample")).toHaveAttribute("data-marketing-scenario", scenario);
   const links = page.getByRole("link", { name: /Join the waitlist/ });
   expect(await links.count()).toBeGreaterThan(0);

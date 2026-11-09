@@ -1,3 +1,4 @@
+import { DemoNote } from "@/components/DemoNote";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { AppIcon } from "@/components/AppIcon";
@@ -45,7 +46,7 @@ export default function TemplatesPage() {
       <h2 id="hub-cta-title">Ready to put one follow-up in the mix?</h2>
       <p>Start with a sample conversation. See how a Mix turns “I’ll check back” into a planned next step.</p>
       <Link className="button primary" href="/#sample">Try the demo</Link>
-      <small>A fictional contact and editable drafts. The demo sends nothing itself. If you choose to open the draft in your own text, email or phone app, the recipient is a non-working example and you decide whether to send or call.</small>
+      <DemoNote />
     </section>
   </PublicArticle>;
 }

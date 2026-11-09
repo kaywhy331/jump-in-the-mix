@@ -45,7 +45,7 @@ test("sample link, signup paths, FAQ, and public accessibility work in both them
     await page.goto("/");
     await expect(page.getByRole("heading", { name: "You meant to follow up. Then work happened." })).toBeVisible();
     await page.getByRole("link", { name: "Try the demo", exact: false }).click();
-    await expect(page.locator("#sample textarea")).toBeFocused();
+    await expect(page.locator("#sample textarea:visible")).toBeFocused();
     await expect(page.locator(".public-faq")).toHaveCount(0);
     expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
     // The questions live on their own page; the header link is hidden on phones, the footer link is not.
@@ -89,8 +89,8 @@ test("conversion hooks record engagement without claiming a send or collecting d
   });
   await page.goto("/");
   // Demo controls are disabled until hydration; the adapter attaches in the same commit.
-  await expect(page.locator("#sample textarea")).toBeEnabled();
-  await page.locator("#sample textarea").fill("Private draft content must never reach analytics");
+  await expect(page.locator("#sample textarea:visible")).toBeEnabled();
+  await page.locator("#sample textarea:visible").fill("Private draft content must never reach analytics");
   await page.locator('#sample [data-demo-beat="email"]').click();
   await page.locator('.hero-actions a[href="/waitlist"]').click();
   await expect(page).toHaveURL(/\/waitlist$/);
