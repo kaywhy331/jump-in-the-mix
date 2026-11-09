@@ -2,12 +2,13 @@
 id: JITM-03
 title: Brand identity
 status: active
-version: 1.0.1
+version: 1.0.2
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-11-09
 applies_to: [brand, logo, icons, public-pages, app-shell, email, imagery]
 supersedes: []
 sources:
+  - docs/design/UX_AUDIT_2026-11-08.md
   - docs/BRAND_ASSETS.md
   - scripts/generate-brand-assets.mjs
   - assets/logo.png
@@ -139,12 +140,22 @@ Neighboring topics live elsewhere:
 
 ## 5. Verification
 
+- Check M-02/M-03 proposals against §6: palette/flat-card rules and existing illustrative-media permission are preserved; no new presentation is called owner-approved.
+
 - `git diff --stat assets/logo.png` is empty; derived files change only together with a run of `node scripts/generate-brand-assets.mjs` and a version bump.
 - `grep -rn "icon-source.svg" src` finds only the proxy allowlist entry.
 - Screenshots of the header in both themes show the mark with a transparent background and the live-text name (JITM-12 §2).
 - Any new image has a media-manifest row before it merges.
 
 ## 6. Open decisions and known deviations
+
+### Design audit 2026-11-08
+
+Recommend one speech-bubble signature composition and explicitly illustrative product captures (M-02/M-03), keeping the single violet, flat cards and existing imagery restrictions. These are presentation choices for Kevin through UXA-12, not a new brand rule. Product captures are already allowed by §2.19.
+
+Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
+
+- M-02, M-03 — UXA-12 (job_2719e5b51171).
 
 Open questions for Kevin:
 - Which sender identity should automatic customer email use when it returns (§2.23)?
@@ -162,3 +173,5 @@ Known deviations at 9439fd6:
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.9: the JM monogram is retired (D22).
+
+- 1.0.2 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. §6 records M-02/M-03 as presentation decisions, preserving existing brand rules and permitted fictional-data captures.

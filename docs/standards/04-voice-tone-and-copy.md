@@ -2,12 +2,13 @@
 id: JITM-04
 title: Voice, tone and copy
 status: active
-version: 1.1.0
+version: 1.2.0
 owner: Kevin
-last_reviewed: 2026-10-08
+last_reviewed: 2026-11-09
 applies_to: [copy, interface-text, email, help, public-pages, onboarding, ready-made-mixes, marketing, agents]
 supersedes: [docs/CANONICAL_PRODUCT_DECISIONS.md]
 sources:
+  - docs/design/UX_AUDIT_2026-11-08.md
   - docs/standards-audit-2026-09-28/OWNER_DECISIONS.md
   - docs/CANONICAL_PRODUCT_DECISIONS.md
   - docs/PRODUCT_AUDIT_2026-09-04.md
@@ -60,12 +61,12 @@ Neighboring topics live elsewhere:
 
 [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:38] [SOURCE docs/HOMEPAGE_COPY_AND_CLAIM_MATRIX_2026-09-10.md:35,39] [SOURCE assets/ICP - Painter Contractor - Marcus Reed.md:142,363] [SOURCE assets/Jump_in_the_Mix_Brand_Search_Conversion_Strategy.md:17]
 
-**2.2** Wordplay stays light: at most one expressive line per surface, never in controls or navigation labels. Mix and Beat are explained before copy relies on them (JITM-05 §2). Avoid "omnichannel orchestration", "supercharge your pipeline", "put relationships on autopilot", "blast", "dominate", "unlimited outreach", "AI knows who needs a nudge" and "never miss a beat" as an absolute claim. [SOURCE assets/Jump_in_the_Mix_Brand_Search_Conversion_Strategy.md:96-104] [SOURCE assets/ICP - Real Estate Agent - Maya Bennet.md:280] [SOURCE assets/ICP - Independent Operations Consultant - Daniel Mercer.md:381]
+**2.2** Wordplay stays light: at most one expressive line per surface, never in controls or navigation labels. Public copy MUST explain a product term on first use before relying on it, including Mix, Beat, Today, Mega-Mix, Marketplace, Journey and Quick Add; use the glossary (JITM-05 §2) without renaming terms. Avoid "omnichannel orchestration", "supercharge your pipeline", "put relationships on autopilot", "blast", "dominate", "unlimited outreach", "AI knows who needs a nudge" and "never miss a beat" as an absolute claim. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:17] [SHIPPED 5bc117b src/components/PublicCapabilities.tsx]
 
 ### Registers
 
 **2.3** Every string belongs to one of three registers:
-- **Interface text** (labels, buttons, notices, errors, empty states, Help): short and literal. Text, Email, Call, Save, Pause, Stop and Archive stay plain actions.
+- **Interface text** (labels, buttons, notices, errors, empty states, Help): short and literal. Text, Email, Call, Save, Pause, Stop and Archive stay plain actions. Labels MUST distinguish different effects with distinct literal verbs, and sibling surfaces MUST use the same label for the same intent; naming decisions still belong to JITM-05 and the owner. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:18]
 - **The owner's personal wording** (drafts, message previews, ready-made message wording, notes, Quick Add capture): written the way the owner would write to that person.
 - **Marketing** (public pages, metadata, waitlist and invitation email): names the category and the mechanism literally, shows a recognizable situation, states access truthfully, states boundaries and labels illustrations.
 
@@ -77,7 +78,7 @@ Neighboring topics live elsewhere:
 
 ### Microcopy
 
-**2.6** Copy MUST NOT explain implementation. Never mention workers, queues, jobs, database state or the other internal words in JITM-05 §2; describe the effect for the owner's business. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:121] [SOURCE docs/PRODUCT_AUDIT_2026-09-04.md:265-268]
+**2.6** Copy MUST NOT explain implementation. Never mention workers, queues, jobs, database state or the other internal words in JITM-05 §2; describe the effect for the owner's business. Ordinary editing and previews MUST show readable field chips instead of raw template delimiters or generated keys. A technical key, when needed for an integration, is available only through an explicitly requested Copy key action with its purpose explained. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:68] [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:121] [SOURCE docs/PRODUCT_AUDIT_2026-09-04.md:265-268]
 
 **2.7** A confirmation is one short notice that names what actually happened, with its day and time when something was scheduled: "Mix saved.", "Contact added. Their first follow-up is on Today for {time}." It MUST NOT confirm something that did not happen. [SHIPPED 9439fd6 src/components/MixWorkspace.tsx:79-80] [SHIPPED 9439fd6 src/components/ContactProfile.tsx:168] [SOURCE docs/BETA_BLOCKERS_RELEASE_2026-09-26.md:24] [SOURCE docs/BETA_READINESS_AUDIT_2026-09-26.md:45]
 
@@ -91,7 +92,7 @@ Neighboring topics live elsewhere:
 
 **2.12** Say "You're caught up." only in the state JITM-09 §2.25 defines. When a list could not be checked, say so ("Your next steps could not be checked."); unknown is not zero. [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:430]
 
-**2.13** An error says what happened, what is kept and what to do next: "You're signed out, so this wording isn't saved. Copy it, then sign in again." [SHIPPED 9439fd6 src/components/EditableFollowUpAction.tsx:65-68]
+**2.13** A failure banner MUST state the problem, retained entries and recovery once each, without duplicated reassurance. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:33] An error says what happened, what is kept and what to do next: "You're signed out, so this wording isn't saved. Copy it, then sign in again." [SHIPPED 9439fd6 src/components/EditableFollowUpAction.tsx:65-68]
 
 **2.14** Say why an option is unavailable in plain words, and name the fix when there is one: "Email: needs an email address", with an "Add …" link. How the option behaves is JITM-08 §2.6. [SOURCE docs/CHANNEL_VERSIONS_FOR_EVERY_BEAT_2026-09-23.md:15]
 
@@ -157,6 +158,8 @@ Neighboring topics live elsewhere:
 
 **2.38** Copy defaults to business wording. No "Personal connections" use option, no "people in my circle" or "your circle", and empty states name a business next step. Owners may still keep personal contacts; the product is not framed around them (JITM-02). [OWNER 2026-10-08 D85]
 
+**2.39** A page SHOULD state a repeated disclaimer once, beside the first relevant action, as one short sentence linking to the full explanation. At normal phone text size the CTA note SHOULD fit one line; let it wrap under narrow widths or enlarged text instead of clipping or shrinking it. Do not remove a consequential qualification from the claim it qualifies (§2.26–§2.28). [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:20]
+
 ## 3. Canonical implementations
 
 - `src/components/EmptyState.tsx`: one line in the app-to-owner bubble plus one action.
@@ -178,12 +181,27 @@ Neighboring topics live elsewhere:
 
 ## 5. Verification
 
+- Check first use on each public entry, distinct verbs, no raw field syntax in ordinary views, and one concise disclaimer/error explanation (§2.2, §2.3, §2.6, §2.13, §2.39); case remains JITM-05.
+
 - Run WF-03. Persuasive copy ships with its claim ledger, and every consequential claim shows Kevin's dated approval.
 - Grep changed strings for internal words and retired terms (JITM-05 §5).
 - Check new copy and documents for framework, method, course or author names (§2.34). `src/lib/sales-approaches.ts` shows the kind of names to remove.
 - Screenshot the changed text in place, in both themes and at narrow widths (JITM-12 §2).
 
 ## 6. Open decisions and known deviations
+
+### Design audit 2026-11-08
+
+Recommend retaining plain short sentences rather than banning punctuation: E-16 is C, not a new style prohibition. M-09's legal entity is still owner input (UXB-02); no operator is invented. UXA-07 owns E-03's naming decision; this amendment changes no glossary term.
+
+Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
+
+- E-02 resolved in code at 5bc117b — UXA-05 (job_26644246a0a1); future first-use wording still needs verification.
+- E-03 — UXA-07 (job_26e9425c8e09).
+- E-05 — UXA-06 (job_e5a211855a70).
+- E-11, A-12, A-25, A-26 — UXB-04 (job_a5a8516f1138).
+- A-04, A-15 — UXA-08 (job_738b06153234).
+- M-09 — UXB-02 (job_56ed53bc1495).
 
 Open questions for Kevin:
 - Should texts have a length limit? Only a 900-character phone warning ships (`src/components/EditableFollowUpAction.tsx:429`).
@@ -203,3 +221,5 @@ Known deviations at f23db11, from the UX audit of 2026-10-08 (`docs/UX_DESIGN_AU
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.5 confirmed, with "you" for interface instructions (D23); §2.20 names deadlines (D14); §6 updated.
 - 1.0.2 — 2026-09-29 — Base 9f967bc. §6: the D14 copy batch is approved (O8) and merged (PR #96). The resolved question and the seven 9439fd6 deviations it fixed are removed. Three deviations found by the release review are added.
 - 1.1.0 — 2026-10-08 — Base f23db11. New §2.37: pages and messages the owner's customers see speak with the business name (D84), and §2.5 points to it for the review request. New §2.38: business wording by default (D85). §6 lists the deviations the UX audit found.
+
+- 1.2.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.39; clarify first-use terms, literal verbs, field chips and non-repeating errors. D129 adopts audit lessons; no glossary change.

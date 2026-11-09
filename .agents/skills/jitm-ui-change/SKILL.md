@@ -23,8 +23,9 @@ If words change too, also load `jitm-copy`. If behavior changes, also load `jitm
    - Work in a task worktree created from `origin/main`.
    - List the rules you will apply.
 2. **Find the reference.**
-   - Open `docs/design/jump-in-the-mix-designs/index.html` and find the screens for the workspace: light and dark, at 390, 834, 1194 and 1920 wide.
-   - If no screen exists, choose the page archetype in JITM-07 §2.
+   - Open `docs/design/jump-in-the-mix-designs/index.html` at its available sizes in both themes; verification uses the full JITM-07 §5 matrix.
+   - Choose the required page-archetype kit in JITM-07 §2.32, also when no export screen exists.
+   - Before you copy a neighbouring page, check `docs/standards-audit-2026-09-28/DRIFT_BASELINE.md`.
    - Journey follows the shipped graph, not the export's stage map (JITM-06 §2.2).
    - **Gate:** name the screens or the archetype you follow.
 3. **Reuse before you build.**
@@ -39,6 +40,9 @@ If words change too, also load `jitm-copy`. If behavior changes, also load `jitm
 5. **Verify** (JITM-12 §2, JITM-07 §5, JITM-10 §2).
    - Run tier 1 and the UI tier-2 row (JITM-12 §2.9–§2.10); compare failures with the baseline (JITM-12 §2.14).
    - Capture screenshots per JITM-12 §2.18. Inspect them and compare them with the export.
+   - Run the full applicable JITM-07 §5 matrix: both sides of every layout boundary, fractional width, sideways phones/short heights, narrow through ultrawide; record any omitted row.
+   - Run JITM-12 §2.26's states pass: validation, empty, filtered-empty, loading, error/recovery, offline, not-found, signed-in/out. Explain inapplicable states.
+   - Run its touch pass: hover gating, shortcut hints, phone input size and sheet focus/keyboard; check title/H1, skip link and focus after navigation.
    - Check keyboard use and visible focus, 44×44px targets, 200% text, and contrast in both themes.
 6. **Report.**
    - Fill in the PR template.

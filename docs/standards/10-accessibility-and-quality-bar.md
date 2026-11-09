@@ -2,12 +2,13 @@
 id: JITM-10
 title: Accessibility and quality bar
 status: active
-version: 2.1.0
+version: 2.2.0
 owner: Kevin
-last_reviewed: 2026-10-12
+last_reviewed: 2026-11-09
 applies_to: [ui, accessibility, performance, app, public-pages, staff, release-qualification]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
+  - docs/design/UX_AUDIT_2026-11-08.md
   - docs/CANONICAL_PRODUCT_DECISIONS.md
   - docs/design/DESIGN_GUIDELINES.md
   - docs/design/DESIGN_STRESS_REVIEW_2026-09-20.md
@@ -48,7 +49,7 @@ Neighboring topics have their own homes:
 
 **2.1** Touch targets MUST be at least 44×44 CSS px. At 900px and below, every control on every owner screen, Calendar and Journey included, meets this, with at least 8px between neighbors. Default buttons are 44px tall at every width. Compact 32–36px controls are allowed only on desktop, for secondary actions in dense lists and on staff screens. Staff screens follow JITM-07 §2.14: compact on desktop, 44px rows at 760px and below. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:117] [SHIPPED 9439fd6 src/styles/phone-icons.css:55-75] [SHIPPED 9439fd6 src/styles/design-system.css:12] [OWNER 2026-09-28 D9]
 
-**2.2** Meaningful text MUST be at least 13px on every owner screen, Calendar and Journey included. Only four kinds of text may be smaller:
+**2.2** Meaningful text MUST be at least 13px on every owner screen, Calendar and Journey included, also inside canvases and maps. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:59] Only four kinds of text may be smaller:
 - phone bottom-navigation tab labels, at least 11px (shipped at 12px);
 - labels inside compact buttons and compact-rail labels, at least 12px;
 - labels under icons in a phone action bar, such as the Contacts bulk bar's "Mix", "Export" and "Archive", at least 12px, like the bottom navigation's (D92);
@@ -80,11 +81,11 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 
 [SHIPPED 9439fd6 src/styles/design-workspaces.css:137-140] [SOURCE docs/design/DESIGN_PANE_POLISH_2026-09-20.md:18] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:227] [SOURCE docs/ONBOARDING_JOURNEY_PREFERENCES_2026-09-22.md:11] [SHIPPED 9439fd6 src/app/(app)/jumps/page.tsx:328]
 
-**2.8** Links inside sentences MUST look like links: a color different from the text around them and an underline. [SOURCE docs/beta-audit-2026-09-26/lanes/08-design-a11y-copy.md:99,121]
+**2.8** Links inside sentences MUST look like links: a color different from the text around them and an underline. Standalone/list links MUST carry a second cue such as a chevron or stronger weight; text that is not a link MUST NOT borrow those link cues. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:16] [SHIPPED 3d79992 src/styles/design-system.css] [SOURCE docs/beta-audit-2026-09-26/lanes/08-design-a11y-copy.md:99,121]
 
 ### Keyboard and focus
 
-**2.9** Everything works from a keyboard, in a logical order. A skip link leads to the main content, which can take focus. Only modal dialogs trap focus, and they release it on close. [SHIPPED 9439fd6 src/components/AppShell.tsx:44,94] [SHIPPED 9439fd6 src/components/PublicLanding.tsx:17] [SHIPPED 9439fd6 src/components/ReviewDialog.tsx:31-45]
+**2.9** Everything works from a keyboard, in a logical order. Every layout, including the app shell, MUST offer a keyboard-reachable skip link to focusable main content. Verify the rendered link, not just its source markup. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:23] Only modal dialogs trap focus, and they release it on close. [SHIPPED 9439fd6 src/components/AppShell.tsx:44,94] [SHIPPED 9439fd6 src/components/PublicLanding.tsx:17] [SHIPPED 9439fd6 src/components/ReviewDialog.tsx:31-45]
 
 **2.10** Focus is always visible: a 3px `--focus` outline offset by 3px, 4px `currentColor` under high contrast, and `Highlight` under forced colors. Inside clipped containers the ring is inset. Code MUST NOT remove an outline without a visible replacement. [SHIPPED 9439fd6 src/styles/base.css:67,76,82] [SHIPPED 9439fd6 src/styles/disclosures.css:40]
 
@@ -121,12 +122,22 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 
 **2.20** A UI change is not done until it has been checked in both themes, by keyboard, at 320px, at 200% text and through its real workflow (§5). [SOURCE docs/design/DESIGN_GUIDELINES.md:64] [SOURCE docs/design/DESIGN_CONSISTENCY_2026-09-23.md:87]
 
+### Route orientation and phone entry
+
+**2.22** Every route MUST set a document title in the form "<Page> | Jump in the Mix", with the page part matching its current H1, including loading, offline, not-found and error/recovery states. A bare product name or another route's title is insufficient. Distinct sibling pages need distinct page names; keep product naming under JITM-05. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:22]
+
+**2.23** After a full page-route navigation, focus MUST move to the new H1, using a programmatic focus target without adding a tab stop. Preserve deliberate focus for an in-page pane/filter update or a dialog transaction; announcing a route alone is not a replacement for moving focus to the new page. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:73]
+
+**2.24** Editable inputs, selects and textareas on phones MUST render at least 16 CSS px at normal text size, including search and demo controls. Never suppress browser zoom to conceal smaller text. Other text still follows §2.2. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:91] [SHIPPED 9f37e00 src/styles/design-system.css]
+
+**2.25** Signed-in app routes MUST meet the same 2.5s largest-contentful-paint ceiling as public routes (§2.18), measured with a cold cache and a throttled phone as well as a warm diagnostic run. Account checks SHOULD run server-side or alongside loading so they do not serially hold back authorized first content; they MUST NOT reveal private content before authorization. UXB-08 owns the account-reveal design decision. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:72]
+
 ## 3. Canonical implementations
 
 - Accessibility media queries and the focus ring: `src/styles/base.css` (lines 67–83), `src/styles/design-system.css:112`.
 - Tokens: `--focus` (the focus ring), `--field-border` (input outlines) in `src/styles/design-tokens.css`.
 - The phone 44px target block: `src/styles/phone-icons.css:55-75`. Inset summary focus: `src/styles/disclosures.css:40`.
-- Skip links and focus targets: `src/components/AppShell.tsx`, `src/components/PublicLanding.tsx`.
+- Skip-link markup: `src/components/AppShell.tsx`, `src/components/PublicLanding.tsx`; rendered coverage and new-H1 focus remain verification tasks, not implied by these paths.
 - Live regions: `src/components/Notice.tsx`, the completion confirmation in `src/components/JumpWorkflow.tsx`.
 - Journey equivalents: the list view, legend and focusable map in `src/components/WorkflowJourney.tsx`; click-to-connect in `src/components/WorkflowConnections.tsx`.
 - Test helpers: `e2e/axe-in-page.ts`, `e2e/theme-fixture.ts`.
@@ -144,6 +155,8 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 
 ## 5. Verification
 
+- Run the JITM-12 §2.26 touch/orientation checks on app and public routes: title/H1, rendered skip link, new-H1 route focus, phone input size and map text. Measure signed-in LCP separately from public LCP (§2.25); no account-gate shortcut may reveal private content.
+
 - `npm run test:a11y`: axe with the WCAG 2.2 A and AA tags on `/jumps`, `/contacts`, `/contacts/new` and `/mixes/new`. Run axe on the changed routes too, in both themes, with `e2e/theme-fixture.ts`.
 - `e2e/visual-fitment.spec.ts`: the text floors on phone routes, the five-control phone bar and no sideways scroll. `e2e/a2-css-checks.spec.ts`: 44px targets, compact-rail labels, waitlist band contrast.
 - `e2e/sheet-interactions.spec.ts`: 200% text, focus after failed saves, nested dialogs.
@@ -153,12 +166,23 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 
 ## 6. Open decisions and known deviations
 
+### Design audit 2026-11-08
+
+P-03's phone-input floor is implemented by 9f37e00; E-01's link scope by 3d79992. E-08 remains a runtime discrepancy because AppShell already has skip-link markup; UXB-03 must establish rendered reachability. Keep the stricter reduced-motion behavior (§2.13), including the current 0.01ms treatment; NAV-00 owns any motion-token amendment. A-19's account-reveal design stays with UXB-08; the performance rule never permits revealing unauthenticated content.
+
+Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
+
+- E-07, A-06 — UXA-10 (job_41d265c99e41).
+- E-08, A-20 — UXB-03 (job_a2a12aba8e5a).
+- A-19 — UXB-08 (job_e0ae7b318010).
+- A-26 — UXB-04 (job_a5a8516f1138).
+
 - **Physical devices and assistive technology:** every row in the device matrix is NOT RUN, including VoiceOver, TalkBack, operating-system text at 200% and Firefox zoom (`docs/MANUAL_DEVICE_QUALIFICATION.md:73`; `docs/BETA_READINESS_AUDIT_2026-09-26.md:372`).
 - **Journey people rows:** since 2026-09-28, stage, status, reason and due time sit in a `title` tooltip (`src/components/WorkflowPeople.tsx:32`). Touch and keyboard users reach them only by selecting the person. Kevin decided the hover is not enough (§2.17, D26); making the details reachable by tap and keyboard is backlog B-05.
 - **Text floor coverage:** the floor test runs only on phone widths and on 13 routes (`e2e/visual-fitment.spec.ts:176-199`). Journey, Calendar and Marketplace are not covered, against §2.21 (D82). Journey still sets 11–12px labels (`src/components/WorkflowJourney.module.css:53-55,227-230`), and the "Recommended" tag inside a button is 11px (`src/styles/phone-icons.css:83`).
 - **Contrast:** the active Beat number puts white on `--violet-mark` (`src/components/WorkflowJourney.module.css:228`), 3.80:1 in dark by token computation. Disabled Journey connections draw at 65% opacity (`:4`), measured at 2.63:1 in light on 2026-09-24 (`docs/audit-2026-09-24/design-a11y-responsive.md:264`).
 - **Floors at f23db11 (UX audit 2026-10-08):** the Calendar agenda's times, Mix names and weekday labels are 12px (125 elements under 13px on the phone page; `src/styles/design-workspaces.css:340,345-346`; VIS-02); the rail's "Signed in as" and invitation hint, profile labels and Mix outline details are under 13px (ACC-01); phone controls such as "View upcoming follow-ups" (16px tall), "View journey" (24px) and appointment titles (20px) are under 44px (ACC-02); the staff phone shell has 72×17 header links and 9–12px text (`src/styles/admin-density.css:164,167,267`; ACC-07). All are against §2.1 and §2.2.
-- **Inline links** inherit the text color with no underline (`src/styles/base.css:63`), against §2.8 (open since 2026-09-26).
+- **Inline links:** E-01 scope resolved in code on main by 3d79992 (implementation d2f567e); the old universal no-underline baseline is historical. Recheck new routes and false-link lines under §2.8; A-26 remains open.
 - **Focus not obscured:** from 768 to 900px the sticky app header has no matching top scroll padding (`src/styles/auth.css:68`), and the contact import action bar sits above the phone scroll padding (`src/styles/contact-import.css:17`).
 - **Lighthouse** covers 6 of the 15 indexed public pages and no signed-in page; production's largest contentful paint measured 2.43–2.64 s against the 2.5 s budget on 2026-09-26 (`docs/BETA_READINESS_AUDIT_2026-09-26.md:320-323`).
 
@@ -168,3 +192,5 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 - 1.1.0 — 2026-09-28 — Base 61d4df4. §2.17 requires tap and keyboard access to hover content, with dismissal and persistence (D26).
 - 2.0.0 — 2026-10-08 — Base f23db11. §2.1 and §2.2 are MUST rules on every owner screen, Calendar and Journey included; new §2.21 requires an automated check of both floors (D82, the UX audit's answers). §6 adds the floor deviations the audit measured.
 - 2.1.0 — 2026-10-12 — Base 4e78545. §2.2: labels under icons in a phone action bar may be 12px, like the bottom navigation's (D92).
+
+- 2.2.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.22–§2.25 for titles, route focus, phone input floor and app LCP; clarify existing link/skip/canvas rules and record landed link/input evidence.

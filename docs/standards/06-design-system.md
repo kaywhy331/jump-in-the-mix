@@ -2,12 +2,13 @@
 id: JITM-06
 title: Design system
 status: active
-version: 1.1.0
+version: 1.2.0
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-11-09
 applies_to: [ui, styles, components, icons, themes, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
+  - docs/design/UX_AUDIT_2026-11-08.md
   - docs/design/jump-in-the-mix-designs/README.txt
   - docs/design/jump-in-the-mix-designs/tokens.css
   - docs/design/jump-in-the-mix-designs/screens/ThemeTokens.html
@@ -90,13 +91,13 @@ Which fills may carry white text: JITM-10 §2.6. [SOURCE docs/design/DESIGN_GUID
 
 ### Typography
 
-**2.13** Instrument Sans (`--font-ui`) sets all interface text. Newsreader (`--font-voice`) sets a person's own words: message drafts and previews, notes, Quick Add capture, Beat wording and support message bodies. Names, labels, rows and directory entries stay in Instrument Sans. The homepage's own-voice heading is the one display use of Newsreader, as in the export. [SOURCE docs/design/DESIGN_GUIDELINES.md:14,30,39] [SHIPPED 9439fd6 src/styles/design-system.css:3-5,65,140] [SHIPPED 9439fd6 src/styles/design-public.css:41]
+**2.13** Instrument Sans (`--font-ui`) sets all interface text. Newsreader (`--font-voice`) sets a person's own words: message drafts and previews, notes, Quick Add capture, Beat wording and support message bodies. Names, labels, rows, directory entries, system events and interface placeholders stay in Instrument Sans. The same personal message wording MUST use its voice register in public examples, editors and previews. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:27] The homepage's own-voice heading is the one display use of Newsreader, as in the export. [SOURCE docs/design/DESIGN_GUIDELINES.md:14,30,39] [SHIPPED 9439fd6 src/styles/design-system.css:3-5,65,140] [SHIPPED 9439fd6 src/styles/design-public.css:41]
 
 **2.14** Both families are self-hosted from `src/app/fonts` through `next/font/local`, with their OFL licenses. Only Instrument Sans 400, 500, 600 and 700 and Newsreader 400 exist. Styles MUST NOT use other weights, bold or italic Newsreader, or fonts from a CDN. [SHIPPED 9439fd6 src/app/layout.tsx:15-21] [SOURCE docs/design/DESIGN_CONSISTENCY_2026-09-23.md:9]
 
 **2.15** Weights follow roles: 700 for page, pane and popup titles; 600 for names, labels, buttons and section labels; 500 for quieter navigation and rows; 400 for body text and all Newsreader text. [SOURCE docs/design/jump-in-the-mix-designs/screens/Main.html:21 (Today title, rows and group headers)] [SHIPPED 9439fd6 src/styles/popups.css:6-9]
 
-**2.16** Sizes follow the export's type roles in §3. Voice text grows with its pane, from the 15px list preview to the 22px desktop draft. Section labels use sentence case, never capitals. Minimum sizes are in JITM-10 §2.2. [SOURCE docs/design/jump-in-the-mix-designs/screens/DesktopToday.html:21 (list previews and draft)] [SHIPPED 9439fd6 src/styles/design-workspaces.css:232-233]
+**2.16** Sizes follow the export's type roles in §3. Voice text grows with its pane, from the 15px list preview to the 22px desktop draft. Case is owned by JITM-05 §2.13: CSS MUST NOT apply `text-transform: uppercase` to UI text to override it. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:26] Minimum sizes are in JITM-10 §2.2. [SOURCE docs/design/jump-in-the-mix-designs/screens/DesktopToday.html:21 (list previews and draft)] [SHIPPED 9439fd6 src/styles/design-workspaces.css:232-233]
 
 **2.17** The wordmark is the name in Instrument Sans 700 with slight negative tracking, sized as in the export: 15px in the rail, 18px in the desktop public header, 17px in the phone public header and 16px in the footer. The mark beside it is 30px in the rail and 32px on public pages. The logo itself is JITM-03 §2. [SOURCE docs/design/jump-in-the-mix-designs/screens/DesktopToday.html:21 (rail wordmark)] [SOURCE docs/design/jump-in-the-mix-designs/screens/Landing.html:21 (header and footer wordmarks)] [SOURCE docs/design/jump-in-the-mix-designs/screens/LandingPhone.html:21 (header wordmark)] [SHIPPED 9439fd6 src/styles/design-workspaces.css:5-6] [SHIPPED 9439fd6 src/styles/design-public.css:6]
 
@@ -128,7 +129,7 @@ Which fills may carry white text: JITM-10 §2.6. [SOURCE docs/design/DESIGN_GUID
 
 ### Components
 
-**2.28** Build with the shared components and stylesheets in §3, and match the export anatomy summarized there. Extend a shared component rather than copying it into a page. A new shared pattern goes into the shared layer and into §3 through WF-08. [SOURCE docs/design/CONTACTS_FORENSIC_AUDIT_2026-09-19.md:74] [PROPOSED]
+**2.28** Pages MUST reuse the shared roles in §3 rather than create page-local variants: the public header, H1 scale for the chosen archetype, table of contents, auth/system card, inline field error, save bar, empty state, field chips and skip-link pattern. Inline lists MUST align their items on a common text baseline, and sibling option cards MUST share alignment and sizing. Extend the shared owner, not a copied page. Where the shared component is still missing, use the rule and record its owning task in §6; do not claim an unbuilt component exists. New shared patterns enter §3 through WF-08. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:19] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:30] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:34]
 
 ### CSS architecture
 
@@ -151,6 +152,18 @@ Which fills may carry white text: JITM-10 §2.6. [SOURCE docs/design/DESIGN_GUID
 **2.31** Each component has one clear style owner. Fix the owning rule instead of stacking a later, more specific override. Shared defaults use zero-specificity `:where()` selectors so deliberate page rules still apply. [SOURCE docs/design/CONTACTS_FORENSIC_AUDIT_2026-09-19.md:74] [SHIPPED 9439fd6 src/styles/disclosures.css:9-10] [SHIPPED 9439fd6 src/styles/phone-icons.css:1-4]
 
 **2.32** The design layer has no spacing, type, z-index or motion scale yet; those exist only in legacy `base.css`. Take such values from the matching export screen and reuse values already in the file. Do not add a new scale without WF-08. [SHIPPED 9439fd6 src/styles/base.css:24-42] [PROPOSED]
+
+### Audit-derived visual patterns
+
+**2.34** Reading text SHOULD target 65ch and MUST stay at or below 75ch: prose, lists of sentences, helper text and message boxes included. Constrain the reading block inside its wider workspace; the page cap is not a prose measure. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:21] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:107]
+
+**2.35** Display type SHOULD use tracking no tighter than -0.03em and a line-height of at least 1.05 unless the matching design export deliberately specifies otherwise (§2.1, §2.33). Headings SHOULD use balanced wrapping and MUST NOT split a hyphenated word across lines. Display size MUST be capped with its column and change continuously across breakpoints; a wider viewport alone must not enlarge text in a column that has stopped growing. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:28] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:29] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:108]
+
+**2.36** Hover styling MUST be inside `(hover: hover) and (pointer: fine)`. Touch/coarse-pointer layouts MUST hide keyboard-shortcut badges and replace desktop-only instructions with instructions the current input can use; do not infer input capability from viewport width alone. Keyboard focus styling stays independently available. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:32] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:66] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:86]
+
+**2.37** Each view or independent task region MUST have at most one filled primary action. Tests and secondary actions use the secondary treatment. A primary create action MUST have a visible text label at every size. View-switch segments MUST look distinct from action buttons; at 320px their labels and actions MUST fit without collision, using wrapping or an accessible secondary-action menu while retaining the primary action. FAQ question triggers SHOULD be at least 16px and no smaller than their answers. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:67] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:58] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:95] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:44]
+
+**2.38** Auth and system cards MUST share the logo/header anatomy and one leading action alignment. Action-to-helper spacing SHOULD be 12–16px. On phones the card SHOULD use the available width without a second nested card margin, while keeping safe-area padding. Geometry and width come from the archetype kit (JITM-07 §2.32), and state-aware headings/recovery from JITM-08 §2.39. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:47] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:48]
 
 ## 3. Canonical implementations
 
@@ -191,10 +204,24 @@ Shared overlays and disclosures (O2; `src/styles/popups.css`, `src/styles/disclo
 |---|---|
 | Frame and navigation | `AppShell`, `Nav` / `AccountNav`, `BackLink`, `ContactsBackLink`, `MixLibraryNav`, `MixLibraryShell`, `TodayNavigation`, `Logo` |
 | Overlays | `Sheet`, `ConfirmDialog`, `useConfirmDialog`, `ReviewDialog`, `QuickAdd`, `BrandTermsHelp` |
-| Forms | `ActionForm`, `FormGuard`, `FormSubmitButton`, `RequiredFieldsNote`, `PasswordInput`, `TimezonePicker`, `WhenPicker`, `CopyField` |
+| Forms | `SaveBar`, `ActionForm`, `FormGuard`, `FormSubmitButton`, `RequiredFieldsNote`, `PasswordInput`, `TimezonePicker`, `WhenPicker`, `CopyField` |
 | Feedback | `Notice`, `UrlErrorNotice`, `EmptyState`, `PreparationNotice`, `ViewOnlySupportNotice` |
 | Content | `AppIcon`, `AppearanceControl` / `AppearanceSync`, `MergeFieldText`, `MixBeatPreview`, `PortableOutline`, `SchedulePreview` |
-| Public | `PublicLanding`, `PublicHeader`, `PublicFooter`, `PublicArticle`, `PublicDocument` |
+| Public | `PublicLanding`, `PublicHeader`, `PublicFooter`, `PublicArticle`, `PublicDocument`, `PublicContents` |
+
+**Reuse contract, verified in main at ef7a02c:**
+
+| Role | Existing implementation and limits |
+|---|---|
+| Public header | `src/components/PublicHeader.tsx`; public reading shells are `PublicArticle.tsx` and `PublicDocument.tsx`. Header adoption landed in 5bc117b; Pricing coverage still belongs to UXA-14. |
+| Table of contents | `src/components/PublicContents.tsx`; reuse it, but its phone collapse/alignment deviations remain open (UXB-01/UXA-15). |
+| Save bar | `src/components/SaveBar.tsx` and the `.save-bar` rules in `src/styles/design-system.css`; landed in 338ae42, integrated at ef7a02c. Save/validation stay owned by the containing form. |
+| Empty-state card | `src/components/EmptyState.tsx`; one icon, title, bubble hint and next action. |
+| Display field chips | `src/components/MergeFieldText.tsx`; editor insertion remains UXA-08, so do not copy raw-key editors. |
+| Skip link | Existing `.public-skip-link` pattern in `src/components/PublicLanding.tsx`, `PublicArticle.tsx`, `PublicDocument.tsx` and `AppShell.tsx`; no standalone SkipLink component exists. Verify its target and reachability (E-08). |
+| Auth/system card; inline field error | Shared roles required by §2.28, but no reusable component of either role exists at this base; see §6 for owners. `ActionForm` is the failed-save container, not a field-error component. |
+
+An existing file is a reuse starting point, not a certificate that all its states meet the standards. Before copying a neighbouring page, check the [drift baseline](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08).
 
 Export anatomy to match: flat rows with an inset hairline and a 40px initials avatar; segmented controls on `--surface` with a raised selected segment; 44px round icon buttons and close controls; primary buttons in `--violet`, bordered secondary buttons on `--raised`; 52×32 switches; 44px search fields on `--surface`; Beat tracks on `--track`; merge fields as wash chips inside Newsreader text.
 
@@ -211,12 +238,31 @@ Export anatomy to match: flat rows with an inset hairline and a 40px initials av
 
 ## 5. Verification
 
+- At the JITM-07 §5 widths, measure reading/display type, shared H1/ToC/card alignment, primary/action/view separation and touch hover/hints (§2.28, §2.34–§2.38). Check personal text and UI placeholders separately (§2.13); CSS case follows JITM-05.
+
 - Compare the export tokens with `design-tokens.css`: the 25 light and 18 dark values match, and the two dark blocks are identical (`diff <(sed -n 77,112p src/styles/design-tokens.css) <(sed -n 117,152p src/styles/design-tokens.css)` prints nothing).
 - Re-run the drift metrics for color literals, font families and icon sizing in `docs/standards-audit-2026-09-28/`; the counts should not rise.
 - Browser suites: `e2e/design-adoption.spec.ts` (appearance switch), `e2e/design-consistency.spec.ts` (disclosures, confirmations), `e2e/a2-css-checks.spec.ts` (row sizes, waitlist band in both themes). The pixel baseline in `e2e/visual-fitment.spec.ts` covers legacy CSS only.
 - Screenshots in light and dark against the export screens, following JITM-12 §2, inspected by eye.
 
 ## 6. Open decisions and known deviations
+
+### Design audit 2026-11-08
+
+Keep the white page token and single violet (§2.8), and flat cards (§2.19). Keep §2.13's own-wording uses and approved homepage display exception; E-12 does not authorize stripping them. Missing shared roles: auth/system card — UXB-02 job_56ed53bc1495 after UXA-15 job_2650d19a1f23; inline field error — UXA-16 job_30ad2b5af772. No implementation path is claimed for either. PublicContents exists but phone collapse/alignment is still UXB-01/UXA-15; display field chips exist but insertion/editing is UXA-08 job_738b06153234.
+
+Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
+
+- E-04, E-13, E-14, M-08, E-06, V-07 — UXB-01 (job_fe7761baec35).
+- E-12 — UXB-04 (job_a5a8516f1138).
+- E-15, M-10, M-11 — UXA-15 (job_2650d19a1f23).
+- E-17, A-13 — UXB-03 (job_a2a12aba8e5a).
+- E-19, M-07 — UXB-02 (job_56ed53bc1495).
+- A-05, A-22 — UXB-05 (job_c4544b060350).
+- A-08 — UXA-07 (job_26e9425c8e09).
+- A-23 — UXB-06 (job_9ca5b9672d9a).
+- T-03, P-07 — UXB-07 (job_ca566cea09be).
+- V-08 — UXA-06 (job_e5a211855a70).
 
 Under §2.33 (D24), each unexplained difference below defaults to the export value, after an in-context comparison; a recorded reason can make the shipped value the standard instead.
 
@@ -236,3 +282,5 @@ Under §2.33 (D24), each unexplained difference below defaults to the export val
 
 - 1.0.0 — 2026-09-28 — Initial version.
 - 1.1.0 — 2026-09-28 — Base 61d4df4. New §2.33: the export is the default for unexplained deviations, and a shipped value becomes standard only with a recorded reason (D24).
+
+- 1.2.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.34–§2.38; clarify §2.13, §2.16 and §2.28. Inventory actual public/ToC/save/empty/chip/skip roles and name missing-role owners; preserve export and owner exceptions.

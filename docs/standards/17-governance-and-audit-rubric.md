@@ -2,12 +2,13 @@
 id: JITM-17
 title: Governance and audit rubric
 status: active
-version: 3.0.0
+version: 3.1.0
 owner: Kevin
-last_reviewed: 2026-10-14
+last_reviewed: 2026-11-09
 applies_to: [standards, skills, workflows, reviews, audits]
 supersedes: []
 sources:
+  - docs/design/UX_AUDIT_2026-11-08.md
   - docs/standards-audit-2026-09-28/OWNER_DECISIONS.md
   - docs/BETA_READINESS_AUDIT_2026-09-26.md
   - docs/beta-audit-2026-09-26/FINDINGS_TABLE.md
@@ -98,10 +99,10 @@ No CI job or pre-push hook runs `standards:check`, so the standards stay advisor
 | Voice, tone and copy | JITM-04 |
 | Vocabulary | JITM-05 |
 | Design system | JITM-06 |
-| Layout and responsive structure | JITM-07 |
-| Interaction and UX patterns | JITM-08 |
+| Layout and responsive structure | JITM-07 §5: full size matrix, measured panes/measure/chrome |
+| Interaction and UX patterns | JITM-08; JITM-12 §2.26: complete states pass and recovery |
 | IA and user workflows | JITM-09 |
-| Accessibility and quality bar | JITM-10 |
+| Accessibility and quality bar | JITM-10; JITM-12 §2.26: touch, titles, skip link and route focus |
 | Engineering architecture | JITM-11 |
 | Testing and evidence | JITM-12 |
 | Git, PR and review | JITM-13 |
@@ -138,6 +139,8 @@ No CI job or pre-push hook runs `standards:check`, so the standards stay advisor
 
 [SOURCE docs/BETA_READINESS_AUDIT_2026-09-26.md:33] [OWNER 2026-09-28 O6]
 
+**2.17** A UI/design audit MUST cover the complete JITM-07 §5 size matrix and JITM-12 §2.26 states, touch and orientation passes for its declared page scope. A review applies the same passes to the changed scope. Score missing evidence under §2.12; never award 3 from a happy-path desktop screenshot or CSS inference alone. Report original observation versus fresh verification separately, and tie each unresolved finding to its owning fix task in the drift baseline. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:105] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:106] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:89]
+
 ## 3. Canonical implementations
 
 - `docs/standards/README.md`: the index, precedence and citation format.
@@ -159,11 +162,29 @@ No CI job or pre-push hook runs `standards:check`, so the standards stay advisor
 
 ## 5. Verification
 
+- Review/audit scores reflect §2.17: size, states and touch evidence gaps produce findings rather than a compliant score based on a happy path.
+
 - `npm run standards:check` passes.
 - Each changed standard shows a new version, today's `last_reviewed` date and a changelog line.
 - Audit and review reports contain the sections in §2.15. Every finding cites a rule and carries an evidence label.
 
 ## 6. Open decisions and known deviations
+
+### Design audit 2026-11-08
+
+The first two audit passes missed size/state/touch evidence. UXR-01 job_471c4c2d6330 and UXD-01–UXD-04 retain the follow-up validation; this standards amendment does not resolve their findings by changing the rubric. Proposed automation remains advisory and unbuilt under D8.
+
+Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
+
+- V-01, V-02, V-04 — UXC-01 (job_1d216b599b31).
+- V-03, V-09 — UXC-02 (job_1412bc339852).
+- V-05 — UXC-03 (job_04680345bf95).
+- V-06 — UXC-04 (job_7d38cfe7c13b).
+- V-07 — UXB-01 (job_fe7761baec35).
+- V-08 — UXA-06 (job_e5a211855a70).
+- E-18 — UXA-16 (job_30ad2b5af772).
+- E-17, A-20 — UXB-03 (job_a2a12aba8e5a).
+- P-02 — UXA-03 (job_44db7c9b8cd7).
 
 - The standards' enforcement is advisory (D8): no CI job runs `standards:check`. Kevin decided that hosted CI gates merges (D122); `main` has no branch protection yet (JITM-13 §6).
 - The cadence in §2.9 is a proposal until Kevin confirms it or changes it.
@@ -173,3 +194,5 @@ No CI job or pre-push hook runs `standards:check`, so the standards stay advisor
 - 1.0.0 — 2026-09-28 — Initial version.
 - 2.0.0 — 2026-09-28 — Base 61d4df4. §2.1: merging follows JITM-16 §2.5 (D30).
 - 3.0.0 — 2026-10-14 — Base 6630e49. §2.11 changes meaning: hosted CI gates merges (D122), while `standards:check` stays advisory (D8). §6 follows.
+
+- 3.1.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.17 and rubric prompts for size/state/touch coverage and explicit missing evidence; advisory enforcement stays unchanged.

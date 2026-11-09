@@ -2,12 +2,13 @@
 id: JITM-08
 title: Interaction and UX patterns
 status: active
-version: 2.1.0
+version: 3.0.0
 owner: Kevin
-last_reviewed: 2026-10-13
+last_reviewed: 2026-11-09
 applies_to: [ui, interaction, forms, dialogs, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
+  - docs/design/UX_AUDIT_2026-11-08.md
   - docs/design/DESIGN_GUIDELINES.md
   - docs/design/DESIGN_CONSISTENCY_2026-09-23.md
   - docs/design/DESIGN_STRESS_REVIEW_2026-09-20.md
@@ -102,13 +103,13 @@ Neighboring topics have their own homes:
 
 **2.20** Boxed disclosures stay boxed: the Today briefing, Calendar connections, settings records and onboarding. Flatten one only for a workflow reason Kevin accepts. [OWNER 2026-09-28 D9]
 
-**2.21** Use a disclosure for optional or long-form content (answers, advanced fields, extra event details). Menus and phone tasks use the shared sheet. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:119]
+**2.21** Use a disclosure for optional or long-form content (answers, advanced fields, extra event details). On phones, secondary sections and a long table of contents SHOULD start collapsed with a clear summary or Show more control; keep the current work and deep-linked target visible (§2.40). [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:96] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:45] Menus and phone tasks use the shared sheet. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:119]
 
 **2.22** Fields inside a collapsed disclosure stay mounted, so saving keeps their values. A form MUST open the disclosure around an invalid field before browser validation moves focus there. [SHIPPED 9439fd6 src/components/MixEditor.tsx:181] [SHIPPED 9439fd6 src/components/CalendarEntryForm.tsx:77] [SOURCE docs/design/DESIGN_GUIDELINES.md:46,57]
 
 ### Forms and saving
 
-**2.23** Editors for Mixes, contacts and events save explicitly with a visible Save. Automatic saving is for drafts and single preferences; it shows its state ("Saving…", "Saved") and never leaves an invisible submit button in the keyboard path. [SOURCE docs/design/DESIGN_GUIDELINES.md:27,49] [SOURCE docs/design/DESIGN_PANE_POLISH_2026-09-20.md:17] [SHIPPED 9439fd6 src/components/FormGuard.tsx:58]
+**2.23** Editors for Mixes, contacts and events MUST save explicitly. A page uses one shared SaveBar after the fields it saves, or per-section saves with a visible unsaved marker for each changed section. Reuse the shared component where a bar fits; it stays sticky only where §2.26 and JITM-07 §2.26 allow. Cancel and Save SHOULD sit side by side on phones. Automatic saving remains for drafts and single preferences, with a visible Saving/Saved state and no invisible submit button in the keyboard path. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:67] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:57] [SHIPPED 338ae42 src/components/SaveBar.tsx]
 
 **2.24** A failed or unconfirmed save keeps every entered value, even after repeated failures. Focus moves to a visible error that says the entries are kept; password fields are cleared. An expired session stops retrying and keeps the wording. [SHIPPED 9439fd6 src/components/ActionForm.tsx:9-27] [SHIPPED 9439fd6 src/lib/unconfirmed-save.ts:2] [SOURCE docs/UI_UX_DEEP_GAP_AUDIT_2026-09-23.md:128,145]
 
@@ -116,13 +117,13 @@ Neighboring topics have their own homes:
 
 **2.26** Form grids shrink around their contents and action rows wrap. Sticky save bars MUST NOT cover fields: at 900px and below, Calendar and Mix save areas scroll with the form. [SHIPPED 9439fd6 src/styles/design-details.css:162,279-281,294] [SOURCE docs/design/DESIGN_GUIDELINES.md:58] [SOURCE docs/ADMIN_DENSITY_2026-09-17.md:45]
 
-**2.27** A form states its convention once ("Everything is required unless marked optional.") and marks only the optional fields. [SHIPPED 9439fd6 src/styles/design-system.css:24-25] [SHIPPED 9439fd6 src/components/RequiredFieldsNote.tsx:1-3]
+**2.27** A form MUST state its actual required/optional convention once and mark optional fields consistently beside their labels. An either-or group MUST name its minimum requirement instead of claiming every field is required; enforce the same constraint before submit and on the server (§2.37). Add-another controls MUST sit beside the collection they extend. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:62]
 
 **2.28** Pickers show the current value first and mark the selection with text and state, not color alone. `TimezonePicker` is the reference: the current zone first, a "Selected" label, and "Use device timezone" for detection. [SOURCE docs/design/DESIGN_PANE_POLISH_2026-09-20.md:18] [SOURCE docs/design/DESIGN_GUIDELINES.md:50]
 
 ### Filters
 
-**2.29** Today and Contacts search and filters apply at once. The Mixes, Ready-made and Marketplace filter sheets keep an explicit "Apply filters" button, and each sheet says so. Saved contact views live inside Filter for every result size, keep the chosen sort, and ask before deletion. [OWNER 2026-09-28 D9] [SHIPPED 9439fd6 src/app/(app)/mixes/page.tsx:64-67] [SOURCE docs/design/DESIGN_GUIDELINES.md:49] [SOURCE docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:39]
+**2.29** Today and Contacts search and filters apply at once. The Mixes, Ready-made and Marketplace filter sheets keep an explicit "Apply filters" button, and each sheet says so. Presets MUST explain what they include and filters MUST offer Reset; Today/Contacts search SHOULD be inline. Saved contact views live inside Filter for every result size, keep the chosen sort, and ask before deletion. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:56] [OWNER 2026-09-28 D9] [SHIPPED 9439fd6 src/app/(app)/mixes/page.tsx:64-67] [SOURCE docs/design/DESIGN_GUIDELINES.md:49] [SOURCE docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:39]
 
 ### Drafts and recovery
 
@@ -139,12 +140,13 @@ An untouched form never warns. A form counts as changed only once the person act
 
 ### Screen states
 
-**2.32** Every list and page has its three states:
-- empty: one primary action toward the next useful business step (`EmptyState`);
-- loading: a status region with a heading, with navigation still usable;
-- failed: a way to try again and a way to get help.
+**2.32** Every list and page MUST handle empty, loading and failed states, with these distinctions:
+- empty: use EmptyState with one next useful business action; hide search when no items exist to search;
+- filtered-empty: name the query/filter and offer Clear; keep a deliberate selection/empty prompt in the detail pane rather than a blank region;
+- loading: retain the layout and a headed status region while navigation remains usable; skeleton rows MAY preserve space;
+- failed: identify the failure and offer retry and help, with state-aware recovery under §2.39.
 
-Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21] [SHIPPED 9439fd6 src/app/(app)/jumps/loading.tsx:1] [SHIPPED 9439fd6 src/app/error.tsx:5-10] [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:120]
+Words follow JITM-04; the complete states verification pass is JITM-12 §2.26. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:74] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:75] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:73]
 
 **2.33** Live updates never disturb work in progress. Incoming changes wait while the owner is working: Journey pauses its refresh while the owner edits, selects a path or has focus in a form, and Today keeps its list and says updates are waiting while a message is being edited or a draft is open. An open Undo doesn't hold Today's list, since confirmations and their Undo sit outside it (§2.36). An update never moves, closes or overwrites what the owner is working on. The owner's own outcome is not an incoming change: it updates Today's counts at once (§2.36). Journey's silent refresh is specified in JITM-09 §2. [SHIPPED 9439fd6 src/components/useTodayUpdates.ts:9-11] [SHIPPED 9439fd6 src/components/TodayNavigation.tsx:102-108] [SHIPPED 9439fd6 src/components/WorkflowJourney.tsx:116] [OWNER 2026-09-28 D4] [OWNER 2026-10-12 D99] Today says "Updating your follow-up list…" only for a read that takes longer than a second, so the list doesn't move after each outcome. [OWNER 2026-10-13 D114] [SHIPPED 4d5c307 src/components/TodayNavigation.tsx:32-41]
 
@@ -163,6 +165,26 @@ Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21]
 - **In the app:** the person's history names the assistant that made each change, and the change can be undone there.
 
 [OWNER 2026-10-06 D38] [OWNER 2026-10-06 D39] [OWNER 2026-10-06 D42] [OWNER 2026-10-06 D43] [PROPOSED]
+
+### Field validation, feedback and recovery
+
+**2.37** Forms MUST use one shared inline field-error pattern: an error beside the field, `aria-invalid` on the invalid control and `aria-describedby` linking the error without dropping existing help. Show the form's own required/either-or constraints before sending; server validation remains authoritative. Do not rely on native browser tooltips. Open any containing disclosure before focusing an error. Labels MUST sit above fields, never only in placeholders. Failure banners follow JITM-04 §2.13 and preserve entered values (§2.24). [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:33] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:60]
+
+**2.38** Every tap action MUST show an immediate pressed response. An action that loads a surface MUST open it immediately in a loading state, rather than leave a silent wait before opening. Copy MUST confirm on the same button and expose its result to assistive technology; failure keeps the text available. This does not replace the delayed background-refresh notice in §2.33. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:89] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:45]
+
+**2.39** Error/recovery headings MUST name the current state rather than retain a happy-path title. Not-found MUST offer Today to signed-in owners and a useful public destination to visitors, with a main landmark. Expired or incomplete links MUST offer a next step without an unusable confirm action. Signed-in members visiting registration or pending-verification entry pages MUST be directed to Today after a server-verified session check. A deletion receipt MUST describe a real completed deletion, never appear merely because a signed-in member visits its URL. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:35] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:48] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:50]
+
+**2.40** A deep link MUST reveal its target, opening a containing disclosure and placing the target in view. A missing target MUST provide a clear recovery path; a highlighted but closed answer is insufficient. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:44]
+
+**2.41** Phone numbers SHOULD be formatted for the contact's known region/locale, preserving the stored value. On phones a callable number MUST offer an intentional tap-to-call action with an accessible name; formatting must never infer or change an unknown country code. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:25]
+
+**2.42** Message textareas SHOULD grow with their content so the complete wording and signature remain visible, within the viewport's scrolling surface. Do not hide the end inside an avoidable fixed-height inner scroller. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:49]
+
+**2.43** Consecutive identical history events SHOULD be presented as one expandable group with a count and reachable individual details/actions. Group presentation only: append-only history, timestamps and individual event identity MUST remain intact. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:64]
+
+**2.44** On network loss in an already visible authenticated page, loaded content MUST remain readable behind an offline banner, with changes paused and nothing queued. Account change, sign-out or expiry MUST mask private content. A tab backgrounded while offline MUST remain locked on return until its session is freshly confirmed; an offline reload is not permission to cache private pages. The owner decision does not waive tenant isolation (JITM-00 §2.5). The independent-review disagreement and implementation evidence still needed are recorded in §6. [OWNER 2026-11-08 docs/design/UX_AUDIT_2026-11-08.md:236]
+
+**2.45** Controls MUST carry out the intent they name, with one add action per intent in a task region and the same behavior on sibling surfaces. A generic create entry MUST offer an unselected starting choice rather than silently select someone else's template. Multi-view pages SHOULD open on their clearest task view or the last view the owner used. Explicit route/default-view decisions remain exceptions until amended: the creation route in JITM-09 §2.36 and Journey's default in JITM-07 §2.20 (§6). Labels follow JITM-04 §2.3; visual priority follows JITM-06 §2.37. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:61] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:69] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:59]
 
 ## 3. Canonical implementations
 
@@ -190,6 +212,8 @@ Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21]
 
 ## 5. Verification
 
+- Run JITM-12 §2.26 across validation, empty/filtered-empty, loading, error/recovery, offline and signed-in/out states. Check field error associations and either-or constraints, retained failed-save entries, dirty-section markers, one scoped save, immediate press/loading feedback and copy-button confirmation. Recheck disabled reasons, deep-link opening and sheet heading focus with its documented Quick Add exception.
+
 - Browser suites: `e2e/design-consistency.spec.ts` (disclosures, app confirmations), `e2e/sheet-interactions.spec.ts` (drafts, nested Snooze, focus, failed saves, collapsed invalid fields), `e2e/design-correction.spec.ts` (confirmation and Undo, phone review), `e2e/design-refresh.spec.ts` (review dialogs contain and restore focus), `e2e/save-recovery.spec.ts`, `e2e/follow-up-drafts.spec.ts`, `e2e/mobile-clarity.spec.ts` (review, handoff and outcome).
 - `tests/design-system-accessibility.test.ts` checks the `ConfirmDialog` contract.
 - By hand: open a sheet and confirm the heading has focus; press Escape with a nested picker open; resize from desktop to phone with a draft open; break the network during a save and check that values stay and focus lands on the error.
@@ -197,8 +221,33 @@ Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21]
 
 ## 6. Open decisions and known deviations
 
+### Design audit 2026-11-08
+
+Recommend keeping §2.12's review-heading focus and testing any Quick Add capture-field exception change through UXA-03 (P-02); the current exception remains. Keep D9's explicit Apply on library filters (A-03), with instant Today/Contacts behavior. P-06 and every gesture, dismissal and motion-token rule belong to NAV-00 job_24403bb7c4ce / NAV-01 job_b1d64065ca93; their approval is not a landed implementation. A-18: implement the owner's readable-content decision through UXA-18B job_c81437336251, but reconcile the actual dissent in note_3572a39d7df3860d before shipping; the digest's claim of concurrence is incorrect. Source and owner quote are in the dated record. SaveBar and section markers (A-14) landed at 338ae42 / ef7a02c; other editors still require their own adoption.
+
+Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
+
+- E-09, A-20 — UXB-03 (job_a2a12aba8e5a).
+- A-08 — UXA-07 (job_26e9425c8e09); verify one add action and consistent sibling intent under §2.45.
+- A-16 — UXB-05 (job_c4544b060350); recommend an unselected chooser, preserving JITM-09 §2.36 until amended.
+- A-06 — UXA-10 (job_41d265c99e41); retain Journey's owner-decided default, with any last-used-view proposal in JITM-07 §6.
+- E-18 — UXA-16 (job_30ad2b5af772).
+- E-20, M-07, M-12, M-13 — UXB-02 (job_56ed53bc1495).
+- M-08 — UXB-01 (job_fe7761baec35).
+- M-11 — UXA-15 (job_2650d19a1f23).
+- A-03, A-21, A-22 — UXB-05 (job_c4544b060350).
+- A-04 — UXA-08 (job_738b06153234).
+- A-09 — UXB-06 (job_9ca5b9672d9a).
+- A-11, A-25, A-26 — UXB-04 (job_a5a8516f1138).
+- A-18 — UXA-18B (job_c81437336251).
+- P-01 — UXA-02 (job_0b1956750ccb).
+- P-02 — UXA-03 (job_44db7c9b8cd7).
+- P-06 — NAV-00 / NAV-01 (job_24403bb7c4ce / job_b1d64065ca93).
+- P-08 — UXB-07 (job_ca566cea09be).
+- P-10 — UXA-17 (job_36fb00a64b10).
+
 - **§2.18** is a proposal. The export's bubble kit says confirmations use the anchored pop-up (`screens/BubbleKit.html:21`), but the product uses modal dialogs for focus and Cancel-first behavior.
-- **Swipe actions:** the export shows phone rows that swipe to Snooze and Done (`screens/Main.html:21`). The product has no swipe gestures. Build them, or leave them out?
+- **Swipe actions:** the older export question is now assigned to NAV-00 job_24403bb7c4ce under its November 8 owner approval; this amendment writes no gesture/dismissal/motion-token rules. Its implementation remains a separate task.
 - **Confirmation look:** the completion confirmation does not use the export's dark toast bubble (JITM-06 §6).
 - An older record says filters apply without an Apply button (`docs/UX_WORKFLOW_OPTIMIZATION.md:13`); D9 supersedes it for the Mixes, Ready-made and Marketplace sheets.
 - `FormGuard`'s second native prompt (`src/components/FormGuard.tsx:45`) guards another form's submit, not navigation. It stays native because the decision is synchronous.
@@ -221,3 +270,5 @@ Their words are JITM-04's. [SHIPPED 9439fd6 src/components/EmptyState.tsx:15-21]
 - 1.2.0 — 2026-10-08 — Base f23db11. New §2.36: Today opens the next due follow-up after each outcome, with the Undo still on screen and counts updated at once (D70, the UX audit's answers); §2.4 and §2.33 point to it; §6 notes that it is not built yet.
 - 2.0.0 — 2026-10-12 — Base 4e78545. §2.33 changes meaning: Today's list waits for a message edit or an open draft, and an open Undo no longer holds it, since confirmations and their Undo sit outside the list (D99); Journey still pauses for edits, a path being chosen and focus in a form. §2.36: when the next review opens and when it doesn't (D70's scope, confirmed 2026-10-09); a refresh never takes away a confirmation or closes an open review (D99); notices clear of the stuck bar (D100). §6: D70 is built; D88, D91, D99 and D100 are decided and not yet built, and so is a card's place when a refresh brings another of the person's follow-ups (backlog B-20). LIV-01's fix, keeping a contacted person under Today, is proposed.
 - 2.1.0 — 2026-10-13 — Base 4d5c307. §2.4: Reopen says "Already reopened." when the follow-up was reopened elsewhere (D115), and an Undo or a Reopen that finds it so counts as reopened (UND-01, built). §2.33: Today names a read only past a second (D114), which answers §6's question about refresh notices. §2.36: LIV-01's fix is Kevin's (D112). §6: D88, D91, D99 and D100 are built (PRs #150, #151), with their known gaps, and PLC-01's cases join B-20 (D112).
+
+- 3.0.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.37–§2.45; refine states, disclosures, filters and control intent. Major because §2.23 scopes saves and §2.27 replaces the blanket required-fields convention with the actual form constraint. §2.44 records the offline owner decision without claiming second-opinion concurrence. Preserve Quick Add focus, library Apply and named route/default-view exceptions.

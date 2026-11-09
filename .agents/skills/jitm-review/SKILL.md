@@ -36,6 +36,10 @@ Follow **WF-05** (`docs/standards/workflows/WF-05-review.md`). The rubric and th
 - **Truth:** sending and delivery language, and invented claims or data (JITM-00 §2.3, JITM-00 §2.4).
 - **Vocabulary and casing** (JITM-05 §2).
 - **Tokens, shared components, both themes and the viewport matrix** (JITM-06 §2, JITM-07 §5).
+- **New-page kit and drift:** JITM-07 §2.32 and JITM-06 §3; before copying a neighbouring page, check `docs/standards-audit-2026-09-28/DRIFT_BASELINE.md`.
+- **Full applicable size matrix:** both sides of every layout boundary, fractional width, sideways phones/short heights, narrow through ultrawide (JITM-07 §5); note omitted rows.
+- **States:** validation, empty, filtered-empty, loading, error/recovery, offline, not-found and signed-in/out; explain inapplicable states (JITM-12 §2.26).
+- **Touch and orientation:** hover gating, shortcut hints, phone input size, sheet focus/keyboard, title/H1, skip link and focus after navigation (JITM-12 §2.26).
 - **Accessibility floor:** 44px targets and 13px text on every owner screen, Calendar and Journey included (MUST; exceptions: JITM-10 §2.1–§2.2; automated check: §2.21), visible focus, 200% text (JITM-10 §2).
 - **Tenancy, scheduling and idempotency** when behavior changes (JITM-11 §2).
 - **Tests compared with a baseline, and honest labels** (JITM-12 §2).

@@ -16,6 +16,10 @@ Follow **WF-07** (`docs/standards/workflows/WF-07-audit.md`). The report section
    - Touch production only with public GET checks, or with checks Kevin approved.
 3. **Collect sources.** Read the standards, the code at the audited SHA, the documents and any local runtime evidence. Record each source.
 4. **Assess each dimension in scope** (JITM-17 §2.12). Cite the rule each finding breaks.
+   - UI/design audits cover the full JITM-07 §5 size matrix: every boundary on both sides, fractional width, sideways phones/short heights, narrow through ultrawide (JITM-17 §2.17).
+   - Run JITM-12 §2.26's states pass: validation, empty, filtered-empty, loading, error/recovery, offline, not-found and signed-in/out. Explain inapplicable states.
+   - Run its touch/orientation pass: hover gating, shortcut hints, phone input size, sheet focus/keyboard, title/H1, skip link and focus after navigation.
+   - Keep missing captures, real devices and unexercised states explicit; a happy-path screenshot does not qualify the full matrix. Use synthetic local fixtures for writes.
 5. **Report the disagreements and gaps:**
    - documents that disagree with each other;
    - documents that disagree with the code;

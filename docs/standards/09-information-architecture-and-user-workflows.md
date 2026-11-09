@@ -2,12 +2,13 @@
 id: JITM-09
 title: Information architecture and user workflows
 status: active
-version: 10.0.2
+version: 10.1.0
 owner: Kevin
-last_reviewed: 2026-11-06
+last_reviewed: 2026-11-09
 applies_to: [routes, navigation, today, quick-add, contacts, mixes, mega-mixes, marketplace, journey, calendar, onboarding, invitations, waitlist, support, account, public-pages]
 supersedes: [docs/UX_WORKFLOW_OPTIMIZATION.md]
 sources:
+  - docs/design/UX_AUDIT_2026-11-08.md
   - src/components/Nav.tsx
   - src/app/(app)/jumps/page.tsx
   - src/lib/journey-numbering.ts
@@ -41,7 +42,7 @@ For Journey, shipped behavior comes from `docs/JOURNEY_IMPLEMENTATION_2026-09-21
 
 ### Route map and navigation
 
-**2.1** Every page MUST sit in the route group that matches its users. [SHIPPED 9439fd6 src/app/(app)/layout.tsx:10] [SHIPPED 9439fd6 src/app/(staff)/layout.tsx:12]
+**2.1** Every page MUST sit in the route group that matches its users and purpose, with the navigation highlight following that destination. Explicit existing route contracts such as invitations (§2.9, §2.18) remain until their owner decision is amended (§6). [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:70] [SHIPPED 9439fd6 src/app/(app)/layout.tsx:10] [SHIPPED 9439fd6 src/app/(staff)/layout.tsx:12]
 
 | Group | Routes | For |
 |---|---|---|
@@ -269,7 +270,9 @@ Shipped Journey still numbers per Mega-Mix view (§6). [OWNER 2026-09-28 D21] [O
 
 **2.67** Demo contract: each situation shows one explicitly fictional contact, with a reserved phone number and an `example.invalid` email, and exactly three Beats: a text today (day 0), an email tomorrow (day 1) and a call in one week (day 7). Drafts are editable and previews are marked. In a preview, ordinary user-activated `sms:`, `mailto:` and `tel:` links (the number only for a call) hand the edited, demo-marked text to the visitor's own app, with copy and manual-select fallbacks that keep the marker. A click only means a handoff was requested: the page MUST NOT treat focus, visibility or a click as proof that anything opened, sent or was delivered, and MUST NOT mark a Beat done from it. Where an app or body is unavailable, the copy says so honestly. Outcomes are simulated with Mark sent or called, Not yet and Undo, which change only the demo record. Drafts, subjects, Beats and progress are kept per situation in memory in the mounted tab only (a refresh clears them; Reset clears only the selected situation). The demo MUST NOT use cookies, storage, URL drafts, send automatically, place a call, schedule or write to an account, and only an allowlisted situation id may reach the waitlist. The only destinations are the fictional number and the per-situation `example.invalid` email. An owned auto-reply demo is a deferred future option (OWNER 2026-10-03). The homepage uses generic situations, a profession page preselects its own, and profession is never inferred from behavior or device. [OWNER 2026-09-19 docs/design/DEMO_WORKSPACE_2026-09-19.md:3] [SOURCE docs/design/DEMO_WORKSPACE_2026-09-19.md:8-9] [SHIPPED 9439fd6 src/lib/demo-workspace.ts:4-13,61] [SHIPPED 9439fd6 src/components/ProductDemo.tsx:12,56,79,88] [SOURCE docs/HOMEPAGE_EXPERIENCE_ROADMAP_2026-09-10.md:85] [OWNER 2026-10-03 D31 docs/standards-audit-2026-09-28/OWNER_DECISIONS.md]
 
-**2.68** The homepage and the five profession pages share one composition (`PublicLanding`; order and hero layout: JITM-07 §2). The pages are `/for/real-estate-agents`, `/for/consultants`, `/for/photographers`, `/for/contractors` and `/for/independent-recruiters`; other slugs MUST return 404. Each has its own title, description, headline, supporting line, demo call to action and honest boundary, and links only to template pages that exist. The "Mixes for:" row appears on every public page and marks the current one. Adding or removing a page needs Kevin (JITM-02 §2). [OWNER 2026-09-28 D2] [SHIPPED 9439fd6 src/components/PublicLanding.tsx:14-15] [SHIPPED 9439fd6 src/app/for/[profession]/page.tsx:19] [SHIPPED 9439fd6 src/lib/persona-mixes.ts:18-26] [SHIPPED 9439fd6 src/components/MixesFor.tsx:4-9]
+**2.68** The homepage and the five profession pages share one composition (`PublicLanding`; order and hero layout: JITM-07 §2). The pages are `/for/real-estate-agents`, `/for/consultants`, `/for/photographers`, `/for/contractors` and `/for/independent-recruiters`; other slugs MUST return 404. Each has its own title, description, headline, supporting line, demo call to action and honest boundary, and links only to template pages that exist. The body MUST earn that URL with profession-specific situations, a relevant Today example and its two most useful existing templates, not a repeat of the homepage body. Shared composition does not mean identical content. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:41] The "Mixes for:" row appears on every public page and marks the current one. Adding or removing a page needs Kevin (JITM-02 §2). [OWNER 2026-09-28 D2] [SHIPPED 9439fd6 src/components/PublicLanding.tsx:14-15] [SHIPPED 9439fd6 src/app/for/[profession]/page.tsx:19] [SHIPPED 9439fd6 src/lib/persona-mixes.ts:18-26] [SHIPPED 9439fd6 src/components/MixesFor.tsx:4-9]
+
+**2.83** Every public header and its phone menu MUST make Pricing and the signed-out Sign in entry reachable. Signed-in visitors get a Today entry appropriate to their session. Preserve the short Join and Explore controls from JITM-07 §2.25; these additions do not rename product terms or change invite-only access. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:43] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:93]
 
 ## 3. Canonical implementations
 
@@ -296,6 +299,8 @@ Shipped Journey still numbers per Mega-Mix view (§6). [OWNER 2026-09-28 D21] [O
 
 ## 5. Verification
 
+- Check public Pricing/Sign in in both session states and phone menus (§2.83), profession-specific body examples (§2.68), distinct sibling page titles and purpose-aligned navigation. Preserve the open creation/invitation route contracts in §6.
+
 - Run the suites for the changed workflow, with the commands and origin/main baseline of JITM-12 §2:
   - Today: `e2e/today-navigation.spec.ts`, `e2e/core-flows.spec.ts`, `e2e/channel-variants.spec.ts`, `tests/beta-follow-up-loop.test.ts`;
   - access: `e2e/onboarding-invitations.spec.ts`, `e2e/onboarding-journey-preferences.spec.ts`, `e2e/invitation-prompts.spec.ts`, `e2e/waitlist.spec.ts`;
@@ -305,6 +310,17 @@ Shipped Journey still numbers per Mega-Mix view (§6). [OWNER 2026-09-28 D21] [O
 - `docs/JOURNEY_EXPERIENCE_ACCEPTANCE_2026-09-21.csv` lists Journey scenarios; its planned rows are not passing tests.
 
 ## 6. Open decisions and known deviations
+
+### Design audit 2026-11-08
+
+Recommend an unselected ready-made/scratch chooser (A-16, UXB-05) and More/Account placement for invitations (A-17, UXA-07). Until those decisions amend the named contracts, preserve §2.36 and §2.9/§2.18. Keep Join and Explore for P-05; Pricing is the remaining public-entry addition. E-03/A-08 names belong to UXA-07 job_26e9425c8e09, not this glossary-preserving amendment.
+
+Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
+
+- E-03, A-08, A-17 — UXA-07 (job_26e9425c8e09).
+- M-04 — UXA-13 (job_34a695b3105f).
+- M-06, P-05 — UXA-14 (job_5097b82f3da1).
+- A-16 — UXB-05 (job_c4544b060350).
 
 Questions for Kevin:
 - Who is the named backup moderator, once one is needed (§2.70)?
@@ -387,3 +403,5 @@ Known deviations:
 - 10.0.1 — 2026-10-17 — Base 32e5181. §2.76–§2.77 cite Kevin's confirmation of PR #125 defaults 1–8 (D125), retain No Mix for visit-only waiting (D126), and describe fixed-date work as due under the existing sending policy. §2.19 records the owner staff-console publication handoff (D127). §6 closes those input gates.
 
 - 10.0.2 — 2026-11-06 — §6: mark B-05 built in M4-S1; visible People context and shared next actions, with D75 unchanged.
+
+- 10.1.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.83 public Pricing/session entry; clarify purpose-aligned navigation and distinct profession-page content. Existing invitation and creation routes remain decisions in §6.

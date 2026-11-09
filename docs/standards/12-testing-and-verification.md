@@ -2,12 +2,13 @@
 id: JITM-12
 title: Testing and verification
 status: active
-version: 3.0.0
+version: 3.1.0
 owner: Kevin
-last_reviewed: 2026-10-14
+last_reviewed: 2026-11-09
 applies_to: [tests, e2e, checks, ci, screenshots, reports]
 supersedes: []
 sources:
+  - docs/design/UX_AUDIT_2026-11-08.md
   - CONTRIBUTING.md
   - docs/LOCAL_TESTING.md
   - docs/BROWSER_E2E.md
@@ -114,10 +115,11 @@ A failure seen only in batch, one that passes every time alone, is not yet order
 ### Visual verification
 
 **2.18** UI changes MUST be verified with screenshots:
-- both themes, plus System mode when the change touches theming, at the JITM-07 §5 widths the change touches, including both sides of each breakpoint it touches;
+- both themes, plus System mode when the change touches theming, across the full applicable JITM-07 §5 matrix: narrow through ultrawide, both sides of every layout boundary, a fractional width, sideways phones and short heights; do not substitute only the export sizes;
 - compared with the matching export screen (JITM-06 §2), or with the page archetype when no screen exists;
 - inspected by the agent, with differences written down, because passing scripts do not prove visual fidelity;
-- taken from a production build with synthetic data.
+- taken from a production build with synthetic data, recording exact CSS dimensions, input capability, route, state and assertion;
+- accompanied by the states/touch/orientation pass in §2.26; list any matrix row not run and why. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:106]
 
 [SOURCE AGENTS.md:21] [SOURCE docs/JOURNEY_PRODUCTION_RELEASE_2026-09-21.md:32]
 
@@ -138,6 +140,13 @@ A failure seen only in batch, one that passes every time alone, is not yet order
 **2.24** On a host with limited memory, run one heavy job at a time: a build, a typecheck, a Playwright run or a Lighthouse run. Stop servers that are no longer needed before starting the next one. [SOURCE docs/FULL_AUDIT_2026-09-24.md:98] [SOURCE docs/BETA_READINESS_AUDIT_2026-09-26.md:469]
 
 **2.25** Give each server its own port and stop it afterwards. When projects share a machine, give Playwright its own browser cache with `PLAYWRIGHT_BROWSERS_PATH`. [SOURCE docs/AUDIT_RELEASE_A2_2026-09-25.md:74] [SOURCE docs/BROWSER_E2E.md:80]
+
+**2.26** UI implementation, review and audit MUST record three passes in addition to the size matrix in JITM-07 §5:
+- **States:** validation; empty; filtered-empty; loading; error and recovery; offline; not-found; signed-in versus signed-out. Exercise applicable states with synthetic fixtures, checking JITM-08 §2.24, §2.32, §2.37 and §2.39–§2.44; mark an inapplicable state with a reason instead of silently omitting it. Failed saves keep entries, a detail pane is intentional, and recovery offers a useful next step.
+- **Touch:** verify hover capability gating and shortcut/instruction visibility (JITM-06 §2.36), the phone input floor (JITM-10 §2.24), and sheet initial focus/keyboard visibility (JITM-08 §2.12), including the documented Quick Add exception. Keep keyboard focus, real-device evidence and emulation separate.
+- **Orientation:** match document title and H1, reach main through the skip link, and focus the new H1 after route navigation (JITM-10 §2.9, §2.22–§2.23).
+
+Record route, interactions, assertions and screenshot evidence for each applicable pass, or a concrete NOT RUN/BLOCKED reason (§2.1). A successful happy path or no-overflow scan alone is insufficient. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:33] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:32] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:73]
 
 ## 3. Canonical implementations
 
@@ -163,6 +172,8 @@ A failure seen only in batch, one that passes every time alone, is not yet order
 
 ## 5. Verification
 
+- Evidence includes JITM-07 §5 matrix rows and all applicable §2.26 states, touch and orientation assertions, with explicit omitted rows/states and real-device limits.
+
 - The report or pull request labels every check with §2.1 and ends with a NOT RUN list.
 - The commands run match the tiers in §2.9–§2.11 for the files the diff touches.
 - Every failure named in the report is classified as in §2.14, with the baseline commit named.
@@ -170,6 +181,23 @@ A failure seen only in batch, one that passes every time alone, is not yet order
 - `git diff` shows no real personal data in fixtures.
 
 ## 6. Open decisions and known deviations
+
+### Design audit 2026-11-08
+
+The size/state/touch evidence gap is not closed by this amendment. UXR-01 job_471c4c2d6330 owns the final recheck; UXD-01 job_7709278cf3c9 (staff), UXD-02 job_ad3eb30414a9 (server replies/writes), UXD-03 job_e9b188680cbc (modes/session/touch) and UXD-04 job_8674dd2eb3f5 (throttled phone) own missing coverage. Automation candidates are proposals in the dated record; none is claimed built.
+
+Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
+
+- V-01, V-02, V-04 — UXC-01 (job_1d216b599b31).
+- V-03, V-09 — UXC-02 (job_1412bc339852).
+- V-05 — UXC-03 (job_04680345bf95).
+- V-06 — UXC-04 (job_7d38cfe7c13b).
+- V-07 — UXB-01 (job_fe7761baec35).
+- V-08 — UXA-06 (job_e5a211855a70).
+- E-18 — UXA-16 (job_30ad2b5af772).
+- E-20 — UXB-02 (job_56ed53bc1495).
+- E-17, A-20 — UXB-03 (job_a2a12aba8e5a).
+- P-02 — UXA-03 (job_44db7c9b8cd7).
 
 - **Hosted CI runs again** since the repository became public on 2026-10-13. Actions had been blocked by billing for most of the time since 2026-09-27; it ran from about 2026-10-01 to 2026-10-05 (D13, D122). The `validate` job's cap is now 100 minutes (`.github/workflows/ci.yml:18-20`); its first full run after the restoration, on #154, took 73 minutes.
 - **Open for Kevin, D122's details:** may a pull request merge when its only red checks fail the same way on `main`, a failure of `main` itself? Should a docs-only pull request wait for CI's full run, about 73 minutes? Does tier 1 (§2.9) still run locally before every pull request, now that CI runs it too?
@@ -192,3 +220,5 @@ A failure seen only in batch, one that passes every time alone, is not yet order
 - 2.0.0 — 2026-10-12 — Base 4e78545. §2.14 changes meaning: a fifth class, intermittent (both fails and passes when rerun alone on the same build), told apart from an order-dependent failure by two reruns alone on each build, then run alone five times on each build; one that fails more often on the candidate counts as new and blocks, since nothing new may fail. This addition is D101, tagged [PROPOSED] until Kevin confirms it; steps 1–5 and the D5 gate are unchanged.
 - 2.0.1 — 2026-10-13 — Base 4d5c307. §2.14's intermittent class is Kevin's (D101). §6 asks how a failure seen only in batch counts (#151's docking race).
 - 3.0.0 — 2026-10-14 — Base 6630e49. §2.12 changes meaning: hosted CI is the merge gate again, and local runs cover what CI doesn't or stand in when Actions is down (D122). §2.14 changes meaning: a failure seen only in batch is run in its batch several more times on each build, five as proposed, and counts as new when it fails more often on the candidate (D123). §2.12 keeps a release's tier 3 local (D5). §2.6 adds hosted CI as an evidence class, and §2.14's step 5 points to the batch rule; the batch comparison counts only the reruns (D124). §6: Actions runs again, the batch question is answered, and three details of D122 are questions for Kevin.
+
+- 3.1.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.26 states/touch/orientation evidence; §2.18 points to the full JITM-07 §5 matrix instead of an export-only shortcut.

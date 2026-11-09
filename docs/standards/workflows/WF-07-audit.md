@@ -2,9 +2,9 @@
 id: WF-07
 title: Audit
 status: active
-version: 1.0.0
+version: 1.1.0
 owner: Kevin
-last_reviewed: 2026-09-28
+last_reviewed: 2026-11-09
 standards: [JITM-12, JITM-15, JITM-16, JITM-17]
 skills: [jitm-audit]
 ---
@@ -22,7 +22,10 @@ skills: [jitm-audit]
    - Deploy and migrate nothing.
    - Touch production only with public GET checks or checks Kevin approved (JITM-16 §2.10).
 3. **Collect sources:** the standards, code at the audited SHA, documents, and runtime evidence from local runs. Record each source in the report.
-4. **Assess each dimension** in JITM-17 §2.12, with evidence labels (JITM-12 §2).
+4. **Assess each dimension** in JITM-17 §2.12, with evidence labels (JITM-12 §2). For UI/design scope, JITM-17 §2.17 requires the full JITM-07 §5 size matrix and JITM-12 §2.26 states/touch/orientation passes.
+   - Run the full applicable JITM-07 §5 size matrix in both themes, including every layout boundary on both sides, fractional width, sideways phones/short heights, narrow and ultrawide screens; record omitted rows.
+   - Run JITM-12 §2.26: validation, empty, filtered-empty, loading, error/recovery, offline, not-found and signed-in/out states; hover/shortcut hints, phone input size and sheet focus; document title/H1, skip link and focus after navigation. Record inapplicable states with reasons.
+   Use local synthetic fixtures for state changes; the read-only production boundary still applies. State gaps and device limitations remain explicit evidence gaps.
 5. **Report disagreements and gaps:**
    - documents that disagree with each other;
    - documents that disagree with the code;
@@ -51,3 +54,5 @@ skills: [jitm-audit]
 ## Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
+
+- 1.1.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Require size/state/touch/orientation coverage and explicit limits; preserve read-only audit scope.

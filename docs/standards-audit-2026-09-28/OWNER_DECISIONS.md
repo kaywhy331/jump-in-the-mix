@@ -599,6 +599,16 @@ Question 4 of the same review needed no new decision: the Mix filter's first opt
 
 - **D128 — Phone navigation at enlarged text (2026-11-03).** Kevin answered "3. yes" to allowing the phone navigation to wrap into a second row only when enlarged text cannot fit, keeping five equal columns, the central Quick Add and 44px targets at normal text sizes; this resolves whole-word labels that cannot fit the five-column layout without breaking or overlapping. Source: Claude Code session 7b5e8109, Fleet Control OWNER WORD note_a900ed3d9310ff8f. Applies to JITM-07 §2.6, this slice only.
 
+## D129 — Adopt the design-audit lessons into the standards (2026-11-09)
+
+- **Question and context:** how to keep the 81 findings from the November 7–8 design audit from recurring in new pages while the UXA, UXB, UXC and NAV tasks repair existing pages.
+- **Kevin's words:** "on jump in the mix there was a lot of findings for ui/ux/design when audited. There are currently tasks being worked on fixing some of the issues. However, I would like to update the design template standards with these findings, so if there are new additions, it follows the same format and does not replicate the errors."
+- **Source:** Kevin's 2026-11-09 chat, carried by Hub job_742cc8269b55 (JITM-UX-STD-01), with the three sanitized FINDINGS notes. The [dated audit record](../design/UX_AUDIT_2026-11-08.md) preserves every finding and its A/B/C/D disposition.
+- **Decision:** amend the rulebook through WF-08, including archetype kits, verified canonical components, known deviations and the size/states/touch checks for building and reviewing new work. This approves adoption of the lessons, not every audit value. New values remain PROPOSED, existing owner choices win, the glossary stays unchanged under D44, and NAV-00 owns gesture/motion rules.
+- **Merge authority:** the task's explicit LANDING instruction authorizes this docs-only commit series to main under JITM-16 §2.5, by git-only fast-forward push through the existing deploy-key route after self-check and standards:check, followed by green hosted CI. No PR, other ref, force push, credential change or deployment is authorized. This is task-specific authority, not a replacement for general merge/release rules. QA is explicitly none for this docs-only task.
+- **Applied in:** JITM-03, JITM-04, JITM-06 to JITM-10, JITM-12 and JITM-17; WF-02/WF-07; the UI/review/audit skills and PR checklist; the dated record and drift baseline. Routing is unchanged.
+- **Separate earlier decision:** A-18 uses Kevin's November 8 offline instruction, quoted in the dated record, not this adoption decision. The actual independent opinion disagrees with offline readability; the record preserves that disagreement for UXA-18B rather than claiming concurrence.
+
 ## Still open
 
 The standards' §6 sections list the remaining open questions and known deviations. The second packet's product changes are tasks in the audit's [follow-up backlog](../STANDARDS_AUDIT_2026-09-28.md#8-follow-up-backlog).
