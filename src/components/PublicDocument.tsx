@@ -1,9 +1,8 @@
 import { PublicContents } from "@/components/PublicContents";
-import { AppearanceControl } from "@/components/Appearance";
+import { PublicHeader } from "@/components/PublicHeader";
 import type { ReactNode } from "react";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { Logo } from "@/components/Logo";
 import { PublicTrustLinks } from "@/components/PublicTrustLinks";
 import { PUBLIC_POLICY_DATE, publicTrust, type PublicTrust } from "@/lib/public-trust";
 
@@ -13,7 +12,7 @@ export function PublicDocument({ title, effectiveDate = PUBLIC_POLICY_DATE, chil
   if (!details) notFound();
   return <div className="public-page">
     <a className="public-skip-link" href="#main-content">Skip to content</a>
-    <header className="public-header"><Logo /><div className="public-header-actions"><AppearanceControl compact labelHidden /><Link className="button" href="/login">Sign in</Link></div></header>
+    <PublicHeader links={[{ href: "/#how-it-works", label: "How it works" }, { href: "/faq", label: "Questions" }]} />
     <main id="main-content" tabIndex={-1} className="public-document">
       <Link href="/">Back to home</Link>
       <h1>{title}</h1>

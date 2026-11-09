@@ -21,6 +21,7 @@ export default function PricingPage() {
     <main id="main-content" tabIndex={-1}>
       <section className="section public-pricing" aria-labelledby="pricing-title">
         <div className="section-heading"><h1 id="pricing-title">Plans and pricing</h1><p>Free during the beta, with no card required. Paid plans haven’t started yet; these are the plans when they do.</p></div>
+        <p>A Mix is a reusable follow-up plan. Each Beat is one planned text, email or call in a Mix. Today is your daily list of follow-ups and other items that need you.</p>
         <ul className="pricing-grid" role="list">
           {PLANS.map(plan => <li className="pricing-card" key={plan.id}>
             <h2>{plan.name}</h2>

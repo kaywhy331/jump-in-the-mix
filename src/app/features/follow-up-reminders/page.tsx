@@ -12,15 +12,15 @@ export const metadata: Metadata = publicPageMetadata({
 // Every statement here describes shipped behaviour: the Today list, the opt-in email digest, due
 // push notifications with quiet hours, the weekly summary, and the outcomes a person records.
 export default function FollowUpRemindersPage() {
-  return <PublicArticle title="Follow-up reminders for the things you said you’d do." deck="A little rhythm. A lot less remembering.">
-    <p>A follow-up reminder in Jump in the Mix is a Beat: one scheduled message or call step inside a Mix, your reusable follow-up plan. Here is who gets reminded, what shows up when it’s due, and which parts stay with you.</p>
+  return <PublicArticle title="Follow-up reminders for the things you said you’d do." deck="A little rhythm. A lot less remembering."
+    intro={<p>A follow-up reminder in Jump in the Mix is a Beat: one scheduled message or call step inside a Mix, your reusable follow-up plan. Here is who gets reminded, what shows up when it’s due, and which parts stay with you.</p>}>
     <section aria-labelledby="who-title">
       <h2 id="who-title">Who gets the reminder</h2>
       <p>You do. Reminders go to you, never to your contacts. Each Beat is a note to yourself that a planned check-in is due, with the draft you prepared for it.</p>
     </section>
     <section aria-labelledby="due-title">
       <h2 id="due-title">What appears when a Beat is due</h2>
-      <p>Your Today list shows the follow-ups due today, anything overdue, and what’s coming up. The next one is marked “Next up”, with the message ready to open in your own text or email app, or the call notes ready for a phone call. Editing the draft happens right there, before anything is sent.</p>
+      <p>Your Today list, the daily list of what needs you, shows the follow-ups due today, anything overdue, and what’s coming up. The next one is marked “Next up”, with the message ready to open in your own text or email app, or the call notes ready for a phone call. Editing the draft happens right there, before anything is sent.</p>
     </section>
     <section aria-labelledby="notifications-title">
       <h2 id="notifications-title">Optional notifications, off until you turn them on</h2>

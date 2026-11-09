@@ -8,13 +8,14 @@ const DEFAULT_LINKS: PublicHeaderLink[] = [{ href: "/#how-it-works", label: "How
 
 // The reading shell for the template and feature pages: the public header and footer around one
 // article with a visible H1, so the useful text and links are in the HTML for every visitor.
-export function PublicArticle({ title, deck, links = DEFAULT_LINKS, children }: { title: string; deck?: string; links?: PublicHeaderLink[]; children: ReactNode }) {
+export function PublicArticle({ title, deck, intro, links = DEFAULT_LINKS, children }: { title: string; deck?: string; intro?: ReactNode; links?: PublicHeaderLink[]; children: ReactNode }) {
   return <div className="public-page">
     <a className="public-skip-link" href="#main-content">Skip to content</a>
     <PublicHeader links={links} />
     <main id="main-content" tabIndex={-1}>
       <article className="section public-article">
         <div className="section-heading"><h1>{title}</h1>{deck && <p className="public-article-deck">{deck}</p>}</div>
+        {intro}
         <PublicContents />
         {children}
         <PublicCapabilities />
