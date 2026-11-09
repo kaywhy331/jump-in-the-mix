@@ -5,7 +5,7 @@ import { useFormStatus } from "react-dom";
 import { BEFORE_FORM_NAVIGATION } from "@/lib/form-navigation";
 
 /** Keep private drafts in memory and warn before leaving; never persist form contents. */
-export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery }: { forceDirty?: boolean; guardOtherForms?: boolean; preservedQuery?: Record<string, string> }) {
+export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery, nativeSubmit = false }: { forceDirty?: boolean; guardOtherForms?: boolean; preservedQuery?: Record<string, string>; nativeSubmit?: boolean }) {
   const forced = useRef(forceDirty); forced.current = forceDirty;
   const preserved = useRef(preservedQuery); preserved.current = preservedQuery;
   const marker = useRef<HTMLSpanElement>(null);
@@ -62,12 +62,15 @@ export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery 
     const navigate = (event: Event) => { const navigation = event as Event & { navigationType?: string }; if (navigation.navigationType === "traverse" && event.cancelable && !allow()) event.preventDefault(); };
     const navigation = (window as Window & { navigation?: EventTarget }).navigation;
     const associated = (event: Event) => { const target = event.target as HTMLInputElement | null; if (target?.form === form) update(); };
+    // Native GET review forms have no React pending state; other guards run in capture first.
+    const submit = (event: Event) => { if (nativeSubmit && !event.defaultPrevented) submitting.current = true; };
+    form.addEventListener("submit", submit);
     document.addEventListener("input", associated); document.addEventListener("change", associated); form.addEventListener("reset", reset);
     const observer = new MutationObserver(update); observer.observe(form, { childList: true, subtree: true, attributes: true, attributeFilter: ["value", "checked"] });
     document.addEventListener("submit", otherSubmit, true);
     document.addEventListener("click", click, true); window.addEventListener("beforeunload", unload); navigation?.addEventListener("navigate", navigate);
     window.addEventListener(BEFORE_FORM_NAVIGATION, programmatic);
-    return () => { for (const type of actions) document.removeEventListener(type, act, true); observer.disconnect(); document.removeEventListener("submit", otherSubmit, true); document.removeEventListener("input", associated); document.removeEventListener("change", associated); form.removeEventListener("reset", reset); document.removeEventListener("click", click, true); window.removeEventListener("beforeunload", unload); navigation?.removeEventListener("navigate", navigate); window.removeEventListener(BEFORE_FORM_NAVIGATION, programmatic); };
-  }, [guardOtherForms]);
+    return () => { form.removeEventListener("submit", submit); for (const type of actions) document.removeEventListener(type, act, true); observer.disconnect(); document.removeEventListener("submit", otherSubmit, true); document.removeEventListener("input", associated); document.removeEventListener("change", associated); form.removeEventListener("reset", reset); document.removeEventListener("click", click, true); window.removeEventListener("beforeunload", unload); navigation?.removeEventListener("navigate", navigate); window.removeEventListener(BEFORE_FORM_NAVIGATION, programmatic); };
+  }, [guardOtherForms, nativeSubmit]);
   return <span ref={marker} className="form-guard-status muted-copy" role="status">{pending ? "Saving…" : (forceDirty ?? changed) ? "Unsaved changes. Save before leaving this page." : ""}</span>;
 }

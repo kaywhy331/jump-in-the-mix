@@ -2,7 +2,7 @@ import { SignaturePreview } from "@/components/SignaturePreview";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { prisma } from "@/lib/prisma";
 import { ActionForm } from "@/components/ActionForm";
-import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { SaveBar } from "@/components/SaveBar";
 import { BUSINESS_TYPES } from "@/lib/business-taxonomy";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -62,7 +62,7 @@ export default async function BusinessSettingsPage({ searchParams }: { searchPar
           <label className="field full"><span>Email signature</span><textarea name="emailSignature" defaultValue={profile?.emailSignature ?? user.name} maxLength={2000} rows={4} required /></label><SignaturePreview />
         </div>
       </section>
-      <div className="form-actions"><FormSubmitButton label="Save business details" pendingLabel="Saving…" disabled={viewOnly} /></div>
+      <SaveBar cancelHref="/settings" saveLabel="Save business details" disabled={viewOnly} />
     </ActionForm>
   </div>;
 }

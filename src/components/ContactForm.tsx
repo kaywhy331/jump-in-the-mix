@@ -8,6 +8,7 @@ import { UNCONFIRMED_SAVE, isNavigationSignal } from "@/lib/unconfirmed-save";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { FormGuard } from "@/components/FormGuard";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { SaveBar } from "@/components/SaveBar";
 import { WhenField } from "@/components/WhenPicker";
 
 type GroupOption = { id: string; name: string; color: string | null; isActive: boolean };
@@ -304,10 +305,10 @@ export function ContactForm({
       </section>
       </details>
 
-      <div className="sticky-form-actions">
+      {mode === "create" ? <SaveBar cancelHref={returnTo || "/contacts"} saveLabel={scheduleFollowUp ? "Save & schedule follow-up" : "Save contact"} /> : <div className="sticky-form-actions">
         <Link className="button" href={returnTo || (contact?.id ? `/contacts/${contact.id}` : "/contacts")}>Cancel</Link>
-        <FormSubmitButton label={mode === "create" ? scheduleFollowUp ? "Save & schedule follow-up" : "Save contact" : "Update contact"} pendingLabel="Saving contact…" />
-      </div>
+        <FormSubmitButton label="Update contact" pendingLabel="Saving contact…" />
+      </div>}
     </form>
   );
 }

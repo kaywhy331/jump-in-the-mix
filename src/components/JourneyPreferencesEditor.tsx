@@ -1,7 +1,7 @@
 "use client";
 import { useId, useState } from "react";
 import { ActionForm } from "@/components/ActionForm";
-import { FormSubmitButton } from "@/components/FormSubmitButton";
+import { SaveBar } from "@/components/SaveBar";
 import { JourneyPreferenceFields } from "@/components/JourneyPreferenceFields";
 import { saveJourneyPreferencesAction } from "@/lib/mega-mix-actions";
 import type { JourneySetupValues } from "@/lib/journey-preferences";
@@ -11,6 +11,6 @@ export function JourneyPreferencesEditor({ initial }: { initial: JourneySetupVal
   return <ActionForm action={saveJourneyPreferencesAction} protect>
     <p>Working hours apply to flexible follow-ups throughout your account. Communication and spacing choices apply when adding a new Mega-Mix; your existing wording and delays stay as you set them.</p>
     <JourneyPreferenceFields id={id} value={value} onChange={setValue} />
-    <FormSubmitButton label="Save journey preferences" pendingLabel="Saving…" />
+    <SaveBar cancelHref="/account" saveLabel="Save journey preferences" />
   </ActionForm>;
 }

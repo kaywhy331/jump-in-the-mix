@@ -1,6 +1,8 @@
 "use client";
 
 import Link from "next/link";
+import { SaveBar } from "@/components/SaveBar";
+import { FormGuard } from "@/components/FormGuard";
 import { useActionState, useEffect, useRef, useState } from "react";
 import { useRouter } from "next/navigation";
 import { NewContactsMixSelect } from "@/components/NewContactsMixSelect";
@@ -33,6 +35,7 @@ export function NewContactsPlacementForm({ placement: savedPlacement, chosen, mi
     <span><strong>{title}</strong><small>{detail}</small></span>
   </label>;
   return <form action={action} onReset={event => event.preventDefault()} className="form-stack" aria-describedby={error ? "newContactSaveError" : undefined}>
+    {!viewOnly && <FormGuard guardOtherForms />}
     {error && <p ref={errorRef} id="newContactSaveError" tabIndex={-1} role="alert" className="notice error">{error}{error !== UNCONFIRMED_SAVE && " Your choices are kept."}</p>}
     <fieldset className="form-stack" disabled={viewOnly || pending}><legend>Where new contacts go</legend>
       {option("NONE", "Save without a default Mix", "No Mix starts from this setting. Contact stage and Everyone rules still apply.")}
@@ -45,6 +48,6 @@ export function NewContactsPlacementForm({ placement: savedPlacement, chosen, mi
       </div>}
       {option("ASK", "Choose when adding", "Add a contact and Quick Add offer a choice. Phone and connected contacts wait on Today’s No Mix line unless another rule starts a Mix.")}
     </fieldset>
-    <button className="button primary" disabled={viewOnly || pending}>{pending ? "Saving…" : "Save"}</button>
+    <SaveBar cancelHref="/settings" disabled={viewOnly || pending} />
   </form>;
 }
