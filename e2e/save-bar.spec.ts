@@ -6,6 +6,7 @@ import { axeInPage } from "./axe-in-page";
 
 const routes = ["/contacts/new", "/settings/business", "/settings/new-contacts", "/settings/notifications", "/account/preferences"];
 const output = ".artifacts/uxa17";
+const emailConfigured = Boolean(process.env.RESEND_API_KEY && process.env.EMAIL_FROM);
 let userId: string, workspaceId: string;
 test.skip(!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? ""), "Requires disposable local fixtures.");
 test.use({ screenshot: "off", video: "off", trace: "off", serviceWorkers: "block", actionTimeout: 15000 });
@@ -67,16 +68,22 @@ test("the five pages retain their values after Save and warn before Cancel", asy
   await expect(page.getByRole("radio", { name: /Choose when adding/ })).toBeChecked();
   expect(await prisma.workspacePreference.findUnique({ where: { workspaceId } })).toMatchObject({ newContactPlacement: "ASK" });
 
-  await open(page, routes[3]);
-  await page.getByLabel("Morning digest", { exact: false }).check();
-  await page.getByRole("combobox", { name: /^Send at/ }).selectOption("9");
-  await stays(page, page.locator("form:has(select[name=digestHour])"));
-  await expect(page.getByRole("button", { name: "Send me a test reminder", exact: true })).not.toHaveClass(/primary/);
-  await page.getByRole("button", { name: "Save email reminders", exact: true }).click();
-  await expect(page).toHaveURL(/saved=1/);
-  await page.reload();
-  await expect(page.getByRole("combobox", { name: /^Send at/ })).toHaveValue("9");
-  expect(await prisma.notificationPreference.findUnique({ where: { workspaceId } })).toMatchObject({ emailDigestEnabled: true, digestHour: 9 });
+  if (emailConfigured) {
+    await open(page, routes[3]);
+    await page.getByLabel("Morning digest", { exact: false }).check();
+    await page.getByRole("combobox", { name: /^Send at/ }).selectOption("9");
+    await stays(page, page.locator("form:has(select[name=digestHour])"));
+    await expect(page.getByRole("button", { name: "Send me a test reminder", exact: true })).not.toHaveClass(/primary/);
+    await page.getByRole("button", { name: "Save email reminders", exact: true }).click();
+    await expect(page).toHaveURL(/saved=1/);
+    await page.reload();
+    await expect(page.getByRole("combobox", { name: /^Send at/ })).toHaveValue("9");
+    expect(await prisma.notificationPreference.findUnique({ where: { workspaceId } })).toMatchObject({ emailDigestEnabled: true, digestHour: 9 });
+  } else {
+    await page.goto(routes[3]);
+    await expect(page.getByText("Email reminders are unavailable.", { exact: false })).toBeVisible();
+    await expect(page.getByRole("button", { name: "Save email reminders", exact: true })).toHaveCount(0);
+  }
 
   await open(page, routes[4]);
   await page.getByLabel("Display name", { exact: true }).fill("Saved Casey");
@@ -128,6 +135,12 @@ test("section saves protect other drafts, and phone-country review keeps its val
 
 for (const route of routes) test(`${route} shared bar fits the viewport matrix, keyboard and enlarged text`, async ({ page }, info) => {
   test.setTimeout(180000);
+  if (route === "/settings/notifications" && !emailConfigured) {
+    await page.goto(route);
+    await expect(page.getByText("Email reminders are unavailable.", { exact: false })).toBeVisible();
+    await expect(page.locator(".save-bar")).toHaveCount(0);
+    return;
+  }
   await open(page, route);
   const slug = route.replaceAll("/", "-");
   for (const theme of ["light", "dark"]) {
