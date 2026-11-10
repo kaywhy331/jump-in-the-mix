@@ -143,7 +143,7 @@
 @media (width < 768px) {
   .calendar-kind select { font-size: var(--font-size-md); }
 }
-.calendar-entry-form .calendar-form-row { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 8px 16px; margin: 0; padding-block: 14px; border-top: 1px solid var(--line); }
+.calendar-entry-form .calendar-form-row { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: var(--space-2); margin: 0; padding-block: 14px; border-top: 1px solid var(--line); }
 .calendar-form-row > span:first-child { color: var(--text-2); font-size: .875rem; font-weight: 500; }
 .calendar-form-row > input, .calendar-form-row > select { background: transparent; }
 .calendar-contact-picker { display: grid; gap: 8px; min-width: 0; }
@@ -152,12 +152,12 @@
 .calendar-contact-options > li { display: flex; align-items: center; min-height: 44px; padding: 8px 12px; overflow-wrap: anywhere; cursor: pointer; }
 .calendar-contact-options > li[aria-selected="true"] { background: var(--selected); }
 .calendar-new-contact { grid-column: 1 / -1; min-width: 0; }
-.calendar-form-row > .when-ends-summary, .calendar-form-row > small, .calendar-form-row > .when-duration-custom { grid-column: 2; margin: 0; }
+.calendar-form-row > .when-ends-summary, .calendar-form-row > small, .calendar-form-row > .when-duration-custom { grid-column: 1; margin: 0; }
 .calendar-form-row .when-chips { gap: 6px; }
 .calendar-form-row .when-chip { min-height: 44px; padding: 8px 12px; font-size: .8125rem; }
 .calendar-timezone > .timezone-picker { grid-column: 1 / -1; }
 .calendar-timezone .timezone-current { display: grid; grid-template-columns: minmax(0, 1fr) auto; gap: 16px; }
-.calendar-timezone .timezone-current > span { display: grid; grid-template-columns: 110px minmax(0, 1fr); align-items: center; gap: 16px; }
+.calendar-timezone .timezone-current > span { display: grid; grid-template-columns: minmax(0, 1fr); align-items: start; gap: var(--space-1); }
 .calendar-timezone .timezone-current strong { font-size: .875rem; font-weight: 400; }
 .calendar-timezone .timezone-current .button { border: 0; background: transparent; color: var(--violet-text); }
 .calendar-extra-details { padding-block: 12px; border-top: 1px solid var(--line); }

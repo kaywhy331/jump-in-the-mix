@@ -124,7 +124,7 @@ test("asks for one inline choice when the entered phone and email match differen
   const blakeEmail = `blake-${suffix}@example.com`;
   await prisma.contact.create({ data: { workspaceId, firstName: "Avery", displayName: `Avery ${suffix}`, phones: { create: { phone: "+15550100601", normalized: "+15550100601", isPrimary: true } } } });
   const blake = await prisma.contact.create({ data: { workspaceId, firstName: "Blake", displayName: `Blake ${suffix}`, emails: { create: { email: blakeEmail, normalized: blakeEmail, isPrimary: true } } } });
-  // Without new=1 the editor opens the day's first event (the first test's visit) for editing.
+  // Starting another visit is an explicit request, even when the agenda already has an event.
   await page.goto(`/calendar?date=${visitDate}&new=1`); await ready(page);
   const form = page.locator("form.form-grid");
   await form.getByLabel("Title").fill("Bathroom estimate");
