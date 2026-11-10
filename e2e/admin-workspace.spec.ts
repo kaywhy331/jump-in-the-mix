@@ -5,6 +5,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { prisma } from "../src/lib/prisma";
 import { createSupportFixture } from "../tests/helpers/support-fixture";
 import { EMPTY_LIBRARY_CONTENT } from "../src/lib/library-content";
+import { ADMIN_LOADING_TITLE } from "../src/app/(staff)/admin/loading-content";
 
 const enabled = process.env.ADMIN_UX_E2E === "1" && process.env.AUTH_REQUIRE_ADMIN_MFA === "true" && /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 test.skip(!enabled, "Requires isolated local admin UX fixtures with MFA enabled.");
@@ -137,6 +138,8 @@ test("desktop primary controls fit above the fold and editor focus stays visible
   await page.setViewportSize({ width: 1366, height: 768 });
   for (const path of ["/admin/reports", "/admin/settings", "/admin/admission", "/admin/email"]) {
     await page.goto(path);
+    // The shell can be ready while the streamed page is still replacing its fallback.
+    await expect(page.getByText(ADMIN_LOADING_TITLE, { exact: true })).toBeHidden();
     await expect(page.locator("h1")).toBeVisible();
     const controls = path === "/admin/reports" ? page.locator(".admin-report-domain dl")
       : path === "/admin/settings" ? page.getByRole("button", { name: "Save options", exact: true })
