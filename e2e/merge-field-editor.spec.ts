@@ -134,6 +134,22 @@ test("insertion replaces a selection, clipboard keeps tokens, and deleting a chi
   await expect(message.locator(".merge-field-chip")).toHaveText("First Name");
 });
 
+test("typing a field supports undo and redo without losing wording", async ({ page }) => {
+  await page.goto("/mixes/new?custom=1");
+  const message = page.getByRole("textbox", { name: "Message", exact: true });
+  await expect(message).toBeEditable();
+  await message.focus();
+  await page.keyboard.type("Hi {{First Name}}");
+  await expect(message.locator(".merge-field-chip")).toHaveText("First Name");
+  const value = page.locator('input[name="inlineBody-0"]');
+  await expect(value).toHaveValue("Hi {{First Name}}");
+  await page.keyboard.press("Control+z");
+  await expect(value).not.toHaveValue("Hi {{First Name}}");
+  await page.keyboard.press("Control+Shift+z");
+  await expect(value).toHaveValue("Hi {{First Name}}");
+  await expect(message.locator(".merge-field-chip")).toHaveText("First Name");
+});
+
 test("both themes, full width matrix, short height, keyboard and enlarged text", async ({ page }, info) => {
   test.setTimeout(240000);
   await open(page);
@@ -149,6 +165,8 @@ test("both themes, full width matrix, short height, keyboard and enlarged text",
       });
       expect(metrics.overflow, `${theme} ${width}x${height}`).toBe(false);
       expect(metrics.position).toBe(width <= 900 || height <= 480 ? "static" : "sticky");
+      const insertBounds = await page.getByRole("button", { name: "Insert field", exact: true }).first().boundingBox();
+      expect(insertBounds!.width).toBeGreaterThanOrEqual(44); expect(insertBounds!.height).toBeGreaterThanOrEqual(44);
       await page.screenshot({ path: `${output}/${info.project.name}-${theme}-${width}x${height}.png` });
       await appendFile(`${output}/matrix.jsonl`, JSON.stringify({ project: info.project.name, theme, width, height, ...metrics }) + "\n");
     }

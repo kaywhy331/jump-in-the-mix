@@ -95,6 +95,26 @@ export function MergeFieldEditor({ label, name, value, onChange, required = fals
       aria-labelledby={`${id}-label`} aria-multiline={multiline} aria-required={required}
       aria-invalid={invalid || undefined} aria-describedby={invalid ? `${id}-error` : undefined}
       onInput={sync} onKeyUp={rememberSelection} onMouseUp={rememberSelection} onBlur={rememberSelection}
+      onBeforeInput={event => {
+        const typed = (event.nativeEvent as InputEvent).data;
+        if (!typed || composing.current) return;
+        const current = window.getSelection();
+        if (!current?.rangeCount) return;
+        const range = current.getRangeAt(0).cloneRange();
+        let text = typed;
+        // Complete a field through a native editing command, before plain text
+        // enters the DOM. Replacing innerHTML afterwards would discard undo.
+        if (range.collapsed && range.startContainer.nodeType === 3) {
+          const prefix = (range.startContainer.textContent ?? "").slice(0, range.startOffset);
+          const start = prefix.lastIndexOf("{{");
+          if (start >= 0 && /^\{\{[^{}]+\}\}/.test(prefix.slice(start) + typed)) {
+            text = prefix.slice(start) + typed;
+            range.setStart(range.startContainer, start);
+          }
+        }
+        if (!/\{\{[^{}]+\}\}/.test(text)) return;
+        event.preventDefault(); selection.current = range; insert(text);
+      }}
       onCompositionStart={() => { composing.current = true; }} onCompositionEnd={() => { composing.current = false; sync(); }}
       onKeyDown={event => { if (event.key === "Enter" && !event.nativeEvent.isComposing) { event.preventDefault(); if (multiline) { document.execCommand("insertText", false, "\n"); sync(); } } }}
       onPaste={event => { event.preventDefault(); rememberSelection(); insert(event.clipboardData.getData("text/plain")); }}
@@ -110,7 +130,7 @@ export function MergeFieldEditor({ label, name, value, onChange, required = fals
       required={required} onChange={() => {}} onInvalid={event => { event.preventDefault(); setInvalid(true); requestAnimationFrame(() => editor.current?.focus()); }} />
     {invalid && <small id={`${id}-error`} role="alert">{value.trim() ? `Use ${maxLength} characters or fewer.` : `Enter ${label.toLowerCase()}.`}</small>}
     <Sheet title="Insert field" description="Choose a detail to fill in for each person."
-      trigger={<button className="button small" type="button" disabled={pending} onPointerDown={rememberSelection}>Insert field</button>}>
+      trigger={<button className="button" type="button" disabled={pending} onPointerDown={rememberSelection}>Insert field</button>}>
       <div className={styles.options}>{options.map(field => <button className="button" type="button" key={field.token}
         onClick={event => {
           const dialog = event.currentTarget.closest("dialog");
