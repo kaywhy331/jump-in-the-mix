@@ -124,19 +124,28 @@ for (const theme of ["light", "dark"] as const) {
     await page.goto("/calendar?date=2027-10-15"); await ready(page);
     await applyRenderedTheme(page, theme);
     for (const size of sizes) {
-      await page.setViewportSize(size);
+      await applyRenderedTheme(page, theme, size);
       await expect(page.locator(".calendar-editor-panel")).not.toBeVisible();
       await navigationFits(page);
-      const workspace = await page.locator(".calendar-workspace").boundingBox();
-      const agenda = await page.locator(".calendar-directory").boundingBox();
-      expect(agenda!.width).toBeCloseTo(workspace!.width, 0);
+      // Separate browser calls can sample opposite sides of a breakpoint reflow.
+      const [workspace, agenda] = await page.locator(".calendar-workspace").evaluate(element =>
+        [element, element.querySelector(".calendar-directory")!].map(node => {
+          const { width, left, right } = node.getBoundingClientRect();
+          return { width, left, right };
+        })
+      );
+      const viewport = `${size.width}x${size.height} ${theme}`;
+      expect(agenda.width, viewport).toBeCloseTo(workspace.width, 0);
+      expect(agenda.left, viewport).toBeCloseTo(workspace.left, 0);
+      expect(agenda.right, viewport).toBeCloseTo(workspace.right, 0);
+      expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth), viewport).toBe(true);
       await page.evaluate(() => scrollTo(0, 0));
       await page.screenshot({ path: `.artifacts/uxa09/${info.project.name}-${theme}-${size.width}x${size.height}-agenda.png` });
     }
     await page.getByRole("link", { name: "New event", exact: true }).click();
     await page.getByRole("button", { name: "Custom end", exact: true }).click();
     for (const size of sizes) {
-      await page.setViewportSize(size);
+      await applyRenderedTheme(page, theme, size);
       await labelsAbove(page);
       await navigationFits(page);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -144,7 +153,7 @@ for (const theme of ["light", "dark"] as const) {
       await page.screenshot({ path: `.artifacts/uxa09/${info.project.name}-${theme}-${size.width}x${size.height}-form.png` });
     }
     for (const width of [320, 375, 1024, 1440]) {
-      await page.setViewportSize({ width, height: 900 });
+      await applyRenderedTheme(page, theme, { width, height: 900 });
       const zoom = await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
       await labelsAbove(page); await navigationFits(page);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
@@ -152,12 +161,12 @@ for (const theme of ["light", "dark"] as const) {
       await zoom.evaluate(node => node.parentNode?.removeChild(node));
     }
     // 1209px at 110% zoom gives a fractional CSS width just below the 1100px boundary.
-    await page.setViewportSize({ width: 1209, height: 900 });
+    await applyRenderedTheme(page, theme, { width: 1209, height: 900 });
     const zoom = await page.addStyleTag({ content: "html { zoom: 1.1; }" });
     await labelsAbove(page); await navigationFits(page);
     await page.screenshot({ path: `.artifacts/uxa09/${info.project.name}-${theme}-zoom110.png` });
     await zoom.evaluate(node => node.parentNode?.removeChild(node));
-    await page.setViewportSize({ width: 1440, height: 900 });
+    await applyRenderedTheme(page, theme, { width: 1440, height: 900 });
     expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
   });
 }
