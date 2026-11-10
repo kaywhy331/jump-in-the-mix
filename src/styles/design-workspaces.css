@@ -419,6 +419,14 @@
 .today-page .today-page-header { flex-wrap: nowrap; align-items: flex-start; gap: 8px; }
 .today-page .today-page-header > div { flex: 1; }
 .today-page .today-page-header .filter-trigger { font-size: .75rem; padding: 8px; }
+/* Beside the docked review, Search and Filter sit on the title row and the attention line spans the whole queue below it (JITM-07 §2.27). */
+@media (width >= 768px) {
+  .today-page .today-page-header { display: flex; flex-wrap: wrap; align-items: center; }
+  .today-page .today-page-header > div:not(.today-header-tools) { display: contents; }
+  .today-page .today-page-header h1 { flex: 1 1 auto; min-width: 0; }
+  .today-page .today-page-header > div:not(.today-header-tools) > :not(h1) { order: 1; }
+  .today-page .today-page-header > div:not(.today-header-tools) > p { flex: 1 0 100%; }
+}
 .follow-up-channel-choice .when-chip { display: inline-flex; align-items: center; justify-content: center; gap: 8px; min-height: 44px; }
 .follow-up-channel-choice .when-chip svg { width: 18px; height: 18px; flex: 0 0 18px; }
 .icon-button { border: 1px solid var(--border); background: var(--page); color: var(--text-2); cursor: pointer; }
