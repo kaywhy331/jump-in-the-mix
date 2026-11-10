@@ -4,6 +4,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
 import { ADMIN_AREAS, type AdminPermission } from "../src/lib/admin-permissions";
 import { activeAdminArea } from "../src/lib/admin-navigation";
+import { ADMIN_LOADING_TITLE } from "../src/app/(staff)/admin/loading-content";
 import { reportDefinitionKey } from "../src/lib/report-storage-policy";
 import { applyRenderedTheme } from "./theme-fixture";
 
@@ -41,6 +42,7 @@ async function openStaffPage(page: Page, path: string) {
   const response = await page.goto(path);
   await expect(page.locator(".staff-shell")).toBeVisible();
   await expect(page.getByText("Checking your staff session…")).toHaveCount(0);
+  await expect(page.getByText(ADMIN_LOADING_TITLE, { exact: true })).toBeHidden();
   return response;
 }
 
@@ -86,7 +88,7 @@ test("a missing staff record opens the staff not-found inside the admin shell, w
         await expect(page.getByRole("navigation", { name: "Administration" })).toBeVisible();
         await expect(page.locator(".admin-workspace-main h1")).toHaveText("This record isn’t available");
         await expect(page.locator("h1")).toHaveCount(1);
-        await expect(page.getByRole("heading", { name: "Let’s get you back on track." })).toHaveCount(0);
+        await expect(page.getByRole("heading", { name: "Page not found" })).toHaveCount(0);
         const area = activeAdminArea(path, OWNER_PERMISSIONS)!;
         expect(area.href).toBe(list);
         const back = page.locator(".admin-workspace-main").getByRole("link", { name: `Back to ${area.label}` });
@@ -124,17 +126,18 @@ test("a loading staff page shows its placeholder inside the admin shell", async 
         if (await menu.isVisible()) await menu.click();
         await navigation.getByRole("link", { name: "Support", exact: true }).click();
         const loading = page.locator(".admin-workspace-main").getByRole("status");
-        await expect(loading.getByRole("heading", { level: 1, name: "Loading staff page…" })).toBeVisible();
+        await expect(loading.getByRole("heading", { level: 2, name: ADMIN_LOADING_TITLE })).toBeVisible();
         await expect(loading).toHaveAttribute("aria-busy", "true");
         await expect(loading.locator(".card[aria-hidden='true']")).toHaveCount(2);
         for (const card of await loading.locator(".card").all()) expect((await card.boundingBox())?.height, `${width}px placeholder card`).toBeGreaterThan(0);
         await expect(navigation).toBeVisible();
         await expect(page.locator(".staff-shell .public-header")).toBeVisible();
-        await expect(page.locator("h1")).toHaveCount(1);
+        await expect(page.locator("h1")).toHaveCount(0);
         await expectNoSidewaysScroll(page, `loading at ${width}px`);
       } finally { release(); await hold; }
       await expect(page).toHaveURL(/\/admin\/support$/);
-      await expect(page.locator(".admin-workspace-main").getByRole("status").getByRole("heading", { name: "Loading staff page…" })).toHaveCount(0);
+      await expect(page.getByText(ADMIN_LOADING_TITLE, { exact: true })).toBeHidden();
+      await expect(page.locator("h1")).toHaveCount(1);
       await expect(page.locator(".admin-workspace-main h1")).toBeVisible();
     }
   } finally { await cleanup(); }

@@ -48,9 +48,10 @@ test("favorites persist across reloads and filter the complete Mix library", asy
 
 test("preview and editing stay in the workspace and protect an unsaved Beat", async ({ page }) => {
   const selected = page.getByRole("region", { name: "Selected Mix", exact: true }); await selected.getByRole("link", { name: "Edit", exact: true }).click();
-  const script = selected.locator('textarea[name="inlineScript-0"]').first(); await expect(script).toBeVisible(); await script.fill("A revised conversation for this person.");
-  page.once("dialog", dialog => dialog.dismiss()); await selected.getByRole("link", { name: "Preview", exact: true }).click(); await expect(script).toHaveValue("A revised conversation for this person.");
-  await page.getByRole("button", { name: "Add A welcome conversation to favorites", exact: true }).click(); await expect(page.getByRole("button", { name: "Remove A welcome conversation from favorites", exact: true })).toBeVisible(); await expect(script).toHaveValue("A revised conversation for this person.");
+  const script = selected.getByRole("textbox", { name: "Call notes", exact: true }).first(); await expect(script).toBeVisible(); await script.fill("A revised conversation for this person.");
+  page.once("dialog", dialog => dialog.dismiss()); await selected.getByRole("link", { name: "Preview", exact: true }).click(); await expect(script).toHaveText("A revised conversation for this person.");
+  await page.getByRole("button", { name: "Add A welcome conversation to favorites", exact: true }).click(); await expect(page.getByRole("button", { name: "Remove A welcome conversation from favorites", exact: true })).toBeVisible(); await expect(script).toHaveText("A revised conversation for this person.");
+  await expect(selected.locator('input[name="inlineScript-0"]')).toHaveValue("A revised conversation for this person.");
   await selected.getByRole("button", { name: "Save Mix", exact: true }).click(); await expect(page.getByRole("status").filter({ hasText: "Mix saved" })).toBeVisible();
   await page.getByRole("region", { name: "Selected Mix", exact: true }).getByRole("link", { name: "Preview", exact: true }).click(); await expect(page.getByText("A revised conversation for this person.", { exact: true })).toBeVisible();
 });

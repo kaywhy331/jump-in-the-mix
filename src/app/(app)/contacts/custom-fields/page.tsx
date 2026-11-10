@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CustomFieldKey } from "@/components/CustomFieldKey";
 import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
@@ -40,7 +41,7 @@ export default async function ContactCustomFieldsPage({ searchParams }: { search
   return (
     <div className="page">
       {params.created && <Notice type="success">Contact custom field created.</Notice>}
-      {params.updated && <Notice type="success">Contact custom field renamed. Its placeholder key stayed stable.</Notice>}
+      {params.updated && <Notice type="success">Contact custom field renamed. Your Mixes can still use it.</Notice>}
       {params.deleted && <Notice type="success">Custom field deleted{params.values && params.values !== "0" ? ` with ${params.values} saved value${params.values === "1" ? "" : "s"}` : ""}.</Notice>}
       <UrlErrorNotice params={params} viewer={session} />
       <BackLink href="/contacts" label="Contacts" /><header className="page-header">
@@ -49,7 +50,7 @@ export default async function ContactCustomFieldsPage({ searchParams }: { search
       </header>
 
       <section className="card">
-        <div className="card-header"><div><h2>+ New custom field</h2><p>The generated placeholder key remains stable even when the display name changes.</p></div></div>
+        <div className="card-header"><div><h2>+ New custom field</h2><p>Rename a field anytime. Your Mixes will keep using the same detail.</p></div></div>
         <form action={createContactCustomFieldAction} className="inline-create-form">
           <input name="name" placeholder="Policy number" aria-label="Custom Contact field name" required maxLength={80} />
           <button className="button primary" type="submit">Create field</button>
@@ -60,9 +61,9 @@ export default async function ContactCustomFieldsPage({ searchParams }: { search
         <div className="card-header"><div><h2>Manage fields</h2><p>Deleting a field also deletes its saved contact values. Existing prepared messages stay unchanged, but that field will be blank in future messages.</p></div></div>
         {fields.length ? <div className="custom-field-list">{fields.map((field) => (
           <article className="custom-field-row" key={field.id}>
-            <div><strong>{field.name}</strong><code>{customFieldPlaceholder(field.key)}</code><small>{field._count.values} contact value{field._count.values === 1 ? "" : "s"}</small></div>
-            <Sheet trigger={<button className="button small" type="button">Rename</button>} title={`Rename ${field.name}`} description="Its message placeholder stays the same."><form action={renameContactCustomFieldAction} className="form-stack"><input type="hidden" name="definitionId" value={field.id} /><label className="field"><span>Name</span><input name="name" defaultValue={field.name} required maxLength={80} /></label><button className="button primary" type="submit">Save name</button></form></Sheet>
-            <ConfirmDialog trigger="Delete…" title={`Delete ${field.name}?`} description={`This also deletes ${field._count.values} saved Contact value${field._count.values === 1 ? "" : "s"} and cannot be undone.`} danger><p>Mixes using this placeholder: {dependentMixes(field.key).length ? dependentMixes(field.key).map(mix => <Link key={mix.id} href={`/mixes/${mix.id}/edit`}>{mix.name} · </Link>) : "None in your saved plans"}. Edit these messages or replace this placeholder before deleting the field.</p><form action={deleteContactCustomFieldAction}><input type="hidden" name="definitionId" value={field.id} /><button className="button small danger" type="submit">Confirm delete</button></form></ConfirmDialog>
+            <div><strong>{field.name}</strong><CustomFieldKey name={field.name} value={customFieldPlaceholder(field.key)} /><small>{field._count.values} contact value{field._count.values === 1 ? "" : "s"}</small></div>
+            <Sheet trigger={<button className="button small" type="button">Rename</button>} title={`Rename ${field.name}`} description="Your Mixes will keep using this detail."><form action={renameContactCustomFieldAction} className="form-stack"><input type="hidden" name="definitionId" value={field.id} /><label className="field"><span>Name</span><input name="name" defaultValue={field.name} required maxLength={80} /></label><button className="button primary" type="submit">Save name</button></form></Sheet>
+            <ConfirmDialog trigger="Delete…" title={`Delete ${field.name}?`} description={`This also deletes ${field._count.values} saved Contact value${field._count.values === 1 ? "" : "s"} and cannot be undone.`} danger><p>Mixes using this field: {dependentMixes(field.key).length ? dependentMixes(field.key).map(mix => <Link key={mix.id} href={`/mixes/${mix.id}/edit`}>{mix.name} · </Link>) : "None in your saved Mixes"}. Edit these messages or replace this field before deleting the field.</p><form action={deleteContactCustomFieldAction}><input type="hidden" name="definitionId" value={field.id} /><button className="button small danger" type="submit">Confirm delete</button></form></ConfirmDialog>
           </article>
         ))}</div> : <p className="muted-copy">No custom contact fields yet.</p>}
       </section>

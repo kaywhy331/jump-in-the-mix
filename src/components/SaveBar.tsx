@@ -5,8 +5,8 @@ import { useEffect, useRef } from "react";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 
 /** A compact footer for an existing form; saving and validation stay with that form. */
-export function SaveBar({ cancelHref, saveLabel = "Save", label = "Save", disabled = false }: {
-  cancelHref: string; saveLabel?: string; label?: string; disabled?: boolean;
+export function SaveBar({ cancelHref, saveLabel = "Save", label = "Save", disabled = false, describedBy }: {
+  cancelHref: string; saveLabel?: string; label?: string; disabled?: boolean; describedBy?: string;
 }) {
   const bar = useRef<HTMLDivElement>(null);
   useEffect(() => {
@@ -26,6 +26,6 @@ export function SaveBar({ cancelHref, saveLabel = "Save", label = "Save", disabl
   }, []);
   return <div className="save-bar" ref={bar}>
     <Link className="button" href={cancelHref}>Cancel</Link>
-    <FormSubmitButton label={label} ariaLabel={saveLabel} pendingLabel="Saving…" disabled={disabled} />
+    <FormSubmitButton label={label} ariaLabel={saveLabel} pendingLabel="Saving…" disabled={disabled} describedBy={describedBy} />
   </div>;
 }

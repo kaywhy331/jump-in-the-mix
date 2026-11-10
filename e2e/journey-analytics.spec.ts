@@ -138,7 +138,7 @@ test("selecting people keeps the directory available and updates map and context
   await expect(people.locator("article")).toHaveCount(10);
   await page.getByRole("region", { name: "Mix and Beat journey", exact: true }).getByRole("button", { name: "All people", exact: true }).click();
   await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: On| Beats| Mix|$)/ }).click();
-  await expect(details.getByRole("heading", { name: /^(?:Mix A\d+ )?Welcome$/ })).toBeVisible();
+  await expect(details.getByRole("heading", { name: /^Welcome(?: Mix A\d+)?$/ })).toBeVisible();
   await details.getByText("Beats in this Mix", { exact: true }).click();
   await expect(details.getByText("Welcome call", { exact: true })).toBeVisible();
   await expect(details.getByText("Manual or connected start", { exact: false })).toBeVisible();

@@ -197,8 +197,11 @@ test("Calendar saves a selected person's event and opens it for editing from the
   await editor.getByRole("button", { name: "Save event", exact: true }).click();
   await expect.poll(() => prisma.calendarEntry.count({ where: { workspaceId, title: "Renovation planning visit", contactId } })).toBe(1);
   await page.goto(`/calendar?date=${date}`);
+  await expect(editor).not.toBeVisible();
+  await page.locator(".calendar-event").getByRole("link", { name: "Renovation planning visit", exact: true }).click();
   await expect(editor.getByLabel("Title", { exact: true })).toHaveValue("Renovation planning visit");
   await expect(page.locator(".calendar-contact-context")).toContainText("Ava Zoom");
+  await page.goto(`/calendar?date=${date}`);
   await page.setViewportSize({ width: 390, height: 844 });
   await expect(editor).not.toBeVisible();
   await page.locator(".calendar-event").getByRole("link", { name: "Renovation planning visit", exact: true }).click();

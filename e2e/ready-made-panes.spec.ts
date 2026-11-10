@@ -79,7 +79,7 @@ test("pagination, filtered selection, unpublished and invalid content have clear
   await expect(page.getByText("This Mix is being updated. Please choose another.")).toBeVisible();
   await expect(page.getByRole("link", { name: "Use this Mix", exact: true })).toHaveCount(0);
   await page.goto(`/templates?mix=${templates[25]}`);
-  await expect(page.getByRole("heading", { name: "Let’s get you back on track.", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Page not found", exact: true })).toBeVisible();
   await expect(page.getByText("Ready sample 25", { exact: true })).toHaveCount(0);
 });
 

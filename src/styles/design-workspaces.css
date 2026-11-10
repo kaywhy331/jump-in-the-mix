@@ -372,7 +372,6 @@
   .calendar-contact-context { grid-column: 3; grid-row: 2 / span 2; padding: 0 0 0 24px; border-top: 0; border-left: 1px solid var(--line); }
 }
 @media (max-width: 1099px) {
-  .calendar-editor-panel:not([data-requested]) { display: none; }
   .calendar-page .page-header p { display: none; }
   .calendar-page .calendar-week-nav { gap: 8px; }
   .calendar-page .calendar-week-nav .button { font-size: .8125rem; min-height: 44px; padding: 8px; }
@@ -509,4 +508,14 @@
 @media (max-width: 767px) {
   .today-page .jump-person-group.next-follow-up-group { margin-bottom: 8px; border: 1px solid var(--violet-mark); border-radius: 16px; }
   .today-page .jump-person-group.next-follow-up-group .jump-card.next-follow-up { margin: 0; border: 0; }
+}
+
+/* The agenda owns the workspace until an event editor is requested. */
+.calendar-workspace:not([data-editing]) { grid-template-columns: minmax(0, 1fr); }
+.calendar-editor-panel:not([data-requested]) { display: none; }
+.calendar-page .calendar-week-nav { flex-wrap: nowrap; }
+.calendar-page .calendar-week-nav .button { min-inline-size: var(--space-7); padding-inline: var(--space-2); white-space: nowrap; }
+.calendar-agenda-panel { container-type: inline-size; }
+@container (width < 20em) {
+  .calendar-week-nav .button > span { display: none; }
 }

@@ -1,6 +1,9 @@
 "use client";
 
 import Link from "next/link";
+import { SaveBar } from "@/components/SaveBar";
+import { MergeFieldEditor } from "@/components/MergeFieldEditor";
+import type { MergeFieldOption } from "@/lib/merge-field-parts";
 import { AppIcon } from "@/components/AppIcon";
 import { RequiredFieldsNote } from "@/components/RequiredFieldsNote";
 import { SchedulePreview } from "@/components/SchedulePreview";
@@ -93,8 +96,10 @@ export function MixEditor({
   activeContactCount,
   missingEmailCount,
   missingPhoneCount,
-  contactStages = null
+  contactStages = null,
+  customFields = []
 }: {
+  customFields?: MergeFieldOption[];
   mix?: MixValue;
   jumps: LegacyMessageOption[];
   dateTypes: DateTypeOption[];
@@ -215,7 +220,9 @@ export function MixEditor({
       refuse(UNCONFIRMED_SAVE);
     }
   };
+  const saveLabel = status === "ACTIVE" && startsPeople ? (opensReview ? (reviewKind === "start" ? "Review and start" : reviewKind === "resume" ? "Review and turn on" : "Review and save") : reviewKind === "start" || reviewKind === "resume" ? "Save and activate" : "Save Mix") : mix?.id ? "Save Mix" : "Create a Mix";
   const submit = (event: FormEvent<HTMLFormElement>) => {
+    if (mix?.id && !changedFields.length && !startsPeople) { event.preventDefault(); return; }
     if (!opensReview || activationInputRef.current?.value === "1") return;
     event.preventDefault();
     setReviewOpen(true);
@@ -227,7 +234,7 @@ export function MixEditor({
   };
 
   return <form ref={formRef} action={save} onChange={readChanges} onReset={event => event.preventDefault()} className="mix-editor-form simple-plan-editor" onSubmit={submit} onInvalid={event => { let parent = event.target instanceof HTMLElement ? event.target.parentElement : null; while (parent) { if (parent instanceof HTMLDetailsElement) parent.open = true; parent = parent.parentElement; } }}>
-    <FormGuard guardOtherForms />
+    <FormGuard guardOtherForms forceDirty={changedFields.length > 0} />
     {mix?.id && <input type="hidden" name="mixId" value={mix.id} />}
     {mix?.id && openedAt && <input type="hidden" name="mixUpdatedAt" value={openedAt} />}
     <input ref={activationInputRef} type="hidden" name="activationConfirmed" defaultValue="0" />
@@ -294,8 +301,8 @@ export function MixEditor({
 
           </div>
           <div className="form-grid mix-beat-message">
-            {item.channel === "EMAIL" && <label className="field full"><span>Subject</span><input name={`inlineSubject-${index}`} value={item.subject} onChange={(event) => updateStep(index, { subject: event.target.value })} maxLength={300} required /></label>}
-            {written ? <label className="field full"><span className="sr-only">Message</span><textarea name={`inlineBody-${index}`} value={item.body} onChange={(event) => updateStep(index, { body: event.target.value })} rows={3} placeholder="Hi {{First Name}}, ... {{SMS Signature}}" required /></label> : <label className="field full"><span className="sr-only">{item.channel === "VOICEMAIL" ? "Voicemail" : "Call notes"}</span><textarea name={`inlineScript-${index}`} value={item.script} onChange={(event) => updateStep(index, { script: event.target.value })} rows={3} placeholder="What should you remember to ask?" required /></label>}
+            {item.channel === "EMAIL" && <MergeFieldEditor label="Subject" fields={customFields} name={`inlineSubject-${index}`} value={item.subject} onChange={subject => updateStep(index, { subject })} maxLength={300} multiline={false} required />}
+            {written ? <MergeFieldEditor label="Message" fields={customFields} name={`inlineBody-${index}`} value={item.body} onChange={body => updateStep(index, { body })} required /> : <MergeFieldEditor label={item.channel === "VOICEMAIL" ? "Voicemail" : "Call notes"} fields={customFields} includePrivate={item.channel === "PHONE_CALL"} name={`inlineScript-${index}`} value={item.script} onChange={script => updateStep(index, { script })} placeholder="What should you remember to ask?" required />}
           </div>
           <details className="mix-beat-options"><summary aria-label={`Options for Beat ${index + 1}`} title={`Options for Beat ${index + 1}`}><AppIcon name="more" /><span className="sr-only">Beat options</span></summary>
           <div className="mix-beat-options-body">
@@ -313,10 +320,14 @@ export function MixEditor({
               <input type="hidden" name={`variantEmailSubject-${index}`} value={primary === "EMAIL" ? "" : item.variants.emailSubject} />
               <input type="hidden" name={`variantEmailBody-${index}`} value={primary === "EMAIL" ? "" : item.variants.emailBody} />
               <input type="hidden" name={`variantCallScript-${index}`} value={primary === "CALL" ? "" : item.variants.callScript} />
+              <input type="hidden" name={`variantTextBody-${index}-exact`} value={JSON.stringify(primary === "TEXT" ? "" : item.variants.textBody)} />
+              <input type="hidden" name={`variantEmailSubject-${index}-exact`} value={JSON.stringify(primary === "EMAIL" ? "" : item.variants.emailSubject)} />
+              <input type="hidden" name={`variantEmailBody-${index}-exact`} value={JSON.stringify(primary === "EMAIL" ? "" : item.variants.emailBody)} />
+              <input type="hidden" name={`variantCallScript-${index}-exact`} value={JSON.stringify(primary === "CALL" ? "" : item.variants.callScript)} />
               <p className="muted-copy field full">On Today every follow-up can switch between a text, an email and a call; the version that suits the person is marked Recommended. A blank version below uses wording generated from this Beat (shown greyed). Write your own to replace it. Switching never sends anything or adds another follow-up.</p>
-              {primary !== "TEXT" && <label className="field full"><span>Text version (optional)</span><textarea value={item.variants.textBody} onChange={(event) => setVariant({ textBody: event.target.value })} rows={3} placeholder={generated.TEXT?.body ?? "Hi {{First Name}}, ... {{SMS Signature}}"} />{!item.variants.textBody.trim() && generated.TEXT && <button type="button" className="text-button" onClick={() => useGenerated("TEXT")}><AppIcon name="edit" />Edit the generated text</button>}</label>}
-              {primary !== "EMAIL" && <><label className="field full"><span>Email version subject (optional)</span><input value={item.variants.emailSubject} onChange={(event) => setVariant({ emailSubject: event.target.value })} maxLength={300} placeholder={generated.EMAIL?.subject ?? undefined} /></label><label className="field full"><span>Email version (optional)</span><textarea value={item.variants.emailBody} onChange={(event) => setVariant({ emailBody: event.target.value })} rows={4} placeholder={generated.EMAIL?.body ?? "Hi {{First Name}}, ... {{Email Signature}}"} />{!item.variants.emailBody.trim() && generated.EMAIL && <button type="button" className="text-button" onClick={() => useGenerated("EMAIL")}><AppIcon name="edit" />Edit the generated email</button>}</label></>}
-              {primary !== "CALL" && <label className="field full"><span>Call version · talking points for you (optional)</span><textarea value={item.variants.callScript} onChange={(event) => setVariant({ callScript: event.target.value })} rows={5} placeholder={generated.CALL?.script ?? "What should you remember to ask? Private notes may go here."} />{!item.variants.callScript.trim() && generated.CALL && <button type="button" className="text-button" onClick={() => useGenerated("CALL")}><AppIcon name="edit" />Edit the generated talking points</button>}</label>}
+              {primary !== "TEXT" && <div className="field full"><MergeFieldEditor label="Text version (optional)" fields={customFields} value={item.variants.textBody} onChange={textBody => setVariant({ textBody })} placeholder={generated.TEXT?.body ?? "Hi {{First Name}}, ... {{SMS Signature}}"} />{!item.variants.textBody.trim() && generated.TEXT && <button type="button" className="text-button" onClick={() => useGenerated("TEXT")}><AppIcon name="edit" />Edit the generated text</button>}</div>}
+              {primary !== "EMAIL" && <><MergeFieldEditor label="Email version subject (optional)" fields={customFields} value={item.variants.emailSubject} onChange={emailSubject => setVariant({ emailSubject })} maxLength={300} multiline={false} placeholder={generated.EMAIL?.subject ?? "Write a subject"} /><div className="field full"><MergeFieldEditor label="Email version (optional)" fields={customFields} value={item.variants.emailBody} onChange={emailBody => setVariant({ emailBody })} placeholder={generated.EMAIL?.body ?? "Hi {{First Name}}, ... {{Email Signature}}"} />{!item.variants.emailBody.trim() && generated.EMAIL && <button type="button" className="text-button" onClick={() => useGenerated("EMAIL")}><AppIcon name="edit" />Edit the generated email</button>}</div></>}
+              {primary !== "CALL" && <div className="field full"><MergeFieldEditor label="Call version · talking points for you (optional)" fields={customFields} includePrivate value={item.variants.callScript} onChange={callScript => setVariant({ callScript })} placeholder={generated.CALL?.script ?? "What should you remember to ask? Private notes may go here."} />{!item.variants.callScript.trim() && generated.CALL && <button type="button" className="text-button" onClick={() => useGenerated("CALL")}><AppIcon name="edit" />Edit the generated talking points</button>}</div>}
             </div></details>;
           })()}
           {item.anchor === "CALENDAR_DAY" && <details className="step-advanced-settings"><summary>More timing options</summary><div className="form-grid"><label className="field"><span>Position</span><select value={signedOffset < 0 ? "before" : "after"} onChange={(event) => updateStep(index, { dayOffset: event.target.value === "before" ? -Math.abs(item.dayOffset) : Math.abs(item.dayOffset) })} disabled={triggerMode === "MANUAL_START"}><option value="after">On or after the start</option><option value="before">Before the date</option></select></label><label className="field"><span>Specific time (optional)</span><input type="time" value={timeValue(item.sendTimeMinutes)} onChange={(event) => updateStep(index, { sendTimeMinutes: minutesValue(event.target.value) })} /></label><label className="field full"><span>Planned date (optional)</span><input type="datetime-local" value={item.plannedAt} onChange={(event) => updateStep(index, { plannedAt: event.target.value })} /><small>Becomes due at this date and time, in your timezone, for every contact who has reached this Beat.</small></label></div></details>}
@@ -335,6 +346,9 @@ export function MixEditor({
       : stageReview && !reviewBeforeActivation ? "This Mix sets a Contact stage, so you’ll review who moves before saving."
       : reviewKind === "start" ? "You’ll review who gets this Mix before activating." : reviewKind === "resume" ? "You’ll review what turning it back on does before saving." : reviewKind === "reschedule" ? "You’ll review who this change reschedules before saving." : "You’ll review who this save starts before saving."} <Link href="/account/preferences">Change preference</Link></p>}
     {saveError && <p ref={saveErrorRef} tabIndex={-1} role="alert" className="notice error">{saveError}</p>}
-    <div className="sticky-form-actions"><p id="mix-save-consequence" className="muted-copy" aria-live="polite">{mixEditConsequenceText(consequence, nextSave)}</p>{status === "ACTIVE" && startsPeople && !opensReview && <button className="button" type="button" onClick={() => { if (formRef.current?.reportValidity()) setReviewOpen(true); }}>Review first</button>}<Link className="button" href={mix?.id ? `/mixes?mix=${encodeURIComponent(mix.id)}` : "/mixes"}><AppIcon name="close" />Cancel</Link><button className="button primary" type="submit" aria-describedby="mix-save-consequence"><AppIcon name="check" />{status === "ACTIVE" && startsPeople ? (opensReview ? (reviewKind === "start" ? "Review and start" : reviewKind === "resume" ? "Review and turn on" : "Review and save") : reviewKind === "start" || reviewKind === "resume" ? "Save and activate" : "Save Mix") : mix?.id ? "Save Mix" : "Create a Mix"}</button></div>
+    <p id="mix-save-consequence" className="muted-copy" aria-live="polite">{mixEditConsequenceText(consequence, nextSave)}</p>
+    {status === "ACTIVE" && startsPeople && !opensReview && <button className="button" type="button" onClick={() => { if (formRef.current?.reportValidity()) setReviewOpen(true); }}>Review first</button>}
+    <SaveBar cancelHref={mix?.id ? `/mixes?mix=${encodeURIComponent(mix.id)}` : "/mixes"}
+      label={saveLabel} saveLabel={saveLabel} describedBy="mix-save-consequence" />
   </form>;
 }

@@ -12,12 +12,17 @@ concurrency:
   group: ci-${{ github.workflow }}-${{ github.event_name == 'push' && github.sha || github.ref }}
   cancel-in-progress: true
 
+env:
+  # The full browser suite takes about 60 minutes; keep at least 25% of its cap free.
+  BROWSER_E2E_TIMEOUT_MINUTES: &browser-e2e-timeout 90
+  # Allow the browser cap plus setup, later gates and failure artifacts.
+  # YAML aliases also work at job level, where the env expression context is unavailable.
+  VALIDATE_TIMEOUT_MINUTES: &validate-timeout 140
+
 jobs:
   validate:
     runs-on: ubuntu-latest
-    # The serial 810-case browser matrix outgrew the previous 60-minute whole-job cap.
-    # Keep every test and its timeout; reserve time for later gates and failure artifacts.
-    timeout-minutes: 100
+    timeout-minutes: *validate-timeout
     env:
       APP_URL: http://127.0.0.1:3000
       PLAYWRIGHT_BASE_URL: http://127.0.0.1:3000
@@ -278,7 +283,7 @@ jobs:
           set -o pipefail
           npx playwright test e2e/registration.spec.ts 2>&1 | tee registration-e2e.log
       - name: Browser-driven end-to-end tests
-        timeout-minutes: 60
+        timeout-minutes: *browser-e2e-timeout
         env:
           PLAYWRIGHT_WEB_SERVER_COMMAND: node .next/standalone/server.js
           PUBLIC_TRUST_E2E: "1"
