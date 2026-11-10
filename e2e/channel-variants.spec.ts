@@ -87,8 +87,9 @@ test("the Beat editor authors text, email and call versions, refuses private not
   const saved = page.getByRole("group", { name: "Beat 1" });
   await saved.getByLabel("Options for Beat 1", { exact: true }).click();
   await saved.getByText("Text, email and call versions · 2 written by you", { exact: true }).click();
-  await expect(saved.getByLabel("Email version subject")).toHaveValue("Your estimate");
-  await expect(saved.getByLabel("Call version · talking points for you")).toHaveValue(callScript);
+  await expect(saved.getByLabel("Email version subject")).toHaveText("Your estimate");
+  await expect(saved.getByLabel("Call version · talking points for you")).toBeVisible();
+  await expect(saved.locator('input[name="variantCallScript-0"]')).toHaveValue(callScript);
   await saved.getByLabel(/^Email version(?! subject)/).fill(`${emailBody} {{Private Notes}}`);
   await page.getByRole("button", { name: "Save Mix" }).click();
   await expect(page.getByRole("alert").filter({ hasText: "Private notes" }).first()).toContainText("Private notes may only be inserted into Beat 1's call version.");
