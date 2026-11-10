@@ -42,7 +42,7 @@ vi.mock("@/lib/placeholders", async (importOriginal) => {
 });
 
 import { applyJumpToContactsAction } from "../src/lib/bulk-contact-actions";
-import { appointmentOutcomeAction, calendarConnectionAction } from "../src/lib/calendar-actions";
+import { addCalendarConnectionAction, appointmentOutcomeAction, calendarConnectionAction } from "../src/lib/calendar-actions";
 import { assignMixToContactAction } from "../src/lib/contact-mix-actions";
 import { UNVERIFIED_ERROR_MESSAGE, viewerErrorMessage } from "../src/lib/form-errors";
 import { saveActiveGroupsAction } from "../src/lib/group-actions";
@@ -77,13 +77,12 @@ beforeEach(() => {
 });
 
 describe("calendar", () => {
-  it("keeps its own refusals and advice for an address it will not fetch", async () => {
-    const unnamed = await redirected(calendarConnectionAction(form({ intent: "connect", name: "", timezone: "UTC", url: "https://calendar.example/feed.ics" })));
-    expect(shown(unnamed)).toEqual({ path: "/calendar", hash: "#calendar-connections", text: "Give this calendar a name of up to 100 characters." });
-    expect(shown(unnamed, someoneElse).text).toBe(UNVERIFIED_ERROR_MESSAGE);
+  it("keeps its own refusals and advice for an address it will not fetch, inside the open form", async () => {
+    // Connect and import answer the form that sent them (JITM-UXS-01), so no URL carries their text.
+    expect(await addCalendarConnectionAction({}, form({ intent: "connect", name: "", timezone: "UTC", url: "https://calendar.example/feed.ics" }))).toEqual({ error: "Give this calendar a name of up to 100 characters. Your entries are kept." });
     mocks.calendarCount.mockResolvedValue(0);
     for (const url of ["http://calendar.example/feed.ics", "not a url"]) {
-      expect(shown(await redirected(calendarConnectionAction(form({ intent: "connect", name: "Work", timezone: "UTC", url })))).text).toBe("Use an HTTPS calendar URL without a username, password, or custom port.");
+      expect(await addCalendarConnectionAction({}, form({ intent: "connect", name: "Work", timezone: "UTC", url }))).toEqual({ error: "Use an HTTPS calendar URL without a username, password, or custom port. Your entries are kept." });
     }
     expect(mocks.calendarCreate).not.toHaveBeenCalled();
   });
@@ -95,9 +94,9 @@ describe("calendar", () => {
     const file = new File(["BEGIN:VCALENDAR\nEND:VCALENDAR"], "work.ics", { type: "text/calendar" });
     const data = form({ intent: "import", name: "Work", timezone: "UTC" });
     data.set("file", file);
-    const imported = await redirected(calendarConnectionAction(data));
-    expect(shown(imported)).toEqual({ path: "/calendar", hash: "#calendar-connections", text: "The calendar could not be updated." });
-    expect(decodeURIComponent(imported)).not.toContain("db.internal");
+    const imported = await addCalendarConnectionAction({}, data);
+    expect(imported).toEqual({ error: "The calendar could not be updated. Your entries are kept." });
+    expect(JSON.stringify(imported)).not.toContain("db.internal");
     expect(mocks.calendarDelete).toHaveBeenCalledWith({ where: { id: "connection-1" } });
     mocks.syncCalendar.mockRejectedValue(new Error("getaddrinfo ENOTFOUND calendar.internal"));
     expect(shown(await redirected(calendarConnectionAction(form({ intent: "sync", id: "connection-1" })))).text).toBe("The calendar could not be updated.");
