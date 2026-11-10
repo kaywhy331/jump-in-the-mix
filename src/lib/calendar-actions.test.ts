@@ -1,10 +1,10 @@
-import { beforeEach, describe, expect, it, vi } from "vitest";
+import { afterEach, beforeEach, describe, expect, it, vi } from "vitest";
 
 // Connect and import answer the open form with an error or what was added (JITM-UXS-01, F-01, F-14);
 // the other connection intents still return to the calendar as before.
 const mocks = vi.hoisted(() => ({
   workspace: vi.fn(), refresh: vi.fn(),
-  count: vi.fn(), create: vi.fn(), remove: vi.fn(), removeMany: vi.fn(),
+  count: vi.fn(), create: vi.fn(), remove: vi.fn(), removeMany: vi.fn(), disable: vi.fn(),
   preferenceUpsert: vi.fn(), preferenceRemoveMany: vi.fn(),
   importCalendar: vi.fn(), syncCalendar: vi.fn()
 }));
@@ -16,7 +16,7 @@ vi.mock("@/lib/env", async (importOriginal) => {
 });
 vi.mock("@/lib/auth", () => ({ requireWorkspace: mocks.workspace }));
 vi.mock("@/lib/prisma", () => ({ prisma: {
-  calendarConnection: { count: mocks.count, create: mocks.create, delete: mocks.remove, deleteMany: mocks.removeMany },
+  calendarConnection: { count: mocks.count, create: mocks.create, delete: mocks.remove, deleteMany: mocks.removeMany, updateMany: mocks.disable },
   calendarPreference: { upsert: mocks.preferenceUpsert, deleteMany: mocks.preferenceRemoveMany }
 } }));
 vi.mock("@/lib/calendar", () => ({ importCalendar: mocks.importCalendar, syncCalendarConnection: mocks.syncCalendar, queueBoundReconciliation: vi.fn() }));
@@ -97,6 +97,63 @@ describe("connecting a calendar subscription", () => {
     mocks.syncCalendar.mockResolvedValue(0);
     expect(await connect()).toEqual({ notice: "Connected Work calendar. It has no busy times from the past month through the next year." });
     expect(mocks.remove).not.toHaveBeenCalled();
+  });
+});
+
+// A refused cleanup never loses the refresh failure or leaves a working half-connection (DATA-01).
+describe("when removing a failed connection is refused", () => {
+  const cleanupRefused = new Error("synthetic cleanup refusal");
+  let logged: ReturnType<typeof vi.spyOn>;
+  beforeEach(() => {
+    logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    mocks.create.mockResolvedValue({ id: "connection-new" });
+    mocks.remove.mockRejectedValue(cleanupRefused);
+    mocks.disable.mockResolvedValue({ count: 1 });
+  });
+  afterEach(() => logged.mockRestore());
+
+  // Only the new row is removed, or else turned off with its link cleared: refreshes read enabled, linked connections alone.
+  function expectOnlyTheNewRowTouched() {
+    expect(mocks.remove.mock.calls).toEqual([[{ where: { id: "connection-new" } }]]);
+    expect(mocks.disable.mock.calls).toEqual([[{ where: { id: "connection-new", workspaceId: "workspace-1" }, data: { enabled: false, urlEncrypted: null } }]]);
+    expect(mocks.removeMany).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
+  }
+
+  it("keeps a refused refresh's reply and turns the new row off", async () => {
+    const refused = new UserFacingError(REFRESH_FAILED);
+    mocks.syncCalendar.mockRejectedValue(refused);
+    expect(await connect()).toEqual({ error: `We couldn’t read that calendar link. Nothing was connected. Check the sharing URL and try again. ${KEPT}` });
+    expectOnlyTheNewRowTouched();
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged.mock.calls[0][1]).toEqual({ cause: refused, cleanup: cleanupRefused });
+  });
+
+  it("keeps an unexpected failure's fixed reply and logs it with the refused cleanup", async () => {
+    const unexpected = new Error("getaddrinfo ENOTFOUND calendar.internal");
+    mocks.syncCalendar.mockRejectedValue(unexpected);
+    expect(await connect()).toEqual({ error: `The calendar could not be updated. ${KEPT}` });
+    expectOnlyTheNewRowTouched();
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged.mock.calls[0][1]).toEqual({ cause: unexpected, cleanup: cleanupRefused });
+  });
+
+  it("still replies with the refresh failure when turning the row off is refused too", async () => {
+    const refused = new UserFacingError(REFRESH_FAILED), disableRefused = new Error("synthetic disable refusal");
+    mocks.syncCalendar.mockRejectedValue(refused);
+    mocks.disable.mockRejectedValue(disableRefused);
+    expect(await connect()).toEqual({ error: `We couldn’t read that calendar link. Nothing was connected. Check the sharing URL and try again. ${KEPT}` });
+    expectOnlyTheNewRowTouched();
+    expect(logged).toHaveBeenCalledTimes(1);
+    expect(logged.mock.calls[0][1]).toEqual({ cause: refused, cleanup: cleanupRefused, disable: disableRefused });
+  });
+
+  it("keeps a refused import's reply and turns the new row off", async () => {
+    const refused = new UserFacingError("Choose an iCalendar (.ics) file.");
+    mocks.importCalendar.mockRejectedValue(refused);
+    expect(await importFile(ics("Just some notes", "notes.txt"))).toEqual({ error: `Choose an iCalendar (.ics) file. ${KEPT}` });
+    expectOnlyTheNewRowTouched();
+    expect(logged.mock.calls[0][1]).toEqual({ cause: refused, cleanup: cleanupRefused });
   });
 });
 

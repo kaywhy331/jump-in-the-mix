@@ -93,6 +93,24 @@ function calendarPlace(data: FormData, result: Record<string, string> = {}): URL
 /** A calendar connection request this action refuses; its message is shown as written. */
 class CalendarConnectionError extends Error {}
 
+/** A subscription whose first refresh failed was not connected (F-02); the form adds that entries are kept. */
+const UNREADABLE_LINK = "We couldn’t read that calendar link. Nothing was connected. Check the sharing URL and try again.";
+
+/**
+ * Discards the connection this request created after its first refresh or import failed, and never
+ * throws, so the caller can always rethrow the original failure. If the delete is refused, the row is
+ * turned off and its link cleared instead: every refresh and import reads only enabled connections,
+ * subscription refreshes also need a link, and nothing restores either. Only this request's row is
+ * touched; operators get each error in the log.
+ */
+async function discardFailedConnection(workspaceId: string, id: string, cause: unknown) {
+  try { await prisma.calendarConnection.delete({ where: { id } }); return; } catch (cleanup) {
+    try { await prisma.calendarConnection.updateMany({ where: { id, workspaceId }, data: { enabled: false, urlEncrypted: null } }); }
+    catch (disable) { console.error(`Calendar connection ${id} failed its first refresh and could not be removed or turned off.`, { cause, cleanup, disable }); return; }
+    console.error(`Calendar connection ${id} failed its first refresh; it was turned off because it could not be removed.`, { cause, cleanup });
+  }
+}
+
 /** Connecting a subscription or importing a file answers the open form: an error, or what was added. */
 export type CalendarConnectionState = { error?: string; notice?: string };
 
@@ -128,10 +146,11 @@ export async function addCalendarConnectionAction(_state: CalendarConnectionStat
       const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name, urlEncrypted: encryptIntegrationCredentials({ url, timezone }) } });
       // A first refresh that fails connects nothing: like import, it removes only the row this request
       // created, and says so (F-02). Connections saved earlier, broken ones included, are left alone.
+      // The reply always comes from the refresh failure, even when the cleanup is refused (DATA-01).
       try { busyTimes = await syncCalendarConnection(workspace.id, connection.id); }
       catch (error) {
-        await prisma.calendarConnection.delete({ where: { id: connection.id } });
-        throw error instanceof UserFacingError ? new CalendarConnectionError("We couldn’t read that calendar link. Nothing was connected. Check the sharing URL and try again.") : error;
+        await discardFailedConnection(workspace.id, connection.id, error);
+        throw error instanceof UserFacingError ? new CalendarConnectionError(UNREADABLE_LINK, { cause: error }) : error;
       }
       listed = true;
     } else if (intent === "import") {
@@ -139,7 +158,7 @@ export async function addCalendarConnectionAction(_state: CalendarConnectionStat
       if (!(file instanceof File) || !file.size || file.size > 900_000) throw new CalendarConnectionError("Choose an .ics file of up to 900 KB.");
       const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name } });
       try { busyTimes = await importCalendar(workspace.id, connection.id, await file.text(), timezone); }
-      catch (error) { await prisma.calendarConnection.delete({ where: { id: connection.id } }); throw error; }
+      catch (error) { await discardFailedConnection(workspace.id, connection.id, error); throw error; }
       listed = true;
     } else throw new CalendarConnectionError("Choose a calendar action.");
     result = { notice: addedNotice(intent === "connect" ? "Connected" : "Imported", name, busyTimes) };
