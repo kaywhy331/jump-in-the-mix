@@ -137,8 +137,8 @@ test("narrow journey controls and wide preference fields stay aligned", async ({
 
 test("the demo uses the two design fonts and stays accessible through all steps", async ({ page }) => {
   await page.goto("/");
-  await page.locator("#sample textarea").fill("Hi Alex, is Tuesday still a good time to catch up?");
-  expect(await page.locator("#sample textarea").evaluate(element => getComputedStyle(element).fontFamily)).toMatch(/newsreader/i);
+  await page.locator("#sample textarea:visible").fill("Hi Alex, is Tuesday still a good time to catch up?");
+  expect(await page.locator("#sample textarea:visible").evaluate(element => getComputedStyle(element).fontFamily)).toMatch(/newsreader/i);
   // A computer without a texting app shows the scan pop-out instead of the native link.
   const scan = page.locator("#sample").getByRole("button", { name: "Open text", exact: true });
   if (await scan.count()) {
