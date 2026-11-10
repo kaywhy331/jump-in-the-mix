@@ -74,9 +74,9 @@ describe("connecting a calendar subscription", () => {
     mocks.create.mockResolvedValue({ id: "connection-new" });
     mocks.syncCalendar.mockRejectedValue(new UserFacingError(REFRESH_FAILED));
     expect(await connect()).toEqual({ error: `We couldn’t read that calendar link. Nothing was connected. Check the sharing URL and try again. ${KEPT}` });
-    expect(mocks.create).toHaveBeenCalledWith({ data: { workspaceId: "workspace-1", name: "Work calendar", urlEncrypted: "encrypted" } });
+    expect(mocks.create).toHaveBeenCalledWith({ data: { workspaceId: "workspace-1", name: "Work calendar", urlEncrypted: "encrypted", enabled: false, lastSyncedAt: null } });
     const created: { id: string } = await mocks.create.mock.results[0].value;
-    expect(mocks.syncCalendar).toHaveBeenCalledWith("workspace-1", created.id);
+    expect(mocks.syncCalendar).toHaveBeenCalledWith("workspace-1", created.id, expect.any(Date), "pending");
     // Only the row this request created goes; no other connection is touched.
     expect(mocks.remove.mock.calls).toEqual([[{ where: { id: created.id } }]]);
     expect(mocks.removeMany).not.toHaveBeenCalled();
@@ -146,6 +146,9 @@ describe("when removing a failed connection is refused", () => {
     expectOnlyTheNewRowTouched();
     expect(logged).toHaveBeenCalledTimes(1);
     expect(logged.mock.calls[0][1]).toEqual({ cause: refused, cleanup: cleanupRefused, disable: disableRefused });
+    // The row both writes left behind was created turned off, and only a successful first refresh turns one on (FU1).
+    expect(mocks.create.mock.calls[0][0].data.enabled).toBe(false);
+    expect(mocks.syncCalendar.mock.calls[0][3]).toBe("pending");
   });
 
   it("keeps a refused import's reply and turns the new row off", async () => {
@@ -154,6 +157,116 @@ describe("when removing a failed connection is refused", () => {
     expect(await importFile(ics("Just some notes", "notes.txt"))).toEqual({ error: `Choose an iCalendar (.ics) file. ${KEPT}` });
     expectOnlyTheNewRowTouched();
     expect(logged.mock.calls[0][1]).toEqual({ cause: refused, cleanup: cleanupRefused });
+  });
+});
+
+// The QA probe's five cases (JITM-UXS-02-FU1): what each leaves in the table, judged by what a refresh reads.
+describe("a new connection is never usable for refresh until its first sync succeeds", () => {
+  type Row = { id: string; workspaceId: string; name: string; urlEncrypted?: string | null; enabled: boolean; lastSyncedAt: Date | null };
+  const earlier: Row = { id: "connection-earlier", workspaceId: "workspace-1", name: "Earlier calendar", urlEncrypted: "earlier-link", enabled: true, lastSyncedAt: new Date("2026-11-01T00:00:00Z") };
+  const cleanupRefused = new Error("synthetic cleanup refusal"), disableRefused = new Error("synthetic disable refusal");
+  let rows: Map<string, Row>, usableWhileFirstSyncRan: boolean[], logged: ReturnType<typeof vi.spyOn>;
+  /** Every refresh path in calendar.ts (manual refresh, the worker's pass and import) reads only a turned-on row. */
+  const usable = (id: string) => rows.get(id)?.enabled === true;
+  /** The refresh contract of calendar.ts: a first sync reads only a pending row and turns it on when it succeeds; any other refresh reads only a turned-on row. */
+  const readable = (row: Row | undefined, stage: unknown) => stage === "pending" ? row?.enabled === false && row.lastSyncedAt === null : row?.enabled === true;
+
+  beforeEach(() => {
+    logged = vi.spyOn(console, "error").mockImplementation(() => undefined);
+    rows = new Map([[earlier.id, { ...earlier }]]);
+    usableWhileFirstSyncRan = [];
+    // The database applies the schema default (on) unless the request says otherwise.
+    mocks.create.mockImplementation(async ({ data }: { data: Omit<Row, "id" | "enabled" | "lastSyncedAt"> & Partial<Row> }) => {
+      const row: Row = { enabled: true, lastSyncedAt: null, ...data, id: "connection-new" };
+      rows.set(row.id, row);
+      return { ...row };
+    });
+  });
+  afterEach(() => logged.mockRestore());
+
+  /** Runs connect with the first sync failing (or not) and the cleanup writes refused (or not). */
+  async function scenario(failure: Error | null, refuse: { delete?: boolean; disable?: boolean } = {}) {
+    mocks.remove.mockImplementation(async ({ where }: { where: { id: string } }) => { if (refuse.delete) throw cleanupRefused; rows.delete(where.id); });
+    mocks.disable.mockImplementation(async ({ where, data }: { where: { id: string; workspaceId: string }; data: Partial<Row> }) => {
+      if (refuse.disable) throw disableRefused;
+      const row = rows.get(where.id);
+      if (!row || row.workspaceId !== where.workspaceId) return { count: 0 };
+      Object.assign(row, data);
+      return { count: 1 };
+    });
+    mocks.syncCalendar.mockImplementation(async (_workspaceId: string, id: string, now: Date | undefined, stage: unknown) => {
+      if (id === "connection-new" && usableWhileFirstSyncRan.length === 0) usableWhileFirstSyncRan.push(usable(id));
+      const row = rows.get(id);
+      if (!readable(row, stage)) throw new UserFacingError("This calendar has no subscription URL.");
+      if (failure && id === "connection-new" && row!.lastSyncedAt === null) throw failure;
+      Object.assign(row!, { enabled: true, lastSyncedAt: now ?? new Date() });
+      return 2;
+    });
+    return connect();
+  }
+  /** A later manual refresh of the new row: it works only on a usable connection. */
+  async function refreshNewRow() {
+    const location = await redirected(calendarConnectionAction(form({ intent: "sync", id: "connection-new" })));
+    return location.search === "?saved=1";
+  }
+  function expectOnlyTheNewRowTouched() {
+    expect(rows.get(earlier.id)).toEqual(earlier);
+    for (const [where] of [...mocks.remove.mock.calls, ...mocks.disable.mock.calls]) expect(where.where.id).toBe("connection-new");
+    expect(mocks.removeMany).not.toHaveBeenCalled();
+  }
+  const UNREADABLE = `We couldn’t read that calendar link. Nothing was connected. Check the sharing URL and try again. ${KEPT}`;
+
+  it("normal delete: nothing is left", async () => {
+    expect(await scenario(new UserFacingError(REFRESH_FAILED))).toEqual({ error: UNREADABLE });
+    expect(usableWhileFirstSyncRan).toEqual([false]);
+    expect(rows.has("connection-new")).toBe(false);
+    expect(logged).not.toHaveBeenCalled();
+    expectOnlyTheNewRowTouched();
+  });
+
+  it("delete refused: the row left is off and has no link", async () => {
+    const refused = new UserFacingError(REFRESH_FAILED);
+    expect(await scenario(refused, { delete: true })).toEqual({ error: UNREADABLE });
+    expect(usableWhileFirstSyncRan).toEqual([false]);
+    expect([usable("connection-new"), rows.get("connection-new")?.urlEncrypted]).toEqual([false, null]);
+    expect(await refreshNewRow()).toBe(false);
+    expect(logged.mock.calls.map((call: unknown[]) => call[1])).toEqual([{ cause: refused, cleanup: cleanupRefused }]);
+    expectOnlyTheNewRowTouched();
+  });
+
+  it("both cleanup writes refused: the row left is still not usable, with the same reply and both errors logged", async () => {
+    const refused = new UserFacingError(REFRESH_FAILED);
+    expect(await scenario(refused, { delete: true, disable: true })).toEqual({ error: UNREADABLE });
+    expect(usableWhileFirstSyncRan).toEqual([false]);
+    expect(rows.has("connection-new")).toBe(true);
+    expect(usable("connection-new")).toBe(false);
+    expect(await refreshNewRow()).toBe(false);
+    expect(logged.mock.calls.map((call: unknown[]) => call[1])).toEqual([{ cause: refused, cleanup: cleanupRefused, disable: disableRefused }]);
+    expect(mocks.refresh).not.toHaveBeenCalled();
+    expectOnlyTheNewRowTouched();
+  });
+
+  it("unexpected sync failure: the fixed reply, and the row left is not usable", async () => {
+    const unexpected = new Error("getaddrinfo ENOTFOUND calendar.internal");
+    expect(await scenario(unexpected, { delete: true })).toEqual({ error: `The calendar could not be updated. ${KEPT}` });
+    expect(usableWhileFirstSyncRan).toEqual([false]);
+    expect(usable("connection-new")).toBe(false);
+    expect(await refreshNewRow()).toBe(false);
+    expect(logged.mock.calls.map((call: unknown[]) => call[1])).toEqual([{ cause: unexpected, cleanup: cleanupRefused }]);
+    expectOnlyTheNewRowTouched();
+  });
+
+  it("success: one connection, turned on by its first sync, and later refreshes work", async () => {
+    expect(await scenario(null)).toEqual({ notice: "Connected Work calendar: 2 busy times added." });
+    expect(usableWhileFirstSyncRan).toEqual([false]);
+    expect(usable("connection-new")).toBe(true);
+    expect(rows.size).toBe(2);
+    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    expect(mocks.remove).not.toHaveBeenCalled();
+    expect(mocks.disable).not.toHaveBeenCalled();
+    expect(await refreshNewRow()).toBe(true);
+    expect(logged).not.toHaveBeenCalled();
+    expectOnlyTheNewRowTouched();
   });
 });
 
@@ -169,7 +282,7 @@ describe("importing a calendar file", () => {
   it("removes the connection for a file that is not a calendar and shows why in the form", async () => {
     mocks.importCalendar.mockRejectedValue(new UserFacingError("Choose an iCalendar (.ics) file."));
     expect(await importFile(ics("Just some notes", "notes.txt"))).toEqual({ error: `Choose an iCalendar (.ics) file. ${KEPT}` });
-    expect(mocks.importCalendar).toHaveBeenCalledWith("workspace-1", "connection-1", "Just some notes", "UTC");
+    expect(mocks.importCalendar).toHaveBeenCalledWith("workspace-1", "connection-1", "Just some notes", "UTC", expect.any(Date), "pending");
     expect(mocks.remove).toHaveBeenCalledWith({ where: { id: "connection-1" } });
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
@@ -177,7 +290,7 @@ describe("importing a calendar file", () => {
   it("says what the file added, by name", async () => {
     mocks.importCalendar.mockResolvedValue(1);
     expect(await importFile(ics())).toEqual({ notice: "Imported Synthetic file: 1 busy time added." });
-    expect(mocks.create).toHaveBeenCalledWith({ data: { workspaceId: "workspace-1", name: "Synthetic file" } });
+    expect(mocks.create).toHaveBeenCalledWith({ data: { workspaceId: "workspace-1", name: "Synthetic file", enabled: false, lastSyncedAt: null } });
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     mocks.importCalendar.mockResolvedValue(1200);
     expect(await importFile(ics())).toEqual({ notice: "Imported Synthetic file: 1,200 busy times added." });

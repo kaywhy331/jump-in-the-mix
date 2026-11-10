@@ -7,6 +7,7 @@ import { withViewerError } from "@/lib/form-errors";
 import { prisma } from "@/lib/prisma";
 import { parseCalendarTime } from "@/lib/calendar-time";
 import { importCalendar, queueBoundReconciliation, syncCalendarConnection } from "@/lib/calendar";
+import { CALENDAR_CONNECTION_STAGES } from "@/lib/calendar-connection-stages";
 import { ContactChoiceRequiredError, recordAppointmentOutcome, scheduleVisit, setAppointmentBindingDelivery, setAppointmentBindingHold, type AppointmentOutcome, type ContactCandidate } from "@/lib/appointment-bindings";
 import { calendarFeedUrl } from "@/lib/calendar-feed-fetch";
 import { encryptIntegrationCredentials } from "@/lib/integration-crypto";
@@ -98,9 +99,10 @@ const UNREADABLE_LINK = "We couldn’t read that calendar link. Nothing was conn
 
 /**
  * Discards the connection this request created after its first refresh or import failed, and never
- * throws, so the caller can always rethrow the original failure. If the delete is refused, the row is
- * turned off and its link cleared instead: every refresh and import reads only enabled connections,
- * subscription refreshes also need a link, and nothing restores either. Only this request's row is
+ * throws, so the caller can always rethrow the original failure. The row was created pending, which
+ * every refresh ignores, and only a successful first refresh or import turns it on, so it is never
+ * usable even when this cleanup is refused. If the delete is refused, the row is also turned off and
+ * its link cleared; if that is refused too, it simply stays pending. Only this request's row is
  * touched; operators get each error in the log.
  */
 async function discardFailedConnection(workspaceId: string, id: string, cause: unknown) {
@@ -143,11 +145,12 @@ export async function addCalendarConnectionAction(_state: CalendarConnectionStat
       // The address check fails only for a URL this app will not fetch, so its fixed advice is safe to show.
       let url: string;
       try { url = calendarFeedUrl(value(data, "url")).href; } catch { throw new CalendarConnectionError("Use an HTTPS calendar URL without a username, password, or custom port."); }
-      const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name, urlEncrypted: encryptIntegrationCredentials({ url, timezone }) } });
+      // Created pending, so no refresh can use it until its first refresh succeeds and turns it on (DATA-01).
+      const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name, urlEncrypted: encryptIntegrationCredentials({ url, timezone }), ...CALENDAR_CONNECTION_STAGES.pending } });
       // A first refresh that fails connects nothing: like import, it removes only the row this request
       // created, and says so (F-02). Connections saved earlier, broken ones included, are left alone.
       // The reply always comes from the refresh failure, even when the cleanup is refused (DATA-01).
-      try { busyTimes = await syncCalendarConnection(workspace.id, connection.id); }
+      try { busyTimes = await syncCalendarConnection(workspace.id, connection.id, new Date(), "pending"); }
       catch (error) {
         await discardFailedConnection(workspace.id, connection.id, error);
         throw error instanceof UserFacingError ? new CalendarConnectionError(UNREADABLE_LINK, { cause: error }) : error;
@@ -156,8 +159,8 @@ export async function addCalendarConnectionAction(_state: CalendarConnectionStat
     } else if (intent === "import") {
       const file = data.get("file");
       if (!(file instanceof File) || !file.size || file.size > 900_000) throw new CalendarConnectionError("Choose an .ics file of up to 900 KB.");
-      const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name } });
-      try { busyTimes = await importCalendar(workspace.id, connection.id, await file.text(), timezone); }
+      const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name, ...CALENDAR_CONNECTION_STAGES.pending } });
+      try { busyTimes = await importCalendar(workspace.id, connection.id, await file.text(), timezone, new Date(), "pending"); }
       catch (error) { await discardFailedConnection(workspace.id, connection.id, error); throw error; }
       listed = true;
     } else throw new CalendarConnectionError("Choose a calendar action.");
