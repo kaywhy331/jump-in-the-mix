@@ -3,7 +3,7 @@
 .public-page .public-header > .logo { flex-shrink: 0; white-space: nowrap; }
 .public-site-nav { display: flex; align-items: center; justify-content: flex-end; gap: 24px; font-size: .9375rem; font-weight: 650; }
 .public-site-nav > a { display: inline-flex; align-items: center; justify-content: center; min-height: 44px; }
-.public-site-nav > a:not(.button):hover, .public-footer nav a:hover { color: var(--brand-dark); text-decoration: underline; text-underline-offset: 5px; }
+.public-site-nav > a:not(.button):hover, .public-site-nav > a[aria-current="page"], .public-mobile-menu > nav a[aria-current="page"], .public-footer nav a:hover { color: var(--brand-dark); text-decoration: underline; text-underline-offset: 5px; }
 .public-skip-link { position: absolute; top: 8px; left: 16px; z-index: 100; padding: 12px 18px; border-radius: 10px; background: var(--raised); color: var(--ink); transform: translateY(-180%); }
 .public-skip-link:focus { transform: none; }
 .public-page #main-content:focus { outline: none; }
