@@ -76,7 +76,7 @@
 .marketplace-reports small { color: var(--text-3); }
 .marketplace-reports p { margin: 4px 0 0; color: var(--text-2); overflow-wrap: anywhere; }
 .mix-view-tabs { flex-wrap: wrap; }
-.admin-marketplace-row { padding: 20px 0; border-bottom: 1px solid var(--line); display: grid; gap: 10px; }
+.admin-marketplace-row { padding: 20px 0; border-bottom: 1px solid var(--line); display: grid; grid-template-columns: minmax(0, 1fr); gap: 10px; overflow-wrap: anywhere; }
 .admin-marketplace-row header { display: flex; align-items: center; justify-content: space-between; gap: 12px; flex-wrap: wrap; }
 .admin-marketplace-row h2 { margin: 0; font-size: 1.0625rem; }
 .admin-marketplace-row .muted-copy { margin: 0; }

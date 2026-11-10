@@ -210,7 +210,7 @@
  .staff-shell .admin-save-bar > .field { flex-basis: 100%; }
 }
 .staff-shell .admin-team-record { padding: 4px 14px; }
-.staff-shell .admin-team-record > summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: 52px; }
+.staff-shell .admin-team-record > summary { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: 8px 16px; min-height: 52px; overflow-wrap: anywhere; }
 .staff-shell .admin-team-record > summary small { display: block; color: var(--muted); font-weight: 400; }
 .staff-shell .admin-team-record > summary > span:last-child { color: var(--brand-dark); }
 .staff-shell .admin-team-record[open] > summary { margin-bottom: 12px; border-bottom: 1px solid var(--line); }
