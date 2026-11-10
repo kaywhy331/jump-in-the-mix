@@ -116,7 +116,7 @@ test("a bad calendar URL or file shows its error inside the open form and keeps 
       for (const [url, message, name] of [
         ["http://calendar.example/feed.ics", "Use an HTTPS calendar URL without a username, password, or custom port.", "http"],
         // A host that never resolves stands in for a feed the app cannot reach.
-        ["https://calendar.invalid/feed.ics", "Could not refresh this calendar. Previous availability is kept. Check the provider’s sharing URL or reconnect.", "unreachable"]
+        ["https://calendar.invalid/feed.ics", "We couldn’t read that calendar link. Nothing was connected. Check the sharing URL and try again.", "unreachable"]
       ] as const) {
         const opened = await openForm(page, CONNECT, colorScheme, size);
         await opened.form.getByLabel("Calendar name", { exact: true }).fill("Work calendar");
@@ -125,6 +125,8 @@ test("a bad calendar URL or file shows its error inside the open form and keeps 
         await expectReply(page, opened, "alert", `${message} ${KEPT}`, `${at} ${name} URL`);
         await expect(opened.form.getByLabel("Calendar name", { exact: true })).toHaveValue("Work calendar");
         await expect(opened.form.getByLabel("iCalendar subscription URL", { exact: true })).toHaveValue(url);
+        // Neither refusal leaves a connection behind; a failed first refresh removes the one it made (JITM-UXS-02).
+        expect(await prisma.calendarConnection.count({ where: { workspaceId } }), `${at} ${name} URL: nothing was connected`).toBe(0);
         await expectNoSidewaysScroll(page, `${at} ${name} URL`);
         if (name === "http") { await capture(page, `connect-error-${colorScheme}-${size.width}`); await expectAccessiblePanel(page, `${at} connect error`); }
       }

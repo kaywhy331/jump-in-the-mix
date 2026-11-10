@@ -126,9 +126,14 @@ export async function addCalendarConnectionAction(_state: CalendarConnectionStat
       let url: string;
       try { url = calendarFeedUrl(value(data, "url")).href; } catch { throw new CalendarConnectionError("Use an HTTPS calendar URL without a username, password, or custom port."); }
       const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name, urlEncrypted: encryptIntegrationCredentials({ url, timezone }) } });
-      // A subscription stays connected, with its error, when its first refresh fails.
+      // A first refresh that fails connects nothing: like import, it removes only the row this request
+      // created, and says so (F-02). Connections saved earlier, broken ones included, are left alone.
+      try { busyTimes = await syncCalendarConnection(workspace.id, connection.id); }
+      catch (error) {
+        await prisma.calendarConnection.delete({ where: { id: connection.id } });
+        throw error instanceof UserFacingError ? new CalendarConnectionError("We couldn’t read that calendar link. Nothing was connected. Check the sharing URL and try again.") : error;
+      }
       listed = true;
-      busyTimes = await syncCalendarConnection(workspace.id, connection.id);
     } else if (intent === "import") {
       const file = data.get("file");
       if (!(file instanceof File) || !file.size || file.size > 900_000) throw new CalendarConnectionError("Choose an .ics file of up to 900 KB.");

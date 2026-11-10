@@ -69,17 +69,25 @@ describe("connecting a calendar subscription", () => {
     expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
-  it("shows an unreachable feed's refusal in the form and lists the connection it kept", async () => {
+  // A failed first refresh connects nothing (JITM-UXS-02, F-02).
+  it("a failed first sync leaves no connection", async () => {
+    mocks.create.mockResolvedValue({ id: "connection-new" });
     mocks.syncCalendar.mockRejectedValue(new UserFacingError(REFRESH_FAILED));
-    expect(await connect()).toEqual({ error: `${REFRESH_FAILED} ${KEPT}` });
+    expect(await connect()).toEqual({ error: `We couldn’t read that calendar link. Nothing was connected. Check the sharing URL and try again. ${KEPT}` });
     expect(mocks.create).toHaveBeenCalledWith({ data: { workspaceId: "workspace-1", name: "Work calendar", urlEncrypted: "encrypted" } });
-    expect(mocks.syncCalendar).toHaveBeenCalledWith("workspace-1", "connection-1");
-    expect(mocks.refresh).toHaveBeenCalledTimes(1);
+    const created: { id: string } = await mocks.create.mock.results[0].value;
+    expect(mocks.syncCalendar).toHaveBeenCalledWith("workspace-1", created.id);
+    // Only the row this request created goes; no other connection is touched.
+    expect(mocks.remove.mock.calls).toEqual([[{ where: { id: created.id } }]]);
+    expect(mocks.removeMany).not.toHaveBeenCalled();
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
-  it("never shows an unexpected failure's text", async () => {
+  it("never shows an unexpected failure's text, and still leaves no connection", async () => {
     mocks.syncCalendar.mockRejectedValue(new Error("getaddrinfo ENOTFOUND calendar.internal"));
     expect(await connect()).toEqual({ error: `The calendar could not be updated. ${KEPT}` });
+    expect(mocks.remove.mock.calls).toEqual([[{ where: { id: "connection-1" } }]]);
+    expect(mocks.refresh).not.toHaveBeenCalled();
   });
 
   it("names the calendar and the busy times it added", async () => {
@@ -88,6 +96,7 @@ describe("connecting a calendar subscription", () => {
     expect(mocks.refresh).toHaveBeenCalledTimes(1);
     mocks.syncCalendar.mockResolvedValue(0);
     expect(await connect()).toEqual({ notice: "Connected Work calendar. It has no busy times from the past month through the next year." });
+    expect(mocks.remove).not.toHaveBeenCalled();
   });
 });
 
