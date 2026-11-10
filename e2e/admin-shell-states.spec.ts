@@ -7,8 +7,9 @@ import { activeAdminArea } from "../src/lib/admin-navigation";
 import { reportDefinitionKey } from "../src/lib/report-storage-policy";
 import { applyRenderedTheme } from "./theme-fixture";
 
-const database = new URL(process.env.DATABASE_URL ?? "postgresql://localhost/unknown");
-test.skip(!["localhost", "127.0.0.1"].includes(database.hostname) || !database.pathname.startsWith("/jitm_design_"), "Disposable fixtures only");
+// Runs with the admin workspace specs, outside the time-capped main browser step.
+const enabled = process.env.ADMIN_UX_E2E === "1" && process.env.AUTH_REQUIRE_ADMIN_MFA === "true" && /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
+test.skip(!enabled, "Requires ADMIN_UX_E2E=1, required staff MFA and a disposable local database.");
 test.setTimeout(300_000);
 
 /** The slice's widths (JITM-UXS-03): a phone and a desktop. */
