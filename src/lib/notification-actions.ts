@@ -4,6 +4,7 @@ import { captureFormFailure, recoverableFormAction, withViewerError, type FormRe
 import { redirect } from "next/navigation";
 import { automaticEmailConfigured, automaticSmsConfigured } from "@/lib/automatic-delivery";
 import { requireWorkspace } from "@/lib/auth";
+import { formatTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { lockAccess } from "@/lib/access-lock";
 
@@ -94,20 +95,25 @@ export async function updateNotificationPreferencesFormAction(_previous: FormRes
 
 export async function updateAutomationPreferencesFormAction(_previous: FormResult, data: FormData): Promise<FormResult> { return recoverableFormAction(() => updateAutomationPreferencesAction(data)); }
 
+const REMINDER_TEST_SCOPE = "reminder.test";
+
 export async function sendReminderTestFormAction(_previous: FormResult, _data: FormData): Promise<FormResult> {
   const { user, workspace, impersonation } = await requireWorkspace();
   if (impersonation) return { error: "End the support session before sending a test." };
   const { transactionalEmailConfigured, sendTransactionalEmail } = await import("@/lib/transactional-email");
   if (!transactionalEmailConfigured() || !user.emailVerifiedAt) return { error: "A verified email address and available email reminders are needed for this test." };
-  const { consumeRateLimit } = await import("@/lib/rate-limit");
-  const limit = await consumeRateLimit({ scope: "reminder.test", identifiers: [user.id], limit: 2, windowMs: 3600_000 });
-  if (!limit.allowed) return { error: "Two test emails are allowed per hour. Check your inbox before trying again." };
-  const { digestMessage } = await import("@/lib/notification-delivery");
+  const { consumeRateLimit, releaseRateLimitAttempt } = await import("@/lib/rate-limit");
   const { displayPreferencesForUser } = await import("@/lib/display-preferences");
-  const message = digestMessage({ ownerName: user.name, company: workspace.name, due: [{ scheduledAt: new Date(), reason: "Fictional example follow-up", contact: { displayName: "Alex (example)" } }], overdueCount: 0, preferences: await displayPreferencesForUser(user.id) });
-  try {
-    const result = await sendTransactionalEmail({ ...message, subject: `Test reminder: ${message.subject}`, to: user.email });
-    if (!result.delivered) return { error: "The email service has not confirmed acceptance. Check your inbox before retrying." };
-  } catch { return { error: "We could not confirm the test email. Check your inbox and spam folder before retrying." }; }
+  const preferences = await displayPreferencesForUser(user.id);
+  const limit = await consumeRateLimit({ scope: REMINDER_TEST_SCOPE, identifiers: [user.id], limit: 2, windowMs: 3600_000 });
+  if (!limit.allowed) return { error: `Two test emails are allowed per hour. No new test was sent. Check your inbox, or try again after ${formatTime(new Date(Date.now() + limit.retryAfterSeconds * 1000), preferences)}.` };
+  const { digestMessage } = await import("@/lib/notification-delivery");
+  const message = digestMessage({ ownerName: user.name, company: workspace.name, due: [{ scheduledAt: new Date(), reason: "Fictional example follow-up", contact: { displayName: "Alex (example)" } }], overdueCount: 0, preferences });
+  const accepted = await sendTransactionalEmail({ ...message, subject: `Test reminder: ${message.subject}`, to: user.email }).then(result => result.delivered, () => false);
+  if (!accepted) {
+    // Only a test the email service accepted counts against the hourly limit (JITM-UXS-09, F-07).
+    await releaseRateLimitAttempt(REMINDER_TEST_SCOPE, [user.id]);
+    return { error: "We couldn’t confirm that the email service accepted the test, so it may not have been sent. Check your inbox, then try again." };
+  }
   redirect("/settings/notifications?testAccepted=1");
 }
