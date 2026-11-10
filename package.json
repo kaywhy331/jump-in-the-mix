@@ -45,6 +45,7 @@
     "test:e2e": "playwright test",
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
     "test:lighthouse": "node scripts/run-lighthouse.mjs",
+    "test:app-reveal": "node scripts/measure-app-reveal.mjs",
     "smoke:staging": "node scripts/staging-smoke.mjs",
     "smoke:staging:seed": "tsx scripts/seed-staging-smoke-user.ts",
     "load:smoke": "node scripts/load-smoke.mjs",
