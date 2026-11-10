@@ -175,7 +175,6 @@
 @media (max-width: 760px) {
   .public-page .public-header { padding: 14px 18px; gap: 14px; }
   .public-site-nav { gap: 12px; }
-  .public-site-nav .public-section-link { display: none; }
   .public-page .public-workflow, .public-page .public-questions { grid-template-columns: 1fr; gap: 28px; }
   .public-definition { padding: 22px; border-radius: 18px; }
   .public-article-cta { padding: 20px; }
@@ -277,11 +276,15 @@
 .public-page h2[id] { scroll-margin-top: 24px; }
 @media (max-width: 760px) {
   .public-header { flex-wrap: wrap; }
+  .public-page .demo-actions { flex-wrap: wrap; }
+}
+/* Section links move into Explore below the shared 901px boundary, so tablet headers keep one row (JITM-07 §2.30). */
+@media (width < 901px) {
+  .public-site-nav .public-section-link { display: none; }
   .public-mobile-menu { display: block; flex-basis: 100%; }
   .public-mobile-menu summary { min-height: 44px; padding: 10px 0; cursor: pointer; }
   .public-mobile-menu nav { display: flex; gap: 12px; flex-wrap: wrap; }
   .public-mobile-menu a { display: block; padding: 10px 4px; }
-  .public-page .demo-actions { flex-wrap: wrap; }
 }
 
 /* The public demo demonstrates one useful follow-up, one decision at a time. */
