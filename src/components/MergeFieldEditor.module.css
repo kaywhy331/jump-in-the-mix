@@ -1,0 +1,12 @@
+.field { min-width: 0; gap: var(--space-2); }
+.editor {
+  min-height: 3em; width: 100%; max-width: 75ch; padding: var(--space-3);
+  border: 1px solid var(--field-border); border-radius: var(--radius-control);
+  background: var(--surface); color: var(--text); white-space: pre-wrap; overflow-wrap: anywhere;
+  font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.5;
+}
+.editor[aria-multiline="false"] { min-height: 44px; }
+.editor:focus-visible { outline: 3px solid var(--focus); outline-offset: 3px; }
+.hint { color: var(--muted); white-space: pre-wrap; overflow-wrap: anywhere; max-width: 75ch; }
+.options { display: flex; flex-wrap: wrap; gap: var(--space-2); }
+.options :global(.merge-field-chip) { font-size: max(13px, .85em); }

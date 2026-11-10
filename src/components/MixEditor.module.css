@@ -92,3 +92,8 @@
   }
 
 }
+
+/* JITM-08 §2.26 keeps Mix actions in the phone form flow. */
+@media (width <= 900px) {
+  :global(.mix-editor-form) > :global(.save-bar) { position: static; }
+}

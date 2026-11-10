@@ -50,9 +50,9 @@ function validateInlineVariants(formData: FormData, index: number, channel: Chan
   const primary = preparationFamilyForChannel(channel);
   const beat = `Beat ${index + 1}`;
   const candidates: Array<{ family: PreparationFamily; label: string; content: { subject: string | null; body: string | null; script: string | null } }> = [
-    { family: "TEXT", label: "text version", content: { subject: null, body: value(formData, `variantTextBody-${index}`, 20_000) || null, script: null } },
-    { family: "EMAIL", label: "email version", content: { subject: value(formData, `variantEmailSubject-${index}`, 300) || null, body: value(formData, `variantEmailBody-${index}`, 20_000) || null, script: null } },
-    { family: "CALL", label: "call version", content: { subject: null, body: null, script: value(formData, `variantCallScript-${index}`, 20_000) || null } }
+    { family: "TEXT", label: "text version", content: { subject: null, body: messageValue(formData, `variantTextBody-${index}`, 20_000) || null, script: null } },
+    { family: "EMAIL", label: "email version", content: { subject: messageValue(formData, `variantEmailSubject-${index}`, 300) || null, body: messageValue(formData, `variantEmailBody-${index}`, 20_000) || null, script: null } },
+    { family: "CALL", label: "call version", content: { subject: null, body: null, script: messageValue(formData, `variantCallScript-${index}`, 20_000) || null } }
   ];
   const variants: InlineVariant[] = [];
   for (const candidate of candidates) {
@@ -77,6 +77,18 @@ function value(formData: FormData, key: string, maximum = 4000): string {
   return String(formData.get(key) ?? "").trim().slice(0, maximum);
 }
 
+// A nonblank message keeps the owner's exact whitespace and token spelling.
+function messageValue(formData: FormData, key: string, maximum: number): string {
+  let raw = String(formData.get(key) ?? "");
+  const exact = formData.get(`${key}-exact`);
+  if (typeof exact === "string") {
+    try { const parsed: unknown = JSON.parse(exact); if (typeof parsed === "string") raw = parsed; }
+    catch { /* Older callers and malformed transport use the ordinary field. */ }
+  }
+  const text = raw.slice(0, maximum);
+  return text.trim() ? text : "";
+}
+
 function values(formData: FormData, key: string): string[] {
   return formData.getAll(key).map((item) => String(item));
 }
@@ -88,9 +100,9 @@ function fail(path: string, message: string, viewer: ErrorViewer): never {
 function validateInlineAction(formData: FormData, index: number, path: string, viewer: ErrorViewer): InlineAction {
   const name = value(formData, `inlineName-${index}`, 160);
   const channel = value(formData, `inlineChannel-${index}`, 40) as Channel;
-  const subject = value(formData, `inlineSubject-${index}`, 300) || null;
-  const body = value(formData, `inlineBody-${index}`, 20_000) || null;
-  const script = value(formData, `inlineScript-${index}`, 20_000) || null;
+  const subject = messageValue(formData, `inlineSubject-${index}`, 300) || null;
+  const body = messageValue(formData, `inlineBody-${index}`, 20_000) || null;
+  const script = messageValue(formData, `inlineScript-${index}`, 20_000) || null;
   if (!name) fail(path, `Give action #${index + 1} an internal name.`, viewer);
   if (!CHANNELS.includes(channel)) fail(path, `Choose a valid channel for action #${index + 1}.`, viewer);
   if (channel === "EMAIL" && (!subject || !body)) fail(path, `Email action #${index + 1} requires a subject and message.`, viewer);

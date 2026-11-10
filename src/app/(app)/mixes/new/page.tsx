@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
+import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { MixEditor } from "@/components/MixEditor";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { requireWorkspace } from "@/lib/auth";
@@ -27,6 +28,7 @@ export default async function NewMixPage({ searchParams }: { searchParams: Promi
     prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null, emails: { none: {} } } }),
     prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null, phones: { none: {} } } })
   ]);
+  const customFields = await prisma.contactCustomFieldDefinition.findMany({ where: { workspaceId: workspace.id }, select: { key: true, name: true }, orderBy: { name: "asc" } });
   const groups = mergeGroupActivity(rawGroups, groupStates);
   const [workflow, contactStages] = await Promise.all([workflowEditorData(workspace.id), contactStageChoices(workspace.id)]);
 
@@ -34,7 +36,7 @@ export default async function NewMixPage({ searchParams }: { searchParams: Promi
     <div className="page">
       <header className="page-header"><div><h1>Create a Mix</h1><p>Every relationship starts with a first Beat. Add messages and reminders, then set their timing.</p></div></header>
       <UrlErrorNotice params={query} viewer={session} />
-      <MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
+      <MixEditor customFields={customFields.map(field => ({ token: customFieldPlaceholder(field.key), label: field.name }))} reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
         workflowSources={workflow.mixes.filter(item => item.status !== "ARCHIVED" && item.source !== "ONE_TIME").map(({ id, name }) => ({ id, name }))}
         workflowRevision={workflow.revision}
         dateTypes={dateTypes.map((item) => ({ id: item.id, name: item.name, isSystem: item.isSystem }))}

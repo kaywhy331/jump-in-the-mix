@@ -1,6 +1,7 @@
 import Link from "next/link";
 import { journeyMixMembers } from "@/lib/journey-view";
 import { notFound } from "next/navigation";
+import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { MixEditor } from "@/components/MixEditor";
 import { MixBeatPreview } from "@/components/MixBeatPreview";
 import { AppIcon } from "@/components/AppIcon";
@@ -59,6 +60,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
     prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null, emails: { none: {} } } }),
     prisma.contact.count({ where: { workspaceId: workspace.id, archivedAt: null, phones: { none: {} } } })
   ]);
+  const customFields = await prisma.contactCustomFieldDefinition.findMany({ where: { workspaceId: workspace.id }, select: { key: true, name: true }, orderBy: { name: "asc" } });
   const groups = mergeGroupActivity(rawGroups, groupStates);
   const groupIds = mix.assignments.flatMap((assignment) => assignment.groupId ? [assignment.groupId] : []);
   // Everyone is the saved choice, or, for a Mix the previous release saved, the people it gave an Everyone place;
@@ -120,7 +122,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
         </div>
       </details>}
       {previewError && <Notice type="error">{previewError}</Notice>}
-      {editing && !impersonation ? <MixEditor reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
+      {editing && !impersonation ? <MixEditor customFields={customFields.map(field => ({ token: customFieldPlaceholder(field.key), label: field.name }))} reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}
         workflowSources={workflow.mixes.filter(item => item.status !== "ARCHIVED" && item.source !== "ONE_TIME").map(({ id, name }) => ({ id, name }))}
         workflowRevision={workflow.revision}
         completionSourceId={workflow.configuration.rules.find(rule => rule.id === `mix-start:${mix.id}`)?.source.mixId}

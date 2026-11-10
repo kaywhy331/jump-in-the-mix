@@ -142,7 +142,7 @@ test("a Mix saved on another device refuses the older editor's save and keeps it
   // The desktop opens the editor first.
   await page.goto(`/mixes/${mix.id}/edit`); await ready(page);
   const desktop = page.locator(".mix-editor-form");
-  await expect(desktop.getByRole("group", { name: "Beat 1" }).getByRole("textbox", { name: "Call notes", exact: true })).toHaveValue("Ask about the estimate.");
+  await expect(desktop.getByRole("group", { name: "Beat 1" }).getByRole("textbox", { name: "Call notes", exact: true })).toHaveText("Ask about the estimate.");
 
   // A phone signed in to the same account saves a change.
   const token = randomUUID();
@@ -163,7 +163,7 @@ test("a Mix saved on another device refuses the older editor's save and keeps it
     await desktop.getByRole("group", { name: "Beat 1" }).getByRole("textbox", { name: "Call notes", exact: true }).fill("Desktop wording.");
     await desktop.getByRole("button", { name: "Save Mix", exact: true }).click();
     await expect(page.getByRole("alert").filter({ hasText: "This Mix was changed on another device after you opened it. Reload to compare, then apply your changes again." })).toBeVisible();
-    await expect(desktop.getByRole("group", { name: "Beat 1" }).getByRole("textbox", { name: "Call notes", exact: true })).toHaveValue("Desktop wording.");
+    await expect(desktop.getByRole("group", { name: "Beat 1" }).getByRole("textbox", { name: "Call notes", exact: true })).toHaveText("Desktop wording.");
     expect(page.url()).not.toContain("updated=manual");
     expect(await script()).toBe("Phone wording.");
 
