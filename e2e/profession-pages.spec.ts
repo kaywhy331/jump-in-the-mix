@@ -8,8 +8,8 @@ test("each profession starts with a short SMS draft", async ({ page }) => {
   for (const persona of PERSONAS) {
     await page.goto(`/for/${persona.slug}`);
     await expect(page.getByRole("heading", { level: 1 })).toHaveText(persona.headline);
-    await expect(page.locator("#sample textarea")).toBeEnabled();
-    expect((await page.locator("#sample textarea").inputValue()).length).toBeLessThan(300);
+    await expect(page.locator("#sample textarea:visible")).toBeEnabled();
+    expect((await page.locator("#sample textarea:visible").inputValue()).length).toBeLessThan(300);
     await expect(page.locator(".mixes-for a[aria-current='page']")).toHaveText(persona.navLabel);
   }
   expect((await page.goto("/for/not-a-profession"))?.status()).toBe(404);
@@ -82,7 +82,7 @@ test("all Mixes for pages share the homepage composition and keep the selected s
     const rows = await nav.getByRole("link").evaluateAll(links => links.map(link => Math.round(link.getBoundingClientRect().top)));
     expect(new Set(rows).size).toBe(1);
     await page.locator(".hero-actions [data-demo-trigger]").click();
-    await expect(page.locator("#sample textarea")).toBeFocused();
+    await expect(page.locator("#sample textarea:visible")).toBeFocused();
     const select = page.locator("#sample select");
     const last = await select.locator("option").last().getAttribute("value");
     await select.selectOption(last!);

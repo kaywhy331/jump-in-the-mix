@@ -34,6 +34,7 @@ for (const route of [...publicRoutes, ...ownerRoutes]) {
     const response = await page.goto(route);
     expect(response?.status()).toBe(200);
     await expect(page.locator("main")).toBeVisible();
+    await expect(page.getByText("Your saved work is being loaded.", { exact: false })).toBeHidden();
     await expect(page.getByRole("heading", { level: 1 })).toBeVisible();
     expect(new URL(page.url()).pathname).toBe(route);
     await expect(page.locator('.product-demo[aria-busy="true"]')).toHaveCount(0);

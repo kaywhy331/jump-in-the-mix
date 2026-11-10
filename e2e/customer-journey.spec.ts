@@ -66,7 +66,7 @@ test("meeting booking advances the journey, retains invalid form input and expor
   await submit(page, form.getByRole("button",{ name: "Save event", exact: true })); await expect(page.getByRole("status").filter({ hasText: "Discovery with Jordan saved for" })).toContainText("No invitation was sent.");
   await expect(page.locator(".calendar-event")).toContainText("Discovery with Jordan");
   expect((await prisma.contactJourney.findUniqueOrThrow({ where: { contactId }, include: { stage: true } })).stage.name).toBe("Prospect");
-  // After a save the editor shows the saved event; a second event starts from New event.
+  // After a save the agenda shows the saved event; a second event starts from New event.
   await page.getByRole("link",{ name: "New event", exact: true }).click(); await expect(form.getByRole("button",{ name: "Save event", exact: true })).toBeVisible();
   await form.getByLabel("Title",{ exact: true }).fill("Conflicting block"); await form.getByLabel("Event type").selectOption("BLOCK"); await submit(page, form.getByRole("button",{ name: "Save event", exact: true }));
   await expect(form.getByRole("alert")).toContainText("overlaps"); await expect(form.getByLabel("Title",{ exact: true })).toHaveValue("Conflicting block");

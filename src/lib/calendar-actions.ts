@@ -1,6 +1,7 @@
 "use server";
 import { workflowContinuation } from "@/lib/workflow-continuation";
 import { redirect } from "next/navigation";
+import { refresh } from "next/cache";
 import { requireWorkspace } from "@/lib/auth";
 import { withViewerError } from "@/lib/form-errors";
 import { prisma } from "@/lib/prisma";
@@ -14,6 +15,8 @@ import { isValidTimezone } from "@/lib/mix-broadcast";
 import { UserFacingError } from "@/lib/user-facing-error";
 
 const value = (data: FormData, name: string) => String(data.get(name) ?? "").trim();
+/** A failed save says once that the form kept what was entered (JITM-08 §2.24). */
+const ENTRIES_KEPT = "Your entries are kept.";
 async function context() { const ctx = await requireWorkspace(); if (ctx.impersonation) throw new Error("Support sessions are view-only."); return ctx; }
 /** The save either failed with a message or needs one inline choice between saved people; the form keeps everything entered either way. */
 export type CalendarSaveState = { error: string; choice?: { candidates: ContactCandidate[] } };
@@ -24,7 +27,7 @@ export async function saveCalendarAction(_state: CalendarSaveState, data: FormDa
     result = await scheduleVisit({ workspaceId: workspace.id, actorUserId: user.id, id: value(data, "id") || undefined, version: Number(value(data, "version")), title: value(data, "title"), kind: value(data, "kind"), location: value(data, "location"), link: value(data, "link"), details: value(data, "details"), contactId: value(data, "contactId"), startsAt: parseCalendarTime(value(data, "startsAt"), timezone), endsAt: parseCalendarTime(value(data, "endsAt"), timezone), timezone, planId: value(data, "planId") || null, newContact: value(data, "newContactName") ? { name: value(data, "newContactName"), phone: value(data, "newContactPhone"), email: value(data, "newContactEmail"), resolvedContactId: value(data, "resolvedContactId") || null } : null, allowOverlap: data.get("allowOverlap") === "on" });
   } catch (error) {
     if (error instanceof ContactChoiceRequiredError) return { error: "", choice: { candidates: error.candidates } };
-    return { error: error instanceof UserFacingError ? error.message : "This event could not be saved. Your entries are kept." };
+    return { error: error instanceof UserFacingError ? error.message : `This event could not be saved. ${ENTRIES_KEPT}` };
   }
   const next = new URLSearchParams({ date: value(data, "startsAt").slice(0, 10), saved: "1", savedEvent: result.entryId });
   const returnTo = workflowContinuation(value(data, "returnTo"));
@@ -87,9 +90,13 @@ function calendarPlace(data: FormData, result: Record<string, string> = {}): URL
   return new URLSearchParams({ ...(/^\d{4}-\d{2}-\d{2}$/.test(date) ? { date } : {}), ...(days === "1" ? { days } : {}), ...result });
 }
 
-/** A calendar connection request this action refuses; its message is shown on the calendar as written. */
+/** A calendar connection request this action refuses; its message is shown as written. */
 class CalendarConnectionError extends Error {}
 
+/** Connecting a subscription or importing a file answers the open form: an error, or what was added. */
+export type CalendarConnectionState = { error?: string; notice?: string };
+
+/** Refreshing, disconnecting and the private link return to the calendar; connecting and importing use addCalendarConnectionAction. */
 export async function calendarConnectionAction(data: FormData) {
   const { workspace, session } = await context(); const intent = value(data, "intent"), id = value(data, "id");
   try {
@@ -97,25 +104,51 @@ export async function calendarConnectionAction(data: FormData) {
     else if (intent === "revoke") await prisma.calendarPreference.deleteMany({ where: { workspaceId: workspace.id } });
     else if (intent === "disconnect") await prisma.calendarConnection.deleteMany({ where: { id, workspaceId: workspace.id } });
     else if (intent === "sync") await syncCalendarConnection(workspace.id, id);
-    else {
-      const name = value(data, "name"), timezone = value(data, "timezone");
-      if (!name || name.length > 100) throw new CalendarConnectionError("Give this calendar a name of up to 100 characters.");
-      if (!timezone || !isValidTimezone(timezone)) throw new CalendarConnectionError("Choose a valid timezone.");
-      if (await prisma.calendarConnection.count({ where: { workspaceId: workspace.id } }) >= 20) throw new CalendarConnectionError("Connect up to 20 calendars. Disconnect one before adding another.");
-      if (intent === "connect") {
-        // The address check fails only for a URL this app will not fetch, so its fixed advice is safe to show.
-        let url: string;
-        try { url = calendarFeedUrl(value(data, "url")).href; } catch { throw new CalendarConnectionError("Use an HTTPS calendar URL without a username, password, or custom port."); }
-        const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name, urlEncrypted: encryptIntegrationCredentials({ url, timezone }) } });
-        await syncCalendarConnection(workspace.id, connection.id);
-      } else if (intent === "import") {
-        const file = data.get("file");
-        if (!(file instanceof File) || !file.size || file.size > 900_000) throw new CalendarConnectionError("Choose an .ics file of up to 900 KB.");
-        const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name } });
-        try { await importCalendar(workspace.id, connection.id, await file.text(), timezone); }
-        catch (error) { await prisma.calendarConnection.delete({ where: { id: connection.id } }); throw error; }
-      } else throw new CalendarConnectionError("Choose a calendar action.");
-    }
+    else throw new CalendarConnectionError("Choose a calendar action.");
   } catch (error) { redirect(`${withViewerError("/calendar", error instanceof CalendarConnectionError || error instanceof UserFacingError ? error.message : "The calendar could not be updated.", session)}#calendar-connections`); }
   redirect("/calendar?saved=1#calendar-connections");
+}
+
+/**
+ * The connect and import intents return their result to the open form, which keeps every entry on
+ * an error (JITM-08 §2.24) and shows what was added on success (JITM-04 §2.7).
+ */
+export async function addCalendarConnectionAction(_state: CalendarConnectionState, data: FormData): Promise<CalendarConnectionState> {
+  const { workspace } = await context(); const intent = value(data, "intent"), name = value(data, "name"), timezone = value(data, "timezone");
+  let listed = false, result: CalendarConnectionState;
+  try {
+    if (!name || name.length > 100) throw new CalendarConnectionError("Give this calendar a name of up to 100 characters.");
+    if (!timezone || !isValidTimezone(timezone)) throw new CalendarConnectionError("Choose a valid timezone.");
+    if (await prisma.calendarConnection.count({ where: { workspaceId: workspace.id } }) >= 20) throw new CalendarConnectionError("Connect up to 20 calendars. Disconnect one before adding another.");
+    let busyTimes: number;
+    if (intent === "connect") {
+      // The address check fails only for a URL this app will not fetch, so its fixed advice is safe to show.
+      let url: string;
+      try { url = calendarFeedUrl(value(data, "url")).href; } catch { throw new CalendarConnectionError("Use an HTTPS calendar URL without a username, password, or custom port."); }
+      const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name, urlEncrypted: encryptIntegrationCredentials({ url, timezone }) } });
+      // A subscription stays connected, with its error, when its first refresh fails.
+      listed = true;
+      busyTimes = await syncCalendarConnection(workspace.id, connection.id);
+    } else if (intent === "import") {
+      const file = data.get("file");
+      if (!(file instanceof File) || !file.size || file.size > 900_000) throw new CalendarConnectionError("Choose an .ics file of up to 900 KB.");
+      const connection = await prisma.calendarConnection.create({ data: { workspaceId: workspace.id, name } });
+      try { busyTimes = await importCalendar(workspace.id, connection.id, await file.text(), timezone); }
+      catch (error) { await prisma.calendarConnection.delete({ where: { id: connection.id } }); throw error; }
+      listed = true;
+    } else throw new CalendarConnectionError("Choose a calendar action.");
+    result = { notice: addedNotice(intent === "connect" ? "Connected" : "Imported", name, busyTimes) };
+  } catch (error) {
+    result = { error: `${error instanceof CalendarConnectionError || error instanceof UserFacingError ? error.message : "The calendar could not be updated."} ${ENTRIES_KEPT}` };
+  }
+  // The connections list above the form shows a calendar this attempt added.
+  if (listed) refresh();
+  return result;
+}
+
+/** Names the calendar and what it added (JITM-04 §2.7). */
+function addedNotice(done: "Connected" | "Imported", name: string, busyTimes: number): string {
+  const what = `${done} ${name}`;
+  if (!busyTimes) return `${what}. It has no busy times from the past month through the next year.`;
+  return `${what}: ${busyTimes.toLocaleString("en-US")} busy ${busyTimes === 1 ? "time" : "times"} added.`;
 }
