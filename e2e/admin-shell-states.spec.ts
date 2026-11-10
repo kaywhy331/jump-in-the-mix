@@ -88,7 +88,7 @@ test("a missing staff record opens the staff not-found inside the admin shell, w
         await expect(page.getByRole("navigation", { name: "Administration" })).toBeVisible();
         await expect(page.locator(".admin-workspace-main h1")).toHaveText("This record isn’t available");
         await expect(page.locator("h1")).toHaveCount(1);
-        await expect(page.getByRole("heading", { name: "Let’s get you back on track." })).toHaveCount(0);
+        await expect(page.getByRole("heading", { name: "Page not found" })).toHaveCount(0);
         const area = activeAdminArea(path, OWNER_PERMISSIONS)!;
         expect(area.href).toBe(list);
         const back = page.locator(".admin-workspace-main").getByRole("link", { name: `Back to ${area.label}` });

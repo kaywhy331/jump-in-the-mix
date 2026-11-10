@@ -1,3 +1,4 @@
+import type { Metadata } from "next";
 import { requireWorkspace } from "@/lib/auth";
 import { readWorkflowGraph } from "@/lib/mix-workflow-view";
 import { WorkflowJourney } from "@/components/WorkflowJourney";
@@ -5,6 +6,8 @@ import { QuietDaySuggestions } from "@/components/QuietDaySuggestions";
 import { readQuietDays } from "@/lib/quiet-days";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import styles from "@/components/WorkflowJourney.module.css";
+
+export const metadata: Metadata = { title: "Journey" };
 
 export default async function JourneyPage({ searchParams }: { searchParams: Promise<{ megaMix?: string; mix?: string; contactId?: string; touchpoint?: string; q?: string; start?: string; label?: string; work?: string }> }) {
   const [{ workspace, user, impersonation }, query] = await Promise.all([requireWorkspace(), searchParams]);

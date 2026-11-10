@@ -113,7 +113,7 @@ test("staff drafts, previews, publishes and rolls back while customers retain re
     expect((await prisma.stepVersion.findUniqueOrThrow({ where: { id: imported.steps[0].stepVersionId } })).body).toBe("Second edition prepared message.");
     await release(page, "Hide from customer library");
     await customerPage.goto(`/templates/${id}/use`);
-    await expect(customerPage.getByRole("heading", { name: "Let’s get you back on track." })).toBeVisible();
+    await expect(customerPage.getByRole("heading", { name: "Page not found" })).toBeVisible();
     await expect(customerPage.getByRole("button", { name: "Save draft" })).toHaveCount(0);
     expect(await prisma.mix.count({ where: { workspaceId: workspace.id } })).toBe(1);
   } finally { await customerContext.close(); }

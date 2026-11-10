@@ -39,7 +39,7 @@ test.afterAll(async () => {
 });
 const canvas = (page: Page) => page.getByRole("region", { name: /^Scrollable journey diagram/ });
 const showAs = (page: Page, name: "Map" | "List") => page.getByRole("group", { name: "Show the journey as" }).getByRole("button", { name, exact: true });
-const firstRow = (page: Page) => page.getByRole("button", { name: /^Mix A1\s*Mike follow-up/ });
+const firstRow = (page: Page) => page.getByRole("button", { name: /^Mike follow-up\s*Mix A1\b/ });
 /** The first numbered Mix's card starts inside the map's scrolled view and on screen, above a phone's tab bar. */
 async function firstMixInView(page: Page) { return mixInView(page, firstMixId); }
 /** A Mix's card starts inside the map's scrolled view and on screen, above a phone's tab bar. */
@@ -154,7 +154,7 @@ test("with a person chosen, the map opens on their first active Mix from 768px, 
   // On a phone the list marks Pia's Mix, and only hers, and brings it into view.
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/journey?contactId=${pia.id}`, { waitUntil: "networkidle" });
-  const papa = page.getByRole("button", { name: /^Mix [A-Z]\d+\s*Papa follow-up/ });
+  const papa = page.getByRole("button", { name: /^Papa follow-up\s*Mix [A-Z]\d+/ });
   await expect(papa).toContainText("Pia Papa is here");
   await expect(papa).toBeInViewport();
   await expect(page.getByText("Pia Papa is here", { exact: true })).toHaveCount(1);

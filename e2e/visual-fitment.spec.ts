@@ -1,6 +1,7 @@
 import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
+import { textBelowFloor } from "./text-floor";
 
 const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
 const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
@@ -48,33 +49,7 @@ async function expectNoClippedControls(page: Page) {
 }
 
 async function expectReadableMeaningfulText(page: Page) {
-  const tooSmall = await page.locator("body *:visible").evaluateAll((elements) => elements.flatMap((element) => {
-    if (!(element instanceof HTMLElement)) return [];
-    if (element.closest(".sr-only, [aria-hidden='true']")) return [];
-    const directText = [...element.childNodes]
-      .filter((node) => node.nodeType === Node.TEXT_NODE)
-      .map((node) => node.textContent?.trim() ?? "")
-      .filter(Boolean)
-      .join(" ");
-    const controlText = element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement
-      ? element.getAttribute("aria-label") || element.placeholder || element.value
-      : element instanceof HTMLSelectElement
-        ? element.getAttribute("aria-label") || element.name
-        : "";
-    const text = directText || controlText;
-    if (!text) return [];
-    const fontSize = Number.parseFloat(getComputedStyle(element).fontSize);
-    // Floors follow the supplied phone design: 11px tab labels, 12px compact action labels, 13px for other text.
-    const floor = element.closest(".mobile-nav") ? 11 : element.closest("button, a.button, .button") ? 12 : 13;
-    if (!Number.isFinite(fontSize) || fontSize === 0 || fontSize >= floor) return [];
-    return [{
-      tag: element.tagName.toLowerCase(),
-      className: element.className,
-      text: text.slice(0, 100),
-      fontSize
-    }];
-  }));
-  expect(tooSmall).toEqual([]);
+  expect(await textBelowFloor(page)).toEqual([]);
 }
 
 test("core design primitives match the visual baseline", async ({ page }, testInfo) => {
