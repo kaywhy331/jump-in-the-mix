@@ -280,8 +280,12 @@ export function renderEnvFile({ base, isolation, database }) {
   return `${lines.join("\n")}\n`;
 }
 
+// The maintenance connection is separate from the test database: it reaches only the maintenance
+// database, and only to create, drop or look up the one validated name.
 function maintenanceConfig(ci) {
-  return { host: ci.host, port: ci.port, user: ci.user, password: ci.password, database: MAINTENANCE_DATABASE };
+  const config = { host: ci.host, port: ci.port, user: ci.user, password: ci.password, database: MAINTENANCE_DATABASE };
+  assertDriverTarget(driverParameters(config, {}), { port: ci.port, user: ci.user, database: MAINTENANCE_DATABASE }, "The maintenance connection");
+  return config;
 }
 
 function expectedTarget(ci, database) {
@@ -340,8 +344,9 @@ async function create(io, [name, ...extra]) {
   const text = renderEnvFile({ ...environment, database });
   assertIsolatedEnvironment(Object.fromEntries(environment.values), expectedTarget(ci, database));
   const path = envFilePath(database, io.root);
+  const maintenance = maintenanceConfig(ci);
 
-  const client = await io.connect(maintenanceConfig(ci));
+  const client = await io.connect(maintenance);
   try {
     if (await databaseExists(client, database)) {
       refuse(`${database} already exists. Drop it with npm run test:env:drop -- ${database}, then create it again.`);
@@ -374,8 +379,9 @@ async function drop(io, [name, ...extra]) {
   const paths = projectPaths(io.root);
   const ci = await readCiConfiguration(io.readText(paths.workflow));
   const path = envFilePath(database, io.root);
+  const maintenance = maintenanceConfig(ci);
 
-  const client = await io.connect(maintenanceConfig(ci));
+  const client = await io.connect(maintenance);
   let present;
   try {
     await client.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(database)} WITH (FORCE)`);
