@@ -12,15 +12,24 @@
 // inherits (DATABASE_URL, the other *_DATABASE_URL and *_DB_URL names, every PG* variable)
 // is cleared or set to the validated test database, and the final driver configuration is
 // checked before any connection or child process is created.
+//
+// The child's own loaders are pinned too. prisma.config.ts, vitest.config.ts and the database
+// scripts import dotenv/config, which takes its file, override and vault key from DOTENV_*
+// variables; the names are read from the installed dotenv at run time, the file is pinned to
+// the env file and every other control is set empty. Inherited NODE_OPTIONS (which can preload
+// code), npm's node-options and the config loaders' JITI_* and TSX_* inputs are removed. The
+// child's dotenv load is replayed before the spawn and must change nothing.
 import { spawn as spawnProcess } from "node:child_process";
 import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, relative, resolve } from "node:path";
+import { dirname, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parse as parseDotenv } from "dotenv";
 import pg from "pg";
 
 const require = createRequire(import.meta.url);
+// The dotenv copy the child's configs import (`dotenv/config` resolves to the same package).
+const dotenv = require("dotenv");
 // Resolve the connection-string parser and the parameter resolver that pg itself uses, so the
 // guard checks the configuration the driver will actually connect with.
 const requireFromPg = createRequire(require.resolve("pg"));
@@ -50,6 +59,16 @@ const KNOWN_DATABASE_URL_INPUTS = ["DATABASE_URL", "NETLIFY_DB_URL", "RECOVERY_T
 // pg resolves every connection key from PG<KEY> (see pg.defaults); these are read under other
 // names (pg, pgpass) or by libpq tools, and can redirect a connection or supply credentials.
 const SPECIAL_PG_VARIABLES = ["PGAPPNAME", "PGSSLMODE", "PGPASSFILE", "PGHOSTADDR", "PGSERVICE", "PGSERVICEFILE", "PGSYSCONFDIR"];
+// dotenv's controls and vault key. The names it actually reads are found at run time
+// (dotenvLoaderInputs); any other DOTENV_* name is removed as well.
+const DOTENV_VARIABLE = /^DOTENV_/u;
+// Inputs of the loaders around the child's config files: jiti (Prisma's config loader) takes
+// import aliases from JITI_*, and tsx takes a tsconfig path from TSX_*. Removed from the child.
+const CONFIG_LOADER_VARIABLE = /^(?:JITI|TSX)_/u;
+// Node reads NODE_OPTIONS before any config file, and its --require and --import preload code; npm
+// turns its node-options setting, which the environment can supply, into NODE_OPTIONS for scripts.
+const NODE_OPTIONS = "NODE_OPTIONS";
+const NPM_NODE_OPTIONS = /^npm_config_node[-_]options$/iu;
 
 export class GuardError extends Error {
   constructor(message) {
@@ -176,16 +195,112 @@ export function databaseUrl({ host, port, user, password, database, schema }) {
   return `postgresql://${encodeURIComponent(user)}:${encodeURIComponent(password)}@${address}:${port}/${database}${query}`;
 }
 
-// pg reads PG<KEY> for every connection key at construction; evaluate it against `env`, not
-// against whatever this process inherited. Construction is synchronous, so the swap is local.
-export function driverParameters(config, env) {
+// Runs a synchronous function with process.env replaced, so a library's environment reads see
+// `env` and nothing this process inherited.
+function withProcessEnv(env, fn) {
   const inherited = process.env;
-  process.env = { ...env };
+  process.env = env;
   try {
-    return new ConnectionParameters(config);
+    return fn();
   } finally {
     process.env = inherited;
   }
+}
+
+// pg reads PG<KEY> for every connection key at construction; evaluate it against `env`, not
+// against whatever this process inherited. Construction is synchronous, so the swap is local.
+export function driverParameters(config, env) {
+  return withProcessEnv({ ...env }, () => new ConnectionParameters(config));
+}
+
+// dotenv/config builds its options from lib/env-options (read from process.env once, at load) and
+// lib/cli-options (read from the process arguments). Load a fresh copy of the first against `env`.
+function dotenvEnvOptions(env) {
+  const path = require.resolve("dotenv/lib/env-options");
+  return withProcessEnv(env, () => {
+    delete require.cache[path];
+    try {
+      return { ...require(path) };
+    } finally {
+      delete require.cache[path];
+    }
+  });
+}
+
+const dotenvCliOptions = (args) => ({ ...require("dotenv/lib/cli-options")(args) });
+
+// The variables the installed dotenv reads, found by running its own code against a recording
+// environment: lib/env-options at load, and config() with no file. `pathVariable` is the one that
+// selects the file, found by giving every name a distinct marker.
+export function dotenvLoaderInputs() {
+  const read = new Set();
+  const recorder = () => new Proxy({}, {
+    get: (_target, key) => { if (typeof key === "string") read.add(key); return undefined; },
+    has: (_target, key) => { if (typeof key === "string") read.add(key); return false; }
+  });
+  dotenvEnvOptions(recorder());
+  withProcessEnv(recorder(), () => dotenv.config({ path: [], processEnv: recorder(), quiet: true }));
+  const names = [...read].filter((name) => DOTENV_VARIABLE.test(name)).sort();
+  const markers = Object.fromEntries(names.map((name) => [name, `marker:${name}`]));
+  const options = dotenvEnvOptions(markers);
+  const pathVariable = names.find((name) => options.path === markers[name]);
+  return { names, pathVariable };
+}
+
+// The env file's path as dotenv and a shell both read it: forward slashes, so no backslash escapes.
+const portablePath = (path) => path.split(sep).join("/");
+
+// The loader inputs the child must see: dotenv pinned to the env file with every other control
+// empty (dotenv treats any non-empty override, even "false", as true), and NODE_OPTIONS defined, so
+// no env file a loader reads can add it. Its value is CI's, or empty.
+export function loaderPins(envFile, ci) {
+  const { names, pathVariable } = dotenvLoaderInputs();
+  if (!pathVariable) refuse("The installed dotenv takes no file from the environment, so the child's dotenv/config cannot be pinned to the env file.");
+  const pins = new Map(names.map((name) => [name, name === pathVariable ? portablePath(envFile) : ""]));
+  pins.set(NODE_OPTIONS, ci.stepEnvironment[NODE_OPTIONS] ?? ci.jobEnvironment[NODE_OPTIONS] ?? "");
+  return pins;
+}
+
+function isLoaderInput(name) {
+  return DOTENV_VARIABLE.test(name) || CONFIG_LOADER_VARIABLE.test(name) || NPM_NODE_OPTIONS.test(name) || name === NODE_OPTIONS;
+}
+
+// Every loader input in `env` must be one of the pins, with the pinned value.
+export function assertLoaderPins(env, pins) {
+  for (const [name, value] of Object.entries(env)) {
+    if (value === undefined || !isLoaderInput(name)) continue;
+    if (!pins.has(name)) refuse(`${name} is set; it could change what the child's loaders read. It must be absent.`);
+  }
+  for (const [name, value] of pins) {
+    if (env[name] !== value) refuse(`${name} must be ${JSON.stringify(value)} so the child's loaders read only the env file; found ${JSON.stringify(env[name] ?? null)}.`);
+  }
+}
+
+// Replays what dotenv/config does in the child, with dotenv's own option readers and populate:
+// it must read only the env file, with no override and no vault key, and change nothing.
+export function assertChildDotenvLoad(env, { envFile, fileText, args = [], expected }) {
+  const fromArguments = dotenvCliOptions(args);
+  if (JSON.stringify(fromArguments) !== JSON.stringify(dotenvCliOptions([]))) {
+    refuse("The command passes dotenv options (dotenv_config_*), which would change the file the child loads.");
+  }
+  // Every name dotenv reads besides the file, including the vault key config() reads directly.
+  const { names, pathVariable } = dotenvLoaderInputs();
+  for (const name of names) {
+    if (name !== pathVariable && env[name]) refuse(`${name} is set for the child's dotenv; it must be empty.`);
+  }
+  const fromEnvironment = dotenvEnvOptions({ ...env });
+  for (const [option, value] of Object.entries(fromEnvironment)) {
+    if (option !== "path" && value) refuse(`The child's dotenv would run with ${option}=${JSON.stringify(value)}; only the file may be set.`);
+  }
+  const options = { ...fromEnvironment, ...fromArguments };
+  // An unset or empty path makes dotenv fall back to .env in the working directory.
+  if (options.path !== portablePath(envFile)) refuse(`The child's dotenv would load ${JSON.stringify(String(options.path || ".env in the working directory"))}, not the env file.`);
+  const loaded = { ...env };
+  dotenv.populate(loaded, dotenv.parse(fileText), options);
+  for (const name of new Set([...Object.keys(env), ...Object.keys(loaded)])) {
+    if (loaded[name] !== env[name]) refuse(`The child's dotenv would change ${name} after validation.`);
+  }
+  return assertIsolatedEnvironment(loaded, expected);
 }
 
 function normalizedHost(host) {
@@ -247,7 +362,7 @@ export function databaseUrlInputNames(...sources) {
   return [...names].sort();
 }
 
-export function buildEnvironment({ exampleText, ci, database, inherited = {} }) {
+export function buildEnvironment({ exampleText, ci, database, inherited = {}, envFile = envFilePath(database) }) {
   assertDatabaseName(database);
   const example = parseDotenv(exampleText);
   const values = new Map(Object.entries({ ...example, ...ci.jobEnvironment, ...ci.stepEnvironment }));
@@ -256,8 +371,11 @@ export function buildEnvironment({ exampleText, ci, database, inherited = {} }) 
   for (const name of databaseUrlInputNames(example, ci.jobEnvironment, ci.stepEnvironment, inherited)) if (name !== "DATABASE_URL") isolation.set(name, "");
   const pgValues = targetPgValues(target);
   for (const name of pgVariableNames(inherited)) isolation.set(name, pgValues[name] ?? "");
+  const pins = loaderPins(envFile, ci);
+  for (const [name, value] of pins) isolation.set(name, value);
+  for (const name of [...values.keys()]) if (isLoaderInput(name)) values.delete(name);
   for (const name of isolation.keys()) values.delete(name);
-  return { base: values, isolation, values: new Map([...values, ...isolation]), target };
+  return { base: values, isolation, values: new Map([...values, ...isolation]), target, pins };
 }
 
 export function renderEnvFile({ base, isolation, database }) {
@@ -275,7 +393,7 @@ export function renderEnvFile({ base, isolation, database }) {
     }
   };
   section(base);
-  lines.push("", "# Isolation: the test database, and every other database input cleared.");
+  lines.push("", "# Isolation: the test database, every other database input cleared, and dotenv pinned to this file.");
   section(isolation);
   return `${lines.join("\n")}\n`;
 }
@@ -294,14 +412,16 @@ function expectedTarget(ci, database) {
 
 const quoteIdentifier = (name) => `"${assertDatabaseName(name)}"`;
 
-// Strips every inherited database input so neither pg nor a child process can pick one up.
+const isDatabaseInput = (key) => PG_VARIABLE.test(key) || DATABASE_URL_INPUT.test(key);
+
+// Strips every inherited database input so pg cannot pick one up.
 export function withoutDatabaseInputs(env) {
-  const clean = {};
-  for (const [key, value] of Object.entries(env)) {
-    if (PG_VARIABLE.test(key) || DATABASE_URL_INPUT.test(key)) continue;
-    clean[key] = value;
-  }
-  return clean;
+  return Object.fromEntries(Object.entries(env).filter(([key]) => !isDatabaseInput(key)));
+}
+
+// Strips every inherited database and loader input so a child process cannot pick one up.
+export function withoutChildInputs(env) {
+  return Object.fromEntries(Object.entries(env).filter(([key]) => !isDatabaseInput(key) && !isLoaderInput(key)));
 }
 
 async function defaultConnect(config) {
@@ -340,10 +460,12 @@ async function create(io, [name, ...extra]) {
   const database = resolveDatabaseName(name);
   const paths = projectPaths(io.root);
   const ci = await readCiConfiguration(io.readText(paths.workflow));
-  const environment = buildEnvironment({ exampleText: io.readText(paths.example), ci, database, inherited: io.env });
-  const text = renderEnvFile({ ...environment, database });
-  assertIsolatedEnvironment(Object.fromEntries(environment.values), expectedTarget(ci, database));
   const path = envFilePath(database, io.root);
+  const environment = buildEnvironment({ exampleText: io.readText(paths.example), ci, database, inherited: io.env, envFile: path });
+  const text = renderEnvFile({ ...environment, database });
+  const values = Object.fromEntries(environment.values);
+  assertIsolatedEnvironment(values, expectedTarget(ci, database));
+  assertLoaderPins(values, environment.pins);
   const maintenance = maintenanceConfig(ci);
 
   const client = await io.connect(maintenance);
@@ -403,12 +525,21 @@ async function run(io, [name, ...rest]) {
   const ci = await readCiConfiguration(io.readText(paths.workflow));
   const path = envFilePath(database, io.root);
   if (!io.fileExists(path)) refuse(`${database} has no env file. Create it with npm run test:env -- ${database}`);
-  const fileValues = parseDotenv(io.readText(path));
-  const childEnvironment = withoutDatabaseInputs(io.env);
+  const fileText = io.readText(path);
+  const fileValues = parseDotenv(fileText);
+  const pins = loaderPins(path, ci);
+  // A file written before the pins existed lacks them; any loader input it does carry must match.
+  for (const [name, value] of Object.entries(fileValues)) {
+    if (isLoaderInput(name) && pins.get(name) !== value) refuse(`The env file sets ${name}, which would change what the child's loaders read. Drop and create ${database} again.`);
+  }
+  const childEnvironment = withoutChildInputs(io.env);
   // An inherited NODE_ENV (development) breaks next build; the tools choose their own.
   delete childEnvironment.NODE_ENV;
-  Object.assign(childEnvironment, fileValues);
-  assertIsolatedEnvironment(childEnvironment, expectedTarget(ci, database));
+  Object.assign(childEnvironment, fileValues, Object.fromEntries(pins));
+  const expected = expectedTarget(ci, database);
+  assertIsolatedEnvironment(childEnvironment, expected);
+  assertLoaderPins(childEnvironment, pins);
+  assertChildDotenvLoad(childEnvironment, { envFile: path, fileText, args: command, expected });
   return io.spawn(command[0], command.slice(1), { cwd: process.cwd(), env: childEnvironment });
 }
 
@@ -454,6 +585,6 @@ if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1]
   // create clears the inherited names in the env file and run strips them from the child; this
   // process itself drops them before any driver object exists.
   const inherited = { ...process.env };
-  for (const key of Object.keys(process.env)) if (PG_VARIABLE.test(key) || DATABASE_URL_INPUT.test(key)) delete process.env[key];
+  for (const key of Object.keys(process.env)) if (isDatabaseInput(key) || isLoaderInput(key)) delete process.env[key];
   process.exitCode = await main(process.argv.slice(2), { env: inherited });
 }

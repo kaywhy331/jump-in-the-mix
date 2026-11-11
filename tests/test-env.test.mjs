@@ -1,17 +1,21 @@
 import { spawnSync } from "node:child_process";
-import { mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { createRequire } from "node:module";
 import { tmpdir } from "node:os";
-import { join } from "node:path";
+import { dirname, join } from "node:path";
 import { parse as parseDotenv } from "dotenv";
-import { afterAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
 import {
+  assertChildDotenvLoad,
   assertDatabaseName,
   assertIsolatedEnvironment,
   buildEnvironment,
   databaseUrl,
+  dotenvLoaderInputs,
   driverParameters,
   envFilePath,
   inspectDatabaseUrl,
+  loaderPins,
   main,
   MAINTENANCE_DATABASE,
   pgVariableNames,
@@ -102,7 +106,8 @@ function harness({ ci = ciFixture(), example = exampleFixture(), env = {}, files
 
 async function envFileFor(database = "jitm_design_fixture", overrides = {}) {
   const ci = await readCiConfiguration(ciFixture());
-  const environment = buildEnvironment({ exampleText: exampleFixture(), ci, database });
+  // Written for the harness root, as create writes it, so the dotenv file pin names this file.
+  const environment = buildEnvironment({ exampleText: exampleFixture(), ci, database, envFile: envFilePath(database, root) });
   const values = new Map([...environment.values, ...Object.entries(overrides)]);
   for (const [key, value] of Object.entries(overrides)) if (value === undefined) values.delete(key);
   return [...values].map(([key, value]) => `${key}="${value}"`).join("\n");
@@ -448,5 +453,208 @@ describe("usage", () => {
     expect(await main(["list"], run.dependencies)).toBe(2);
     expect(run.errors()).toMatch(/Usage/u);
     expect(run.dependencies.connect).not.toHaveBeenCalled();
+  });
+});
+
+// DB-01 (JITM-TESTENV-01-QA): prisma.config.ts, vitest.config.ts and the database scripts import
+// dotenv/config in the child, and Next loads .env files during a build. Nothing those loaders read
+// may change the database the helper validated. The probes below load the repository's real config
+// files in a real child process, with a patched socket counter, and open no database connection.
+describe("DB-01: nothing the child loads can change the validated database", () => {
+  const requireFromTests = createRequire(import.meta.url);
+  const repository = projectPaths().root;
+  const work = mkdtempSync(join(tmpdir(), "jitm-test-env-db01-"));
+  afterAll(() => rmSync(work, { recursive: true, force: true }));
+  const fixtureRoot = join(work, "repo");
+  const childDirectory = join(work, "cwd");
+  const outside = database => `postgresql://prod:prod@outside.example.test:5432/${database}`;
+  const poisonFile = join(work, "poison.env");
+  const optInFile = join(work, "recovery-opt-in.env");
+  const optInPreload = join(work, "recovery-opt-in.cjs");
+  const ciText = ciFixture();
+  const envFile = envFilePath("jitm_design_fixture", fixtureRoot);
+  const guarded = { url: goodUrl(), recovery: "", connections: 0 };
+
+  beforeAll(async () => {
+    writeFileSync(poisonFile, `DATABASE_URL=${outside("jitm")}\nRECOVERY_TEST_DATABASE_URL=${outside("recovery")}\n`);
+    writeFileSync(optInFile, `RECOVERY_TEST_DATABASE_URL=${outside("recovery_opt_in")}\n`);
+    writeFileSync(optInPreload, `process.env.RECOVERY_TEST_DATABASE_URL = ${JSON.stringify(outside("recovery_preload"))};\n`);
+    mkdirSync(childDirectory);
+    writeFileSync(join(childDirectory, ".env"), `DATABASE_URL=${outside("dotenv_cwd")}\nRECOVERY_TEST_DATABASE_URL=${outside("recovery_cwd")}\nDOTENV_CONFIG_OVERRIDE=true\n`);
+    const ci = await readCiConfiguration(ciText);
+    const environment = buildEnvironment({ exampleText: exampleFixture(), ci, database: "jitm_design_fixture", envFile });
+    mkdirSync(dirname(envFile), { recursive: true });
+    writeFileSync(envFile, renderEnvFile({ ...environment, database: "jitm_design_fixture" }), { mode: 0o600 });
+  });
+
+  // `run` against a real fixture root; connect throws and spawn only records the child environment.
+  function realRun(env) {
+    const reads = [];
+    const dependencies = {
+      root: fixtureRoot,
+      env,
+      readText: vi.fn(path => {
+        reads.push(path);
+        if (path === projectPaths(fixtureRoot).workflow) return ciText;
+        if (path === envFile) return readFileSync(path, "utf8");
+        throw new Error(`unexpected read ${path}`);
+      }),
+      fileExists: vi.fn(path => existsSync(path)),
+      writeEnvFile: vi.fn(),
+      removeFile: vi.fn(),
+      connect: vi.fn(async () => { throw new Error("no connection may be opened"); }),
+      spawn: vi.fn(async () => 0),
+      stdout: vi.fn(),
+      stderr: vi.fn()
+    };
+    return { dependencies, reads, errors: () => dependencies.stderr.mock.calls.map(call => call[0]).join("\n") };
+  }
+
+  async function childEnvironment(ambient) {
+    const run = realRun(ambient);
+    expect(await main(["run", "fixture", "--", "npm", "test"], run.dependencies)).toBe(0);
+    expect(run.dependencies.connect).not.toHaveBeenCalled();
+    expect(run.dependencies.spawn).toHaveBeenCalledTimes(1);
+    expect(run.reads.sort()).toEqual([envFile, projectPaths(fixtureRoot).workflow].sort());
+    return run.dependencies.spawn.mock.calls[0][2].env;
+  }
+
+  // Loads one of the child's own config paths in a real child process and reports the database it
+  // resolves, the recovery opt-in, and how many sockets were opened.
+  const probeSource = [
+    'import net from "node:net";',
+    'import { pathToFileURL } from "node:url";',
+    "let connections = 0;",
+    "const connect = net.Socket.prototype.connect;",
+    "net.Socket.prototype.connect = function (...args) { connections += 1; return connect.apply(this, args); };",
+    "const [kind, target, loader] = process.argv.slice(1);",
+    "let url;",
+    'if (kind === "prisma") {',
+    "  const { loadConfigFromFile } = await import(pathToFileURL(loader).href);",
+    "  const result = await loadConfigFromFile({ configFile: target, configRoot: process.cwd() });",
+    "  if (result.error) throw new Error(JSON.stringify(result.error));",
+    "  url = result.config.datasource?.url;",
+    '} else if (kind === "next") {',
+    "  const loaded = await import(pathToFileURL(loader).href);",
+    "  (loaded.loadEnvConfig ?? loaded.default.loadEnvConfig)(process.cwd(), false, { info() {}, error() {} });",
+    "  url = process.env.DATABASE_URL;",
+    "} else {",
+    "  await import(pathToFileURL(target).href);",
+    "  url = process.env.DATABASE_URL;",
+    "}",
+    "process.stdout.write(`\\nPROBE ${JSON.stringify({ url, recovery: process.env.RECOVERY_TEST_DATABASE_URL ?? null, connections })}\\n`);"
+  ].join("\n");
+  const probes = {
+    prisma: [join(repository, "prisma.config.ts"), requireFromTests.resolve("@prisma/config")],
+    vitest: [join(repository, "vitest.config.ts"), "-"],
+    next: ["-", requireFromTests.resolve("@next/env")]
+  };
+  function probe(kind, env) {
+    const result = spawnSync(process.execPath, ["--input-type=module", "-e", probeSource, kind, ...probes[kind]], { cwd: childDirectory, env, encoding: "utf8", timeout: 60_000 });
+    const line = result.stdout.split("\n").find(entry => entry.startsWith("PROBE "));
+    if (result.status !== 0 || !line) throw new Error(`The ${kind} probe failed (${result.status}): ${result.stderr}`);
+    return JSON.parse(line.slice("PROBE ".length));
+  }
+  const PATH = process.env.PATH ?? "";
+
+  it("reads dotenv's loader inputs from the installed package at run time", () => {
+    const { names, pathVariable } = dotenvLoaderInputs();
+    // Cross-check against the installed sources, read independently of the helper.
+    const source = module => readFileSync(requireFromTests.resolve(module), "utf8");
+    const mentioned = new Set([source("dotenv/lib/env-options"), source("dotenv")].flatMap(text => text.match(/\bDOTENV_[A-Z_]+\b/gu) ?? []));
+    for (const name of source("dotenv/lib/env-options").match(/\bDOTENV_[A-Z_]+\b/gu)) expect(names).toContain(name);
+    for (const name of names) expect(mentioned.has(name)).toBe(true);
+    expect(names).toEqual(expect.arrayContaining(["DOTENV_CONFIG_PATH", "DOTENV_CONFIG_OVERRIDE", "DOTENV_KEY"]));
+    expect(pathVariable).toBe("DOTENV_CONFIG_PATH");
+  });
+
+  it("writes the pins into the env file: dotenv pinned to it, every other control and NODE_OPTIONS empty", async () => {
+    const run = harness();
+    expect(await main(["create", "qa1"], run.dependencies)).toBe(0);
+    const values = parseDotenv(run.dependencies.writeEnvFile.mock.calls[0][1]);
+    const { names, pathVariable } = dotenvLoaderInputs();
+    for (const name of names) expect(values[name]).toBe(name === pathVariable ? envFilePath("jitm_design_qa1", root) : "");
+    expect(values.NODE_OPTIONS).toBe("");
+  });
+
+  it.each(["true", "false"])("neutralises an ambient DOTENV_CONFIG_PATH to a poisoned file with DOTENV_CONFIG_OVERRIDE=%s", async override => {
+    const ambient = { PATH, DOTENV_CONFIG_PATH: poisonFile, DOTENV_CONFIG_OVERRIDE: override };
+    // Without the pins the poisoned file replaces a validated DATABASE_URL; dotenv reads "false" as on.
+    expect(probe("prisma", { ...ambient, DATABASE_URL: goodUrl(), RECOVERY_TEST_DATABASE_URL: "" })).toEqual({ url: outside("jitm"), recovery: outside("recovery"), connections: 0 });
+    const env = await childEnvironment(ambient);
+    expect(env).toMatchObject({ DOTENV_CONFIG_PATH: envFile, DOTENV_CONFIG_OVERRIDE: "" });
+    for (const kind of ["prisma", "vitest", "next"]) expect(probe(kind, env)).toEqual(guarded);
+  }, 120_000);
+
+  it("neutralises a poisoned .env in the child's working directory", async () => {
+    // Without the helper, the .env fills the unset recovery opt-in and a missing DATABASE_URL.
+    expect(probe("vitest", { PATH, DATABASE_URL: goodUrl() })).toEqual({ url: goodUrl(), recovery: outside("recovery_cwd"), connections: 0 });
+    expect(probe("prisma", { PATH })).toMatchObject({ url: outside("dotenv_cwd") });
+    expect(probe("next", { PATH, DATABASE_URL: goodUrl() })).toMatchObject({ recovery: outside("recovery_cwd") });
+    const env = await childEnvironment({ PATH });
+    for (const kind of ["prisma", "vitest", "next"]) expect(probe(kind, env)).toEqual(guarded);
+  }, 120_000);
+
+  it.each([
+    ["a file dotenv loads with override on", () => ({ DOTENV_CONFIG_PATH: optInFile, DOTENV_CONFIG_OVERRIDE: "true" }), "recovery_opt_in"],
+    ["a file NODE_OPTIONS preloads", () => ({ NODE_OPTIONS: `--require=${optInPreload}` }), "recovery_preload"],
+    ["a file npm's node-options preloads", () => ({ NODE_OPTIONS: `--require=${optInPreload}`, npm_config_node_options: `--require=${optInPreload}` }), "recovery_preload"]
+  ])("keeps the recovery opt-in off when %s turns it back on", async (_label, inputs, database) => {
+    const ambient = { PATH, ...inputs() };
+    expect(probe("vitest", { ...ambient, DATABASE_URL: goodUrl(), RECOVERY_TEST_DATABASE_URL: "" })).toEqual({ url: goodUrl(), recovery: outside(database), connections: 0 });
+    const env = await childEnvironment(ambient);
+    expect(env).not.toHaveProperty("npm_config_node_options");
+    expect(env.NODE_OPTIONS).toBe("");
+    expect(probe("vitest", env)).toEqual(guarded);
+  }, 120_000);
+
+  it("removes every other inherited loader input from the child", async () => {
+    const file = envFilePath("jitm_design_fixture", root);
+    const run = harness({
+      env: { PATH: "/usr/bin", NODE_OPTIONS: "--require=/elsewhere/a.cjs", NPM_CONFIG_NODE_OPTIONS: "--import=/elsewhere/b.mjs", JITI_ALIAS: "{}", TSX_TSCONFIG_PATH: "/elsewhere/tsconfig.json", DOTENV_PRIVATE_KEY: "x", DOTENV_CONFIG_ENCODING: "latin1", DOTENV_CONFIG_DEBUG: "true", DOTENV_KEY: "dotenv://:key@elsewhere.example.test/vault/.env.vault" },
+      files: { [file]: await envFileFor() }
+    });
+    expect(await main(["run", "fixture", "--", "npm", "test"], run.dependencies)).toBe(0);
+    const { env } = run.dependencies.spawn.mock.calls[0][2];
+    const pins = loaderPins(file, await readCiConfiguration(ciFixture()));
+    expect(Object.keys(env).filter(name => /^(?:DOTENV_|JITI_|TSX_|NODE_OPTIONS$|npm_config_node[-_]options$)/iu.test(name)).sort()).toEqual([...pins.keys()].sort());
+    for (const [name, value] of pins) expect(env[name]).toBe(value);
+    expect(run.dependencies.connect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    ["an env file that points dotenv elsewhere", { DOTENV_CONFIG_PATH: "/elsewhere/poison.env" }, /sets DOTENV_CONFIG_PATH/u],
+    ["an env file that turns dotenv's override on with \"false\"", { DOTENV_CONFIG_OVERRIDE: "false" }, /sets DOTENV_CONFIG_OVERRIDE/u],
+    ["an env file with a dotenv vault key", { DOTENV_KEY: "dotenv://:key@elsewhere.example.test/vault/.env.vault" }, /sets DOTENV_KEY/u],
+    ["an env file that preloads code", { NODE_OPTIONS: "--require=/elsewhere/poison.cjs" }, /sets NODE_OPTIONS/u],
+    ["an env file with a config-loader input", { TSX_TSCONFIG_PATH: "/elsewhere/tsconfig.json" }, /sets TSX_TSCONFIG_PATH/u]
+  ])("refuses %s with no connection and no child process", async (_label, overrides, message) => {
+    const run = harness({ files: { [envFilePath("jitm_design_fixture", root)]: await envFileFor("jitm_design_fixture", overrides) } });
+    expect(await main(["run", "fixture", "--", "npm", "test"], run.dependencies)).toBe(1);
+    expect(run.errors()).toMatch(message);
+    expect(run.dependencies.spawn).not.toHaveBeenCalled();
+    expect(run.dependencies.connect).not.toHaveBeenCalled();
+  });
+
+  it("refuses a command that passes dotenv options, with no connection and no child process", async () => {
+    const run = harness({ files: { [envFilePath("jitm_design_fixture", root)]: await envFileFor() } });
+    expect(await main(["run", "fixture", "--", "npx", "vitest", "run", `dotenv_config_path=${poisonFile}`, "dotenv_config_override=true"], run.dependencies)).toBe(1);
+    expect(run.errors()).toMatch(/passes dotenv options/u);
+    expect(run.dependencies.spawn).not.toHaveBeenCalled();
+    expect(run.dependencies.connect).not.toHaveBeenCalled();
+  });
+
+  it("replays the child's dotenv load and refuses any change after validation", async () => {
+    const ci = await readCiConfiguration(ciFixture());
+    const environment = buildEnvironment({ exampleText: exampleFixture(), ci, database: "jitm_design_fixture", envFile });
+    const env = Object.fromEntries(environment.values);
+    const fileText = renderEnvFile({ ...environment, database: "jitm_design_fixture" });
+    const check = (changes, { text = fileText, args = [] } = {}) => assertChildDotenvLoad({ ...env, ...changes }, { envFile, fileText: text, args, expected: expected() });
+    expect(check({}).database).toBe("jitm_design_fixture");
+    expect(() => check({ DOTENV_CONFIG_OVERRIDE: "false" })).toThrow(/DOTENV_CONFIG_OVERRIDE is set/u);
+    expect(() => check({ DOTENV_CONFIG_PATH: poisonFile })).toThrow(/would load/u);
+    expect(() => check({ DOTENV_CONFIG_PATH: "" })).toThrow(/\.env in the working directory/u);
+    expect(() => check({}, { text: `${fileText}EXTRA_SETTING=1\n` })).toThrow(/would change EXTRA_SETTING/u);
+    expect(() => check({}, { args: ["vitest", "dotenv_config_path=/elsewhere/poison.env"] })).toThrow(/passes dotenv options/u);
   });
 });
