@@ -13,11 +13,12 @@ export const metadata: Metadata = publicPageMetadata({
 });
 
 // Kevin set these plans on 2026-09-29. Paid plans have not started, so the page states the prices without a way to buy
-// them, and the structured data describes no offers (JITM-02 §2.18).
+// them, and the structured data describes no offers (JITM-02 §2.18). The Free card carries the page's one action; Plus
+// and Pro say plainly that paid plans start later (JITM-06 §2.37).
 export default function PricingPage() {
   return <div className="public-page">
     <a className="public-skip-link" href="#main-content">Skip to content</a>
-    <PublicHeader links={[{ href: "/#how-it-works", label: "How it works" }, { href: "/faq", label: "Questions" }]} />
+    <PublicHeader current="/pricing" links={[{ href: "/#how-it-works", label: "How it works" }, { href: "/faq", label: "Questions" }]} />
     <main id="main-content" tabIndex={-1}>
       <section className="section public-pricing" aria-labelledby="pricing-title">
         <div className="section-heading"><h1 id="pricing-title">Plans and pricing</h1><p>Free during the beta, with no card required. Paid plans haven’t started yet; these are the plans when they do.</p></div>
@@ -32,6 +33,9 @@ export default function PricingPage() {
               <li>Up to {plan.people.toLocaleString("en-US")} people with follow-ups</li>
               <li>Up to {plan.activeMixes} active Mixes</li>
             </ul>
+            <div className="pricing-card-action">{plan.monthlyCents
+              ? <p>Paid plans start later. There’s nothing to buy yet.</p>
+              : <><p>Free during the beta.</p><WaitlistLink className="button primary">Join the waitlist</WaitlistLink></>}</div>
           </li>)}
         </ul>
         <p className="pricing-note">Prices are in US dollars. You’re charged only if you choose a paid plan.</p>
@@ -39,12 +43,14 @@ export default function PricingPage() {
           <section aria-labelledby="pricing-included">
             <h2 id="pricing-included">Every plan includes</h2>
             <ul>
-              <li>Today: who to contact next, with each message prepared for you to review and send yourself.</li>
-              <li>Contacts with notes, saved dates and file import.</li>
-              <li>Mixes with text, email and call versions of every Beat.</li>
-              <li>Ready-made Mixes, Mega-Mixes and the Marketplace.</li>
-              <li>The Journey map and the Calendar.</li>
-              <li>Quick Add, typed or spoken.</li>
+              <li>Today, your daily list of who to contact next, with each message prepared for you to review and send yourself.</li>
+              <li>Your contacts, with notes, saved dates and import from a file.</li>
+              <li>Mixes, your reusable follow-up plans, with a text, email and call version of every Beat.</li>
+              <li>Mega-Mixes, named sets of connected Mixes that cover your work from first inquiry to repeat business.</li>
+              <li>The Marketplace, where you find ready-made Mixes and Mega-Mixes to add.</li>
+              <li>Journey, a map of how your Mixes connect and where each person is right now.</li>
+              <li>Calendar, for your meetings and time blocks.</li>
+              <li>Quick Add, for adding a person, a note or a follow-up from any screen, by typing or speaking.</li>
               <li>Exporting your data or deleting your account.</li>
             </ul>
           </section>
@@ -58,7 +64,7 @@ export default function PricingPage() {
             </ul>
           </section>
         </div>
-        <div className="pricing-join"><p>Free beta. No card required.</p><WaitlistLink className="button primary">Join the waitlist</WaitlistLink><p><Link href="/faq">Questions about access and your data</Link></p></div>
+        <div className="pricing-join"><p><Link href="/faq">Questions about access and your data</Link></p></div>
       </section>
     </main>
     <PublicFooter />
