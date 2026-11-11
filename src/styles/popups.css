@@ -34,6 +34,20 @@
   .sheet-header { position: static; }
 }
 
+/* Swipe down to dismiss (JITM-08 §2.46). On a touch screen the handle and header are the grip, so they take the
+   touch from scrolling; the body keeps native scrolling and dismisses only from its top. Never `none` on a page. */
+@media (width < 768px) and (pointer: coarse) {
+  .sheet-header, .quick-add-dialog-header { touch-action: none; }
+}
+/* Short screens: the header scrolls with the body (JITM-07 §2.26), so it scrolls like the body. */
+@media (width < 768px) and (pointer: coarse) and (max-height: 480px) {
+  .sheet-header { touch-action: pan-y; }
+}
+/* A drag writes only `transform`; settles use the motion tokens (JITM-06 §2.39). Reduced motion makes them instant. */
+[data-swipe-state="dragging"] { transition: none; }
+[data-swipe-state="settle"] { transition: transform var(--motion-settle) var(--ease-settle); }
+[data-swipe-state="cancel"] { transition: transform var(--motion-cancel) var(--ease-settle); }
+
 /* Fixed panels use the shared surface, line, radius and overlay shadow, and stay above the
    bottom navigation wherever it is shown (up to 900px). */
 /* The install prompt keeps its deliberate brand border (it must stay distinct in dark mode). */

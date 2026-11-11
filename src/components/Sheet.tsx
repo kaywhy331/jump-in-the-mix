@@ -4,6 +4,7 @@ import type { ReactNode } from "react";
 import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { DOCKED_REVIEW_MEDIA, openSheet } from "@/lib/sheet-layout";
+import { useSheetDismiss } from "@/lib/gestures/useSwipe";
 
 export function Sheet({
   trigger,
@@ -95,6 +96,8 @@ export function Sheet({
     show();
   };
   const close = () => dialogRef.current?.close();
+  // On a phone, dragging the handle or header down does what Close does.
+  useSheetDismiss(dialogRef, close);
   const restoreTriggerFocus = () => {
     if (dialogRef.current?.open || (docked && document.querySelector(".follow-up-review-sheet[open]"))) return;
     triggerRef.current?.querySelector<HTMLElement>("button, a, [tabindex]")?.focus();

@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useMemo, useRef, useState } from "react";
 import { AppIcon } from "@/components/AppIcon";
+import { useSheetDismiss } from "@/lib/gestures/useSwipe";
 import { isValidTimezone } from "@/lib/mix-broadcast";
 import { zoneGenericName } from "@/lib/display-labels";
 
@@ -81,6 +82,8 @@ export function TimezonePicker({
     dialogRef.current?.showModal();
     searchRef.current?.focus({ preventScroll: true });
   };
+  // On a phone, dragging the handle or header down does what Close does.
+  useSheetDismiss(dialogRef, () => dialogRef.current?.close());
   const [detected, setDetected] = useState(false);
   const detect = () => {
     const zone = deviceTimezone();

@@ -70,6 +70,10 @@
   --radius-sm: var(--radius-control);
   --radius-md: 16px;
   --radius-lg: var(--radius-sheet);
+  /* Motion has no theme (JITM-06 §2.39). A drag follows the finger with no duration; these settle it. */
+  --motion-settle: 220ms;
+  --motion-cancel: 180ms;
+  --ease-settle: cubic-bezier(0.32, 0.72, 0, 1);
 }
 
 @media (prefers-color-scheme: dark) {

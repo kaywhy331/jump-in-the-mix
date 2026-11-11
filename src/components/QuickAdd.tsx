@@ -7,6 +7,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { useQuickAddShortcut } from "@/components/Appearance";
 import { VoiceNoteButton } from "@/components/VoiceNoteButton";
 import { useConfirmDialog } from "@/components/useConfirmDialog";
+import { useSheetDismiss } from "@/lib/gestures/useSwipe";
 import { inferQuickCaptureReview } from "@/lib/quick-add-capture";
 import { shouldOpenQuickAdd } from "@/lib/quick-add-shortcut";
 import type { QuickCaptureContact, QuickCaptureInput, QuickCaptureReceipt } from "@/lib/quick-capture-input";
@@ -107,6 +108,8 @@ export function QuickAddDialog({ timezone, locale = "en-US" }: { timezone: strin
       : { title: "Discard this Quick Add draft?", description: "If a save was interrupted, it may already have completed.", confirmLabel: "Discard draft", danger: true }))) return false;
     reset(); dialogRef.current?.close(); return true;
   };
+  // On a phone, dragging the header down does what Close does, draft guard included.
+  useSheetDismiss(dialogRef, closeDialog);
   const leaveTo = (href: string) => (event: { preventDefault: () => void }) => { event.preventDefault(); void closeDialog().then(closed => { if (closed) router.push(href); }); };
   useEffect(() => {
     const open = () => { (window as QuickAddWindow).__jitmQuickAddPending = false; dialogRef.current?.showModal(); window.setTimeout(() => inputRef.current?.focus(), 0); };

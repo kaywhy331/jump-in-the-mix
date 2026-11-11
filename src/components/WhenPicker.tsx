@@ -2,6 +2,7 @@
 
 import { useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type KeyboardEvent } from "react";
 import { AppIcon } from "@/components/AppIcon";
+import { useSheetDismiss } from "@/lib/gestures/useSwipe";
 import { slotAvailability, type BookedInterval } from "@/lib/calendar-availability";
 import { DATE_KEY, addDays, compareDateKeys, dateKeyOf, formatDateLong, formatDateTrigger, formatMonthTitle, formatTimeLabel, keyboardDateTarget, keyboardSlotTarget, minutesOf, monthGrid, parseDateKey, quickSelects, splitLocal, timeSlots, weekdayLabels } from "@/lib/when-picker";
 
@@ -86,6 +87,8 @@ export function WhenPicker({ label, date, time, onChange, variant = "sheet", dat
     if (variant === "sheet" && dialogRef.current?.open) { dialogRef.current.close(); return; }
     setOpen(null);
   };
+  // On a phone, dragging the sheet's handle or header down does what Close does.
+  useSheetDismiss(dialogRef, close);
   const restoreFocus = () => (openedFrom.current === "time" ? timeTrigger : dateTrigger).current?.focus();
   // Closing after a pick returns focus to the trigger that now shows the new value.
   const finish = (target: View) => {
