@@ -37,13 +37,13 @@ test.beforeEach(async ({ page, context }) => {
   await page.goto("/journey", { waitUntil: "networkidle" });
 });
 async function people(page: Page) {
-  const panes = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
-  if (await panes.isVisible()) await panes.getByRole("button", { name: "People", exact: true }).click();
+  const panes = page.getByRole("tablist", { name: "Journey workspace panels", exact: true });
+  if (await panes.isVisible()) await panes.getByRole("tab", { name: "People", exact: true }).click();
   await expect(roster(page)).toBeVisible();
 }
 async function map(page: Page) {
-  const panes = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
-  if (await panes.isVisible()) await panes.getByRole("button", { name: "Mixes", exact: true }).click();
+  const panes = page.getByRole("tablist", { name: "Journey workspace panels", exact: true });
+  if (await panes.isVisible()) await panes.getByRole("tab", { name: "Mixes", exact: true }).click();
 }
 const strip = (page: Page) => page.getByLabel("People by workflow status", { exact: true });
 

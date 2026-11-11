@@ -180,9 +180,9 @@ test("More keeps compact destinations reachable and secondary navigation tracks 
   for (const width of [390, 834]) {
     await page.setViewportSize({ width, height: width === 390 ? 844 : 1194 });
     await page.goto("/journey");
-    const panes = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
+    const panes = page.getByRole("tablist", { name: "Journey workspace panels", exact: true });
     await expect(panes).toBeVisible();
-    await panes.getByRole("button", { name: "People", exact: true }).click();
+    await panes.getByRole("tab", { name: "People", exact: true }).click();
     await expect(page.getByRole("heading", { name: "Journey", exact: true, level: 1 })).toBeInViewport();
     expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
   }

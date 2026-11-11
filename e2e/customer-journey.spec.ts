@@ -53,7 +53,7 @@ test("owners configure stages, custom triggers, order and individual pauses", as
   await submit(page, sheet.getByRole("button",{ name: "Resume transitions for this person" }));
   await page.goto("/journey");
   // Below 1200 px the Journey workspace opens on its Map pane; the people are listed under People.
-  if ((page.viewportSize()?.width ?? 1200) < 1200) { await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", ""); await page.getByRole("navigation",{ name: "Journey workspace panels", exact: true }).getByRole("button",{ name: "People", exact: true }).click(); }
+  if ((page.viewportSize()?.width ?? 1200) < 1200) { await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", ""); await page.getByRole("tablist", { name: "Journey workspace panels", exact: true }).getByRole("tab",{ name: "People", exact: true }).click(); }
   await expect(page.getByRole("link",{ name: /Jordan Sample/ })).toBeVisible();
 });
 

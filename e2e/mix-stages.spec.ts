@@ -73,7 +73,7 @@ for (const width of [390, 1280]) test(`a Mix's stage moves the person who starts
   expect((await prisma.mix.findUniqueOrThrow({ where: { id: mix.id }, include: { stage: true } })).stage?.name).toBe("Prospect");
   await page.goto(`/mixes?mix=${mix.id}`);
   // On a phone the Mix's details are their own pane.
-  if (width < 600) await page.getByRole("button", { name: "Details", exact: true }).click();
+  if (width < 600) await page.getByRole("tab", { name: "Details", exact: true }).click();
   await expect(page.getByText("Moves people to the Prospect stage.")).toBeVisible();
 
   // Contact stages says which Mix sets the stage.
@@ -135,7 +135,7 @@ test("turning on a draft that names a stage says who moves before it starts (UX-
 
   // The review preference is off for this owner, and Start Mix still opens the review.
   await page.goto(`/mixes?mix=${mix.id}`);
-  await page.getByRole("button", { name: "Details", exact: true }).click();
+  await page.getByRole("tab", { name: "Details", exact: true }).click();
   await page.locator("summary").filter({ hasText: "Manage Mix" }).click();
   await page.getByRole("button", { name: "Start Mix", exact: true }).click();
   await page.getByRole("button", { name: "Review and start", exact: true }).click();
@@ -206,7 +206,7 @@ test("a tag added while a Mix is paused is reviewed when the Mix starts again, w
   // The review preference is off for this owner, and Start Mix on the paused Mix still opens the review of turning it
   // back on (#139's resume review), which names the tag added while paused and counts Fay and Sam.
   await page.goto(`/mixes?mix=${mix.id}`);
-  await page.getByRole("button", { name: "Details", exact: true }).click();
+  await page.getByRole("tab", { name: "Details", exact: true }).click();
   await page.locator("summary").filter({ hasText: "Manage Mix" }).click();
   await page.getByRole("button", { name: "Start Mix", exact: true }).click();
   await page.getByRole("button", { name: "Review and turn on", exact: true }).click();
