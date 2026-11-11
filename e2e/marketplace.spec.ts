@@ -182,11 +182,11 @@ test("Marketplace sections, filters and both themes work on phone, tablet and de
       await page.screenshot({ path: `${dir}/marketplace-${width}-${theme}.png`, scale: "css" });
       expect((await axeInPage(page).include(".mix-workspace-page").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
       if (width < 1200) {
-        await page.getByRole("navigation", { name: "Mix workspace panels" }).getByRole("button", { name: "Beats" }).click();
+        await page.getByRole("tablist", { name: "Mix workspace panels" }).getByRole("tab", { name: "Beats" }).click();
         await expect(page.getByRole("list", { name: "Photographer Beats in journey order" })).toBeVisible();
         expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
         await page.screenshot({ path: `${dir}/marketplace-detail-${width}-${theme}.png`, scale: "css" });
-        await page.getByRole("navigation", { name: "Mix workspace panels" }).getByRole("button", { name: "Mixes" }).click();
+        await page.getByRole("tablist", { name: "Mix workspace panels" }).getByRole("tab", { name: "Mixes" }).click();
       }
     }
   }

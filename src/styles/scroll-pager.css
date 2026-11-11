@@ -1,0 +1,21 @@
+/* Pane paging (JITM-08 §2.46; docs/design/NATIVE-NAVIGATION.md §3 B). ScrollPager sets data-paging on a coarse pointer up to
+   1024px. Without it the wrapper adds no box and the screen's own switcher shows one pane at a time, as before; with it the
+   panes sit side by side in one native scroll-snap track, each with its own vertical scroll, between the tablet header and
+   the bottom navigation. The indicator follows the scroll; the tabs stay the visible equivalent (JITM-10 §2.26). */
+.scroll-pager { display: contents; }
+.scroll-pager-indicator { display: none; }
+.scroll-pager[data-paging] { display: flex; flex-direction: column; min-width: 0; height: calc(100dvh - var(--phone-header-height, 0px) - var(--phone-nav-height, 0px)); }
+.scroll-pager[data-paging] > .scroll-pager-tabs { position: relative; flex: none; }
+.scroll-pager[data-paging] > .scroll-pager-tabs > [role=tab] { position: relative; z-index: 1; background: transparent; }
+/* A transparent outline shows in forced colours, where the wash does not. */
+.scroll-pager[data-paging] .scroll-pager-indicator { display: block; position: absolute; top: 0; left: 0; background: var(--violet-wash); outline: 1px solid transparent; pointer-events: none; }
+.scroll-pager[data-paging] > .scroll-pager-track { display: flex; flex: 1 1 auto; min-height: 0; padding: 0; overflow-x: auto; overflow-y: hidden; scroll-snap-type: x mandatory; overscroll-behavior-x: contain; scrollbar-width: none; }
+.scroll-pager[data-paging] > .scroll-pager-track::-webkit-scrollbar { display: none; }
+/* Each pane positions its own absolute children (such as visually hidden labels), so the track clips them off-screen
+   instead of widening the page. */
+.scroll-pager[data-paging] [data-pager-pane] { position: relative; display: block; flex: 0 0 100%; align-self: stretch; box-sizing: border-box; width: 100%; min-width: 0; height: auto; max-height: none; overflow-x: hidden; overflow-y: auto; scroll-snap-align: start; scroll-snap-stop: always; }
+/* A swipe never starts on a field, a slider or an opted-out surface (JITM-08 §2.47): vertical scrolling stays native there. */
+.scroll-pager[data-paging] [data-pager-pane] :is(input, textarea, select, [contenteditable]:not([contenteditable=false]), [role=slider], [data-swipe-ignore]) { touch-action: pan-y pinch-zoom; }
+@media (prefers-reduced-motion: reduce) {
+  .scroll-pager-track { scroll-behavior: auto; }
+}

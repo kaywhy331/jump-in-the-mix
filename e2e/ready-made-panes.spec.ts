@@ -123,9 +123,9 @@ test("ready-made panes match My Mixes and reflow in both themes with large text"
     for (const theme of ["light", "dark"]) {
       await page.evaluate(value => document.documentElement.dataset.theme = value, theme);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth)).toBe(true);
-      const panels = page.getByRole("navigation", { name: "Mix workspace panels" });
+      const panels = page.getByRole("tablist", { name: "Mix workspace panels" });
       if (width < 1200) {
-        await panels.getByRole("button", { name: "Mixes", exact: true }).click();
+        await panels.getByRole("tab", { name: "Mixes", exact: true }).click();
         if (process.env.CONNECTION_ARTIFACTS) await page.screenshot({ path: `${process.env.CONNECTION_ARTIFACTS}/ready-directory-${width}-${theme}.png`, fullPage: true });
         await page.locator(".mix-library-item").first().click();
       }
@@ -133,7 +133,7 @@ test("ready-made panes match My Mixes and reflow in both themes with large text"
       if (process.env.CONNECTION_ARTIFACTS) await page.screenshot({ path: `${process.env.CONNECTION_ARTIFACTS}/ready-beats-${width}-${theme}.png`, fullPage: true });
       expect((await axeInPage(page).include(".mix-workspace-page").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);
       if (width < 1200) {
-        await panels.getByRole("button", { name: "Details", exact: true }).click();
+        await panels.getByRole("tab", { name: "Details", exact: true }).click();
         await expect(page.getByRole("complementary", { name: "Ready-made Mix details" }).getByRole("link", { name: "Use this Mix", exact: true })).toBeVisible();
         if (process.env.CONNECTION_ARTIFACTS) await page.screenshot({ path: `${process.env.CONNECTION_ARTIFACTS}/ready-details-${width}-${theme}.png`, fullPage: true });
         expect((await axeInPage(page).include(".mix-workspace-page").withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze()).violations).toEqual([]);

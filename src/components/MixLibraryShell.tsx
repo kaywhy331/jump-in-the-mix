@@ -1,15 +1,18 @@
 "use client";
 import { useEffect, useState, type ReactNode } from "react";
-import { AppIcon } from "@/components/AppIcon";
+import { ScrollPager, type ScrollPagerPane } from "@/components/ScrollPager";
+
+type Pane = "library" | "beats" | "details";
 
 export function MixLibraryShell({ children, selectedMixId, explicitSelection }: { children: ReactNode; selectedMixId?: string; explicitSelection: boolean }) {
-  const [pane, setPane] = useState<"library" | "beats" | "details">(explicitSelection ? "beats" : "library");
+  const [pane, setPane] = useState<Pane>(explicitSelection ? "beats" : "library");
   useEffect(() => { setPane(explicitSelection ? "beats" : "library"); }, [selectedMixId, explicitSelection]);
-  return <div className="mix-library-shell" data-mobile-pane={pane} onClick={event => { if ((event.target as Element).closest("a.mix-library-item")) setPane("beats"); }}>
-    <nav className="mix-phone-panes" aria-label="Mix workspace panels">
-      <button type="button" aria-pressed={pane === "library"} onClick={() => setPane("library")}><AppIcon name="mixes" />Mixes</button>
-      <button type="button" aria-pressed={pane === "beats"} disabled={!selectedMixId} onClick={() => setPane("beats")}><AppIcon name="message" />Beats</button>
-      <button type="button" aria-pressed={pane === "details"} disabled={!selectedMixId} onClick={() => setPane("details")}><AppIcon name="people" />Details</button>
-    </nav>{children}
-  </div>;
+  // The phone switcher's tabs; on a touch screen up to 1024px the panes also page by swiping (JITM-07 §2.18, JITM-08 §2.46).
+  const panes: ScrollPagerPane<Pane>[] = [
+    { id: "library", label: "Mixes", icon: "mixes", target: ":scope > .mix-library-directory" },
+    { id: "beats", label: "Beats", icon: "message", target: ":scope > .mix-edit-columns > .mix-editor-workspace", disabled: !selectedMixId },
+    { id: "details", label: "Details", icon: "people", target: ":scope > .mix-edit-columns > .mix-context-pane", disabled: !selectedMixId }
+  ];
+  return <ScrollPager label="Mix workspace panels" panes={panes} selected={pane} onSelect={setPane} tabsClassName="mix-phone-panes" trackClassName="mix-library-shell"
+    trackProps={{ onClick: event => { if ((event.target as Element).closest("a.mix-library-item")) setPane("beats"); } }}>{children}</ScrollPager>;
 }

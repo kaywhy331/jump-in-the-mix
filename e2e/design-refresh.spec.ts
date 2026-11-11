@@ -32,11 +32,11 @@ async function hitTarget(locator: Locator) {
 // reset. Choose a pane only once its button is hydrated and a frame has passed for its effects.
 async function choosePane(page: Page, name: "Mixes" | "Details") {
   if ((page.viewportSize()?.width ?? 1200) >= 1200) return; // From 1200 px every pane is shown side by side.
-  const button = page.getByRole("navigation", { name: "Mix workspace panels", exact: true }).getByRole("button", { name, exact: true });
+  const button = page.getByRole("tablist", { name: "Mix workspace panels", exact: true }).getByRole("tab", { name, exact: true });
   await expect.poll(() => button.evaluate(element => Object.keys(element).some(key => key.startsWith("__reactProps")))).toBe(true);
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
   await button.click();
-  await expect(button).toHaveAttribute("aria-pressed", "true");
+  await expect(button).toHaveAttribute("aria-selected", "true");
 }
 
 async function checkModal(page: Page, trigger: Locator, confirmation: string) {

@@ -33,18 +33,24 @@ export function AppShell({
     expiresAt: string;
   } | null;
 }) {
-  const mobileNav = useRef<HTMLDivElement>(null);
+  const mobileNav = useRef<HTMLDivElement>(null), mobileHeader = useRef<HTMLElement>(null);
   useLayoutEffect(() => {
-    const nav = mobileNav.current;
+    const nav = mobileNav.current, header = mobileHeader.current;
     if (!nav) return;
     const root = document.documentElement;
-    const measure = () => root.style.setProperty("--phone-nav-height", `${nav.getBoundingClientRect().height}px`);
+    // The tablet header's height lets pane pagers fill the screen between it and the bottom navigation (ScrollPager).
+    const measure = () => {
+      root.style.setProperty("--phone-nav-height", `${nav.getBoundingClientRect().height}px`);
+      root.style.setProperty("--phone-header-height", `${header?.getBoundingClientRect().height ?? 0}px`);
+    };
     measure();
     const observer = new ResizeObserver(measure);
     observer.observe(nav, { box: "border-box" });
+    if (header) observer.observe(header, { box: "border-box" });
     return () => {
       observer.disconnect();
       root.style.removeProperty("--phone-nav-height");
+      root.style.removeProperty("--phone-header-height");
     };
   }, []);
 
@@ -90,7 +96,7 @@ export function AppShell({
           </div>
         </div>
       </aside>
-      <header className="mobile-app-header">
+      <header ref={mobileHeader} className="mobile-app-header">
         <Logo />
         {impersonation ? endImpersonationForm : (
           <div className="mobile-header-actions"><Link className="button small mobile-profile-link" href="/more" aria-label="More">{userName.slice(0, 1).toUpperCase()}</Link></div>

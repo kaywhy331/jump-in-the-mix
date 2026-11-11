@@ -26,6 +26,7 @@ import { compareJourneyNumbers, journeyTargetNumber, numberJourney } from "@/lib
 import { useCanvasPan } from "@/components/useCanvasPan";
 import { mixStatusLabel, pendingFollowUpsLabel, zoneLabel } from "@/lib/display-labels";
 import { useWorkflowMeasurements } from "@/components/useWorkflowMeasurements";
+import { ScrollPager, type ScrollPagerPane } from "@/components/ScrollPager";
 
 export function WorkflowJourney({ initial, displayPreferences, initialMixId = "", initialContactId = "", children, showCheckIns = false, initialStartOpen = false, initialWorkLabel = "", initialInstanceId = "", initialMegaMixId = "" }: { children?: ReactNode; showCheckIns?: boolean; initial: WorkflowGraphView; displayPreferences: DisplayFormatPreferences; initialMixId?: string; initialContactId?: string; initialStartOpen?: boolean; initialWorkLabel?: string; initialInstanceId?: string; initialMegaMixId?: string }) {
   const [data, setData] = useState(initial), [mode, setMode] = useState<"Setup" | "Progress" | "Results">(initialStartOpen ? "Setup" : initial.analytics.summary.total ? "Progress" : "Setup");
@@ -273,11 +274,9 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
   const population = (node: string) => data.analytics.nodes[node] ?? emptyWorkflowCounts();
   const metricTotals = Object.values(data.metrics).reduce((sum, value) => ({ started: sum.started + value.started, waiting: sum.waiting + value.waiting, held: sum.held + value.held }), { started: 0, waiting: 0, held: 0 });
   const feedback = <>{notice && <p className="notice" role="status">{notice}{notice.startsWith("Start saved") && <> <Link href="/settings/notifications">Set up reminders for me (optional)</Link>. These remind you; they do not enable customer sending.</>}</p>}{error && <p className="notice error" role="alert">{error} <button type="button" className="text-button" onClick={() => void refresh().catch(reason => setError(reason.message))}>Retry</button></p>}</>;
-  return <div className={styles.workspace} data-mobile-pane={pane}>
-    {/* The middle pane shows the Mixes as a list or a map, so its tab names the Mixes, not one of its views (D95). */}
-    <nav className={styles.paneNav} aria-label="Journey workspace panels">
-      {(["people", "map", "details"] as const).map(value => <button type="button" key={value} aria-pressed={pane === value} aria-controls={`journey-${value}-pane`} onClick={() => setPane(value)}><AppIcon name={value === "people" ? "people" : value === "map" ? "journey" : "more"} />{value === "people" ? "People" : value === "map" ? "Mixes" : "Details"}</button>)}
-    </nav>
+  // The middle pane shows the Mixes as a list or a map, so its tab names the Mixes, not one of its views (D95).
+  // On a touch screen up to 1024px the panes also page by swiping (JITM-08 §2.46).
+  return <ScrollPager label="Journey workspace panels" panes={journeyPanes} selected={pane} onSelect={setPane} tabsClassName={styles.paneNav} trackClassName={styles.workspace}>
     <aside id="journey-people-pane" ref={directoryRef} className={styles.directory} aria-label="Journey directory">
       <header className={styles.directoryHeader}><h1>Journey</h1><div><BrandTermsHelp /><Link className="icon-button" href="/mixes" aria-label="My Mixes" title="My Mixes"><AppIcon name="mixes" /></Link>{data.canEdit && <Link className="icon-button" href="/mixes/new?custom=1" aria-label="Create a Mix" title="Create a Mix"><AppIcon name="plus" /></Link>}</div></header>
       <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Choose a complete Mega-Mix</Link>
@@ -351,8 +350,14 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
       </>}
       {children}
     </aside>
-  </div>;
+  </ScrollPager>;
 }
+
+const journeyPanes: ScrollPagerPane<"people" | "map" | "details">[] = [
+  { id: "people", label: "People", icon: "people", target: ":scope > #journey-people-pane" },
+  { id: "map", label: "Mixes", icon: "journey", target: ":scope > #journey-map-pane" },
+  { id: "details", label: "Details", icon: "more", target: ":scope > #journey-details-pane" }
+];
 
 /** A Beat's number: its Mix's number and its letter within that Mix, such as A3.b. */
 function BeatNumber({ value }: { value?: string }) {
