@@ -21,9 +21,9 @@ JITM-00 §2 defines precedence between these standards, the design export, shipp
 | JITM-03 | [Brand identity](03-brand-identity.md) | Name, logo, wordmark, brand color, bubble motif, imagery, email identity |
 | JITM-04 | [Voice, tone and copy](04-voice-tone-and-copy.md) | Voice, registers, microcopy, message tone, persuasion floor, clean-room |
 | JITM-05 | [Vocabulary and glossary](05-vocabulary-and-glossary.md) | Customer terms, numbering, retired terms, capitalization |
-| JITM-06 | [Design system](06-design-system.md) | Export authority, tokens, color, type, shape, icons, themes, components, CSS |
+| JITM-06 | [Design system](06-design-system.md) | Export authority, tokens, color, type, shape, icons, themes, components, CSS, motion |
 | JITM-07 | [Layout and responsive structure](07-layout-and-responsive-structure.md) | Breakpoints, navigation layout, page archetypes, workspaces, viewport matrix |
-| JITM-08 | [Interaction and UX patterns](08-interaction-and-ux-patterns.md) | Review and undo, confirmations, sheets, disclosures, forms, drafts, states |
+| JITM-08 | [Interaction and UX patterns](08-interaction-and-ux-patterns.md) | Review and undo, confirmations, sheets, disclosures, forms, drafts, states, touch gestures |
 | JITM-09 | [Information architecture and user workflows](09-information-architecture-and-user-workflows.md) | Routes, navigation labels, the canonical user workflows |
 | JITM-10 | [Accessibility and quality bar](10-accessibility-and-quality-bar.md) | Targets, text size, contrast, keyboard, zoom, performance, devices |
 | JITM-11 | [Engineering architecture](11-engineering-architecture.md) | Next.js rules, structure, tenancy, scheduling, data, security, cost |

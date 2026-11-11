@@ -526,7 +526,7 @@ VERIFIED-DOC against the [81-finding record](../design/UX_AUDIT_2026-11-08.md); 
 | P-03 | Contacts search 15 px, sort select 13 px, demo select 14 px; iOS zooms on focus; `/contacts` | UXA-04 (job_6c23533490fc) | Resolved in code: 9f37e00; use the shared 16px floor. |
 | P-04 | the phone hero is headline, a 5-line intro, two buttons and a 6-7-line note; the demo starts on screen two; `/` | UXA-06 (job_e5a211855a70) | Open; not a canonical reference. |
 | P-05 | the phone menu has "Join" and Explore (Templates, Questions, Open Today, Contact support, Appearance) but no Sign in or Pricing; `public phone menu` | UXA-14 (job_5097b82f3da1) | Partial: Sign in/header reuse at 5bc117b; Pricing menu entry remains UXA-14, Join/Explore kept. |
-| P-06 | sheets draw a drag handle with no swipe; `shared Sheet` | NAV-00 / NAV-01 (job_24403bb7c4ce / job_b1d64065ca93) | Open decision; keep the named JITM contract. |
+| P-06 | sheets draw a drag handle with no swipe; `shared Sheet` | JITM-NAV-01 (job_626a96e3d44e); rule from JITM-NAV-00 (job_4e4e542a5b4c) | Owner decided (D130, JITM-08 §2.46); not built. |
 | P-07 | Share, Preview and Edit fill row one, so the primary Start wraps alone; two stacked tab bars; library tabs collide at 328 px; `/mixes/[id]` | UXB-07 (job_ca566cea09be) | Open; not a canonical reference. |
 | P-08 | very long pages: Journey list about 6,800 px, Mega-Mixes about 6,200, pricing about 2,900 for three plans; `/templates/journeys` | UXB-07 (job_ca566cea09be) | Open; not a canonical reference. |
 | P-09 | Calendar week buttons wrap to two lines; "YOUR NEXT SEVEN DAYS" in uppercase; `/calendar` | UXB-07 (job_ca566cea09be) | Open; not a canonical reference. |

@@ -2,12 +2,13 @@
 id: JITM-07
 title: Layout and responsive structure
 status: active
-version: 3.0.0
+version: 3.1.0
 owner: Kevin
-last_reviewed: 2026-11-09
+last_reviewed: 2026-11-11
 applies_to: [ui, layout, navigation, responsive, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
+  - docs/design/NATIVE-NAVIGATION.md
   - docs/design/UX_AUDIT_2026-11-08.md
   - docs/design/jump-in-the-mix-designs/README.txt
   - docs/design/DESIGN_GUIDELINES.md
@@ -76,6 +77,8 @@ When enlarged text cannot fit the phone labels as whole words in five equal colu
 **2.8** Below 768px there is no app header. Each page starts with one title row holding its actions, with an optional search row beneath. Sub-pages start with `BackLink` (chevron and parent name). Settings, My account and Help show "Back to More" on phones only. [SHIPPED 9439fd6 src/styles/mobile-ux.css:3] [SHIPPED 9439fd6 src/components/BackLink.tsx:4-6] [SOURCE docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:24-25] [SOURCE docs/design/jump-in-the-mix-designs/screens/Contacts.html:21 (title and search rows)]
 
 **2.9** Anything fixed to the bottom of the screen, such as completion confirmations, the return tray and the install prompt, MUST sit above the bottom navigation wherever it shows. Pages reserve bottom padding so the last row can scroll clear. [SHIPPED 9439fd6 src/styles/design-workspaces.css:132,256-259] [SHIPPED 9439fd6 src/styles/popups.css:41-43] [SOURCE docs/design/DESIGN_CONSISTENCY_2026-09-23.md:59]
+
+**2.33** The section ring is the order section swipe follows (JITM-08 §2.46): Today, Contacts, Mixes, More, the four destinations of the phone bottom navigation (JITM-09 §2.3), in its order. Quick Add is an action, not a stop. Journey and Calendar are not stops, even beside the rail, so the order never changes with width. The ends don't wrap: Today has no previous section and More has no next, and a drag past an end resists and springs back. The ring applies only on a stop's own screen (`/jumps`, `/contacts`, `/mixes`, `/more`) with a coarse pointer, at any width; sub-pages are left by Back. [OWNER 2026-11-08 D130] [SHIPPED b9bfd1d6 src/components/Nav.tsx:9-16]
 
 ### Page archetypes
 
@@ -255,6 +258,8 @@ Decided, not built (UX audit 2026-10-08, `docs/UX_DESIGN_AUDIT_2026-10-08.md`), 
 - The Calendar agenda lists every follow-up as its own row, so on a busy day the first appointment is about 1,950px down (LEN-04), against §2.21 (D74).
 - The Settings hub is one ungrouped list, 1,510px long on a phone (LEN-07), against §2.22 (D81).
 
+Decided, not built (D130): the section ring (§2.33). At b9bfd1d6 no gesture moves between sections; JITM-NAV-03 (job_c2f027c489dc) builds section swipe.
+
 Question for Kevin:
 - **Printing:** no print stylesheet exists. Is printing Today or a profile a supported workflow?
 
@@ -270,3 +275,4 @@ Question for Kevin:
 - 2.1.1 — 2026-11-06 — Base 682b8ac7. §6 records D121/B-21 and JRN-02 built in M4-S3; D75 and the open follow-up-membership decision remain unchanged.
 
 - 3.0.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.27–§2.32 and required archetype kits; tighten boundary/adjacency checks. Major because the default workspace cap/centering, public-header collapse and short-height chrome change meaning; existing Journey and directory-switch owner choices remain. §5 is the full size matrix, including fractional widths and sideways phones.
+- 3.1.0 — 2026-11-11 — Base b9bfd1d64674f4a70a017b058fe7ceb1ba42ba39. New §2.33: the section ring for section swipe (Today, Contacts, Mixes, More; no wrap), from Kevin's 2026-11-08 approval of the native navigation spec ("Approve the swipe spec, go with section swipe", D130).

@@ -2,12 +2,13 @@
 id: JITM-06
 title: Design system
 status: active
-version: 1.2.0
+version: 1.3.0
 owner: Kevin
-last_reviewed: 2026-11-09
+last_reviewed: 2026-11-11
 applies_to: [ui, styles, components, icons, themes, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
+  - docs/design/NATIVE-NAVIGATION.md
   - docs/design/UX_AUDIT_2026-11-08.md
   - docs/design/jump-in-the-mix-designs/README.txt
   - docs/design/jump-in-the-mix-designs/tokens.css
@@ -151,7 +152,7 @@ Which fills may carry white text: JITM-10 §2.6. [SOURCE docs/design/DESIGN_GUID
 
 **2.31** Each component has one clear style owner. Fix the owning rule instead of stacking a later, more specific override. Shared defaults use zero-specificity `:where()` selectors so deliberate page rules still apply. [SOURCE docs/design/CONTACTS_FORENSIC_AUDIT_2026-09-19.md:74] [SHIPPED 9439fd6 src/styles/disclosures.css:9-10] [SHIPPED 9439fd6 src/styles/phone-icons.css:1-4]
 
-**2.32** The design layer has no spacing, type, z-index or motion scale yet; those exist only in legacy `base.css`. Take such values from the matching export screen and reuse values already in the file. Do not add a new scale without WF-08. [SHIPPED 9439fd6 src/styles/base.css:24-42] [PROPOSED]
+**2.32** The design layer has no spacing, type or z-index scale yet; those exist only in legacy `base.css`. Take such values from the matching export screen and reuse values already in the file. Do not add a new scale without WF-08. The motion scale is §2.39, added through WF-08 (D130). [SHIPPED 9439fd6 src/styles/base.css:24-42] [PROPOSED]
 
 ### Audit-derived visual patterns
 
@@ -164,6 +165,17 @@ Which fills may carry white text: JITM-10 §2.6. [SOURCE docs/design/DESIGN_GUID
 **2.37** Each view or independent task region MUST have at most one filled primary action. Tests and secondary actions use the secondary treatment. A primary create action MUST have a visible text label at every size. View-switch segments MUST look distinct from action buttons; at 320px their labels and actions MUST fit without collision, using wrapping or an accessible secondary-action menu while retaining the primary action. FAQ question triggers SHOULD be at least 16px and no smaller than their answers. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:67] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:58] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:95] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:44]
 
 **2.38** Auth and system cards MUST share the logo/header anatomy and one leading action alignment. Action-to-helper spacing SHOULD be 12–16px. On phones the card SHOULD use the available width without a second nested card margin, while keeping safe-area padding. Geometry and width come from the archetype kit (JITM-07 §2.32), and state-aware headings/recovery from JITM-08 §2.39. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:47] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:48]
+
+
+### Motion
+
+**2.39** Motion uses these tokens, defined once in `src/styles/design-tokens.css` because motion has no theme:
+- a drag follows the finger 1:1, with no duration or easing;
+- `--motion-settle: 220ms` settles a committed gesture, and times the page transition that continues it; settles stay within 200–250ms;
+- `--motion-cancel: 180ms` springs a cancelled gesture back;
+- `--ease-settle: cubic-bezier(0.32, 0.72, 0, 1)` eases both; a script-driven settle MAY use a critically damped spring of the same duration instead.
+
+Animate `transform` and `opacity`, never `transition: all`. Script reads the tokens from CSS instead of repeating the numbers. Reduced motion keeps the existing `.01ms` rule and makes every settle instant (JITM-10 §2.13, JITM-10 §2.26). The legacy `--motion-fast` in `base.css` stays legacy; new motion uses these tokens. [OWNER 2026-11-08 D130] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:123] [SHIPPED b9bfd1d6 src/styles/base.css:42,73-76]
 
 ## 3. Canonical implementations
 
@@ -273,7 +285,8 @@ Under §2.33 (D24), each unexplained difference below defaults to the export val
 - **Type:** headings use 600 (`src/styles/design-system.css:6`), not 700; the phone page title is 28px (`src/styles/design-workspaces.css:152`), not 30px; landing headings run a step below the export (`src/styles/homepage.css:28,93`, open since 2026-09-24). The empty Today review heading uses Newsreader for app wording (`src/styles/design-workspaces.css:89`). The wordmark ships at 600 (`src/styles/design-system.css:6`), at 16px in the desktop public header (`src/styles/design-public.css:5`) and at 13px with a 26px mark in the phone public header (`src/styles/design-details.css:199-201`); the tablet app header shows the 42px base mark (`src/styles/base.css:86`). 107 `font-weight` declarations, mostly in legacy stylesheets, fall outside 400–700.
 - **Tab labels:** 12px at 500, 700 when active (`src/styles/design-workspaces.css:134,140`); the export uses 11/14/600. The heavier active label is part of the non-color cue (§2.5, JITM-10 §2.7). Which size and weight is standard?
 - **Staff corners** of 6–10px were never decided (`docs/design/DESIGN_CONSISTENCY_2026-09-23.md:65`).
-- **Legacy CSS:** `base.css:2-50` keeps a second palette and the only spacing, type, z-index and motion scales; its `prefers-contrast` overrides (`:75`) are shadowed by `design-tokens.css`. Five dialog backdrops still carry literals that `popups.css:4` overrides. `invitations.css` loads after the consistency layers (`src/styles/index.css:38`).
+- **Legacy CSS:** `base.css:2-50` keeps a second palette and the only spacing, type and z-index scales, plus the legacy `--motion-fast` (§2.39 is the motion scale); its `prefers-contrast` overrides (`:75`) are shadowed by `design-tokens.css`. Five dialog backdrops still carry literals that `popups.css:4` overrides. `invitations.css` loads after the consistency layers (`src/styles/index.css:38`).
+- **Motion tokens (D130) are decided, not built:** at b9bfd1d6 `design-tokens.css` has no motion token. JITM-NAV-01 (job_626a96e3d44e) adds §2.39's tokens with the gesture engine.
 - **Literals:** 53 color literals in CSS outside the tokens and 11 in UI code, including a `#dfe4ee` tag-dot fallback in five components (drift baseline metrics 1–2).
 - **Icons:** `AppIcon` has no size prop; all 290 uses rely on CSS. `WhenPicker.tsx:42-43` draws its own chevrons; three pagers rotate `arrowLeft` (`src/app/(app)/mixes/page.tsx:74` and two others); the profession directory uses a "›" glyph (`src/styles/design-public.css:48`).
 - **Journey visuals** live only in code: incoming lines use `--status-success-ink`, outgoing `--violet-mark`, selected lines 4px (`src/components/WorkflowJourney.module.css:192-197`). The module uses `--border` for many separators, against §2.12.
@@ -284,3 +297,4 @@ Under §2.33 (D24), each unexplained difference below defaults to the export val
 - 1.1.0 — 2026-09-28 — Base 61d4df4. New §2.33: the export is the default for unexplained deviations, and a shipped value becomes standard only with a recorded reason (D24).
 
 - 1.2.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.34–§2.38; clarify §2.13, §2.16 and §2.28. Inventory actual public/ToC/save/empty/chip/skip roles and name missing-role owners; preserve export and owner exceptions.
+- 1.3.0 — 2026-11-11 — Base b9bfd1d64674f4a70a017b058fe7ceb1ba42ba39. New §2.39: the motion tokens for gestures (drag 1:1, a 220ms settle, a 180ms cancel and one easing), from Kevin's 2026-11-08 approval of the native navigation spec ("Approve the swipe spec, go with section swipe", D130). §2.32 now points to it; §6 notes the tokens are decided and not yet in `design-tokens.css` (JITM-NAV-01).

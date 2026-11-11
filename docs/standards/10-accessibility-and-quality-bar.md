@@ -2,12 +2,13 @@
 id: JITM-10
 title: Accessibility and quality bar
 status: active
-version: 2.2.0
+version: 2.3.0
 owner: Kevin
-last_reviewed: 2026-11-09
+last_reviewed: 2026-11-11
 applies_to: [ui, accessibility, performance, app, public-pages, staff, release-qualification]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
+  - docs/design/NATIVE-NAVIGATION.md
   - docs/design/UX_AUDIT_2026-11-08.md
   - docs/CANONICAL_PRODUCT_DECISIONS.md
   - docs/design/DESIGN_GUIDELINES.md
@@ -114,6 +115,16 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 
 **2.17** No task needs a drag, a hover or a multi-point gesture. Every drag has a single-tap or keyboard alternative. Information shown in a hover tooltip or `title` MUST also be reachable by tapping or keyboard-activating its element, preferably in an existing details pane, as for Journey people rows. Custom hover or focus content can be dismissed without moving the pointer or focus, stays while the pointer is over it, and stays until dismissed or no longer relevant. Verify it by touch and keyboard, not only by reading code. [OWNER 2026-09-28 D26] [SOURCE docs/beta-audit-2026-09-26/lanes/08-design-a11y-copy.md:53]
 
+**2.26** Every touch gesture (JITM-08 §2.46) is a shortcut for a visible control that does the same thing, so no task needs a gesture (WCAG 2.5.1, 2.5.7):
+- section swipe: the bottom navigation or rail;
+- pane paging: the pane tabs, which are ARIA tabs with arrow keys;
+- back: `BackLink` and the browser's Back;
+- sheet dismiss: Close;
+- next follow-up: the Next and Previous buttons;
+- the row long-press: the row's actions control.
+
+Keyboard and screen-reader paths stay as they are. A gesture commits only on release and cancels if the finger returns (WCAG 2.5.2). After a section swipe, the route is announced and focus moves to the new H1 (§2.23). With reduced motion every gesture still works: the surface may follow the finger, as native scrolling does, and every settle, spring-back and page transition is instant (§2.13), including the View Transition pseudo-elements, which the `.01ms` rule's selector does not reach. [OWNER 2026-11-08 D130] [PROPOSED] [SHIPPED b9bfd1d6 src/styles/base.css:73-76]
+
 ### Performance and qualification
 
 **2.18** Public pages meet the Lighthouse budgets in `.lighthouserc.cjs`: performance 0.90, accessibility 0.95 and best practices 0.90 at least, median largest contentful paint 2.5 s or less, and cumulative layout shift 0.1 or less. Loosening a budget needs Kevin's decision. Which URLs run, and how, is JITM-12 §2. [SHIPPED 9439fd6 .lighthouserc.cjs:29-36]
@@ -168,7 +179,7 @@ Hairlines (`--line`, `--track`, `--border`) are exempt only when they do not ide
 
 ### Design audit 2026-11-08
 
-P-03's phone-input floor is implemented by 9f37e00; E-01's link scope by 3d79992. E-08 remains a runtime discrepancy because AppShell already has skip-link markup; UXB-03 must establish rendered reachability. Keep the stricter reduced-motion behavior (§2.13), including the current 0.01ms treatment; NAV-00 owns any motion-token amendment. A-19's account-reveal design stays with UXB-08; the performance rule never permits revealing unauthenticated content.
+P-03's phone-input floor is implemented by 9f37e00; E-01's link scope by 3d79992. E-08 remains a runtime discrepancy because AppShell already has skip-link markup; UXB-03 must establish rendered reachability. Keep the stricter reduced-motion behavior (§2.13), including the current 0.01ms treatment; the motion tokens are JITM-06 §2.39 and gestures under reduced motion follow §2.26 (D130). A-19's account-reveal design stays with UXB-08; the performance rule never permits revealing unauthenticated content.
 
 Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
 
@@ -177,6 +188,7 @@ Open or partially resolved finding IDs and owners (details and landed evidence: 
 - A-19 — UXB-08 (job_e0ae7b318010).
 - A-26 — UXB-04 (job_a5a8516f1138).
 
+- **Gesture equivalents (D130) are decided, not built:** §2.26 applies as JITM-NAV-01 to JITM-NAV-06 land each gesture. Finger tracking under reduced motion is a proposal; real-device checks (§2.19) can make it stricter.
 - **Physical devices and assistive technology:** every row in the device matrix is NOT RUN, including VoiceOver, TalkBack, operating-system text at 200% and Firefox zoom (`docs/MANUAL_DEVICE_QUALIFICATION.md:73`; `docs/BETA_READINESS_AUDIT_2026-09-26.md:372`).
 - **Journey people rows:** since 2026-09-28, stage, status, reason and due time sit in a `title` tooltip (`src/components/WorkflowPeople.tsx:32`). Touch and keyboard users reach them only by selecting the person. Kevin decided the hover is not enough (§2.17, D26); making the details reachable by tap and keyboard is backlog B-05.
 - **Text floor coverage:** the floor test runs only on phone widths and on 13 routes (`e2e/visual-fitment.spec.ts:176-199`). Journey, Calendar and Marketplace are not covered, against §2.21 (D82). Journey still sets 11–12px labels (`src/components/WorkflowJourney.module.css:53-55,227-230`), and the "Recommended" tag inside a button is 11px (`src/styles/phone-icons.css:83`).
@@ -194,3 +206,4 @@ Open or partially resolved finding IDs and owners (details and landed evidence: 
 - 2.1.0 — 2026-10-12 — Base 4e78545. §2.2: labels under icons in a phone action bar may be 12px, like the bottom navigation's (D92).
 
 - 2.2.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.22–§2.25 for titles, route focus, phone input floor and app LCP; clarify existing link/skip/canvas rules and record landed link/input evidence.
+- 2.3.0 — 2026-11-11 — Base b9bfd1d64674f4a70a017b058fe7ceb1ba42ba39. New §2.26: every touch gesture has a visible equivalent, commits on release, keeps route focus and works under reduced motion, from Kevin's 2026-11-08 approval of the native navigation spec ("Approve the swipe spec, go with section swipe", D130). §6 points the motion-token note to JITM-06 §2.39.

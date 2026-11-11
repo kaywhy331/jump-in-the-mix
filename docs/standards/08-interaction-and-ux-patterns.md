@@ -2,12 +2,13 @@
 id: JITM-08
 title: Interaction and UX patterns
 status: active
-version: 3.0.0
+version: 3.1.0
 owner: Kevin
-last_reviewed: 2026-11-09
+last_reviewed: 2026-11-11
 applies_to: [ui, interaction, forms, dialogs, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
+  - docs/design/NATIVE-NAVIGATION.md
   - docs/design/UX_AUDIT_2026-11-08.md
   - docs/design/DESIGN_GUIDELINES.md
   - docs/design/DESIGN_CONSISTENCY_2026-09-23.md
@@ -31,7 +32,7 @@ related_workflows: [WF-02, WF-04, WF-05]
 
 # JITM-08 — Interaction and UX patterns
 
-> The shared behavior of the product: review and undo, disabled actions, confirmations, popups and sheets, disclosures, forms and saving, filters, drafts, screen states and keyboard shortcuts.
+> The shared behavior of the product: review and undo, disabled actions, confirmations, popups and sheets, disclosures, forms and saving, filters, drafts, screen states, keyboard shortcuts and touch gestures.
 
 ## 1. Purpose and scope
 
@@ -186,6 +187,26 @@ Words follow JITM-04; the complete states verification pass is JITM-12 §2.26. [
 
 **2.45** Controls MUST carry out the intent they name, with one add action per intent in a task region and the same behavior on sibling surfaces. A generic create entry MUST offer an unselected starting choice rather than silently select someone else's template. Multi-view pages SHOULD open on their clearest task view or the last view the owner used. Explicit route/default-view decisions remain exceptions until amended: the creation route in JITM-09 §2.36 and Journey's default in JITM-07 §2.20 (§6). Labels follow JITM-04 §2.3; visual priority follows JITM-06 §2.37. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:61] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:69] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:59]
 
+### Touch gestures
+
+Kevin, 2026-11-08: "I also would like to incorporate swipe to slide functionality to the next page for easy phone/tablet navigation." Then: "Approve the swipe spec, go with section swipe". The detail (thresholds, state machine, arbitration, tests) is in the [native navigation spec](../design/NATIVE-NAVIGATION.md).
+
+**2.46** Touch gestures follow one map, and each surface has one horizontal meaning:
+- **Section swipe:** on a coarse pointer, on the four ring stops only (JITM-07 §2.33), a horizontal swipe moves to the neighbouring section. The page follows the finger and the neighbour's title and loading state peek in. Release past 35% of the width or at 0.5 px/ms or faster commits a navigation that continues the slide; anything less springs back. The navigation highlight tracks the drag. Leaving runs the §2.30 guards first.
+- **Pane paging:** Journey's People / Mixes / Details, the Mix library's phone Mixes / Beats / Details, and the Ready-made and Marketplace sub-tabs page with native scroll snapping and ARIA tabs. On a ring stop, a swipe that continues past the first or last pane becomes section swipe.
+- **Back:** every drill-in is a history entry, and returning slides the parent back in with its scroll restored. Browser and system back gestures are never intercepted, and one back is never animated twice. Only the installed iOS app, which has no system back swipe, adds a back swipe from within 20 px of the left edge.
+- **Sheet dismiss:** below 768px, dragging a sheet's handle or header down past 30% of its height, or at 0.5 px/ms or faster, closes it. The body scrolls first and dismissal starts only at its top. Closing this way runs the same unsaved guard as Close (§2.30). The review sheet opens at its full height and may rest at a half height when the owner drags it there.
+- **Next follow-up:** a horizontal swipe on the review header moves to the next or previous follow-up in Today's order, as its Next and Previous buttons do, with the same unsaved guard.
+- **Today's rows have no swipe actions.** A long-press opens the row's actions menu, the same menu its visible control opens.
+
+[OWNER 2026-11-08 D130] [PROPOSED]
+
+**2.47** A gesture never starts on a field (`input`, `textarea`, `select`, contenteditable), a slider, a horizontal scroller (date strips, chip rows, the Journey map), an element marked `data-swipe-ignore`, or within 24px of the left or right screen edge, which belong to the system; the installed iOS app's back edge is the one exception. Section swipe never starts while a sheet or dialog is open, or inside the docked review. Nothing moves until 10px of travel locks the axis; a vertical lock leaves the touch to native scrolling. A second finger or a cancelled pointer cancels the gesture, and nothing commits before release. [OWNER 2026-11-08 D130] [PROPOSED]
+
+**2.48** A gesture follows the finger 1:1 and settles or springs back with the motion tokens (JITM-06 §2.39); a new touch can catch a settling surface. A gesture is a shortcut: its visible control always stays (JITM-10 §2.26). [OWNER 2026-11-08 D130]
+
+**2.49** Section swipe can be turned off. Personal preferences, in the Appearance group, has a switch, "Swipe between sections", next to the Quick Add shortcut switch. It is on by default on touch devices, is remembered for the browser like §2.34's switch, and removes only section swipe. [OWNER 2026-11-08 D130] [PROPOSED]
+
 ## 3. Canonical implementations
 
 | Pattern | Reuse |
@@ -218,12 +239,13 @@ Words follow JITM-04; the complete states verification pass is JITM-12 §2.26. [
 - `tests/design-system-accessibility.test.ts` checks the `ConfirmDialog` contract.
 - By hand: open a sheet and confirm the heading has focus; press Escape with a nested picker open; resize from desktop to phone with a draft open; break the network during a save and check that values stay and focus lands on the error.
 - `grep -rn "window.confirm" src` finds only the two `FormGuard` guards.
+- Gestures (§2.46–§2.49), once built: the gesture engine's unit tests, and Playwright with `hasTouch` and `isMobile` for each gesture, its cancel, each exclusion, the unsaved guard and the setting. Fine-pointer runs confirm desktop is unchanged. Real devices under JITM-10 §2.19. The full plan is §11 of the [native navigation spec](../design/NATIVE-NAVIGATION.md).
 
 ## 6. Open decisions and known deviations
 
 ### Design audit 2026-11-08
 
-Recommend keeping §2.12's review-heading focus and testing any Quick Add capture-field exception change through UXA-03 (P-02); the current exception remains. Keep D9's explicit Apply on library filters (A-03), with instant Today/Contacts behavior. P-06 and every gesture, dismissal and motion-token rule belong to NAV-00 job_24403bb7c4ce / NAV-01 job_b1d64065ca93; their approval is not a landed implementation. A-18: implement the owner's readable-content decision through UXA-18B job_c81437336251, but reconcile the actual dissent in note_3572a39d7df3860d before shipping; the digest's claim of concurrence is incorrect. Source and owner quote are in the dated record. SaveBar and section markers (A-14) landed at 338ae42 / ef7a02c; other editors still require their own adoption.
+Recommend keeping §2.12's review-heading focus and testing any Quick Add capture-field exception change through UXA-03 (P-02); the current exception remains. Keep D9's explicit Apply on library filters (A-03), with instant Today/Contacts behavior. P-06 and the gesture, dismissal and motion-token rules are now §2.46–§2.49 and JITM-06 §2.39 (D130, written by JITM-NAV-00 job_4e4e542a5b4c, re-filed from job_24403bb7c4ce); JITM-NAV-01 job_626a96e3d44e builds the dismissal. A rule is not a landed implementation. A-18: implement the owner's readable-content decision through UXA-18B job_c81437336251, but reconcile the actual dissent in note_3572a39d7df3860d before shipping; the digest's claim of concurrence is incorrect. Source and owner quote are in the dated record. SaveBar and section markers (A-14) landed at 338ae42 / ef7a02c; other editors still require their own adoption.
 
 Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
 
@@ -242,12 +264,13 @@ Open or partially resolved finding IDs and owners (details and landed evidence: 
 - A-18 — UXA-18B (job_c81437336251).
 - P-01 — UXA-02 (job_0b1956750ccb).
 - P-02 — UXA-03 (job_44db7c9b8cd7).
-- P-06 — NAV-00 / NAV-01 (job_24403bb7c4ce / job_b1d64065ca93).
+- P-06 — JITM-NAV-01 (job_626a96e3d44e); rule §2.46 (D130).
 - P-08 — UXB-07 (job_ca566cea09be).
 - P-10 — UXA-17 (job_36fb00a64b10).
 
 - **§2.18** is a proposal. The export's bubble kit says confirmations use the anchored pop-up (`screens/BubbleKit.html:21`), but the product uses modal dialogs for focus and Cancel-first behavior.
-- **Swipe actions:** the older export question is now assigned to NAV-00 job_24403bb7c4ce under its November 8 owner approval; this amendment writes no gesture/dismissal/motion-token rules. Its implementation remains a separate task.
+- **Swipe actions (decided, D130):** the export's phone rows that swipe to Snooze and Done (`screens/Main.html:21`) are not built. Kevin chose section swipe, and Today's rows get a long-press menu (§2.46). No slice builds the long-press yet; it belongs with the Today row work (JITM-UXA-02 job_0b1956750ccb) or a new task.
+- **Gestures are decided, not built (D130):** at b9bfd1d6 the product has no gesture code; the sheet handle is drawn by `src/styles/popups.css:25` and does nothing (P-06). JITM-NAV-01 to JITM-NAV-06 build §2.46–§2.49; until each lands, its part of those rules is a known deviation.
 - **Confirmation look:** the completion confirmation does not use the export's dark toast bubble (JITM-06 §6).
 - An older record says filters apply without an Apply button (`docs/UX_WORKFLOW_OPTIMIZATION.md:13`); D9 supersedes it for the Mixes, Ready-made and Marketplace sheets.
 - `FormGuard`'s second native prompt (`src/components/FormGuard.tsx:45`) guards another form's submit, not navigation. It stays native because the decision is synchronous.
@@ -272,3 +295,4 @@ Open or partially resolved finding IDs and owners (details and landed evidence: 
 - 2.1.0 — 2026-10-13 — Base 4d5c307. §2.4: Reopen says "Already reopened." when the follow-up was reopened elsewhere (D115), and an Undo or a Reopen that finds it so counts as reopened (UND-01, built). §2.33: Today names a read only past a second (D114), which answers §6's question about refresh notices. §2.36: LIV-01's fix is Kevin's (D112). §6: D88, D91, D99 and D100 are built (PRs #150, #151), with their known gaps, and PLC-01's cases join B-20 (D112).
 
 - 3.0.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.37–§2.45; refine states, disclosures, filters and control intent. Major because §2.23 scopes saves and §2.27 replaces the blanket required-fields convention with the actual form constraint. §2.44 records the offline owner decision without claiming second-opinion concurrence. Preserve Quick Add focus, library Apply and named route/default-view exceptions.
+- 3.1.0 — 2026-11-11 — Base b9bfd1d64674f4a70a017b058fe7ceb1ba42ba39. New §2.46–§2.49: the touch gesture map, exclusions, feel and the section-swipe setting, from Kevin's 2026-11-08 request and approval ("Approve the swipe spec, go with section swipe", D130), with the detail in `docs/design/NATIVE-NAVIGATION.md`. §6: the export's row-swipe question is answered (no row swipes; long-press menu), and the gesture rules are recorded as decided, not built.
