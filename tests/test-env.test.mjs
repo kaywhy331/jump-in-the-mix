@@ -1,6 +1,6 @@
 import { spawnSync } from "node:child_process";
 import { randomBytes, randomInt } from "node:crypto";
-import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { chmodSync, copyFileSync, existsSync, lstatSync, mkdirSync, mkdtempSync, readFileSync, realpathSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import net from "node:net";
 import { tmpdir } from "node:os";
@@ -81,7 +81,30 @@ const goodUrl = (database = "jitm_design_fixture", query = "?schema=public") => 
 
 const root = "/fixture-repo";
 const paths = projectPaths(root);
-function harness({ ci = ciFixture(), example = exampleFixture(), env = {}, files = {}, exists = false, spawnCode = 0 } = {}) {
+
+// R3: the boundary the entry point hands the helper (launchBoundary's result). The harness root is
+// not on disk, so this one is only data; prepareBoundary below builds a real one.
+function harnessBoundary(database = "jitm_design_fixture") {
+  const folders = helper.boundaryPaths?.(database, root) ?? { home: join(root, ".artifacts", "test-env", `${database}.home`), bin: join(root, ".artifacts", "test-env", `${database}.bin`) };
+  return { database, ...folders, path: [folders.bin, "/usr/bin", "/bin"].join(":") };
+}
+
+// The system's standard utility path, as the entry point reads it.
+const standardPath = process.platform === "win32" ? "" : spawnSync("/bin/sh", ["-c", "command -p getconf PATH"], { encoding: "utf8", env: {} }).stdout.trim();
+
+// A real boundary for a fixture root, made by the helper's own launch plan: the toolchain link
+// points at the node running these tests, so it works where node is not on the standard path.
+// Against a helper without the entry point (R2), there is none.
+function prepareBoundary(fixtureRoot, name = "fixture") {
+  if (!helper.launchPlan) return null;
+  const link = join(fixtureRoot, helper.testEnvConfig().boundary.node);
+  mkdirSync(dirname(link), { recursive: true, mode: 0o700 });
+  rmSync(link, { force: true });
+  symlinkSync(process.execPath, link);
+  return helper.launchPlan({ argv: ["run", name], env: { PATH: standardPath }, execPath: process.execPath, root: fixtureRoot });
+}
+
+function harness({ ci = ciFixture(), example = exampleFixture(), env = {}, files = {}, exists = false, spawnCode = 0, boundary = harnessBoundary() } = {}) {
   const reads = [];
   const queries = [];
   const client = {
@@ -101,6 +124,8 @@ function harness({ ci = ciFixture(), example = exampleFixture(), env = {}, files
     fileExists: vi.fn(path => path in files),
     writeEnvFile: vi.fn(),
     removeFile: vi.fn(),
+    removeFolder: vi.fn(),
+    boundary,
     connect: vi.fn(async () => client),
     spawn: vi.fn(async () => spawnCode),
     stdout: vi.fn(),
@@ -417,7 +442,9 @@ describe("run", () => {
     expect(run.dependencies.spawn).toHaveBeenCalledTimes(1);
     const [command, args, { env }] = run.dependencies.spawn.mock.calls[0];
     expect([command, args]).toEqual(["npm", ["test"]]);
-    expect(env).toMatchObject({ PATH: "/usr/bin", HOME: "/home/fixture", DATABASE_URL: goodUrl(), RECOVERY_TEST_DATABASE_URL: "", PGHOST: "127.0.0.1", PGSERVICE: "", BACKUP_DATABASE_URL: "" });
+    // R3: HOME and PATH are the boundary's, never the caller's.
+    const boundary = harnessBoundary();
+    expect(env).toMatchObject({ PATH: boundary.path, HOME: boundary.home, DATABASE_URL: goodUrl(), RECOVERY_TEST_DATABASE_URL: "", PGHOST: "127.0.0.1", PGSERVICE: "", BACKUP_DATABASE_URL: "" });
     expect(env).not.toHaveProperty("NODE_ENV");
     expect(run.dependencies.connect).not.toHaveBeenCalled();
   });
@@ -479,8 +506,10 @@ describe("DB-01: nothing the child loads can change the validated database", () 
   const ciText = ciFixture();
   const envFile = envFilePath("jitm_design_fixture", fixtureRoot);
   const guarded = { url: goodUrl(), recovery: "", connections: 0 };
+  let boundary = null;
 
   beforeAll(async () => {
+    boundary = prepareBoundary(fixtureRoot);
     writeFileSync(poisonFile, `DATABASE_URL=${outside("jitm")}\nRECOVERY_TEST_DATABASE_URL=${outside("recovery")}\n`);
     writeFileSync(optInFile, `RECOVERY_TEST_DATABASE_URL=${outside("recovery_opt_in")}\n`);
     writeFileSync(optInPreload, `process.env.RECOVERY_TEST_DATABASE_URL = ${JSON.stringify(outside("recovery_preload"))};\n`);
@@ -507,6 +536,7 @@ describe("DB-01: nothing the child loads can change the validated database", () 
       fileExists: vi.fn(path => existsSync(path)),
       writeEnvFile: vi.fn(),
       removeFile: vi.fn(),
+      boundary,
       connect: vi.fn(async () => { throw new Error("no connection may be opened"); }),
       spawn: vi.fn(async () => 0),
       stdout: vi.fn(),
@@ -697,6 +727,7 @@ describe.skipIf(process.platform === "win32" || !npmOnPath)("DB-02 class (R2): t
   const PATH = process.env.PATH ?? "";
   const guarded = { host: "127.0.0.1", database: "jitm_design_fixture", recovery: "", nodeOptions: "", poisoned: null, connections: 0 };
   const command = ["npm", "run", "--silent", "inspect"];
+  let boundary = null;
 
   // Sockets opened in this process while a refusal runs (pg and every other client use net.Socket).
   let sockets = 0;
@@ -705,6 +736,7 @@ describe.skipIf(process.platform === "win32" || !npmOnPath)("DB-02 class (R2): t
   afterAll(() => { net.Socket.prototype.connect = originalConnect; });
 
   beforeAll(async () => {
+    boundary = prepareBoundary(fixtureRoot);
     for (const directory of [project, cleanHome, poisonHome, file("evil-prefix/etc"), file("fake-bin")]) mkdirSync(directory, { recursive: true });
     const poisonCjs = file("poison.cjs");
     writeFileSync(poisonCjs, [
@@ -783,11 +815,12 @@ describe.skipIf(process.platform === "win32" || !npmOnPath)("DB-02 class (R2): t
   const baselineEnvironment = (poison, home = cleanHome) => ({ PATH, HOME: home, CI: "true", DATABASE_URL: goodUrl(), RECOVERY_TEST_DATABASE_URL: "", NODE_OPTIONS: "", ...poison });
   const redirected = probe => probe.host === "outside.example.test" || String(probe.recovery).includes("outside.example.test") || probe.poisoned !== null;
 
-  function dependencies(ambient, cwd) {
+  function dependencies(ambient, cwd, given = boundary) {
     return {
       root: fixtureRoot,
       env: ambient,
       cwd,
+      boundary: given,
       platform: process.platform,
       readText: vi.fn(path => {
         if (path === projectPaths(fixtureRoot).workflow) return ciText;
@@ -815,8 +848,8 @@ describe.skipIf(process.platform === "win32" || !npmOnPath)("DB-02 class (R2): t
   }
 
   // A refusal: exit 1, no child process, no connection, no socket.
-  async function refusal(ambient, { argv = command, cwd = project } = {}) {
-    const deps = dependencies(ambient, cwd);
+  async function refusal(ambient, { argv = command, cwd = project, given = boundary } = {}) {
+    const deps = dependencies(ambient, cwd, given);
     const before = sockets;
     const code = await main(["run", "fixture", "--", ...argv], deps);
     const errors = deps.stderr.mock.calls.map(call => call[0]).join("\n");
@@ -850,7 +883,9 @@ describe.skipIf(process.platform === "win32" || !npmOnPath)("DB-02 class (R2): t
   it("keeps the validated database when HOME holds a poisoned .npmrc and .env", async () => {
     expect(redirected(npmProbe(baselineEnvironment({}, poisonHome)))).toBe(true);
     const env = await childEnvironment({ PATH, HOME: poisonHome, CI: "true" });
-    expect(env.HOME).toBe(poisonHome);
+    // R3 (DB-04): the child's HOME is the boundary's scratch home, never the caller's.
+    expect(env.HOME).not.toBe(poisonHome);
+    expect(env.HOME).toBe(boundary?.home);
     writeFileSync(poisonLog, "");
     expect(npmProbe(env)).toEqual(guarded);
     expect(readFileSync(poisonLog, "utf8")).toBe("");
@@ -909,7 +944,9 @@ describe.skipIf(process.platform === "win32" || !npmOnPath)("DB-02 class (R2): t
   });
 
   it("refuses an npm whose own config loader the helper cannot find", async () => {
-    expect(await refusal({ PATH: `${file("fake-bin")}${delimiter}${PATH}`, HOME: cleanHome, CI: "true" })).toMatch(/cannot find npm's own config loader/u);
+    // R3: the caller's PATH no longer reaches the child, so the unknown npm is put on the boundary's.
+    const given = boundary && { ...boundary, path: `${file("fake-bin")}${delimiter}${boundary.path}` };
+    expect(await refusal({ PATH: `${file("fake-bin")}${delimiter}${PATH}`, HOME: cleanHome, CI: "true" }, { given })).toMatch(/cannot find npm's own config loader/u);
   });
 
   it("refuses an env file that points npm at another config file", async () => {
@@ -939,7 +976,8 @@ describe.skipIf(process.platform === "win32" || !npmOnPath)("DB-02 class (R2): t
     // Every name in the child is an allowlisted one the caller set, an env-file key or a pin.
     const fileKeys = Object.keys(parseDotenv(readFileSync(envFile, "utf8")));
     const pins = helper.childPins(helper.testEnvFiles("jitm_design_fixture", fixtureRoot), await readCiConfiguration(ciText));
-    const expectedKeys = new Set([...Object.keys(allowed).filter(name => helper.inheritedNames().includes(name)), ...fileKeys, ...pins.keys()]);
+    // R3: plus HOME and PATH, which come from the boundary.
+    const expectedKeys = new Set([...Object.keys(allowed).filter(name => helper.inheritedNames().includes(name)), ...fileKeys, ...pins.keys(), "HOME", "PATH"]);
     expect(Object.keys(env).filter(name => !expectedKeys.has(name))).toEqual([]);
     expect(npmProbe(env)).toEqual(guarded);
   }, 120_000);
@@ -1009,8 +1047,520 @@ describe("the allowlist config (scripts/test-env.config.json)", () => {
   });
 
   it("matches names without letter case only on Windows", () => {
-    const env = { Path: "C:\\\\bin", PATH: "/usr/bin", npm_config_userconfig: "x", Home: "/h" };
-    expect(helper.allowlistedEnvironment(env, "linux")).toEqual({ PATH: "/usr/bin" });
-    expect(helper.allowlistedEnvironment(env, "win32")).toEqual({ Path: "C:\\\\bin", PATH: "/usr/bin", Home: "/h" });
+    // R3: PATH and HOME are no longer allowlisted (the entry point sets them), so locale and temp names show the rule.
+    const env = { Lang: "C", LANG: "C.UTF-8", npm_config_userconfig: "x", Temp: "C:\\\\t", PATH: "/usr/bin", Home: "/h" };
+    expect(helper.allowlistedEnvironment(env, "linux")).toEqual({ LANG: "C.UTF-8" });
+    expect(helper.allowlistedEnvironment(env, "win32")).toEqual({ Lang: "C", LANG: "C.UTF-8", Temp: "C:\\\\t" });
+  });
+});
+
+// JITM-TESTENV-01-R3 (Kevin, option A): the helper guarantees loopback isolation when it starts
+// through ONE entry point, scripts/test-env, from a clean boundary. The calling session is trusted,
+// not hostile. The cases below are the re-check's DB-03 (a parent's NODE_OPTIONS or npmrc preload),
+// DB-04 (an inherited HOME whose .bashrc re-points the database, through `run -- bash -ic`) and
+// DB-05 (an npm or @npmcli/config on the caller's PATH), plus the plain-argv shell rule. Every
+// refusal opens no connection and starts no child process.
+
+describe("R3: run takes plain argv; a shell only with --noprofile --norc and never interactive", () => {
+  const file = envFilePath("jitm_design_fixture", root);
+  const spawned = async (command, overrides = {}) => {
+    const run = harness({ files: { [file]: await envFileFor() }, ...overrides });
+    const code = await main(["run", "fixture", "--", ...command], run.dependencies);
+    return { code, run };
+  };
+
+  it.each([
+    [["bash", "-ic", "npm test"], /bash -ic: an interactive shell/u],
+    [["bash", "-lc", "npm test"], /bash -lc: a login shell/u],
+    [["sh", "-i"], /sh -i: an interactive shell/u],
+    [["bash", "-c", "npm test"], /without --noprofile --norc/u],
+    [["sh", "-c", "npm test"], /without --noprofile --norc/u],
+    [["bash", "--noprofile", "-c", "npm test"], /without --norc/u],
+    [["bash", "--norc", "-c", "npm test"], /without --noprofile/u],
+    [["bash", "--noprofile", "--norc", "-ic", "npm test"], /an interactive shell/u],
+    [["bash", "--noprofile", "--norc", "-i", "-c", "npm test"], /an interactive shell/u],
+    [["bash", "--noprofile", "--norc", "-l", "-c", "npm test"], /a login shell/u],
+    [["bash", "--login", "--noprofile", "--norc", "-c", "npm test"], /--login/u],
+    [["bash", "--noprofile", "--norc", "--rcfile", "/elsewhere/rc", "-c", "npm test"], /--rcfile/u],
+    [["bash", "--noprofile", "--norc", "--init-file=/elsewhere/rc", "-c", "npm test"], /--init-file/u],
+    [["bash", "--noprofile", "--norc", "-s"], /standard input/u],
+    [["bash", "--noprofile", "--norc"], /no -c and no script/u],
+    [["bash", "-e", "--noprofile", "--norc", "-c", "npm test"], /after a single-letter option/u],
+    [["zsh", "--noprofile", "--norc", "-o", "interactive", "-c", "npm test"], /-o interactive/u],
+    [["/bin/bash", "-ic", "npm test"], /bash -ic/u],
+    [["-bash", "-c", "npm test"], /names a login shell/u]
+  ])("refuses %j with no connection and no child process", async (command, message) => {
+    const { code, run } = await spawned(command);
+    expect(code).toBe(1);
+    expect(run.errors()).toMatch(message);
+    expect(run.dependencies.spawn).not.toHaveBeenCalled();
+    expect(run.dependencies.connect).not.toHaveBeenCalled();
+  });
+
+  it.each([
+    [["bash", "--noprofile", "--norc", "-c", "npm test"]],
+    [["bash", "--noprofile", "--norc", "-ec", "npm test"]],
+    [["bash", "--noprofile", "--norc", "-o", "pipefail", "-c", "npm test"]],
+    [["bash", "--noprofile", "--norc", "scripts/check.sh", "-i"]],
+    [["npm", "test"]],
+    [["node", "-e", "0"]]
+  ])("starts %j as it is", async command => {
+    const { code, run } = await spawned(command);
+    expect(code, run.errors()).toBe(0);
+    expect(run.dependencies.spawn).toHaveBeenCalledTimes(1);
+    expect(run.dependencies.spawn.mock.calls[0].slice(0, 2)).toEqual([command[0], command.slice(1)]);
+  });
+
+  it("refuses run without the entry point's boundary, or with another database's, before any child", async () => {
+    for (const boundary of [null, harnessBoundary("jitm_design_other")]) {
+      const { code, run } = await spawned(["npm", "test"], { boundary });
+      expect(code).toBe(1);
+      expect(run.errors()).toMatch(/only through scripts\/test-env/u);
+      expect(run.dependencies.spawn).not.toHaveBeenCalled();
+      expect(run.dependencies.connect).not.toHaveBeenCalled();
+    }
+  });
+
+  it.each([
+    ["HOME", { HOME: "/elsewhere/home" }, /sets HOME, which the entry point sets/u],
+    ["PATH", { PATH: "/elsewhere/bin" }, /sets PATH, which the entry point sets/u],
+    ["BASH_ENV", { BASH_ENV: "/elsewhere/rc" }, /sets BASH_ENV/u],
+    ["ENV", { ENV: "/elsewhere/rc" }, /sets ENV/u]
+  ])("refuses an env file that sets %s", async (_label, overrides, message) => {
+    const run = harness({ files: { [file]: await envFileFor("jitm_design_fixture", overrides) } });
+    expect(await main(["run", "fixture", "--", "npm", "test"], run.dependencies)).toBe(1);
+    expect(run.errors()).toMatch(message);
+    expect(run.dependencies.spawn).not.toHaveBeenCalled();
+    expect(run.dependencies.connect).not.toHaveBeenCalled();
+  });
+
+  it("never writes HOME, PATH or a shell startup variable from .env.example into the env file", async () => {
+    const ci = await readCiConfiguration(ciFixture());
+    const environment = buildEnvironment({ exampleText: exampleFixture("HOME=/elsewhere\nPATH=/elsewhere/bin\nBASH_ENV=/elsewhere/rc\nENV=/elsewhere/rc\n"), ci, database: "jitm_design_fixture", root });
+    const values = Object.fromEntries(environment.values);
+    for (const name of ["HOME", "PATH", "BASH_ENV", "ENV"]) expect(values).not.toHaveProperty(name);
+  });
+
+  it("drops the scratch HOME and the toolchain folder with the database", async () => {
+    const run = harness();
+    expect(await main(["drop", "qa1"], run.dependencies)).toBe(0);
+    const folders = helper.boundaryPaths("jitm_design_qa1", root);
+    expect(run.dependencies.removeFolder.mock.calls.map(call => call[0]).sort()).toEqual([folders.home, folders.bin].sort());
+  });
+});
+
+describe.skipIf(process.platform === "win32")("R3: the launch plan and the boundary check", () => {
+  // Folders are made in beforeAll, so a filtered or skipped run leaves nothing behind.
+  let work, fixtureRoot, prepared;
+  const plan = (overrides = {}) => helper.launchPlan({ argv: ["run", "fixture"], env: { PATH: standardPath }, execPath: process.execPath, root: fixtureRoot, ...overrides });
+
+  beforeAll(() => {
+    work = realpathSync(mkdtempSync(join(tmpdir(), "jitm-test-env-r3-plan-")));
+    fixtureRoot = join(work, "repo");
+    mkdirSync(fixtureRoot, { recursive: true });
+    prepared = prepareBoundary(fixtureRoot);
+  });
+  afterAll(() => { if (work) rmSync(work, { recursive: true, force: true }); });
+
+  it("creates an owned scratch HOME and a bin folder whose node, npm and npx are the toolchain's", () => {
+    const folders = helper.boundaryPaths("jitm_design_fixture", fixtureRoot);
+    expect(prepared).toMatchObject({ database: "jitm_design_fixture", home: folders.home, bin: folders.bin, node: realpathSync(process.execPath) });
+    for (const folder of [folders.home, folders.bin]) {
+      const stats = lstatSync(folder);
+      expect(stats.isDirectory()).toBe(true);
+      expect(stats.mode & 0o077).toBe(0);
+    }
+    const npmRoot = helper.toolchainNpm(realpathSync(process.execPath)).root;
+    expect(realpathSync(join(folders.bin, "node"))).toBe(realpathSync(process.execPath));
+    expect(realpathSync(join(folders.bin, "npm"))).toBe(realpathSync(join(npmRoot, "bin", "npm-cli.js")));
+    expect(realpathSync(join(folders.bin, "npx"))).toBe(realpathSync(join(npmRoot, "bin", "npx-cli.js")));
+    expect(prepared.path).toBe(`${folders.bin}:${standardPath}`);
+    expect(readFileSync(join(npmRoot, "package.json"), "utf8")).toMatch(/"name":\s*"npm"/u);
+    // The launcher reads these lines; INHERIT lists exactly the allowlist.
+    const lines = helper.renderLaunchPlan(prepared).split("\n");
+    expect(lines.slice(0, 3)).toEqual([`NODE=${prepared.node}`, `HOME=${prepared.home}`, `PATH=${prepared.path}`]);
+    expect(lines.slice(3)).toEqual(helper.inheritedNames().map(name => `INHERIT=${name}`));
+  });
+
+  it.each([
+    ["an inherited NODE_OPTIONS", { env: { PATH: standardPath, NODE_OPTIONS: "--require=/elsewhere/a.cjs" } }, /only the standard PATH; it found NODE_OPTIONS/u],
+    ["an inherited HOME", { env: { PATH: standardPath, HOME: "/home/someone" } }, /it found HOME/u],
+    ["node options on the command line", { execArgv: ["--require", "/elsewhere/a.cjs"] }, /started with --require/u],
+    ["a relative standard path", { env: { PATH: `bin:${standardPath}` } }, /absolute folders/u],
+    ["a bad name", { argv: ["create", "bad$name"] }, /must match/u]
+  ])("refuses %s", (_label, overrides, message) => {
+    expect(() => plan(overrides)).toThrow(message);
+  });
+
+  it("returns no plan for an unknown command", () => {
+    expect(plan({ argv: ["list"] })).toBeNull();
+  });
+
+  it("refuses a node other than the toolchain's", () => {
+    const other = join(work, "other-node");
+    writeFileSync(other, "#!/bin/sh\nexit 0\n");
+    chmodSync(other, 0o755);
+    const link = join(fixtureRoot, helper.testEnvConfig().boundary.node);
+    rmSync(link, { force: true });
+    symlinkSync(other, link);
+    try {
+      expect(() => plan()).toThrow(/not the toolchain's node/u);
+    } finally {
+      rmSync(link, { force: true });
+      symlinkSync(process.execPath, link);
+    }
+  });
+
+  it("takes node from the standard path when there is no link, never from the caller's PATH", () => {
+    const bare = join(work, "bare");
+    mkdirSync(bare, { recursive: true });
+    const onStandard = helper.findOnPath("node", { PATH: standardPath });
+    if (onStandard) expect(helper.toolchainNode(standardPath, bare)).toBe(realpathSync(onStandard));
+    const empty = join(work, "empty-bin");
+    mkdirSync(empty, { recursive: true });
+    expect(() => helper.toolchainNode(empty, bare)).toThrow(/No node on the standard path/u);
+  });
+
+  it.each([
+    ["a HOME that links elsewhere", "home", folder => { rmSync(folder, { recursive: true, force: true }); mkdirSync(join(work, "linked"), { recursive: true, mode: 0o700 }); symlinkSync(join(work, "linked"), folder); }, /not a folder the helper created/u],
+    ["a HOME open to other users", "home", folder => chmodSync(folder, 0o755), /open to other users/u]
+  ])("refuses %s", (_label, key, change, message) => {
+    const folder = helper.boundaryPaths("jitm_design_other", fixtureRoot)[key];
+    helper.launchPlan({ argv: ["run", "other"], env: { PATH: standardPath }, execPath: process.execPath, root: fixtureRoot });
+    change(folder);
+    expect(() => helper.launchPlan({ argv: ["run", "other"], env: { PATH: standardPath }, execPath: process.execPath, root: fixtureRoot })).toThrow(message);
+    rmSync(folder, { recursive: true, force: true });
+  });
+
+  const started = (env, overrides = {}) => helper.launchBoundary({ argv: ["run", "fixture", "--", "npm", "test"], env, execPath: process.execPath, root: fixtureRoot, ...overrides });
+
+  it("accepts the environment the entry point gives the helper", () => {
+    expect(started({ HOME: prepared.home, PATH: prepared.path, TERM: "xterm", LANG: "C.UTF-8" })).toMatchObject({ database: "jitm_design_fixture", home: prepared.home, path: prepared.path });
+    expect(started({ HOME: prepared.home, PATH: prepared.path }, { argv: ["list"] })).toBeNull();
+  });
+
+  it.each([
+    ["a start from an ordinary shell", () => ({ ...process.env }), {}, /start it through scripts\/test-env/u],
+    ["an inherited NODE_OPTIONS", () => ({ HOME: prepared.home, PATH: prepared.path, NODE_OPTIONS: "--require=/elsewhere/a.cjs" }), {}, /does not allow \(NODE_OPTIONS\)/u],
+    ["an inherited DATABASE_URL", () => ({ HOME: prepared.home, PATH: prepared.path, DATABASE_URL: "postgresql://prod:prod@outside.example.test/jitm" }), {}, /DATABASE_URL/u],
+    ["the caller's HOME", () => ({ HOME: "/home/someone", PATH: prepared.path }), {}, /not the scratch home/u],
+    ["the caller's PATH", () => ({ HOME: prepared.home, PATH: standardPath }), {}, /must start with the toolchain folder/u],
+    ["node options", () => ({ HOME: prepared.home, PATH: prepared.path }), { execArgv: ["--import", "/elsewhere/a.mjs"] }, /started with --import/u]
+  ])("refuses %s", (_label, env, overrides, message) => {
+    expect(() => started(env(), overrides)).toThrow(message);
+  });
+
+  it("refuses a toolchain folder whose npm link was changed", () => {
+    const npm = join(prepared.bin, "npm");
+    const fake = join(work, "npm-cli.js");
+    writeFileSync(fake, "");
+    rmSync(npm, { force: true });
+    symlinkSync(fake, npm);
+    try {
+      expect(() => started({ HOME: prepared.home, PATH: prepared.path })).toThrow(/does not lead to the toolchain's npm/u);
+    } finally {
+      prepared = prepareBoundary(fixtureRoot);
+    }
+  });
+});
+
+// A real fixture for the helper's run: an env file written by create, a project whose npm script
+// reports the target a pg client resolves (its socket connect throws), and markers for any code
+// that must not run.
+function r3Fixture(prefix) {
+  const outside = database => `postgresql://prod:prod@outside.example.test:5432/${database}`;
+  const fixture = { outside };
+  const file = name => join(fixture.work, name);
+  fixture.file = file;
+  fixture.markers = () => (fixture.marker && existsSync(fixture.marker) ? readFileSync(fixture.marker, "utf8").split("\n").filter(Boolean) : []);
+  fixture.cleanup = () => { if (fixture.work) rmSync(fixture.work, { recursive: true, force: true }); };
+  // The folder is made here, in beforeAll, so a filtered or skipped run leaves nothing behind.
+  fixture.setup = async ({ ciText = ciFixture(), copyScripts = false } = {}) => {
+    fixture.work = realpathSync(mkdtempSync(join(tmpdir(), prefix)));
+    Object.assign(fixture, { marker: file("marker.log"), project: file("project"), poisonHome: file("poisoned-home"), evil: file("evil"), fixtureRoot: file("repo") });
+    const { marker } = fixture;
+    for (const directory of [fixture.project, fixture.poisonHome, join(fixture.evil, "bin"), join(fixture.evil, "lib/node_modules/npm/bin"), join(fixture.evil, "lib/node_modules/npm/node_modules/@npmcli/config/lib/definitions"), join(fixture.fixtureRoot, "scripts"), join(fixture.fixtureRoot, ".github/workflows")]) mkdirSync(directory, { recursive: true });
+    writeFileSync(marker, "");
+    const append = what => `require("node:fs").appendFileSync(${JSON.stringify(marker)}, ${JSON.stringify(`${what}\n`)});`;
+    writeFileSync(file("preload.cjs"), `${append("preload")}\nprocess.env.DATABASE_URL = ${JSON.stringify(outside("preload"))};\n`);
+    writeFileSync(file("spawned.cjs"), `${append("spawned")}\n`);
+    writeFileSync(file("outer.npmrc"), `node-options=--require=${file("preload.cjs")}\n`);
+    // DB-04: a home whose rc files re-point the database and the recovery opt-in.
+    const rc = `echo rc >> '${marker}'\nexport DATABASE_URL='${outside("home_rc")}'\nexport RECOVERY_TEST_DATABASE_URL='${outside("home_rc_recovery")}'\n`;
+    for (const name of [".bashrc", ".bash_profile", ".bash_login", ".profile"]) writeFileSync(join(fixture.poisonHome, name), rc);
+    writeFileSync(join(fixture.poisonHome, ".npmrc"), `node-options=--require=${file("preload.cjs")}\n`);
+    writeFileSync(join(fixture.poisonHome, ".env"), `DATABASE_URL=${outside("home_env")}\n`);
+    // DB-05: a PATH whose npm, npm config loader, node and utilities are not the toolchain's.
+    for (const name of ["node", "sed", "env", "getconf", "dirname", "sh"]) {
+      writeFileSync(join(fixture.evil, "bin", name), `#!/bin/sh\necho 'evil ${name}' >> '${marker}'\nexit 97\n`);
+      chmodSync(join(fixture.evil, "bin", name), 0o755);
+    }
+    const npmRoot = join(fixture.evil, "lib/node_modules/npm");
+    writeFileSync(join(npmRoot, "package.json"), JSON.stringify({ name: "npm", version: "10.0.0" }));
+    for (const cli of ["npm-cli.js", "npx-cli.js"]) {
+      writeFileSync(join(npmRoot, "bin", cli), `#!/usr/bin/env node\n${append(`evil ${cli}`)}\nprocess.exit(97);\n`);
+      chmodSync(join(npmRoot, "bin", cli), 0o755);
+      symlinkSync(join(npmRoot, "bin", cli), join(fixture.evil, "bin", cli.replace("-cli.js", "")));
+    }
+    writeFileSync(join(npmRoot, "node_modules/@npmcli/config/index.js"), `${append("evil @npmcli/config")}\nthrow new Error("evil config loader");\n`);
+    writeFileSync(join(npmRoot, "node_modules/@npmcli/config/lib/definitions/index.js"), `${append("evil definitions")}\n`);
+    // The probe: dotenv/config as the repository's configs load it, then the target pg resolves.
+    const requireFromTests = createRequire(import.meta.url);
+    writeFileSync(file("probe.mjs"), [
+      'import net from "node:net";',
+      "let connections = 0;",
+      'net.Socket.prototype.connect = function () { connections += 1; throw new Error("the probe opens no connection"); };',
+      `await import(${JSON.stringify(pathToFileURL(requireFromTests.resolve("dotenv/config")).href)});`,
+      `const { default: pg } = await import(${JSON.stringify(pathToFileURL(requireFromTests.resolve("pg")).href)});`,
+      "const parameters = new pg.Client(process.env.DATABASE_URL ? { connectionString: process.env.DATABASE_URL } : {}).connectionParameters;",
+      "process.stdout.write(`\\nPROBE ${JSON.stringify({ host: parameters.host, database: parameters.database, recovery: process.env.RECOVERY_TEST_DATABASE_URL ?? null, nodeOptions: process.env.NODE_OPTIONS ?? null, home: process.env.HOME ?? null, connections })}\\n`);"
+    ].join("\n"));
+    writeFileSync(join(fixture.project, "package.json"), JSON.stringify({ name: "jitm-r3-probe", private: true, scripts: { inspect: `node ${JSON.stringify(file("probe.mjs"))}` } }, null, 2));
+    if (copyScripts) {
+      // The entry point and the helper, copied as they are; node_modules is the repository's.
+      const repository = projectPaths().root;
+      for (const name of ["test-env", "test-env.mjs", "test-env.config.json"]) copyFileSync(join(repository, "scripts", name), join(fixture.fixtureRoot, "scripts", name));
+      chmodSync(join(fixture.fixtureRoot, "scripts", "test-env"), 0o755);
+      symlinkSync(join(repository, "node_modules"), join(fixture.fixtureRoot, "node_modules"));
+    }
+    writeFileSync(projectPaths(fixture.fixtureRoot).workflow, ciText);
+    writeFileSync(projectPaths(fixture.fixtureRoot).example, exampleFixture());
+    fixture.boundary = prepareBoundary(fixture.fixtureRoot);
+    const client = { query: vi.fn(async () => ({ rows: [] })), end: vi.fn(async () => {}) };
+    const created = await main(["create", "fixture"], {
+      root: fixture.fixtureRoot,
+      env: {},
+      readText: path => readFileSync(path, "utf8"),
+      writeEnvFile: (path, text) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, text, { mode: 0o600 }); },
+      removeFile: path => rmSync(path, { force: true }),
+      connect: vi.fn(async () => client),
+      spawn: vi.fn(),
+      stdout: vi.fn(),
+      stderr: vi.fn()
+    });
+    expect(created).toBe(0);
+  };
+  fixture.probe = stdout => {
+    const line = String(stdout).split("\n").find(entry => entry.startsWith("PROBE "));
+    if (!line) throw new Error(`no probe line in ${JSON.stringify(stdout)}`);
+    return JSON.parse(line.slice("PROBE ".length));
+  };
+  return fixture;
+}
+
+describe.skipIf(process.platform === "win32")("R3: the helper never takes HOME or the toolchain from the caller (DB-04, DB-05)", () => {
+  const fixture = r3Fixture("jitm-test-env-r3-helper-");
+  beforeAll(() => fixture.setup());
+  afterAll(() => fixture.cleanup());
+  beforeEach(() => writeFileSync(fixture.marker, ""));
+
+  function realRun(env) {
+    return {
+      root: fixture.fixtureRoot,
+      env,
+      cwd: fixture.project,
+      boundary: fixture.boundary,
+      readText: path => readFileSync(path, "utf8"),
+      fileExists: path => existsSync(path),
+      connect: vi.fn(async () => { throw new Error("no connection may be opened"); }),
+      spawn: vi.fn(async () => 0),
+      stdout: vi.fn(),
+      stderr: vi.fn()
+    };
+  }
+
+  it("DB-05: loads no npm or @npmcli/config from the caller's PATH; the child's npm is the toolchain's", async () => {
+    const deps = realRun({ PATH: `${join(fixture.evil, "bin")}${delimiter}${process.env.PATH ?? ""}`, HOME: fixture.poisonHome, CI: "true" });
+    const code = await main(["run", "fixture", "--", "npm", "run", "--silent", "inspect"], deps);
+    expect(fixture.markers()).toEqual([]);
+    expect(code, deps.stderr.mock.calls.join("\n")).toBe(0);
+    expect(deps.connect).not.toHaveBeenCalled();
+    const { env } = deps.spawn.mock.calls[0][2];
+    expect(env.PATH).toBe(fixture.boundary?.path);
+    expect(env.PATH).not.toContain(fixture.evil);
+  });
+
+  it("DB-04: gives the child the scratch HOME, never the caller's", async () => {
+    const deps = realRun({ PATH: process.env.PATH ?? "", HOME: fixture.poisonHome, CI: "true" });
+    expect(await main(["run", "fixture", "--", "npm", "run", "--silent", "inspect"], deps)).toBe(0);
+    const { env } = deps.spawn.mock.calls[0][2];
+    expect(env.HOME).toBe(fixture.boundary?.home);
+    expect(env.HOME).not.toBe(fixture.poisonHome);
+  });
+
+  it("DB-04: refuses `bash -ic` with an inherited HOME whose .bashrc re-points the database", async () => {
+    const deps = realRun({ PATH: process.env.PATH ?? "", HOME: fixture.poisonHome, CI: "true" });
+    expect(await main(["run", "fixture", "--", "bash", "-ic", `node ${fixture.file("spawned.cjs")}`], deps)).toBe(1);
+    expect(deps.spawn).not.toHaveBeenCalled();
+    expect(deps.connect).not.toHaveBeenCalled();
+    expect(fixture.markers()).toEqual([]);
+  });
+});
+
+// Through the entry point itself, as a session runs it: scripts/test-env, copied with the helper
+// into a fixture repository whose CI port is a local counting server, so a connection would show.
+describe.skipIf(process.platform === "win32" || spawnSync("bash", ["--noprofile", "--norc", "-c", "true"]).status !== 0)("R3: one entry point, scripts/test-env, starts the helper from a clean boundary", () => {
+  let connections = 0;
+  const server = net.createServer(socket => { connections += 1; socket.destroy(); });
+  const fixture = r3Fixture("jitm-test-env-r3-launcher-");
+  const launcher = () => join(fixture.fixtureRoot, "scripts", "test-env");
+  const guarded = () => ({ host: "127.0.0.1", database: "jitm_design_fixture", recovery: "", nodeOptions: "", home: fixture.boundary.home, connections: 0 });
+  const PATH = process.env.PATH ?? "";
+  const base = () => ({ PATH, HOME: fixture.file("parent-home"), ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}) });
+
+  beforeAll(async () => {
+    await new Promise(resolvePromise => server.listen(0, "127.0.0.1", resolvePromise));
+    const { port: serverPort } = server.address();
+    await fixture.setup({ copyScripts: true, ciText: ciFixture({ url: `postgresql://${role}:${secret}@localhost:${serverPort}/jitm_design_fixture?schema=public`, ports: [`${serverPort}:5432`] }) });
+    mkdirSync(fixture.file("parent-home"), { recursive: true });
+  });
+  afterAll(async () => {
+    if (server.listening) await new Promise(resolvePromise => server.close(resolvePromise));
+    fixture.cleanup();
+  });
+  beforeEach(() => writeFileSync(fixture.marker, ""));
+
+  function launch(args, { env = {}, cwd = fixture.project } = {}) {
+    return spawnSync(launcher(), args, { cwd, env: { ...base(), ...env }, encoding: "utf8", timeout: 120_000 });
+  }
+
+  // A refusal: exit 1, a refusal message, no marker (no preload, rc file, child or evil tool ran)
+  // and no connection to the CI port.
+  function refused(args, options) {
+    const before = connections;
+    const result = launch(args, options);
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toMatch(/test-env refused/u);
+    expect(fixture.markers()).toEqual([]);
+    expect(connections - before).toBe(0);
+    return result.stderr;
+  }
+
+  function ran(args, options) {
+    const before = connections;
+    const result = launch(args, options);
+    expect(result.status, result.stderr).toBe(0);
+    expect(fixture.markers()).toEqual([]);
+    expect(connections - before).toBe(0);
+    return fixture.probe(result.stdout);
+  }
+
+  it("is one executable POSIX launcher, and the package scripts call it", () => {
+    const repository = projectPaths().root;
+    const entry = join(repository, "scripts", "test-env");
+    expect(statSync(entry).mode & 0o111).not.toBe(0);
+    expect(readFileSync(entry, "utf8").split("\n")[0]).toBe("#!/bin/sh");
+    const { scripts } = JSON.parse(readFileSync(join(repository, "package.json"), "utf8"));
+    expect(scripts["test:env"]).toBe("scripts/test-env create");
+    expect(scripts["test:env:drop"]).toBe("scripts/test-env drop");
+    // A plain launch, as a session runs it: the probe sees only the validated database.
+    expect(ran(["run", "fixture", "--", "npm", "run", "--silent", "inspect"])).toEqual(guarded());
+  });
+
+  const preloads = [
+    ["NODE_OPTIONS=--require", () => ({ NODE_OPTIONS: `--require=${fixture.file("preload.cjs")}` })],
+    ["an npmrc named by npm_config_userconfig whose node-options preloads", () => ({ npm_config_userconfig: fixture.file("outer.npmrc") })],
+    ["NPM_CONFIG_NODE_OPTIONS", () => ({ NPM_CONFIG_NODE_OPTIONS: `--require=${fixture.file("preload.cjs")}` })],
+    ["a HOME whose .npmrc preloads", () => ({ HOME: fixture.poisonHome })]
+  ];
+
+  it.each(preloads)("DB-03: a parent's %s runs nothing before the helper refuses a bad name", (_label, poison) => {
+    expect(refused(["create", "bad$name"], { env: poison() })).toMatch(/must match/u);
+  });
+
+  it.each(preloads)("DB-03: a parent's %s reaches neither the helper nor the command", (_label, poison) => {
+    expect(ran(["run", "fixture", "--", "npm", "run", "--silent", "inspect"], { env: poison() })).toEqual(guarded());
+  });
+
+  it("refuses a direct start of the helper, which skips the boundary", () => {
+    const before = connections;
+    const result = spawnSync(process.execPath, [join(fixture.fixtureRoot, "scripts", "test-env.mjs"), "create", "fixture"], { env: base(), encoding: "utf8" });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/start it through scripts\/test-env/u);
+    expect(connections - before).toBe(0);
+  });
+
+  it.each([
+    ["bash -ic", ["bash", "-ic"]],
+    ["bash -lc", ["bash", "-lc"]],
+    ["bash -c without --noprofile --norc", ["bash", "-c"]],
+    ["bash --noprofile --norc -ic", ["bash", "--noprofile", "--norc", "-ic"]]
+  ])("DB-04: refuses `run -- %s` with an inherited HOME whose .bashrc re-points the database", (_label, shell) => {
+    refused(["run", "fixture", "--", ...shell, `node ${fixture.file("spawned.cjs")}`], { env: { HOME: fixture.poisonHome } });
+  });
+
+  it("refuses `run -- sh -i`", () => {
+    expect(refused(["run", "fixture", "--", "sh", "-i"], { env: { HOME: fixture.poisonHome } })).toMatch(/sh -i: an interactive shell/u);
+  });
+
+  it("DB-04: a shell with --noprofile --norc gets the scratch HOME, and a shell inside it finds no rc file there", () => {
+    const probe = `node ${fixture.file("probe.mjs")}`;
+    expect(ran(["run", "fixture", "--", "bash", "--noprofile", "--norc", "-c", probe], { env: { HOME: fixture.poisonHome } })).toEqual(guarded());
+    expect(ran(["run", "fixture", "--", "bash", "--noprofile", "--norc", "-c", `bash -ic '${probe}' 2>/dev/null`], { env: { HOME: fixture.poisonHome } })).toEqual(guarded());
+  });
+
+  it("DB-05: never runs an npm, @npmcli/config, node or utility from the caller's PATH", () => {
+    const env = { PATH: `${join(fixture.evil, "bin")}${delimiter}${PATH}` };
+    expect(ran(["run", "fixture", "--", "npm", "run", "--silent", "inspect"], { env })).toEqual(guarded());
+    expect(refused(["create", "bad$name"], { env })).toMatch(/must match/u);
+  });
+
+  it("passes on only the allowlisted names the caller sets", () => {
+    const env = { TERM: "xterm-r3", LANG: "C.UTF-8", R3_UNKNOWN: "x", DATABASE_URL: fixture.outside("parent"), PGHOST: "outside.example.test", BASH_ENV: fixture.file("spawned.cjs"), ENV: fixture.file("spawned.cjs") };
+    const report = fixture.file("names.mjs");
+    writeFileSync(report, "process.stdout.write(`\\nPROBE ${JSON.stringify({ names: Object.keys(process.env).sort(), TERM: process.env.TERM, LANG: process.env.LANG, DATABASE_URL: process.env.DATABASE_URL, PGHOST: process.env.PGHOST })}\\n`);");
+    const seen = ran(["run", "fixture", "--", "node", report], { env });
+    expect(seen).toMatchObject({ TERM: "xterm-r3", LANG: "C.UTF-8", PGHOST: "127.0.0.1" });
+    expect(seen.DATABASE_URL).toMatch(/@127\.0\.0\.1:\d+\/jitm_design_fixture/u);
+    for (const name of ["R3_UNKNOWN", "BASH_ENV", "ENV"]) expect(seen.names).not.toContain(name);
+  });
+
+  it("prints usage for no command and refuses an unknown one before anything is prepared", () => {
+    const usage = launch([]);
+    expect(usage.status).toBe(2);
+    expect(usage.stderr).toMatch(/scripts\/test-env create <name>/u);
+    expect(launch(["list", "fixture"]).status).toBe(2);
+    expect(existsSync(join(fixture.fixtureRoot, ".artifacts", "test-env", "jitm_design_list.home"))).toBe(false);
+  });
+});
+
+describe("R3: the boundary config (scripts/test-env.config.json) and the docs", () => {
+  const config = () => JSON.parse(readFileSync(helper.CONFIG_FILE, "utf8"));
+  const docs = () => readFileSync(join(projectPaths().root, "docs", "LOCAL_TESTING.md"), "utf8");
+
+  it.each(["PATH", "HOME", "Path", "BASH_ENV", "ENV"])("refuses %s in the allowlist", name => {
+    const value = config();
+    value.inherit.all = [...value.inherit.all, name];
+    expect(() => helper.parseTestEnvConfig(value)).toThrow(/never inherits it/u);
+  });
+
+  it.each([
+    ["a PATH that does not start with {bin}", value => { value.boundary.path = ["{standard}", "{bin}"]; }, /must start with \{bin\}/u],
+    ["a relative PATH entry", value => { value.boundary.path = ["{bin}", "bin"]; }, /absolute folders/u],
+    ["a HOME without the database", value => { value.boundary.home = ".artifacts/test-env/home"; }, /boundary\.home/u],
+    ["a HOME outside the repository", value => { value.boundary.home = "../{database}.home"; }, /boundary\.home/u],
+    ["a bin folder that is the env file", value => { value.boundary.bin = value.files.envFile; }, /different paths/u],
+    ["an absolute node link", value => { value.boundary.node = "/usr/bin/node"; }, /boundary\.node/u],
+    ["an npm outside the node installation", value => { value.boundary.npm = "/opt/npm"; }, /boundary\.npm/u],
+    ["no shell options", value => { value.run.shellOptions = []; }, /run\.shellOptions/u],
+    ["a shell given as a path", value => { value.run.shells = ["/bin/bash"]; }, /run\.shells/u]
+  ])("refuses %s", (_label, change, message) => {
+    const value = config();
+    change(value);
+    expect(() => helper.parseTestEnvConfig(value)).toThrow(message);
+  });
+
+  it("the launcher reads boundary.node as the config parser does", () => {
+    const text = readFileSync(helper.CONFIG_FILE, "utf8");
+    const lines = text.split("\n").filter(line => /^\s*"node"\s*:/u.test(line));
+    expect(lines).toHaveLength(1);
+    expect(lines[0]).toMatch(new RegExp(`"node":\\s*"${helper.testEnvConfig().boundary.node.replace(/[.*+?^${}()|[\]\\/]/gu, "\\$&")}",?$`, "u"));
+  });
+
+  it("docs/LOCAL_TESTING.md names the entry point, the trust boundary, every boundary path and the shell rule", () => {
+    const text = docs();
+    const parsed = helper.parseTestEnvConfig(config());
+    for (const value of [parsed.boundary.node, parsed.boundary.npm, parsed.boundary.home, parsed.boundary.bin, ...parsed.run.shellOptions]) expect(text, value).toContain(`\`${value}\``);
+    for (const phrase of ["scripts/test-env create", "scripts/test-env run", "scripts/test-env drop", "The trust boundary", "trusted, not hostile", "npm run test:env", "outside the boundary", "env -i", "getconf PATH", "bash -ic", "bash -lc", "sh -i"]) expect(text, phrase).toContain(phrase);
   });
 });

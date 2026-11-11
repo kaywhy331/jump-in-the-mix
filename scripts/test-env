@@ -1,0 +1,92 @@
+#!/bin/sh
+# The one entry point for the disposable loopback test database (docs/LOCAL_TESTING.md):
+#
+#   scripts/test-env create <name>
+#   scripts/test-env run <name> -- <program> [arguments...]
+#   scripts/test-env drop <name>
+#
+# It starts scripts/test-env.mjs from a clean boundary, whatever the calling session exports:
+# - The caller's PATH is never searched. Utilities come from the system's standard path
+#   (`command -p getconf PATH`); node comes from the link boundary.node names in
+#   scripts/test-env.config.json, else from that standard path; npm from that node's installation.
+# - node runs twice, both times under `env -i`. First with only the standard PATH, to check the
+#   arguments and create the database's owned scratch HOME and its toolchain bin folder (node, npm
+#   and npx links). Then for the command itself, with only that HOME, a PATH of that folder and
+#   the standard path, and the names scripts/test-env.config.json allowlists that the caller sets.
+# No NODE_OPTIONS, npm setting, npmrc, dotenv control or home rc file of the caller reaches node.
+# The calling session is trusted, not hostile: /bin/sh, the system's standard utilities, the
+# toolchain and the repository files are part of the trusted machine.
+set -eu
+IFS=$(printf ' \t\nx')
+IFS=${IFS%x}
+PATH=$(command -p getconf PATH)
+export PATH
+unset CDPATH
+
+refuse() {
+  printf 'test-env refused: %s\n' "$*" >&2
+  exit 1
+}
+
+case $0 in
+  */*) here=${0%/*} ;;
+  *) here=. ;;
+esac
+root=$(cd -P -- "$here/.." && pwd -P) || refuse "cannot find the repository from $0"
+config=$root/scripts/test-env.config.json
+helper=$root/scripts/test-env.mjs
+[ -f "$config" ] && [ -f "$helper" ] || refuse "$root is not the repository: scripts/test-env.config.json and scripts/test-env.mjs are missing"
+
+# boundary.node: one "node": "<path>" line in the config. The helper checks the node it is
+# started with against the parsed config, so a mismatch here is refused there.
+link=$(sed -n 's/^[[:space:]]*"node"[[:space:]]*:[[:space:]]*"\([^"\\]*\)"[[:space:]]*,\{0,1\}[[:space:]]*$/\1/p' "$config")
+case $link in
+  '' | /* | *'
+'*) refuse "scripts/test-env.config.json must name boundary.node once, on its own line, as a path inside the repository" ;;
+esac
+if [ -e "$root/$link" ] || [ -L "$root/$link" ]; then
+  node=$root/$link
+else
+  node=$(command -v node) || refuse "no node on the standard path ($PATH) and no link at $link; see docs/LOCAL_TESTING.md, Toolchain"
+fi
+case $node in
+  /*) ;;
+  *) refuse "the toolchain's node must be a file, not $node" ;;
+esac
+[ -f "$node" ] && [ -x "$node" ] || refuse "the toolchain's node $node does not lead to an executable file"
+case $node in
+  *=*) refuse "the toolchain's node path holds =, which env would read as a variable: $node" ;;
+esac
+
+# Step one: the launch plan, from node under env -i with only the standard PATH.
+plan=$(env -i PATH="$PATH" "$node" "$helper" launch-plan "$@") || exit $?
+
+home= child_path= exe= names=
+while IFS= read -r line; do
+  case $line in
+    NODE=/*) exe=${line#NODE=} ;;
+    HOME=/*) home=${line#HOME=} ;;
+    PATH=/*) child_path=${line#PATH=} ;;
+    INHERIT=*)
+      name=${line#INHERIT=}
+      case $name in
+        '' | [!A-Za-z_]* | *[!A-Za-z0-9_]*) refuse "the launch plan names an invalid variable" ;;
+      esac
+      names="$names $name"
+      ;;
+    *) refuse "unexpected launch plan line" ;;
+  esac
+done <<EOF
+$plan
+EOF
+[ -n "$exe" ] && [ -n "$home" ] && [ -n "$child_path" ] || refuse "the launch plan is incomplete"
+case $exe in
+  *=*) refuse "the toolchain's node path holds =: $exe" ;;
+esac
+
+# Step two: the helper itself, with only HOME, PATH and the allowlisted names the caller sets.
+set -- "$exe" "$helper" "$@"
+for name in $names; do
+  eval "if [ \"\${$name+set}\" = set ]; then set -- \"$name=\${$name}\" \"\$@\"; fi"
+done
+exec env -i HOME="$home" PATH="$child_path" "$@"

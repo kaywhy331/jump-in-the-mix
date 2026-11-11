@@ -48,37 +48,71 @@ A shared local database that has been seeded (the demo data, the browser-test ad
 DATABASE_URL=postgresql://jitm:jitm@localhost:5432/jitm_design_local npm run test:isolated -- tests/staff-access.integration.test.ts
 ```
 
-The script creates a sibling `jitm_design_isolated_*` database from `template0`, applies the migrations, runs vitest with `DATABASE_URL` pointed at it, and drops it afterwards whatever the result. It refuses any `DATABASE_URL` that is not a loopback `jitm_design_` database. CI needs none of this because its database is empty when the unit stage runs. With a test database from the next section, run it as `node scripts/test-env.mjs run qa1 -- npm run test:isolated -- tests/staff-access.integration.test.ts`.
+The script creates a sibling `jitm_design_isolated_*` database from `template0`, applies the migrations, runs vitest with `DATABASE_URL` pointed at it, and drops it afterwards whatever the result. It refuses any `DATABASE_URL` that is not a loopback `jitm_design_` database. CI needs none of this because its database is empty when the unit stage runs. With a test database from the next section, run it as `scripts/test-env run qa1 -- npm run test:isolated -- tests/staff-access.integration.test.ts`.
 
 ## Disposable test database
 
-One command gives an agent or a QA session its own loopback database and a matching environment, so database suites never fall back to the default `jitm` database:
+One entry point, `scripts/test-env`, gives an agent or a QA session its own loopback database and a matching environment, so database suites never fall back to the default `jitm` database:
 
 ```bash
-npm run test:env -- qa1                                     # creates jitm_design_qa1 and its env file
-node scripts/test-env.mjs run qa1 -- npm run db:generate
-node scripts/test-env.mjs run qa1 -- npm run db:deploy
-node scripts/test-env.mjs run qa1 -- npm run db:verify-release
-node scripts/test-env.mjs run qa1 -- npm test
-node scripts/test-env.mjs run qa1 -- npm run build
-npm run test:env:drop -- qa1                                # drops it, confirms it is gone, removes the env file
+scripts/test-env create qa1                          # creates jitm_design_qa1 and its env file
+scripts/test-env run qa1 -- npm run db:generate
+scripts/test-env run qa1 -- npm run db:deploy
+scripts/test-env run qa1 -- npm run db:verify-release
+scripts/test-env run qa1 -- npm test
+scripts/test-env run qa1 -- npm run build
+scripts/test-env drop qa1                            # drops it, confirms it is gone, removes its files
 ```
 
-Prerequisites: Node 22 or later, `npm ci`, and PostgreSQL listening on loopback at the port the CI `validate` job uses. The test role from that job must exist with permission to create databases. No `createdb` or `psql` binary is needed.
+Prerequisites: a POSIX shell at `/bin/sh` (Linux, macOS or WSL), Node 22 or later, `npm ci`, and PostgreSQL listening on loopback at the port the CI `validate` job uses. The test role from that job must exist with permission to create databases. No `createdb` or `psql` binary is needed. `npm run test:env -- qa1` and `npm run test:env:drop -- qa1` call the same entry point; read the trust boundary below before you use them.
+
+### The trust boundary
+
+The helper guarantees that a command reaches only its validated loopback `jitm_design_*` database when the helper is started through `scripts/test-env`. That file is the boundary, and it starts clean:
+
+- **The caller's `PATH` is never searched.** The launcher takes its utilities from the system's standard path (`command -p getconf PATH`, for example `/bin:/usr/bin`), node from the toolchain (next section) and npm from that node's own installation.
+- **node starts under `env -i`, twice.** First with only the standard path, to check the arguments and create the database's scratch home and toolchain folder. Then for the helper itself, with only that `HOME`, a `PATH` of the toolchain folder and the standard path, and the allowlisted names your shell sets. No `NODE_OPTIONS`, npm setting or npmrc file, dotenv control, database variable or rc file from your session reaches the helper or the command it runs, so nothing your session configured can run code before the checks.
+- **Any other start is refused.** `node scripts/test-env.mjs …` refuses unless its own environment is exactly what the entry point gives it: only allowlisted names, the scratch `HOME`, a `PATH` that starts with the toolchain folder whose links lead to the running node and its npm, and no node options.
+
+The calling session is trusted, not hostile. Covered: whatever the session exports or configures by accident or habit, such as database URLs and `PG*` variables, `NODE_OPTIONS`, npm settings and npmrc files, dotenv controls, a `PATH` that leads to other tools, and the rc and `.env` files in your home folder. Not covered:
+
+- **`npm run test:env` from a hostile parent is outside the boundary.** npm and its node start before the entry point, with your session's `NODE_OPTIONS` and npmrc files, so a preload they name runs in that outer npm before anything is checked. The entry point still starts the helper clean, but code has already run. When you cannot vouch for the session, call `scripts/test-env` directly.
+- `/bin/sh`, the system's standard utilities, the toolchain's node and npm (including the `npmrc` in npm's own install folder), the repository's files and the PostgreSQL server belong to the trusted machine. A session that replaces them is hostile.
+- What a command does with its own arguments is the caller's choice. `run` checks the environment the command starts with and applies the shell rule below. A command that sets its own database (`env DATABASE_URL=… npm test`, `node -e …`, or a shell script that unsets `HOME`) is not something a session does by accident.
+- Loading the env file into your own shell (`set -a; . .artifacts/test-env/jitm_design_qa1.env; set +a`) controls only the variables it sets; anything else your shell exports still reaches the tools. Unset any `NODE_ENV` your shell exports first, because `next build` fails under `development`.
+- Windows: the entry point is a POSIX launcher. Run it inside WSL.
+
+### Toolchain
+
+- **node.** When `.artifacts/test-env/toolchain/node` exists (`boundary.node` in `scripts/test-env.config.json`), the launcher uses the node it links to; otherwise the `node` on the standard path. If your node is elsewhere (a version manager, for example), link it once from a session you trust: `mkdir -p .artifacts/test-env/toolchain && ln -s "$(command -v node)" .artifacts/test-env/toolchain/node`. The folder is git-ignored. The helper checks that it runs as that node.
+- **npm.** From that node's own installation, `{nodePrefix}/lib/node_modules/npm` (`boundary.npm`), where `{nodePrefix}` is the folder above node's `bin` folder. The helper checks that the folder is npm, with its `npm-cli.js` and `npx-cli.js`.
+- **Toolchain folder.** `.artifacts/test-env/{database}.bin` (`boundary.bin`) holds three links: `node`, `npm` and `npx`. The `PATH` of the helper and the command is that folder, then the standard path (`boundary.path`), so the command, its npm scripts and the tools they start find this node and this npm first.
+- **Scratch home.** `.artifacts/test-env/{database}.home` (`boundary.home`) is created by the helper, mode 700, and starts empty. It is the `HOME` of the helper and of the command: npm's cache and logs and the per-user state Next.js and Prisma keep go there. The helper refuses a scratch home or toolchain folder that is a link, belongs to another user or is open to other users. Drop removes both.
+
+### Plain argv only
+
+`run` starts one program with its arguments, with no shell between it and the helper. A shell named as the program (`run.shells`: `sh`, `bash`, `dash`, `zsh` and the others listed there) is allowed only with both `--noprofile` and `--norc` (`run.shellOptions`), before any single-letter option, and with a `-c` command or a script file, for example `scripts/test-env run qa1 -- bash --noprofile --norc -c 'npm test 2>&1 | tee test.log'`. Before any connection or child process, `run` refuses:
+
+- interactive and login forms: `-i`, `-l`, `--login` or `--interactive`, also when grouped, as in `bash -ic` and `bash -lc`; `sh -i`; a login name such as `-bash`;
+- `--rcfile`, `--init-file`, `-o interactive` and `-o login`;
+- a shell without `--noprofile --norc`, such as `bash -c '…'` or `sh -c '…'`;
+- a shell with no `-c` and no script, or with `-s`, which would read commands from the terminal.
+
+Those forms read startup files (`~/.bashrc`, `~/.profile`, `/etc/profile`) after the checks. `dash`, the `sh` of Debian and Ubuntu, has no `--noprofile` or `--norc`, so it never passes: use `bash`, or name the program directly. A shell that a command starts in turn reads the scratch home, which holds no startup file.
+
+### What the helper checks
 
 - **Names.** Pass a suffix (`qa1`) or the full name (`jitm_design_qa1`). The database must match `^jitm_design_[a-z0-9_]{1,40}$`; any other name is refused before a connection is opened.
 - **Settings.** The role, password, port and schema are read at run time from the `validate` job in `.github/workflows/ci.yml`: its `DATABASE_URL`, checked against its PostgreSQL service. The host is written as `127.0.0.1`. The env file starts from `.env.example`, then that job's env, then the env of its `npm test` step.
-- **Env file.** `.artifacts/test-env/jitm_design_<name>.env` is git-ignored, mode 600, and made of `KEY="value"` lines. Instead of `run`, you can load it with `set -a; . .artifacts/test-env/jitm_design_qa1.env; set +a`. Then unset any `NODE_ENV` your shell exports, because `next build` fails under `development`; `run` never passes it on.
+- **Env file.** `.artifacts/test-env/jitm_design_<name>.env` is git-ignored, mode 600, and made of `KEY="value"` lines. It never sets `HOME`, `PATH` or a shell startup variable, and `run` refuses one that does.
 - **Isolation.** The env file points `DATABASE_URL` and `PGHOST`, `PGPORT`, `PGUSER`, `PGPASSWORD` and `PGDATABASE` at the test database. It sets every other database input to empty: the other `*_DATABASE_URL` and `*_DB_URL` variables, every other `PG*` variable the `pg` driver resolves, the libpq variables that can redirect a connection or supply a credential (`PGHOSTADDR`, `PGSERVICE`, `PGSERVICEFILE`, `PGSYSCONFDIR`, `PGPASSFILE`), and any `PG*` variable your shell held at creation. `run` starts the command from an empty environment (next point), adds the env file, and refuses unless the result is clean. The check runs on the configuration the `pg` driver will actually use: a loopback host, the CI port and role, a password (so no password file is consulted) and the named database. The URL may carry no query parameter except `schema`, and no other database input may be set. Values that contain a double quote, `$`, a backtick, a backslash or a line break are refused.
-- **Child environment.** The command `run` starts gets an empty environment plus three things: the variables your shell sets from the allowlist in `scripts/test-env.config.json`, the env file, and the pins below. Nothing else you export reaches it, whatever its name or letter case: no database URL or `PG*` variable, no `NODE_OPTIONS`, `NODE_PATH` or other `NODE_*` setting, no `npm_config_*` or `NPM_CONFIG_*`, no `DOTENV_*`, `PRISMA_*`, `VITEST_*`, `VITE_*`, `NEXT_*`, `JITI_*` or `TSX_*`, no `NODE_ENV` and no `TZ`. The config refuses an allowlist that names a database input, a loader input or `NODE_ENV`. The allowlist, and why the toolchain needs each name:
-  - `PATH`: how the command finds `node`, `npm` and the tools. The helper checks the npm it finds there with npm's own config loader (see **npm** below).
-  - `HOME`: npm's cache and logs, and the per-user state Next.js and Prisma keep. npm's `~/.npmrc` is replaced by the helper's own file, and none of the tools the suites use reads `~/.env`.
+- **Child environment.** The command `run` starts gets an empty environment plus: the scratch `HOME` and the toolchain `PATH`, the variables your shell sets from the allowlist in `scripts/test-env.config.json`, the env file, and the pins below. Nothing else you export reaches it, whatever its name or letter case: no database URL or `PG*` variable, no `NODE_OPTIONS`, `NODE_PATH` or other `NODE_*` setting, no `npm_config_*` or `NPM_CONFIG_*`, no `DOTENV_*`, `PRISMA_*`, `VITEST_*`, `VITE_*`, `NEXT_*`, `JITI_*` or `TSX_*`, no `BASH_ENV` or `ENV`, no `NODE_ENV` and no `TZ`. The config refuses an allowlist that names a database input, a loader input, a shell startup variable, `NODE_ENV`, `HOME` or `PATH`. The allowlist, and why the toolchain needs each name:
   - `TMPDIR`: temporary files, tsx's IPC sockets and the compile caches.
   - `LANG`, `LC_ALL`, `LC_CTYPE`: the locale for text encoding and tool output.
   - `TERM`, `NO_COLOR`, `FORCE_COLOR`: terminal and colour output only.
   - `CI`: a CI-like switch that turns off prompts, watch mode and npm's update check. It names no file, host or module.
-  - On Windows only, where names have no letter case: `SystemRoot`, `SystemDrive` and `WINDIR` (Node's networking and crypto need them), `ComSpec` (npm's script shell), `PATHEXT` (command lookup), `TEMP` and `TMP` (temporary files), `USERPROFILE` (the home folder), `APPDATA` and `LOCALAPPDATA` (npm's global folder and cache).
-- **Pinned files.** The same config names every file the helper pins, per database: the env file `.artifacts/test-env/{database}.env`, npm's user config `.artifacts/test-env/{database}.npmrc` (set through `npm_config_userconfig`) and npm's global config `.artifacts/test-env/{database}.global.npmrc` (set through `npm_config_globalconfig`; npm refuses one file as both). Create writes both npm files empty, and drop removes them with the env file.
+  - On Windows only, where names have no letter case and the entry point does not run (use WSL): `SystemRoot`, `SystemDrive` and `WINDIR` (Node's networking and crypto need them), `ComSpec` (npm's script shell), `PATHEXT` (command lookup), `TEMP` and `TMP` (temporary files), `USERPROFILE` (the home folder), `APPDATA` and `LOCALAPPDATA` (npm's global folder and cache).
+- **Pinned files.** The same config names every file the helper pins, per database: the env file `.artifacts/test-env/{database}.env`, npm's user config `.artifacts/test-env/{database}.npmrc` (set through `npm_config_userconfig`) and npm's global config `.artifacts/test-env/{database}.global.npmrc` (set through `npm_config_globalconfig`; npm refuses one file as both). Create writes both npm files empty, and drop removes them with the env file, the scratch home and the toolchain folder.
 - **Loaders.** What each tool the commands run reads at start-up, and how it is pinned:
   - dotenv 17 (`dotenv/config`, imported by `prisma.config.ts`, `vitest.config.ts` and the database scripts) takes its file, an override switch and a vault key from `DOTENV_*` variables, and treats any non-empty override as on, including `false`. The helper reads the names the installed dotenv uses at run time. The env file sets the file variable to the env file itself and every other control to empty. Before it starts the command, `run` replays the child's dotenv load and refuses unless that load changes nothing. It also refuses a command that passes `dotenv_config_*` arguments, and an env file that sets any loader input to another value.
   - Node 22 reads `NODE_OPTIONS`, whose `--require` and `--import` preload code. The env file sets it to empty unless the CI job sets it. Node's other variables are simply not inherited, and Node reads `--env-file` and its config file only from flags.
@@ -88,9 +122,10 @@ Prerequisites: Node 22 or later, `npm ci`, and PostgreSQL listening on loopback 
   - tsx, which runs the database scripts, reads `TSX_*` variables (not inherited) and the project's `tsconfig.json`.
   - Next.js reads the project's `.env` files during a build, but only for keys that are still unset, and the env file sets every database and loader input.
   - `pg` reads `PG*` variables, pinned above, and a password file only when there is no password.
-- **npm.** Before the spawn, `run` loads the npm the command uses, and the npm on the child's `PATH`, with that npm's own config loader. It first asks npm's own prefix search where npm would look for a project `.npmrc`, and refuses if one is there: no environment value can override what it sets, and it may hold registry tokens, so the helper never opens it. Then it loads npm's configuration as npm will in the child. It refuses unless npm's user and global configs are the helper's files, none of npm's config files sets anything, the environment gives npm nothing but those two pins, and nothing sets `node-options`. The environment npm will hand its scripts must then pass the same database, loader and dotenv checks. The check is repeated for an npm that one of those scripts starts in turn, from the package folder. The check follows npm's real precedence: a `--userconfig` or `--node-options` flag on the command is refused, while a `--globalconfig` flag is ignored because npm itself lets the pinned value win.
-- **What it touches.** The helper reads only `.env.example`, `ci.yml`, `scripts/test-env.config.json`, its own env file and npm config files, and npm's own install folder. It never reads `.env`, `~/.pgpass`, `~/.npmrc`, a project `.npmrc` (it checks only that none exists) or another credential store. It opens the `postgres` maintenance database only to create, drop or look up the one validated name. If you load the env file in a shell instead of using `run`, only the variables it sets are controlled; anything else your shell exports still reaches the tools.
-- **Limits.** `PATH` and `HOME` are trusted: a hostile `PATH` replaces the tools themselves. The `npmrc` in npm's own install folder is treated as part of npm, and only its effect on `node-options` and the two config files is checked. A command that starts npm in another folder itself (`cd elsewhere && npm …`) is checked only where npm starts from the command or the package folder. The helper's own process is not pinned: `npm run test:env` starts it with whatever npm settings your shell has, and it ignores every database input it inherits.
+  - Shells read `BASH_ENV` (bash) or `ENV` (a POSIX `sh`) even when not interactive. Neither is inherited, and the env file never sets them.
+- **npm.** Before the spawn, `run` loads the npm the command uses, and the npm on the child's `PATH` (the toolchain's), with that npm's own config loader. It first asks npm's own prefix search where npm would look for a project `.npmrc`, and refuses if one is there: no environment value can override what it sets, and it may hold registry tokens, so the helper never opens it. Then it loads npm's configuration as npm will in the child. It refuses unless npm's user and global configs are the helper's files, none of npm's config files sets anything, the environment gives npm nothing but those two pins, and nothing sets `node-options`. The environment npm will hand its scripts must then pass the same database, loader and dotenv checks. The check is repeated for an npm that one of those scripts starts in turn, from the package folder. The check follows npm's real precedence: a `--userconfig` or `--node-options` flag on the command is refused, while a `--globalconfig` flag is ignored because npm itself lets the pinned value win.
+- **What it touches.** The helper reads only `.env.example`, `ci.yml`, `scripts/test-env.config.json`, its own env file and npm config files, and npm's own install folder. It writes only its env file, its two npm config files, the scratch home and the toolchain folder. It never reads `.env`, `~/.pgpass`, `~/.npmrc`, a project `.npmrc` (it checks only that none exists) or another credential store. It opens the `postgres` maintenance database only to create, drop or look up the one validated name.
+- **Limits.** The `npmrc` in npm's own install folder is treated as part of npm, and only its effect on `node-options` and the two config files is checked. A command that starts npm in another folder itself (`cd elsewhere && npm …`) is checked only where npm starts from the command or the package folder. The trust boundary above lists what the entry point does not cover.
 
 Suites:
 
@@ -101,7 +136,7 @@ Suites:
 To show that the supported suites ran rather than skipped, add a JSON report and look for `skipped` results among the integration suites:
 
 ```bash
-node scripts/test-env.mjs run qa1 -- npx vitest run --reporter=default --reporter=json --outputFile=.artifacts/test-env/qa1-vitest.json
+scripts/test-env run qa1 -- npx vitest run --reporter=default --reporter=json --outputFile=.artifacts/test-env/qa1-vitest.json
 ```
 
 ## Manual journey

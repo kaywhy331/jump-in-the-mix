@@ -1,10 +1,17 @@
 #!/usr/bin/env node
-// One command for a disposable, loopback-only test database (JITM-12 §2.21).
+// One command for a disposable, loopback-only test database (JITM-12 §2.21). Start it only
+// through the entry point scripts/test-env, which starts this file from a clean boundary:
 //
-//   npm run test:env -- <name>        create jitm_design_<name> and write its env file
-//   node scripts/test-env.mjs run <name> -- <command...>
-//                                     run a command with that env file only
-//   npm run test:env:drop -- <name>   drop jitm_design_<name> and remove its env file
+//   scripts/test-env create <name>                    create jitm_design_<name> and write its env file
+//   scripts/test-env run <name> -- <program> [args]   run one program with that env file only
+//   scripts/test-env drop <name>                      drop jitm_design_<name> and remove its files
+//
+// The entry point never searches the caller's PATH and starts node twice under env -i: first
+// with `launch-plan` (launchPlan below), which checks the arguments, resolves the toolchain from
+// scripts/test-env.config.json and prepares the database's owned scratch HOME and toolchain bin
+// folder; then for the command itself, with only that HOME, a PATH of that folder and the
+// system's standard path, and the allowlisted names. launchBoundary refuses any other start.
+// The calling session is trusted, not hostile (docs/LOCAL_TESTING.md, "The trust boundary").
 //
 // The connection settings come from the CI `validate` job in .github/workflows/ci.yml,
 // read with a YAML parser at run time; the env file starts from .env.example. The helper
@@ -13,9 +20,9 @@
 // is cleared or set to the validated test database, and the final driver configuration is
 // checked before any connection or child process is created.
 //
-// The command that `run` starts gets an EMPTY environment, not from the caller's: only the
-// names allowlisted in scripts/test-env.config.json pass through (PATH, HOME and a few more),
-// then the env file and the pins are added. No inherited npm, Node, dotenv, Prisma or Vitest
+// The command that `run` starts gets an EMPTY environment, not from the caller's: the owned HOME
+// and the toolchain PATH, the names allowlisted in scripts/test-env.config.json (locale, terminal,
+// TMPDIR, CI), then the env file and the pins. No inherited npm, Node, dotenv, Prisma or Vitest
 // setting can reach it, whatever its name. The pins fix every loader input the child reads:
 // - dotenv/config (prisma.config.ts, vitest.config.ts, the database scripts) takes its file,
 //   override and vault key from DOTENV_* variables; the names are read from the installed dotenv,
@@ -27,7 +34,7 @@
 // .npmrc, no setting from its config files, and hand its scripts an environment that still
 // passes every check, for the command itself and for an npm started from one of its scripts.
 import { spawn as spawnProcess } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
+import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -83,8 +90,22 @@ const NPM_NODE_OPTIONS = /^npm_config_node[-_]options$/iu;
 // The npm layers that are files; the helper's own files must set nothing, and no project file may exist.
 const NPM_FILE_LAYERS = ["project", "user", "global"];
 const NPM_CLI_SCRIPT = /[\\/]bin[\\/](np[mx])-cli\.js$/u;
+// The startup files a non-interactive shell reads: bash runs $BASH_ENV and a POSIX sh $ENV.
+const SHELL_STARTUP_VARIABLES = new Set(["BASH_ENV", "ENV"]);
 const DATABASE_PLACEHOLDER = "{database}";
 const FILE_KEYS = ["envFile", "npmUserConfig", "npmGlobalConfig"];
+// The clean boundary (scripts/test-env): these names are set by the entry point, never inherited.
+const BOUNDARY_NAMES = ["HOME", "PATH"];
+const BOUNDARY_FOLDERS = ["home", "bin"];
+const NODE_PREFIX = "{nodePrefix}";
+const PATH_BIN = "{bin}";
+const PATH_STANDARD = "{standard}";
+// The subcommand the entry point runs first, under env -i, to get its launch plan.
+export const PLAN_COMMAND = "launch-plan";
+const COMMANDS = new Set(["create", "run", "drop"]);
+// The toolchain programs the bin folder holds, and the npm file each one leads to.
+const TOOLCHAIN_LINKS = [["node", null], ["npm", "npm-cli.js"], ["npx", "npx-cli.js"]];
+const UNSAFE_PATH = /[\r\n\0]/u;
 
 export class GuardError extends Error {
   constructor(message) {
@@ -107,11 +128,46 @@ export function projectPaths(root = ROOT) {
 const isDatabaseInput = (key) => PG_VARIABLE.test(key) || DATABASE_URL_INPUT.test(key);
 
 function isLoaderInput(name) {
-  return DOTENV_VARIABLE.test(name) || CONFIG_LOADER_VARIABLE.test(name) || NPM_CONFIG_VARIABLE.test(name) || name === NODE_OPTIONS;
+  return DOTENV_VARIABLE.test(name) || CONFIG_LOADER_VARIABLE.test(name) || NPM_CONFIG_VARIABLE.test(name) || name === NODE_OPTIONS || SHELL_STARTUP_VARIABLES.has(name);
+}
+
+const insideTemplate = (template) => typeof template === "string" && template !== "" && !isAbsolute(template) && !template.split(/[\\/]/u).includes("..") && !UNSAFE_PATH.test(template);
+
+// The boundary section: where the toolchain's node and npm are, the owned folders, and the PATH.
+function parseBoundary(boundary, fileTemplates) {
+  if (!isRecord(boundary)) refuse("test-env.config.json needs boundary: the toolchain, the scratch HOME, the bin folder and the PATH the entry point sets.");
+  const { node, npm, path } = boundary;
+  if (!insideTemplate(node) || node.includes(DATABASE_PLACEHOLDER) || node.includes("=")) refuse("boundary.node must be a relative path inside the repository: where a link to the toolchain's node may be.");
+  if (typeof npm !== "string" || !npm.startsWith(`${NODE_PREFIX}/`) || npm.split(/[\\/]/u).includes("..") || UNSAFE_PATH.test(npm)) refuse(`boundary.npm must be a folder under ${NODE_PREFIX}, the node installation's prefix.`);
+  const folders = {};
+  for (const key of BOUNDARY_FOLDERS) {
+    const template = boundary[key];
+    if (!insideTemplate(template) || !template.includes(DATABASE_PLACEHOLDER)) refuse(`boundary.${key} must be a relative path inside the repository that contains ${DATABASE_PLACEHOLDER}.`);
+    folders[key] = template;
+  }
+  if (new Set([...Object.values(folders), ...fileTemplates]).size !== BOUNDARY_FOLDERS.length + fileTemplates.length) refuse("boundary.home, boundary.bin and the files must name different paths.");
+  if (!Array.isArray(path) || path[0] !== PATH_BIN || path.filter((entry) => entry === PATH_BIN).length !== 1) {
+    refuse(`boundary.path must start with ${PATH_BIN}, once, so node, npm and npx resolve to the toolchain.`);
+  }
+  for (const entry of path) {
+    if (entry === PATH_BIN || entry === PATH_STANDARD) continue;
+    if (typeof entry !== "string" || !isAbsolute(entry) || entry.includes(":") || UNSAFE_PATH.test(entry)) refuse(`boundary.path entries are ${PATH_BIN}, ${PATH_STANDARD} or absolute folders; found ${JSON.stringify(entry)}.`);
+  }
+  return Object.freeze({ node, npm, ...folders, path: Object.freeze([...path]) });
+}
+
+// The run section: the shells `run` holds to the plain-argv rule, and the options they must carry.
+function parseRun(run) {
+  if (!isRecord(run) || !Array.isArray(run.shells) || !Array.isArray(run.shellOptions)) refuse("test-env.config.json needs run.shells and run.shellOptions: the shells run checks and the options that keep their startup files unread.");
+  for (const shell of run.shells) if (typeof shell !== "string" || !/^[a-z0-9]+$/u.test(shell)) refuse(`run.shells has an invalid program name ${JSON.stringify(shell)}.`);
+  for (const option of run.shellOptions) if (typeof option !== "string" || !/^--[a-z]+$/u.test(option)) refuse(`run.shellOptions has an invalid option ${JSON.stringify(option)}.`);
+  if (run.shellOptions.length === 0) refuse("run.shellOptions must name the options that stop a shell reading its startup files.");
+  return Object.freeze({ shells: Object.freeze([...run.shells]), shellOptions: Object.freeze([...run.shellOptions]) });
 }
 
 // Checks the config this script owns. The allowlist may never name a database input, a loader
-// input or NODE_ENV (next build fails under development); file paths stay inside the repository.
+// input, NODE_ENV (next build fails under development) or a name the entry point sets itself;
+// file paths stay inside the repository.
 export function parseTestEnvConfig(value) {
   if (!isRecord(value)) refuse("test-env.config.json must hold an object.");
   const { inherit, files, npmConfigPins } = value;
@@ -123,6 +179,7 @@ export function parseTestEnvConfig(value) {
       if (typeof name !== "string" || !ENV_KEY.test(name)) refuse(`inherit.${platform} has an invalid variable name ${JSON.stringify(name)}.`);
       // Windows reads names in any letter case, so the upper-case form is checked as well.
       for (const form of new Set([name, name.toUpperCase()])) {
+        if (BOUNDARY_NAMES.includes(form)) refuse(`inherit.${platform} names ${name}, which the entry point sets itself (boundary); the child never inherits it.`);
         if (isDatabaseInput(form) || isLoaderInput(form) || form === "NODE_ENV") {
           refuse(`inherit.${platform} names ${name}, which can change the database or what the child's loaders read; the child never inherits it.`);
         }
@@ -151,7 +208,9 @@ export function parseTestEnvConfig(value) {
   for (const required of ["npm_config_userconfig", "npm_config_globalconfig"]) {
     if (!pins[required]) refuse(`npmConfigPins must pin ${required}, or npm reads the caller's npmrc files.`);
   }
-  return Object.freeze({ inherit: Object.freeze(lists), files: Object.freeze(templates), npmConfigPins: Object.freeze(pins) });
+  const boundary = parseBoundary(value.boundary, Object.values(templates));
+  const run = parseRun(value.run);
+  return Object.freeze({ inherit: Object.freeze(lists), files: Object.freeze(templates), npmConfigPins: Object.freeze(pins), boundary, run });
 }
 
 let ownConfig;
@@ -483,7 +542,7 @@ export function buildEnvironment({ exampleText, ci, database, inherited = {}, ro
   for (const name of pgVariableNames(inherited)) isolation.set(name, pgValues[name] ?? "");
   const pins = childPins(files, ci);
   for (const [name, value] of pins) isolation.set(name, value);
-  for (const name of [...values.keys()]) if (isLoaderInput(name)) values.delete(name);
+  for (const name of [...values.keys()]) if (isLoaderInput(name) || BOUNDARY_NAMES.includes(name)) values.delete(name);
   for (const name of isolation.keys()) values.delete(name);
   return { base: values, isolation, values: new Map([...values, ...isolation]), target, pins, files };
 }
@@ -491,7 +550,7 @@ export function buildEnvironment({ exampleText, ci, database, inherited = {}, ro
 export function renderEnvFile({ base, isolation, database }) {
   const lines = [
     `# Generated by scripts/test-env.mjs for ${database}. Do not edit; regenerate or drop it with`,
-    `#   npm run test:env:drop -- ${database}`,
+    `#   scripts/test-env drop ${database}`,
     "# Load it into a shell with: set -a; . <this file>; set +a",
     "# Sources: .env.example, then the CI validate job's env and its npm test step's env."
   ];
@@ -676,6 +735,187 @@ export async function assertNpmBoundary(env, { command, cwd, platform = process.
   return checked;
 }
 
+// The clean boundary: the one entry point (scripts/test-env) and what it gives the helper.
+
+// The per-database folders the entry point owns: the scratch HOME and the toolchain bin folder.
+export function boundaryPaths(database, root = ROOT, config = testEnvConfig()) {
+  assertDatabaseName(database);
+  const paths = {};
+  for (const key of BOUNDARY_FOLDERS) {
+    const path = resolve(root, config.boundary[key].split(DATABASE_PLACEHOLDER).join(database));
+    const inside = relative(root, path);
+    if (!inside || inside.startsWith("..") || isAbsolute(inside)) refuse(`boundary.${key} resolves outside the repository.`);
+    paths[key] = path;
+  }
+  return paths;
+}
+
+// The toolchain's node: the link boundary.node names when it exists, else the node on the system's
+// standard path (`getconf PATH`, which the entry point passes in). Never the caller's PATH.
+export function toolchainNode(standardPath, root = ROOT, config = testEnvConfig()) {
+  const link = resolve(root, config.boundary.node);
+  let candidate;
+  try { lstatSync(link); candidate = link; } catch { candidate = findOnPath("node", { PATH: standardPath }, process.platform); }
+  if (!candidate) refuse(`No node on the standard path ${JSON.stringify(standardPath)} and no link at ${config.boundary.node}. Link the node to use there (docs/LOCAL_TESTING.md, "Toolchain").`);
+  let real;
+  try { real = realpathSync(candidate); } catch (error) { refuse(`The toolchain's node ${candidate} does not resolve (${error.message}).`); }
+  if (!statSync(real).isFile()) refuse(`The toolchain's node ${real} is not a file.`);
+  // env(1) would read a program path with = as an assignment; the plan is read line by line.
+  if (real.includes("=") || UNSAFE_PATH.test(real)) refuse(`The toolchain's node ${JSON.stringify(real)} has a character the launcher cannot pass on (= or a line break).`);
+  return real;
+}
+
+// The toolchain's npm: the folder boundary.npm names under the node installation's own prefix.
+export function toolchainNpm(node, config = testEnvConfig()) {
+  const root = resolve(config.boundary.npm.split(NODE_PREFIX).join(dirname(dirname(node))));
+  let name;
+  try { ({ name } = JSON.parse(readFileSync(join(root, "package.json"), "utf8"))); } catch { /* checked below */ }
+  const files = Object.fromEntries(TOOLCHAIN_LINKS.filter(([, file]) => file).map(([program, file]) => [program, join(root, "bin", file)]));
+  if (name !== "npm" || Object.values(files).some((file) => !existsSync(file))) {
+    refuse(`The toolchain's npm is not at ${root}, where boundary.npm in scripts/test-env.config.json places it for ${node}.`);
+  }
+  return { root, ...files };
+}
+
+// A folder the helper owns: a real directory (not a link), this user's, closed to everyone else.
+export function assertOwnedFolder(path, label) {
+  let stats;
+  try { stats = lstatSync(path); } catch { refuse(`${label} ${path} does not exist; start the helper through scripts/test-env, which creates it.`); }
+  if (!stats.isDirectory() || stats.isSymbolicLink()) refuse(`${label} ${path} is not a folder the helper created.`);
+  if (typeof process.getuid === "function" && stats.uid !== process.getuid()) refuse(`${label} ${path} belongs to another user.`);
+  if ((stats.mode & 0o077) !== 0) refuse(`${label} ${path} is open to other users (mode ${(stats.mode & 0o777).toString(8)}).`);
+}
+
+function ownedFolder(path, label) {
+  let present = true;
+  try { lstatSync(path); } catch { present = false; }
+  if (!present) mkdirSync(path, { recursive: true, mode: 0o700 });
+  assertOwnedFolder(path, label);
+}
+
+// Points `link` at `target`; a link that already does is kept, anything else is replaced at once.
+function linkTo(target, link) {
+  try { if (readlinkSync(link) === target) return; } catch { /* absent, or not a link */ }
+  const temporary = `${link}.${process.pid}.tmp`;
+  rmSync(temporary, { force: true });
+  symlinkSync(target, temporary);
+  renameSync(temporary, link);
+}
+
+function commandDatabase(argv) {
+  const [command, name] = argv;
+  return COMMANDS.has(command) ? resolveDatabaseName(name) : null;
+}
+
+// Step one of the entry point, run under `env -i PATH=<standard path>`: check the arguments, find
+// the toolchain, and create the database's scratch HOME and bin folder (node, npm and npx links).
+// Returns null for an unknown command (the caller prints usage). Nothing here reads the caller's
+// environment: it has none.
+export function launchPlan({ argv, env, execPath, execArgv = [], root = ROOT, platform = process.platform, config = testEnvConfig() }) {
+  if (platform === "win32") refuse("scripts/test-env is a POSIX launcher; on Windows, run it inside WSL.");
+  if (execArgv.length) refuse(`node was started with ${execArgv.join(" ")}; the entry point starts it with no options.`);
+  const extra = Object.keys(env).filter((name) => name !== "PATH");
+  if (extra.length) refuse(`The launch plan runs under env -i with only the standard PATH; it found ${extra.join(", ")}.`);
+  const standard = String(env.PATH ?? "");
+  if (!standard || standard.split(":").some((entry) => !isAbsolute(entry)) || UNSAFE_PATH.test(standard)) refuse(`The standard path ${JSON.stringify(standard)} must name absolute folders.`);
+  const database = commandDatabase(argv);
+  if (!database) return null;
+  const node = toolchainNode(standard, root, config);
+  if (realpathSync(execPath) !== node) refuse(`The launcher started ${execPath}, not the toolchain's node ${node}.`);
+  const npm = toolchainNpm(node, config);
+  const { home, bin } = boundaryPaths(database, root, config);
+  for (const path of [home, bin]) if (UNSAFE_PATH.test(path) || path.includes(":")) refuse(`The repository path ${JSON.stringify(path)} has a character the launcher cannot pass on (: or a line break).`);
+  ownedFolder(home, "The scratch HOME");
+  ownedFolder(bin, "The toolchain folder");
+  for (const [program] of TOOLCHAIN_LINKS) linkTo(program === "node" ? node : npm[program], join(bin, program));
+  const path = config.boundary.path.map((entry) => (entry === PATH_BIN ? bin : entry === PATH_STANDARD ? standard : entry)).join(":");
+  return { database, node, home, bin, path, inherit: inheritedNames(platform, config) };
+}
+
+// The plan as the launcher reads it: one NAME=value line each, then one INHERIT=<name> per allowed name.
+export function renderLaunchPlan(plan) {
+  return [`NODE=${plan.node}`, `HOME=${plan.home}`, `PATH=${plan.path}`, ...plan.inherit.map((name) => `INHERIT=${name}`)].join("\n");
+}
+
+// Step two: this process must have been started by the entry point. Its environment holds only
+// the allowlisted names, HOME is the database's scratch home and PATH starts with its toolchain
+// folder, whose links lead to the node running this file and that node's own npm. A direct
+// `node scripts/test-env.mjs …` from a shell is refused. Returns null for an unknown command.
+export function launchBoundary({ argv, env, execPath, execArgv = [], root = ROOT, platform = process.platform, config = testEnvConfig() }) {
+  const database = commandDatabase(argv);
+  if (!database) return null;
+  const start = "start it through scripts/test-env (docs/LOCAL_TESTING.md)";
+  if (platform === "win32") refuse("scripts/test-env is a POSIX launcher; on Windows, run it inside WSL.");
+  if (execArgv.length) refuse(`node was started with ${execArgv.join(" ")}; ${start}.`);
+  const allowed = new Set([...inheritedNames(platform, config), ...BOUNDARY_NAMES]);
+  const extra = Object.keys(env).filter((name) => !allowed.has(name)).sort();
+  if (extra.length) refuse(`The helper's own environment holds ${extra.length} name(s) the boundary does not allow (${extra.slice(0, 6).join(", ")}${extra.length > 6 ? ", …" : ""}); ${start}, which starts it from an empty environment.`);
+  const { home, bin } = boundaryPaths(database, root, config);
+  if (env.HOME !== home) refuse(`HOME is ${JSON.stringify(env.HOME ?? null)}, not the scratch home ${home}; ${start}.`);
+  assertOwnedFolder(home, "The scratch HOME");
+  assertOwnedFolder(bin, "The toolchain folder");
+  const entries = String(env.PATH ?? "").split(":");
+  if (entries[0] !== bin || entries.some((entry) => !isAbsolute(entry))) refuse(`PATH must start with the toolchain folder ${bin} and name only absolute folders; ${start}.`);
+  const node = realpathSync(execPath);
+  const npm = toolchainNpm(node, config);
+  for (const [program] of TOOLCHAIN_LINKS) {
+    const target = program === "node" ? node : realpathSync(npm[program]);
+    let actual = null;
+    try { actual = realpathSync(join(bin, program)); } catch { /* missing */ }
+    if (actual !== target) refuse(`${join(bin, program)} does not lead to the toolchain's ${program} ${target}; ${start}.`);
+  }
+  return { database, node, home, bin, path: env.PATH };
+}
+
+// Plain argv only. A named shell (run.shells) must carry run.shellOptions (--noprofile --norc) and
+// a command (-c) or a script, and must not be interactive, a login shell or read commands from
+// standard input: those forms read startup files (~/.bashrc, ~/.profile, /etc/profile) after the
+// checks. Other programs start as they are, with no shell between them and the helper.
+const SHELL_REFUSED_LETTERS = { i: "an interactive shell", l: "a login shell", s: "a shell that reads commands from standard input" };
+const SHELL_REFUSED_LONG = /^--(?:login|interactive|rcfile|init-file)(?:=|$)/u;
+const SHELL_REFUSED_SETTINGS = new Set(["interactive", "login"]);
+
+export function assertPlainCommand(command, config = testEnvConfig()) {
+  const [program, ...args] = command;
+  if (typeof program !== "string" || program === "") refuse("Name the program to run.");
+  const name = basename(program);
+  if (name.startsWith("-")) refuse(`${program} names a login shell; run starts a plain program.`);
+  if (!config.run.shells.includes(name)) return;
+  const usage = `Name the program directly, or start a shell with ${config.run.shellOptions.join(" ")} -c '<command>' (bash takes them; dash, the sh of Debian and Ubuntu, does not)`;
+  const seen = new Set();
+  let short = false, commandString = false, operand = false;
+  for (let index = 0; index < args.length; index += 1) {
+    const arg = args[index];
+    if (arg === "--" || arg === "-") { operand = index + 1 < args.length; break; }
+    if (arg.startsWith("--")) {
+      if (SHELL_REFUSED_LONG.test(arg)) refuse(`run refuses ${name} ${arg}: it makes the shell read startup files after the checks. ${usage}.`);
+      if (short) refuse(`run refuses ${name} ${arg} after a single-letter option: ${name} reads long options only before them. ${usage}.`);
+      seen.add(arg);
+      continue;
+    }
+    if (/^[-+][A-Za-z]+$/u.test(arg)) {
+      short = true;
+      if (arg[0] === "-") {
+        for (const letter of arg.slice(1)) {
+          if (SHELL_REFUSED_LETTERS[letter]) refuse(`run refuses ${name} ${arg}: ${SHELL_REFUSED_LETTERS[letter]} reads startup files or the terminal after the checks. ${usage}.`);
+        }
+        if (arg.includes("c")) commandString = true;
+      }
+      // -o and -O take the next word: a setting such as `-o interactive` is refused too.
+      if (/[oO]$/u.test(arg)) {
+        index += 1;
+        if (SHELL_REFUSED_SETTINGS.has(String(args[index] ?? "").toLowerCase().replace(/[_-]/gu, ""))) refuse(`run refuses ${name} ${arg} ${args[index]}. ${usage}.`);
+      }
+      continue;
+    }
+    operand = true;
+    break;
+  }
+  const missing = config.run.shellOptions.filter((option) => !seen.has(option));
+  if (missing.length) refuse(`run refuses ${name} without ${missing.join(" ")}: it would read its startup files. ${usage}.`);
+  if (!commandString && !operand) refuse(`run refuses ${name} with no -c and no script: it would read commands from the terminal. ${usage}.`);
+}
+
 // The npm config files the helper owns: present, so npm has nothing to fall back to, and empty.
 const npmConfigText = (database, role) => `# Generated by scripts/test-env.mjs: npm's ${role} config while testing against ${database}.\n# Deliberately empty, so npm reads no setting from your home or global npmrc. Do not edit.\n`;
 
@@ -727,7 +967,7 @@ async function create(io, [name, ...extra]) {
   const client = await io.connect(maintenance);
   try {
     if (await databaseExists(client, database)) {
-      refuse(`${database} already exists. Drop it with npm run test:env:drop -- ${database}, then create it again.`);
+      refuse(`${database} already exists. Drop it with scripts/test-env drop ${database}, then create it again.`);
     }
     await client.query(`CREATE DATABASE ${quoteIdentifier(database)} TEMPLATE template0`);
     const written = [];
@@ -751,9 +991,8 @@ async function create(io, [name, ...extra]) {
   io.stdout([
     `Created ${database} on ${ci.host}:${ci.port} as the CI test role.`,
     `Env file: ${shown} (npm reads only ${relative(process.cwd(), files.npmUserConfig) || files.npmUserConfig} and its global twin)`,
-    `Load it:  set -a; . ${shown}; set +a`,
-    `Or run:   node scripts/test-env.mjs run ${database} -- <command>`,
-    `Drop it:  npm run test:env:drop -- ${database}`
+    `Run:      scripts/test-env run ${database} -- <program> [arguments]`,
+    `Drop it:  scripts/test-env drop ${database}`
   ].join("\n"));
   return 0;
 }
@@ -776,29 +1015,36 @@ async function drop(io, [name, ...extra]) {
   }
   if (present) throw new Error(`${database} still exists after DROP DATABASE.`);
   for (const file of [files.envFile, files.npmUserConfig, files.npmGlobalConfig]) io.removeFile(file);
-  io.stdout(`Dropped ${database}: absent from pg_database on ${ci.host}:${ci.port}. Removed its env file and npm config files.`);
+  for (const folder of Object.values(boundaryPaths(database, io.root))) io.removeFolder(folder);
+  io.stdout(`Dropped ${database}: absent from pg_database on ${ci.host}:${ci.port}. Removed its env file, npm config files, scratch HOME and toolchain folder.`);
   return 0;
 }
 
 async function run(io, [name, ...rest]) {
   const database = resolveDatabaseName(name);
   const command = rest[0] === "--" ? rest.slice(1) : rest;
-  if (command.length === 0) refuse(`Name the command to run, for example: node scripts/test-env.mjs run ${database} -- npm test`);
+  if (command.length === 0) refuse(`Name the command to run, for example: scripts/test-env run ${database} -- npm test`);
+  assertPlainCommand(command);
+  // HOME and PATH come only from the boundary the entry point prepared and launchBoundary checked.
+  const { boundary } = io;
+  if (!boundary || boundary.database !== database) refuse(`run starts a command only through scripts/test-env, which prepares the scratch HOME and the toolchain PATH for ${database}.`);
   const paths = projectPaths(io.root);
   const ci = await readCiConfiguration(io.readText(paths.workflow));
   const files = testEnvFiles(database, io.root);
   const path = files.envFile;
-  if (!io.fileExists(path)) refuse(`${database} has no env file. Create it with npm run test:env -- ${database}`);
+  if (!io.fileExists(path)) refuse(`${database} has no env file. Create it with scripts/test-env create ${database}`);
   const fileText = io.readText(path);
   const fileValues = parseDotenv(fileText);
   const pins = childPins(files, ci);
   // A file written before the pins existed lacks them; any loader input it does carry must match.
   for (const [name, value] of Object.entries(fileValues)) {
     if (isLoaderInput(name) && pins.get(name) !== value) refuse(`The env file sets ${name}, which would change what the child's loaders read. Drop and create ${database} again.`);
+    if (BOUNDARY_NAMES.includes(name)) refuse(`The env file sets ${name}, which the entry point sets. Drop and create ${database} again.`);
   }
   // The child starts EMPTY: the allowlisted names the caller has set (scripts/test-env.config.json),
-  // then the env file, then the pins. Nothing else the caller exports reaches it, whatever its name.
-  const childEnvironment = { ...allowlistedEnvironment(io.env, io.platform), ...fileValues, ...Object.fromEntries(pins) };
+  // the env file, the pins, then the boundary's HOME and PATH. Nothing else the caller exports
+  // reaches it, whatever its name; its HOME and PATH are never the caller's.
+  const childEnvironment = { ...allowlistedEnvironment(io.env, io.platform), ...fileValues, ...Object.fromEntries(pins), HOME: boundary.home, PATH: boundary.path };
   const expected = expectedTarget(ci, database);
   assertIsolatedEnvironment(childEnvironment, expected);
   assertLoaderPins(childEnvironment, pins);
@@ -824,10 +1070,10 @@ async function run(io, [name, ...rest]) {
 }
 
 const USAGE = [
-  "Usage:",
-  "  npm run test:env -- <name>                            create jitm_design_<name> and its env file",
-  "  node scripts/test-env.mjs run <name> -- <command...>  run a command with only that env file",
-  "  npm run test:env:drop -- <name>                       drop jitm_design_<name> and its env file"
+  "Usage (through the entry point; docs/LOCAL_TESTING.md):",
+  "  scripts/test-env create <name>                    create jitm_design_<name> and its env file",
+  "  scripts/test-env run <name> -- <program> [args]   run one program with only that env file",
+  "  scripts/test-env drop <name>                      drop jitm_design_<name> and its files"
 ].join("\n");
 
 export async function main(argv, dependencies = {}) {
@@ -840,6 +1086,9 @@ export async function main(argv, dependencies = {}) {
     fileExists: (path) => existsSync(path),
     writeEnvFile: defaultWriteEnvFile,
     removeFile: (path) => rmSync(path, { force: true }),
+    removeFolder: (path) => rmSync(path, { recursive: true, force: true }),
+    // Set by the script entry below from launchBoundary; `run` refuses without it.
+    boundary: null,
     connect: defaultConnect,
     spawn: defaultSpawn,
     stdout: (text) => console.log(text),
@@ -863,10 +1112,42 @@ export async function main(argv, dependencies = {}) {
   }
 }
 
+// Step one of the entry point: print the launch plan, or refuse.
+function planMain(argv) {
+  try {
+    const plan = launchPlan({ argv, env: process.env, execPath: process.execPath, execArgv: process.execArgv });
+    if (!plan) {
+      console.error(USAGE);
+      return 2;
+    }
+    process.stdout.write(`${renderLaunchPlan(plan)}\n`);
+    return 0;
+  } catch (error) {
+    console.error(`test-env refused: ${error.message}`);
+    return 1;
+  }
+}
+
 if (process.argv[1] && import.meta.url === pathToFileURL(resolve(process.argv[1])).href) {
-  // create clears the inherited names in the env file and run strips them from the child; this
-  // process itself drops them before any driver object exists.
-  const inherited = { ...process.env };
-  for (const key of Object.keys(process.env)) if (isDatabaseInput(key) || isLoaderInput(key)) delete process.env[key];
-  process.exitCode = await main(process.argv.slice(2), { env: inherited });
+  const argv = process.argv.slice(2);
+  if (argv[0] === PLAN_COMMAND) {
+    process.exitCode = planMain(argv.slice(1));
+  } else {
+    let boundary = null, refused = false;
+    try {
+      boundary = launchBoundary({ argv, env: process.env, execPath: process.execPath, execArgv: process.execArgv });
+    } catch (error) {
+      console.error(`test-env refused: ${error.message}`);
+      refused = true;
+    }
+    if (refused) {
+      process.exitCode = 1;
+    } else {
+      // create clears the inherited names in the env file and run strips them from the child; this
+      // process itself drops them before any driver object exists.
+      const inherited = { ...process.env };
+      for (const key of Object.keys(process.env)) if (isDatabaseInput(key) || isLoaderInput(key)) delete process.env[key];
+      process.exitCode = await main(argv, { env: inherited, boundary });
+    }
+  }
 }
