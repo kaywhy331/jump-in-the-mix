@@ -12,3 +12,15 @@ export const CALENDAR_CONNECTION_STAGES = {
   connected: { enabled: true }
 } as const;
 export type CalendarConnectionStage = keyof typeof CALENDAR_CONNECTION_STAGES;
+/** Every field a stage reads, so a caller passes all of them. */
+type CalendarConnectionStageField = { [Stage in CalendarConnectionStage]: keyof (typeof CALENDAR_CONNECTION_STAGES)[Stage] }[CalendarConnectionStage];
+
+/**
+ * The stage a saved connection is in: the one whose every value the row holds, or null when it
+ * holds neither. Calendar shows only a connected row as connected, with Refresh now, because every
+ * refresh reads connected rows only (JITM-UXS-02-FU2).
+ */
+export function calendarConnectionStage(connection: Record<CalendarConnectionStageField, unknown>): CalendarConnectionStage | null {
+  const stages = Object.keys(CALENDAR_CONNECTION_STAGES) as CalendarConnectionStage[];
+  return stages.find(stage => Object.entries(CALENDAR_CONNECTION_STAGES[stage]).every(([field, value]) => connection[field as CalendarConnectionStageField] === value)) ?? null;
+}

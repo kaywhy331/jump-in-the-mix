@@ -3,6 +3,7 @@ import AxeBuilder from "@axe-core/playwright";
 import { mkdir, readFile } from "node:fs/promises";
 import { expect, test, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
+import { CALENDAR_CONNECTION_STAGES } from "../src/lib/calendar-connection-stages";
 import { applyRenderedTheme } from "./theme-fixture";
 
 // Connecting or importing a calendar answers inside the open form: an error keeps every entry and
@@ -197,6 +198,64 @@ test("the in-form error holds by keyboard, across the layout boundaries, on shor
       await opened.form.getByRole("button", { name: "Connect calendar", exact: true }).click();
       await expectReply(page, opened, "alert", message, `${colorScheme} ${label}`);
       await expectNoSidewaysScroll(page, `${colorScheme} ${label}`);
+    }
+  }
+});
+
+// A connection whose first refresh failed, and whose removal was refused, stays pending. Calendar lists it as
+// not connected, with Remove and no Refresh now, and Remove takes only that calendar (JITM-UXS-02-FU2).
+test("a calendar left pending is listed as not connected, with Remove and no Refresh now, and Remove takes only it", async ({ page }) => {
+  const NOT_CONNECTED_HELP = "Adding this calendar didn’t finish. Remove it, then add the calendar again.";
+  const LEFTOVER_ERROR = "Synthetic first refresh failure.";
+  for (const colorScheme of ["light", "dark"] as const) {
+    for (const [label, size, largeText] of [...SIZES.map(size => [`${size.width}`, size, false] as const), ["200% text", SIZES[0], true] as const]) {
+      const at = `${colorScheme} ${label}`;
+      await prisma.calendarConnection.deleteMany({ where: { workspaceId } });
+      const syncedAt = new Date();
+      const connected = await prisma.calendarConnection.create({ data: { workspaceId, name: "Work subscription", urlEncrypted: "test-only", ...CALENDAR_CONNECTION_STAGES.connected, lastSyncedAt: syncedAt, lastAttemptAt: syncedAt } });
+      const leftover = await prisma.calendarConnection.create({ data: { workspaceId, name: "Leftover subscription", urlEncrypted: "test-only", lastAttemptAt: syncedAt, lastError: LEFTOVER_ERROR, ...CALENDAR_CONNECTION_STAGES.pending } });
+      const leftoverFile = await prisma.calendarConnection.create({ data: { workspaceId, name: "Leftover file", ...CALENDAR_CONNECTION_STAGES.pending } });
+
+      await gotoCalendar(page, colorScheme, size);
+      if (largeText) await page.evaluate(() => { document.documentElement.style.fontSize = "200%"; });
+      const panel = page.locator("#calendar-connections");
+      await openByKeyboard(page, panel, at);
+      const row = (name: string) => panel.locator(".connection-row").filter({ has: page.getByRole("heading", { name, exact: true }) });
+
+      for (const [name, kind] of [["Leftover subscription", "Subscription"], ["Leftover file", "Imported file"]] as const) {
+        await expect(row(name).getByText(`${kind} · Not connected`, { exact: true }), `${at} ${name}: labelled not connected`).toBeVisible();
+        await expect(row(name).getByText(NOT_CONNECTED_HELP, { exact: true }), `${at} ${name}: says what to do`).toBeVisible();
+        await expect(row(name).getByRole("button", { name: "Refresh now" }), `${at} ${name}: no refresh`).toHaveCount(0);
+        await expect(row(name).getByRole("button", { name: "Disconnect…", exact: true }), `${at} ${name}: removed, not disconnected`).toHaveCount(0);
+        await expect(row(name).getByRole("button", { name: "Remove…", exact: true }), `${at} ${name}: can be removed`).toBeVisible();
+      }
+      await expect(row("Leftover subscription").getByText(LEFTOVER_ERROR), `${at}: no refresh error for a calendar that is not connected`).toHaveCount(0);
+      // The connected calendar is listed as before.
+      await expect(row("Work subscription").getByText(/^Subscription · Last updated /), `${at}: connected row`).toBeVisible();
+      await expect(row("Work subscription").getByText("Not connected"), `${at}: connected row`).toHaveCount(0);
+      await expect(row("Work subscription").getByRole("button", { name: "Refresh now", exact: true }), `${at}: connected row refreshes`).toBeEnabled();
+      await expect(row("Work subscription").getByRole("button", { name: "Disconnect…", exact: true }), `${at}: connected row disconnects`).toBeVisible();
+      // Only connected availability can be out of date; the connected one was just refreshed.
+      await expect(page.getByText("Some connected availability may be out of date.", { exact: false }), `${at}: no out-of-date notice`).toHaveCount(0);
+      await expectNoSidewaysScroll(page, at);
+      await expectAccessiblePanel(page, at);
+      if (!largeText) await capture(page, `pending-row-${colorScheme}-${size.width}`);
+
+      // Removed from the keyboard alone: Enter opens the confirmation on Cancel, Tab reaches Remove calendar.
+      const trigger = row("Leftover subscription").getByRole("button", { name: "Remove…", exact: true });
+      await trigger.focus();
+      await expect(trigger, at).toBeFocused();
+      await page.keyboard.press("Enter");
+      const dialog = page.getByRole("dialog", { name: "Remove Leftover subscription?" });
+      await expect(dialog, at).toBeVisible();
+      await expect(dialog.getByRole("button", { name: "Cancel", exact: true }), `${at}: Cancel first`).toBeFocused();
+      await page.keyboard.press("Tab");
+      await expect(dialog.getByRole("button", { name: "Remove calendar", exact: true }), at).toBeFocused();
+      await page.keyboard.press("Enter");
+      await page.waitForURL(url => url.pathname === "/calendar" && url.searchParams.get("saved") === "1");
+      await expect(page.locator("#calendar-connections .connection-row").filter({ has: page.getByRole("heading", { name: "Leftover subscription", exact: true }) }), `${at}: no longer listed`).toHaveCount(0);
+      expect((await prisma.calendarConnection.findMany({ where: { workspaceId }, select: { id: true } })).map(({ id }) => id).sort(), `${at}: Remove took only that calendar`).toEqual([connected.id, leftoverFile.id].sort());
+      expect(await prisma.calendarConnection.findUnique({ where: { id: leftover.id } }), at).toBeNull();
     }
   }
 });
