@@ -587,7 +587,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       <LiveWorkCategories locale={displayPreferences.locale} />
 
       <NeedsReviewLink today count={nextActions.state === "unavailable" ? null : nextActions.items.filter(item => item.kind === "intake-review").length} />
-      <NextActionSummary projection={plainDueView ? nextActions : filteredNextActions} displayPreferences={displayPreferences} today retryHref={firstHref} emptyLabel={plainDueView ? undefined : "Nothing matches this view."} />
+      <NextActionSummary projection={plainDueView ? nextActions : filteredNextActions} displayPreferences={displayPreferences} today retryHref={firstHref} emptyLabel={plainDueView ? undefined : "Nothing matches this view."} listedJumpIds={pendingIds} />
 
       {invitationsToSend.length > 0 && <section className="invite-send" aria-labelledby="invite-send-heading">
         <div className="invite-send-head"><AppIcon name="gift" /><div><h2 id="invite-send-heading">{invitationsToSend.length === 1 ? "1 invitation ready to send" : `${invitationsToSend.length} invitations ready to send`}</h2><p>Not sent yet. Open each one and send it from your own email or text app.</p></div></div>
@@ -603,7 +603,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       <WorkflowAttention viewHref={firstHref} attention={workflowAttention} projection={filteredNextActions} displayPreferences={displayPreferences} />
       {invitations && outcomeRecorded && <InvitationPrompt remaining={invitations} />}
       <QuietDaySuggestions locale={displayPreferences.locale} initial={quietDays} canResolve={!impersonation} compact />
-      {noMixCount > 0 && <p className="today-no-mix-line"><AppIcon name="people" /><span>{noMixTodayLine(noMixCount)}</span><Link href="/contacts?mix=no-mix">Review</Link></p>}
+      {noMixCount > 0 && <p className="today-no-mix-line"><AppIcon name="people" /><span>{noMixTodayLine(noMixCount)}</span><Link href="/contacts?mix=no-mix">Add to a Mix</Link></p>}
       <details className="today-queue-group" data-today-section="upcoming" open={upcoming.length > 0 || Boolean(workflowAttention?.future?.length) || undefined}><summary>{range === "due" || range === "week" ? "Next 7 days" : "Upcoming"} <span><LiveCount name="upcoming" /></span></summary><UpcomingWorkflowCommitments viewHref={firstHref} attention={workflowAttention} displayPreferences={displayPreferences} />{upcoming.length ? <div className="jump-list">{upcoming.map(followUp => renderCard(followUp))}</div> : <TodayLink href="/jumps?range=week&status=pending">View upcoming follow-ups</TodayLink>}</details>
       <details className="today-queue-group" open={completed.length > 0 && (status === "done" || status === "skipped" || pendingCount === 0) || undefined}><summary>Done <span><LiveCount name="done" /></span></summary>{completed.length ? <div className="jump-list">{completed.map(followUp => renderCard(followUp))}</div> : <TodayLink className="today-queue-link" href="/jumps?range=due&status=done">View completed follow-ups</TodayLink>}</details>
       {totalCount > 0 && <nav className="pagination-bar today-pagination" aria-label="Follow-up pages">

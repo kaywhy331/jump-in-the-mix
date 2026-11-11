@@ -1,6 +1,6 @@
 "use client";
 
-import Link from "next/link";
+import Link, { useLinkStatus } from "next/link";
 import { useEffect, useState, type ReactNode } from "react";
 import { TodayLink } from "@/components/TodayNavigation";
 import type { JumpStateDetail } from "@/components/JumpWorkflow";
@@ -23,9 +23,15 @@ function revealNextFocus(control: EventTarget | null) {
   }
 }
 
+/** The link's label, marked while its page loads, so a tap shows at once that it was taken (UXA-02, audit A-01). */
+function PendingLabel({ children }: { children: ReactNode }) {
+  const { pending } = useLinkStatus();
+  return <span className="next-action-link-label" data-pending={pending || undefined}>{children}</span>;
+}
+
 export function NextActionLink({ item, today = false, primary = false }: { item: NextAction; today?: boolean; primary?: boolean }) {
   const NavigationLink = today ? TodayLink : Link;
-  return <NavigationLink className={`button next-action-link ${primary ? "primary contact-review-button" : "small"}`} href={item.href}>{item.action}</NavigationLink>;
+  return <NavigationLink className={`button next-action-link ${primary ? "primary contact-review-button" : "small"}`} href={item.href}><PendingLabel>{item.action}</PendingLabel></NavigationLink>;
 }
 
 export function NextActionRow({ item, projection, displayPreferences, today = false }: {
@@ -40,8 +46,10 @@ export function NextActionRow({ item, projection, displayPreferences, today = fa
 
 /** One presentation of Next for both surfaces; existing review/outcome destinations remain responsible for writes. */
 export function NextActionSummary({ projection, displayPreferences, today = false, restricted = false, retryHref,
-  sequenceJumpId, children, emptyLabel }: { projection: NextActionProjection; displayPreferences: DisplayFormatPreferences; today?: boolean;
-  restricted?: boolean; retryHref: string; sequenceJumpId?: string; children?: ReactNode; emptyLabel?: string }) {
+  sequenceJumpId, children, emptyLabel, listedJumpIds }: { projection: NextActionProjection; displayPreferences: DisplayFormatPreferences; today?: boolean;
+  restricted?: boolean; retryHref: string; sequenceJumpId?: string; children?: ReactNode; emptyLabel?: string;
+  /** Follow-ups whose cards this page lists. Next leaves out one it would only repeat. */
+  listedJumpIds?: readonly string[] }) {
   // A refresh is a new read, not a new version of each obligation. Keep settlement receipts
   // through delayed reads, and do not roll the view back when responses arrive out of order.
   const [snapshot, setSnapshot] = useState(projection);
@@ -73,6 +81,10 @@ export function NextActionSummary({ projection, displayPreferences, today = fals
   const secondary = primary?.contactId ? live.items.filter(item => item.id !== primary.id && item.contactId === primary.contactId && item.timing !== "future") : [];
   const future = primary ? live.items.filter(item => item.id !== primary.id && item.contactId === primary.contactId && item.timing === "future") : [];
   const NavigationLink = today ? TodayLink : Link;
+  // Today's list already leads with that follow-up's card, marked Next up, so Next shows only work the list doesn't (UXA-02,
+  // audit P-01). A state that isn't ready still says so.
+  if (primary?.jumpId && listedJumpIds?.includes(primary.jumpId)) return live.state === "ready" ? null
+    : <p role="status" className="next-action-status muted-copy">{nextActionEmptyText(live)} {live.state === "unavailable" && <NavigationLink href={retryHref}>Try again</NavigationLink>}</p>;
   return <section className={today ? "next-action-summary" : "contact-next-line"} aria-label={today ? "Next action" : "Next follow-up"} data-next-action-state={live.state}
     onFocusCapture={event => revealNextFocus(event.target)}>
     <h2>Next</h2>

@@ -21,7 +21,7 @@ window.ux01 = { render(projection, today) { flushSync(() => root.render(<NextAct
     define: { "process.env.NODE_ENV": '"production"' },
     plugins: [{ name: "fixture-navigation", setup(build) {
       build.onResolve({ filter: /^(next\/link|@\/components\/TodayNavigation)$/ }, () => ({ path: "link", namespace: "fixture" }));
-      build.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: 'import React from "react"; export function TodayLink(props) { return React.createElement("a", props); } export default TodayLink;', loader: "js", resolveDir: process.cwd() }));
+      build.onLoad({ filter: /.*/, namespace: "fixture" }, () => ({ contents: 'import React from "react"; export function TodayLink(props) { return React.createElement("a", props); } export function useLinkStatus() { return { pending: false }; } export default TodayLink;', loader: "js", resolveDir: process.cwd() }));
     } }]
   });
   return result.outputFiles[0].text;

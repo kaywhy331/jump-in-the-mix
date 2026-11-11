@@ -19,7 +19,8 @@ describe("Today input rows", () => {
     expect(html).toContain("<strong>Avery Fixture</strong>");
     expect(html).toContain("Review commitment · Estimate follow-up · Check the commitment you saved.");
     expect(html).toContain("9:00 AM");
-    expect(html).toMatch(/<a[^>]+href="\/contacts\/person"[^>]*>Review commitment<\/a>/);
+    // The label sits in the span a loading view marks as pending (UXA-02).
+    expect(html).toMatch(/<a[^>]+href="\/contacts\/person"[^>]*><span class="next-action-link-label">Review commitment<\/span><\/a>/);
   });
 
   it("keeps the action and reason when the fallback has no verified time", () => {

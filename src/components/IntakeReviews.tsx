@@ -5,6 +5,8 @@ import { reviewIntakeAction } from "@/lib/intake-actions";
 import type { IntakeReviews } from "@/lib/intake-review-reader";
 
 export function NeedsReviewLink({ count, today = false }: { count: number | null; today?: boolean }) {
+  // Today keeps its first screen for the work: the entry shows once an inquiry waits, or when they could not be checked (UXA-02).
+  if (today && count === 0) return null;
   const NavigationLink = today ? TodayLink : Link;
   return <div className="needs-review-entry" data-review-count={count ?? "unavailable"}>
     <NavigationLink className="button" href="/contacts/review">Needs review{count !== null ? ` · ${count}` : ""}</NavigationLink>

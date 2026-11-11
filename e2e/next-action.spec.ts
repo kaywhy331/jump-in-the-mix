@@ -72,11 +72,15 @@ test("outcome-only work leads both surfaces, preserves secondary obligations and
 
 test("an overdue one-time follow-up offers Review message while enrollment stays neutral", async ({ page }) => {
   const contact = await person(); const pending = await jump(contact.id, now);
-  for (const route of [`/contacts/${contact.id}`, "/jumps"]) {
-    await visit(page, route);
-    await expect(next(page).locator(".contact-review-button")).toHaveText("Review message");
-    await expect(next(page).locator(".contact-review-button")).toHaveAttribute("href", `/jumps?jump=${pending.id}&range=all`);
-  }
+  await visit(page, `/contacts/${contact.id}`);
+  await expect(next(page).locator(".contact-review-button")).toHaveText("Review message");
+  await expect(next(page).locator(".contact-review-button")).toHaveAttribute("href", `/jumps?jump=${pending.id}&range=all`);
+  // Today lists its card, marked Next up, so Next doesn't repeat it (UXA-02).
+  await visit(page, "/jumps");
+  const card = page.locator(`[id="jump-${pending.id}"]`);
+  await expect(card.locator(".eyebrow")).toHaveText("Next up");
+  await expect(card.getByRole("button", { name: /^Review message for Morgan Fixture/ })).toBeVisible();
+  await expect(next(page)).toHaveCount(0);
   await visit(page, `/contacts/${contact.id}`);
   await expect(page.locator(".contact-mixes")).toContainText("Not in a Mix yet.");
   expect(await prisma.mixAssignment.count({ where: { contactId: contact.id } })).toBe(0);
@@ -122,4 +126,33 @@ test("empty, preparing, unreadable and Do not contact states remain distinct", a
   await visit(page, `/contacts/${contact.id}`);
   await expect(next(page)).toContainText("Do not contact is on.");
   await expect(next(page).locator(".contact-review-button")).toHaveCount(0);
+});
+
+test("a Next link to another view looks pressed at once and stays so until that view arrives", async ({ page }) => {
+  const contact = await person(); const pending = await jump(contact.id, new Date("2099-11-04T17:00:00Z"));
+  await page.setViewportSize({ width: 375, height: 667 });
+  await visit(page, "/jumps");
+  // Nothing is due, so Today lists no card for it and Next leads with it (UXA-02).
+  const link = next(page).locator(".contact-review-button");
+  await expect(link).toHaveAttribute("href", `/jumps?jump=${pending.id}&range=all`);
+  await expect.poll(() => link.evaluate(element => Object.keys(element).some(key => key.startsWith("__reactProps")))).toBe(true);
+  const resting = await link.evaluate(element => getComputedStyle(element).filter);
+  let release!: () => void;
+  const gate = new Promise<void>(resolve => { release = resolve; });
+  // The view's server response waits until released, as on a slow phone connection.
+  await page.route("**/*", async route => { if (route.request().headers().rsc === "1") await gate; await route.continue().catch(() => undefined); });
+  try {
+    const box = (await link.boundingBox())!;
+    await page.mouse.move(box.x + box.width / 2, box.y + box.height / 2);
+    await page.mouse.down();
+    expect(await link.evaluate(element => getComputedStyle(element).filter)).not.toBe(resting);
+    await page.mouse.up();
+    await expect(link.locator("[data-pending]")).toHaveCount(1, { timeout: 300 });
+    expect(await link.evaluate(element => getComputedStyle(element).filter)).not.toBe(resting);
+    release();
+    await expect(page.getByRole("dialog", { name: "Follow up with Morgan Fixture" })).toBeVisible();
+  } finally {
+    release();
+    await page.unrouteAll({ behavior: "ignoreErrors" });
+  }
 });

@@ -50,7 +50,10 @@ test("Today and Contacts count one ambiguous inquiry, preserve its receipt, and 
   await expect(panel.getByRole("heading", { name: "Needs review · 0", exact: true })).toBeVisible();
   expect(await prisma.contact.count({ where: { workspaceId } })).toBe(2);
   await page.getByRole("navigation", { name: "Review destinations" }).getByRole("link", { name: "Today", exact: true }).click();
-  await expect(page.locator(".needs-review-entry")).toHaveAttribute("data-review-count", "0");
+  // Today shows Needs review only while an inquiry waits (UXA-02).
+  await expect(page.getByRole("heading", { name: "Today", level: 1 })).toBeVisible();
+  await expect(page.locator(".today-page-header")).toBeVisible();
+  await expect(page.locator(".needs-review-entry")).toHaveCount(0);
   await page.getByRole("navigation", { name: "Primary navigation" }).getByRole("link", { name: "Contacts", exact: true }).click();
   await expect(page.locator(".needs-review-entry")).toHaveAttribute("data-review-count", "0");
 });

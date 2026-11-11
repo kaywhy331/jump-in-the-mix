@@ -103,7 +103,8 @@ for (const appearance of ["light", "dark"]) {
       });
       await route.fulfill({ response });
     });
-    await next(page).locator(".contact-review-button").click();
+    // Today lists the follow-up's card, so its own Review opens it; Next doesn't repeat the card (UXA-02).
+    await page.locator(`[data-jump-workflow="${pending.id}"] .sheet-trigger > [data-review-trigger]`).click();
     const button = page.getByRole("button", { name: `Mark sent for ${contact.displayName}`, exact: true });
     await button.click();
     const decisions = page.getByRole("group", { name: "Record journey outcome" });
@@ -117,9 +118,19 @@ for (const appearance of ["light", "dark"]) {
   for (const surface of ["Today", "Contacts"]) for (const status of ["DONE", "SKIPPED"] as const) {
     test(`H01 page ${surface} ${status} delayed read and real Undo in ${appearance}`, async ({ page }) => {
       const contact = await person(); const pending = await jump(contact.id, now);
+      // Today lists the follow-up's card, so Next doesn't repeat it as its lead (UXA-02). A waiting outcome leads instead,
+      // and Next keeps the follow-up as one of the person's other actions, where the same settlement applies.
+      if (surface === "Today") await outcome(contact.id);
       await theme(page, appearance);
       await visit(page, surface === "Today" ? "/jumps" : `/contacts/${contact.id}`);
       const href = `/jumps?jump=${pending.id}&range=all`;
+      if (surface === "Today") {
+        await expect(next(page).locator(".contact-next-description")).toHaveAttribute("data-next-action-kind", "outcome");
+        const summary = next(page).locator("summary");
+        await expect.poll(() => summary.evaluate(element => Object.keys(element).some(key => key.startsWith("__reactProps")))).toBe(true);
+        await summary.click();
+        await expect(next(page).locator("details.next-action-secondary")).toHaveAttribute("open", "");
+      }
       await expect(next(page).locator(`a[href="${href}"]`).first()).toBeVisible();
       await installRefresh(page);
       let release!: () => void, captured = false, delivered = false, held = false;

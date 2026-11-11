@@ -316,7 +316,7 @@ test("Today points to the people with No Mix", async ({ page }) => {
     await page.goto("/jumps");
     const line = page.locator(".today-no-mix-line");
     await expect(line).toContainText(/No Mix, so no Mix will remind you about them\./);
-    await Promise.all([page.waitForURL(/\/contacts\?mix=no-mix$/), line.getByRole("link", { name: "Review", exact: true }).click()]);
+    await Promise.all([page.waitForURL(/\/contacts\?mix=no-mix$/), line.getByRole("link", { name: "Add to a Mix", exact: true }).click()]);
     await page.goto(`/contacts?mix=no-mix&q=${encodeURIComponent(person.displayName)}`);
     await expect(page.locator(".contact-row").filter({ hasText: person.displayName })).toHaveCount(1);
   } finally {
