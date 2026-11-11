@@ -52,3 +52,31 @@ export function hasContactIdentity(data: Pick<FormData, "get" | "getAll">): bool
   const filled = (value: FormDataEntryValue | null) => typeof value === "string" && value.trim() !== "";
   return ["firstName", "lastName", "company"].some(name => filled(data.get(name))) || ["emailValue", "phoneValue"].some(name => data.getAll(name).some(filled));
 }
+
+/**
+ * The messages a form shows after a submit, and which refused submit showed them. Each refused submit is a new
+ * round, and <FieldError> shows its message as a new role="alert" node for each round, so every message is announced
+ * once for that submit, even one that reads as before, whether focus moved or stayed in the field (JITM-10 §2.15).
+ * An edit never starts a round or rewords a message; it only takes away the messages of fields that are now fixed,
+ * so nothing is announced while someone types.
+ */
+export type FieldErrorState = { errors: Record<string, string>; round: number };
+
+export const NO_FIELD_ERRORS: FieldErrorState = { errors: {}, round: 0 };
+
+/** After a submit: the messages it found, in a new round when there are any. */
+export function afterSubmit(state: FieldErrorState, found: Record<string, string>): FieldErrorState {
+  return { errors: found, round: Object.keys(found).length ? state.round + 1 : state.round };
+}
+
+/**
+ * After an edit: the messages of fields that still fail stay word for word, in the same round; the others go. The
+ * same state comes back when none went. `failing` is read only while a message is showing.
+ */
+export function afterEdit(state: FieldErrorState, failing: () => Record<string, string>): FieldErrorState {
+  const names = Object.keys(state.errors);
+  if (!names.length) return state;
+  const fresh = failing();
+  const kept = names.filter(name => fresh[name]);
+  return kept.length === names.length ? state : { ...state, errors: Object.fromEntries(kept.map(name => [name, state.errors[name]])) };
+}

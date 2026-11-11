@@ -26,6 +26,9 @@ async function expectFieldError(field: Locator, text: string) {
   const message = form.locator(".inline-field-error").filter({ hasText: text });
   await expect(message).toHaveCount(1);
   await expect(message).toBeVisible();
+  // Announced (JITM-10 §2.15): the message is itself the alert, and its words are in it.
+  await expect(message).toHaveAttribute("role", "alert");
+  await expect(form.getByRole("alert").filter({ hasText: text })).toHaveCount(1);
   const id = await message.getAttribute("id");
   expect(id).toBeTruthy();
   expect((await field.getAttribute("aria-describedby"))?.split(/\s+/)).toContain(id);
@@ -36,6 +39,30 @@ async function expectFieldError(field: Locator, text: string) {
   expect(messageBox.top - fieldBox.bottom).toBeLessThanOrEqual(fieldBox.height + 24);
   expect(await form.evaluate((element: HTMLFormElement) => element.noValidate)).toBe(true);
 }
+
+/**
+ * Records each field error announced in the form from now on: a role="alert" message added to it, or new words in
+ * one already there. The returned function gives the words announced since it was last called.
+ */
+async function announcements(form: Locator) {
+  await form.evaluate((element: HTMLFormElement) => {
+    const log: string[] = [];
+    (window as unknown as { fieldErrorAnnouncements: string[] }).fieldErrorAnnouncements = log;
+    new MutationObserver(records => {
+      const alerts = new Set<Element>();
+      for (const record of records) {
+        for (const node of record.addedNodes) if (node instanceof Element) for (const alert of [node, ...node.querySelectorAll(".inline-field-error")]) if (alert.matches(".inline-field-error[role=alert]")) alerts.add(alert);
+        const inside = (record.target instanceof Element ? record.target : record.target.parentElement)?.closest(".inline-field-error[role=alert]");
+        if (inside) alerts.add(inside);
+      }
+      for (const alert of alerts) if (alert.isConnected) log.push(alert.textContent ?? "");
+    }).observe(element, { childList: true, subtree: true, characterData: true });
+  });
+  return async () => { await settled(form.page()); return form.evaluate(() => (window as unknown as { fieldErrorAnnouncements: string[] }).fieldErrorAnnouncements.splice(0)); };
+}
+
+/** Waits until an edit's check (one task after the input) and any render it causes have run. */
+const settled = (page: Page) => page.evaluate(() => new Promise<void>(resolve => setTimeout(() => requestAnimationFrame(() => requestAnimationFrame(() => setTimeout(resolve, 50))), 0)));
 
 /** The field's own message is gone and the field is no longer marked; other fields may still need fixing. */
 async function expectFixed(field: Locator) {
@@ -111,6 +138,29 @@ test.describe("public forms", () => {
     expect(sent).toEqual([]);
     await email.fill("owner@example.test");
     await expectFixed(email);
+  });
+
+  test("waitlist: an error sent with Enter keeps focus in the field and is announced once for each submit, not while typing", async ({ page }) => {
+    const sent = posts(page);
+    await page.goto("/waitlist");
+    const email = page.getByLabel("Email address", { exact: true });
+    const form = email.locator("xpath=ancestor::form[1]");
+    await email.fill("not-an-email");
+    const heard = await announcements(form);
+    await email.press("Enter");
+    // Focus stays in the field, so only the alert can tell a screen reader what happened.
+    await expectFieldError(email, EMAIL_TYPE);
+    expect(await heard()).toEqual([EMAIL_TYPE]);
+    await email.pressSequentially("x");
+    expect(await heard()).toEqual([]);
+    await expect(form.getByRole("alert").filter({ hasText: EMAIL_TYPE })).toHaveCount(1);
+    await email.press("Enter");
+    await expectFieldError(email, EMAIL_TYPE);
+    expect(await heard()).toEqual([EMAIL_TYPE]);
+    await email.fill("owner@example.test");
+    await expectFixed(email);
+    expect(await heard()).toEqual([]);
+    expect(sent).toEqual([]);
   });
 
   test("leave the waitlist: an empty email is fixed beside the field", async ({ page }) => {
@@ -204,6 +254,35 @@ test.describe("signed-in forms", () => {
     await ends.fill("");
     await save.click();
     await expectFieldError(ends, "Choose when the event ends.");
+    expect(sent).toEqual([]);
+    expect(await prisma.calendarEntry.count({ where: { workspaceId } })).toBe(0);
+  });
+
+  test("Calendar's event form announces an error sent with Enter, whether focus stays in the field or moves to it", async ({ page }) => {
+    const sent = posts(page);
+    await page.goto("/calendar?new=1&date=2026-10-15"); await ready(page);
+    const form = page.locator(".calendar-entry-form");
+    const title = form.getByRole("textbox", { name: "Title", exact: true });
+    const where = form.getByRole("textbox", { name: "Where (optional)", exact: true });
+    const heard = await announcements(form);
+    // Enter in the empty title: focus stays there, and the alert says what to fix.
+    await title.focus();
+    await title.press("Enter");
+    await expectFieldError(title, "Give this event a title.");
+    expect(await heard()).toEqual(["Give this event a title."]);
+    await title.press("Enter");
+    await expectFieldError(title, "Give this event a title.");
+    expect(await heard()).toEqual(["Give this event a title."]);
+    // Enter in another field: focus moves to the title, and the message is announced once more.
+    await where.fill("Main Street");
+    expect(await heard()).toEqual([]);
+    await where.press("Enter");
+    await expectFieldError(title, "Give this event a title.");
+    expect(await heard()).toEqual(["Give this event a title."]);
+    // Fixing it removes the message without announcing anything.
+    await title.pressSequentially("Inline error fixture");
+    await expectFixed(title);
+    expect(await heard()).toEqual([]);
     expect(sent).toEqual([]);
     expect(await prisma.calendarEntry.count({ where: { workspaceId } })).toBe(0);
   });

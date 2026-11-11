@@ -2,17 +2,25 @@
 
 import { createContext, useCallback, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type ComponentProps, type FormEvent, type ReactNode, type RefObject } from "react";
 import { AppIcon } from "@/components/AppIcon";
-import { fieldMessage, idTokens, type FieldMessages } from "@/lib/field-validation";
+import { NO_FIELD_ERRORS, afterEdit, afterSubmit, fieldMessage, idTokens, type FieldErrorState, type FieldMessages } from "@/lib/field-validation";
 
 /*
  * The shared inline field error (JITM-08 §2.37). A form that uses `useFieldValidation` checks its fields when it is
  * sent instead of showing the browser's tooltips: each field with a <FieldError> slot gets its message beside it,
  * aria-invalid and an aria-describedby link to the message, and focus moves to the first field to fix. A field
  * without a slot keeps the browser's own message, so nothing is ever refused without saying why.
+ *
+ * Each message is announced once for each refused submit, whether focus moved to its field or stayed there (Enter in
+ * a field), and never while someone types (JITM-10 §2.15). The message itself carries role="alert", rather than a
+ * polite region the form fills: JITM-10 §2.15 names role="alert" for errors; the words announced are the same node
+ * that is shown and that aria-describedby links, with no hidden copy to drift; a refused submit is an interruption
+ * the owner has to act on; and a server reply shown through <FieldError> is announced the same way, with no wiring
+ * in each form. A refused submit renders every message as a new node (keyed by its round, see FieldErrorState), so
+ * one that reads as before is announced again; an edit only removes messages, which is not announced.
  */
 
 type Slot = { count: number; messages?: FieldMessages };
-type Scope = { errorId(name: string): string; message(name: string): string | undefined; register(name: string, messages?: FieldMessages): () => void };
+type Scope = { errorId(name: string): string; message(name: string): string | undefined; register(name: string, messages?: FieldMessages): () => void; round: number };
 
 const FieldErrorContext = createContext<Scope | null>(null);
 /** Set by this file on a control it marked invalid, so it clears only its own marks (a server reply may set one too). */
@@ -26,7 +34,8 @@ const keyOf = (control: Control) => control.id || control.name;
 /**
  * The message beside one field. Inside a form that uses `useFieldValidation`, `name` is the field's id (or the
  * radio group's name) and `messages` words its checks. On its own, give `id` and `message` to show a server
- * reply for one field, and point the field's aria-describedby at that id.
+ * reply for one field, and point the field's aria-describedby at that id. Either way it is announced (role="alert")
+ * when it appears or its words change and, inside a form that uses `useFieldValidation`, again after each refused submit.
  */
 export function FieldError({ name, messages, id, message }: { name?: string; messages?: FieldMessages; id?: string; message?: string | null }) {
   const scope = useContext(FieldErrorContext);
@@ -37,7 +46,8 @@ export function FieldError({ name, messages, id, message }: { name?: string; mes
   useLayoutEffect(() => name && register ? register(name, JSON.parse(wording) as FieldMessages) : undefined, [register, name, wording]);
   const text = (name && scope?.message(name)) || message;
   if (!text) return null;
-  return <span id={name && scope ? scope.errorId(name) : id ?? fallbackId} className="inline-field-error"><AppIcon name="alert" />{text}</span>;
+  // A new node for each refused submit, so the alert is announced once for it even when the words are the same.
+  return <span key={scope?.round} id={name && scope ? scope.errorId(name) : id ?? fallbackId} className="inline-field-error" role="alert"><AppIcon name="alert" />{text}</span>;
 }
 
 /** Puts a form's <FieldError> slots in its validation scope. */
@@ -62,8 +72,8 @@ export function useFieldValidation(form: RefObject<HTMLFormElement | null>, { ch
   const slots = useRef(new Map<string, Slot>());
   const checkRef = useRef(check);
   checkRef.current = check;
-  const [errors, setErrors] = useState<Record<string, string>>({});
-  const [attempt, setAttempt] = useState(0);
+  // The messages shown and the refused submit that showed them; the round moves focus and renews the announcement.
+  const [{ errors, round }, setState] = useState<FieldErrorState>(NO_FIELD_ERRORS);
 
   // The browser checks the fields itself until a slot exists, so forms without one, and pages before hydration, keep it.
   const settle = useCallback(() => { if (form.current) form.current.noValidate = slots.current.size > 0; }, [form]);
@@ -96,8 +106,8 @@ export function useFieldValidation(form: RefObject<HTMLFormElement | null>, { ch
     const submitter = (event.nativeEvent as SubmitEvent).submitter;
     if (!target.noValidate || submitter?.hasAttribute("formnovalidate")) return true;
     const found = collect(target);
-    setErrors(found);
-    if (Object.keys(found).length) { event.preventDefault(); setAttempt(current => current + 1); return false; }
+    setState(current => afterSubmit(current, found));
+    if (Object.keys(found).length) { event.preventDefault(); return false; }
     // A field without a slot keeps the browser's message.
     const unslotted = controlsOf(target).find(control => control.willValidate && !control.validity.valid);
     if (unslotted) { event.preventDefault(); unslotted.reportValidity(); return false; }
@@ -124,7 +134,7 @@ export function useFieldValidation(form: RefObject<HTMLFormElement | null>, { ch
   // After a refused submit, focus the first field to fix, opening any disclosure around it.
   useLayoutEffect(() => {
     const target = form.current;
-    if (!attempt || !target) return;
+    if (!round || !target) return;
     const first = controlsOf(target).find(control => errors[keyOf(control)]);
     if (!first) return;
     for (let details = first.closest("details"); details; details = details.parentElement?.closest("details") ?? null) details.open = true;
@@ -140,8 +150,8 @@ export function useFieldValidation(form: RefObject<HTMLFormElement | null>, { ch
       return box.top < 0 || box.bottom > window.innerHeight || !hit || (hit !== element && !element.contains(hit) && !hit.contains(element));
     };
     if (covered(first) || (message && covered(message))) (message ?? first).scrollIntoView({ block: "center", behavior: "instant" });
-    // Only a new attempt moves focus (errors is read from that same render); fixing a field while typing must not.
-  }, [attempt, form, errorId]);
+    // Only a refused submit moves focus (errors is read from that same render); fixing a field while typing must not.
+  }, [round, form, errorId]);
 
   // Once a field is fixed its message goes; messages are not added while someone is still typing. The check waits a
   // task so a choice made by a click (a contact option, a duration) has updated the form and its custom rules first.
@@ -149,18 +159,12 @@ export function useFieldValidation(form: RefObject<HTMLFormElement | null>, { ch
     const target = form.current;
     if (!target) return;
     let timer: ReturnType<typeof setTimeout> | undefined;
-    const recheck = () => { clearTimeout(timer); timer = setTimeout(() => setErrors(current => {
-      const names = Object.keys(current);
-      if (!names.length) return current;
-      const fresh = collect(target);
-      const kept = names.filter(name => fresh[name]);
-      return kept.length === names.length ? current : Object.fromEntries(kept.map(name => [name, current[name]]));
-    })); };
+    const recheck = () => { clearTimeout(timer); timer = setTimeout(() => setState(current => afterEdit(current, () => collect(target)))); };
     const events = ["input", "change", "click"] as const;
     for (const type of events) target.addEventListener(type, recheck);
     return () => { clearTimeout(timer); for (const type of events) target.removeEventListener(type, recheck); };
   }, [form, collect]);
 
-  const scope = useMemo<Scope>(() => ({ errorId, message: name => errors[name], register }), [errorId, errors, register]);
+  const scope = useMemo<Scope>(() => ({ errorId, message: name => errors[name], register, round }), [errorId, errors, register, round]);
   return { validate, scope };
 }

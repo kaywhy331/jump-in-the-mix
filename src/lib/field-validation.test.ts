@@ -1,5 +1,5 @@
 import { describe, expect, it } from "vitest";
-import { CONTACT_IDENTITY_MESSAGE, EMAIL_FIELD_MESSAGES, EMAIL_TYPE_MESSAGE, fieldMessage, hasContactIdentity, idTokens, type CheckedControl } from "@/lib/field-validation";
+import { CONTACT_IDENTITY_MESSAGE, EMAIL_FIELD_MESSAGES, EMAIL_TYPE_MESSAGE, NO_FIELD_ERRORS, afterEdit, afterSubmit, fieldMessage, hasContactIdentity, idTokens, type CheckedControl } from "@/lib/field-validation";
 
 const VALID = { valid: true, customError: false, valueMissing: false, typeMismatch: false, tooShort: false, tooLong: false, patternMismatch: false, badInput: false, rangeUnderflow: false, rangeOverflow: false, stepMismatch: false };
 const control = (failure: Partial<typeof VALID>, extra: Partial<CheckedControl> = {}): CheckedControl =>
@@ -68,5 +68,28 @@ describe("hasContactIdentity", () => {
 
   it("uses the server's wording", () => {
     expect(CONTACT_IDENTITY_MESSAGE).toBe("Add a name, company, email, or phone number.");
+  });
+});
+
+describe("afterSubmit and afterEdit", () => {
+  it("starts a new round for each refused submit, even with the same messages, and none for a submit that passes", () => {
+    const first = afterSubmit(NO_FIELD_ERRORS, { email: "Enter your email address." });
+    expect(first).toEqual({ errors: { email: "Enter your email address." }, round: 1 });
+    expect(afterSubmit(first, { email: "Enter your email address." })).toEqual({ errors: { email: "Enter your email address." }, round: 2 });
+    expect(afterSubmit(first, {})).toEqual({ errors: {}, round: 1 });
+  });
+
+  it("keeps the messages of fields that still fail, word for word and in the same round, and drops the fixed ones", () => {
+    const state = afterSubmit(NO_FIELD_ERRORS, { email: "Enter your email address.", name: "Add a name." });
+    // Still failing, now for another reason: the same state comes back, so nothing renders or is announced.
+    expect(afterEdit(state, () => ({ email: "Check this email address.", name: "Add a name." }))).toBe(state);
+    expect(afterEdit(state, () => ({ email: "Check this email address." }))).toEqual({ errors: { email: "Enter your email address." }, round: 1 });
+    expect(afterEdit(state, () => ({}))).toEqual({ errors: {}, round: 1 });
+  });
+
+  it("does not check the form while no message is showing", () => {
+    let checked = 0;
+    expect(afterEdit(NO_FIELD_ERRORS, () => { checked += 1; return {}; })).toBe(NO_FIELD_ERRORS);
+    expect(checked).toBe(0);
   });
 });
