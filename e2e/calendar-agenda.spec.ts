@@ -69,7 +69,7 @@ test("agenda is the default with events, New event has history, and Cancel and f
     await expect(page).toHaveURL(/new=1/);
     await expect(editor).toBeVisible();
     await expect(editor.getByLabel("Title", { exact: true })).toHaveValue("");
-    await expect(editor.locator(".calendar-title > span")).toHaveText("Title");
+    await expect(editor.locator(".calendar-title > label")).toHaveText("Title");
     await page.goBack();
     await expect(editor).not.toBeVisible();
     await newEvent.click();

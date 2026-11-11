@@ -6,6 +6,8 @@ import { VoiceNoteButton } from "@/components/VoiceNoteButton";
 import { saveContactFormAction, type ContactFormState } from "@/lib/contact-actions";
 import { UNCONFIRMED_SAVE, isNavigationSignal } from "@/lib/unconfirmed-save";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
+import { CONTACT_IDENTITY_MESSAGE, EMAIL_TYPE_MESSAGE, hasContactIdentity } from "@/lib/field-validation";
+import { FieldError, FieldErrorScope, useFieldValidation } from "@/components/FieldError";
 import { FormGuard } from "@/components/FormGuard";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { SaveBar } from "@/components/SaveBar";
@@ -62,6 +64,9 @@ type ContactFormValue = {
   customFieldValues?: { definitionId: string; value: string }[];
 };
 
+/** Server replies that already say the entries are kept, so the banner does not say it twice (JITM-04 §2.13). */
+const SAYS_ENTRIES_KEPT = /\bentries are (kept|still here)\b/i;
+
 function primaryIndex<T extends { isPrimary: boolean }>(values: T[] | undefined): number {
   const index = values?.findIndex((item) => item.isPrimary) ?? -1;
   return index >= 0 ? index : 0;
@@ -101,6 +106,8 @@ export function ContactForm({
   }, {});
   const formRef = useRef<HTMLFormElement>(null);
   const errorRef = useRef<HTMLParagraphElement>(null);
+  // The server's rule, checked before sending: at least a name, company, email or phone (the server still checks).
+  const { validate, scope } = useFieldValidation(formRef, { check: (form): Record<string, string> => hasContactIdentity(new FormData(form)) ? {} : { firstName: CONTACT_IDENTITY_MESSAGE } });
   useEffect(() => {
     if (!result.error) return;
     // Focus the control the error belongs to (opening its disclosure), otherwise the message.
@@ -166,7 +173,7 @@ export function ContactForm({
   };
 
   return (
-    <form ref={formRef} action={formAction} onReset={(event) => event.preventDefault()} aria-describedby={result.error ? "contact-save-error" : undefined} className="contact-editor" onFocusCapture={(event) => {
+    <form ref={formRef} action={formAction} onSubmit={validate} onReset={(event) => event.preventDefault()} aria-describedby={result.error ? "contact-save-error" : undefined} className="contact-editor" onFocusCapture={(event) => {
       const control = event.target;
       if (!(control instanceof HTMLElement) || control.closest(".sticky-form-actions")) return;
       // Pointer-focused buttons and disclosures must stay put until activation.
@@ -179,9 +186,10 @@ export function ContactForm({
       });
       if (obscured) control.scrollIntoView({ block: "center", behavior: "instant" });
     }}>
+      <FieldErrorScope value={scope}>
       <FormGuard />
       {returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
-      {result.error && <p id="contact-save-error" ref={errorRef} tabIndex={-1} className="notice error" role="alert">{result.error} Your entries are still here; correct the details and save again.{result.errorLink && <> <Link href={result.errorLink.href}>{result.errorLink.label}</Link></>}</p>}
+      {result.error && <p id="contact-save-error" ref={errorRef} tabIndex={-1} className="notice error" role="alert">{result.error}{!SAYS_ENTRIES_KEPT.test(result.error) && " Your entries are still here; correct the details and save again."}{result.errorLink && <> <Link href={result.errorLink.href}>{result.errorLink.label}</Link></>}</p>}
       {undoRemoval && <p role="status">Contact method removed. Undo adds it back without changing your current primary method. <button type="button" className="text-button" onClick={() => { undoRemoval(); setUndoRemoval(null); }}>Undo removal</button></p>}
       {contact?.id && <input type="hidden" name="contactId" value={contact.id} />}
       {contact?.id && revision && <input type="hidden" name="revision" value={revision} />}
@@ -189,14 +197,14 @@ export function ContactForm({
       <section className="card contact-editor-section contact-quick-form">
         <div className="card-header"><div><h2>{mode === "create" ? "Add a person" : "Contact details"}</h2><p>{mode === "create" ? "Enter at least a name, company, email, or phone number. Add a phone or email to prepare messages." : "Enter at least a name, company, email, or phone number."}</p></div></div>
         <div className="form-grid">
-          <div className="field"><label htmlFor="firstName">First name</label><input id="firstName" name="firstName" autoComplete="given-name" defaultValue={contact?.firstName ?? ""} autoFocus {...invalid("firstName")} /></div>
+          <div className="field"><label htmlFor="firstName">First name</label><input id="firstName" name="firstName" autoComplete="given-name" defaultValue={contact?.firstName ?? ""} autoFocus {...invalid("firstName")} /><FieldError name="firstName" /></div>
           <div className="field"><label htmlFor="lastName">Last name <small>optional</small></label><input id="lastName" name="lastName" autoComplete="family-name" defaultValue={contact?.lastName ?? ""} /></div>
           {mode === "edit" && <div className="field full"><label htmlFor="company">Company <small>optional</small></label><input id="company" name="company" defaultValue={contact?.company ?? ""} /></div>}
           {mode === "create" && <>
             <input type="hidden" name="phonePrimaryIndex" value="0" />
             {phones.map((item, index) => <div className="field" key={`quick-phone-${index}`}><label htmlFor={`quick-phone-${index}`}>{index ? <>Phone {index + 1} <small>optional</small></> : "Phone"}</label><input id={`quick-phone-${index}`} name="phoneValue" type="tel" inputMode="tel" autoComplete={index ? "off" : "tel"} value={item.value} onChange={(event) => setPhones((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} placeholder="(555) 555-0123" {...invalid(`phoneValue:${index}`)} /><input type="hidden" name="phoneLabel" value={index ? item.label || "Other" : "Mobile"} />{index > 0 && <button className="text-button" type="button" onClick={() => removePhone(index)}>Remove</button>}</div>)}
             <input type="hidden" name="emailPrimaryIndex" value="0" />
-            {emails.map((item, index) => <div className="field" key={`quick-email-${index}`}><label htmlFor={`quick-email-${index}`}>{index ? `Email ${index + 1}` : "Email"} <small>optional</small></label><input id={`quick-email-${index}`} name="emailValue" type="email" inputMode="email" autoComplete={index ? "off" : "email"} value={item.value} onChange={(event) => setEmails((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} {...invalid(`emailValue:${index}`)} /><input type="hidden" name="emailLabel" value={item.label || "Email"} />{index > 0 && <button className="text-button" type="button" onClick={() => removeEmail(index)}>Remove</button>}</div>)}
+            {emails.map((item, index) => <div className="field" key={`quick-email-${index}`}><label htmlFor={`quick-email-${index}`}>{index ? `Email ${index + 1}` : "Email"} <small>optional</small></label><input id={`quick-email-${index}`} name="emailValue" type="email" inputMode="email" autoComplete={index ? "off" : "email"} value={item.value} onChange={(event) => setEmails((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} {...invalid(`emailValue:${index}`)} /><FieldError name={`quick-email-${index}`} messages={{ typeMismatch: EMAIL_TYPE_MESSAGE }} /><input type="hidden" name="emailLabel" value={item.label || "Email"} />{index > 0 && <button className="text-button" type="button" onClick={() => removeEmail(index)}>Remove</button>}</div>)}
             {groups.length > 0 && <label className="field"><span>Tag <small>optional</small></span><select name="groupIds" defaultValue=""><option value="">No tag yet</option>{groups.filter((group) => group.isActive).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}
             <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Message context <small>optional · may appear in prepared messages</small></label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Job, estimate, how you met, or anything worth remembering" /></div>
           </>}
@@ -309,6 +317,7 @@ export function ContactForm({
         <Link className="button" href={returnTo || (contact?.id ? `/contacts/${contact.id}` : "/contacts")}>Cancel</Link>
         <FormSubmitButton label="Update contact" pendingLabel="Saving contact…" />
       </div>}
+      </FieldErrorScope>
     </form>
   );
 }

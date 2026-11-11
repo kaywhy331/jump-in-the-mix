@@ -3,6 +3,7 @@ import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
 import { TimezonePicker } from "@/components/TimezonePicker";
 import { FormGuard } from "@/components/FormGuard";
+import { FieldError, FieldErrorScope, useFieldValidation } from "@/components/FieldError";
 import { startTransition, useActionState, useEffect, useId, useRef, useState, useTransition } from "react";
 import { saveCalendarAction, type CalendarSaveState } from "@/lib/calendar-actions";
 import { UNCONFIRMED_SAVE, isNavigationSignal } from "@/lib/unconfirmed-save";
@@ -77,6 +78,10 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
   }, [values.kind, values.contactId, newPersonOpen, query]);
   const errorRef = useRef<HTMLDivElement>(null);
   const choiceRef = useRef<HTMLLegendElement>(null);
+  // Each field's own rules are checked beside it before sending; the server still checks everything (JITM-08 §2.37).
+  const formRef = useRef<HTMLFormElement>(null);
+  const { validate, scope } = useFieldValidation(formRef);
+  const fieldId = useId();
   useEffect(() => { if (state.error) errorRef.current?.focus(); }, [state]);
   const update = <K extends keyof typeof values>(key: K, value: (typeof values)[K]) => setValues(current => ({ ...current, [key]: value }));
   // The people to choose between stay on the form until the person's details change, so a choice
@@ -116,12 +121,12 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
   // React resets a form submitted through its action prop once the action settles, which blanks
   // controlled fields too. Dispatching the same action from the submit event keeps what was typed
   // while a returned error or person choice is shown; the action prop remains for no-script submits.
-  return <form action={action} onReset={event => event.preventDefault()} onSubmit={submit} onInvalid={event => {
+  return <form ref={formRef} action={action} onReset={event => event.preventDefault()} onSubmit={event => { if (validate(event)) submit(event); }} onInvalid={event => {
     let details = (event.target as HTMLElement).closest("details");
     while (details) { details.open = true; details = details.parentElement?.closest("details") ?? null; }
-  }} className="form-grid calendar-entry-form"><FormGuard preservedQuery={{ ...(returnTo ? { returnTo } : {}), date, ...(entry ? { edit: entry.id } : { new: "1", contact: contactId }) }} />{state.error && <div ref={errorRef} tabIndex={-1} className="field full"><Notice type="error">{state.error}</Notice></div>}<fieldset disabled={pending || viewOnly} className="calendar-entry-fields" aria-label="Event details"><input type="hidden" name="id" value={entry?.id ?? ""} /><input type="hidden" name="version" value={entry?.version ?? 0} />{returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
+  }} className="form-grid calendar-entry-form"><FieldErrorScope value={scope}><FormGuard preservedQuery={{ ...(returnTo ? { returnTo } : {}), date, ...(entry ? { edit: entry.id } : { new: "1", contact: contactId }) }} />{state.error && <div ref={errorRef} tabIndex={-1} className="field full"><Notice type="error">{state.error}</Notice></div>}<fieldset disabled={pending || viewOnly} className="calendar-entry-fields" aria-label="Event details"><input type="hidden" name="id" value={entry?.id ?? ""} /><input type="hidden" name="version" value={entry?.version ?? 0} />{returnTo && <input type="hidden" name="returnTo" value={returnTo} />}
     <input type="hidden" name="startsAt" value={startsAt} /><input type="hidden" name="endsAt" value={endsAt} /><RequiredFieldsNote />
-    <label className="field full calendar-title"><span>Title</span><input name="title" maxLength={160} value={values.title} onChange={event => update("title", event.target.value)} placeholder="For example, Discovery call or Focus time" required /></label>
+    <div className="field full calendar-title"><label htmlFor={`${fieldId}-title`}>Title</label><input id={`${fieldId}-title`} name="title" maxLength={160} value={values.title} onChange={event => update("title", event.target.value)} placeholder="For example, Discovery call or Focus time" required /><FieldError name={`${fieldId}-title`} messages={{ valueMissing: "Give this event a title." }} /></div>
     <label className="field calendar-kind"><span>Event type</span><select name="kind" value={values.kind} onChange={event => update("kind", event.target.value)}><option value="MEETING">Meeting</option><option value="BLOCK">Time block</option></select></label>
     <input type="hidden" name="contactId" value={values.kind === "MEETING" ? values.contactId : ""} />
     {values.kind === "MEETING" && <div className="field full calendar-form-row calendar-with">
@@ -144,6 +149,7 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
           {[{ id: "", displayName: "No contact" }, ...visibleContacts].map((contact, index) => <li key={contact.id} id={`${contactListId}-${index}`} role="option" aria-selected={highlightedContact === index}
             onPointerDown={event => event.preventDefault()} onClick={() => chooseContact(contact.id ? contact : undefined)}>{contact.displayName}</li>)}
         </ul>
+        <FieldError name={`${contactListId}-input`} />
         <small id={`${contactListId}-hint`} role="status">{contactOpen && values.contactId && <>Selected: {selectedContact.current?.displayName}. </>}{searching ? "Searching contacts…" : contactOpen && query && !visibleContacts.length ? "No saved contacts match. Try another name or create a new contact." : "Search your directory by name, then choose a contact."}</small>
         {!entry && <button type="button" className="button" aria-expanded={newPersonOpen} onClick={() => { chooseContact(); setNewPersonOpen(!newPersonOpen); }}>{newPersonOpen ? "Use a saved contact" : "Create new contact"}</button>}
       </div>
@@ -155,6 +161,7 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
         {choice.length > 0 && <fieldset className="field full contact-choice"><legend ref={choiceRef} tabIndex={-1}>Which saved person is this visit with?</legend>
           <p className="muted-copy">More than one saved person matches the phone or email you entered. Choose one, or change the phone or email. Everything you entered is kept, and nothing has been saved yet.</p>
           {choice.map(candidate => <label className="checkbox-card" key={candidate.id}><input type="radio" name="resolvedContactId" value={candidate.id} checked={values.resolvedContactId === candidate.id} onChange={() => update("resolvedContactId", candidate.id)} required /><span><strong>{candidate.displayName}</strong><small>Matches the {candidate.matched.join(" and ")} you entered</small></span></label>)}
+          <FieldError name="resolvedContactId" messages={{ valueMissing: "Choose the saved person this visit is with, or change the phone or email." }} />
         </fieldset>}
         <p className="muted-copy field full">Saved with the visit. A person already saved with this phone or email is used instead of a duplicate; if more than one matches, you choose which.</p>
       </div>
@@ -164,17 +171,17 @@ export function CalendarEntryForm({ contacts, contactId = "", timezone, date, en
     <div className="field full calendar-form-row calendar-timezone"><TimezonePicker defaultValue={values.timezone} onChange={zone => update("timezone", zone)} label="Event timezone" /><small>Times are {zoneLabel(values.timezone)}. Changing the time zone keeps the clock times you entered.</small></div>
     <div className="field full when-duration calendar-form-row"><span className="field-label">Duration</span>
       <div className="when-chips" role="group" aria-label="How long">{DURATIONS.map(minutes => <button type="button" key={minutes} className="when-chip" aria-pressed={values.duration === minutes} onClick={() => update("duration", minutes)}>{formatDurationLabel(minutes)}</button>)}<button type="button" className="when-chip" aria-pressed={values.duration === "custom"} onClick={() => update("duration", "custom")}>Custom end</button></div>
-      {values.duration === "custom" ? <label className="when-duration-custom"><span>Ends</span><input type="datetime-local" aria-label="Ends" value={values.customEnd} onChange={event => update("customEnd", event.target.value)} required /></label> : <p className="when-ends-summary">{endSummary}</p>}
+      {values.duration === "custom" ? <div className="when-duration-custom"><label htmlFor={`${fieldId}-ends`}>Ends</label><input id={`${fieldId}-ends`} type="datetime-local" aria-label="Ends" value={values.customEnd} onChange={event => update("customEnd", event.target.value)} required /><FieldError name={`${fieldId}-ends`} messages={{ valueMissing: "Choose when the event ends.", badInput: "Enter a full end date and time." }} /></div> : <p className="when-ends-summary">{endSummary}</p>}
     </div>
     <label className="field full calendar-form-row"><span>Where (optional)</span><input name="location" maxLength={200} value={values.location} onChange={event => update("location", event.target.value)} placeholder="Address or place, for reminders" /></label>
     {values.kind === "MEETING" && plans.length > 0 && !entry && <label className="field full"><span>Follow-up Mix for this visit (optional)</span><select name="planId" value={values.planId} onChange={event => update("planId", event.target.value)}><option value="">No Mix</option>{plans.map(plan => <option key={plan.id} value={plan.id}>{plan.name}</option>)}</select><small>Its reminders and check-ins line up with this appointment and move with it. Nothing is sent automatically unless you turn that on for this visit.</small></label>}
     {values.kind === "MEETING" && plans.length === 0 && !entry && <p className="muted-copy field full">No Mix is ready to line up with a visit yet. <Link href="/mixes/new?custom=1" className="inline-action">Create a Mix</Link> with the cue “When I start it for someone” and start it; no one needs to be enrolled first.</p>}
     <details className="field full calendar-extra-details" open={Boolean(entry?.link || entry?.details)}><summary>More event details</summary><div className="form-grid">
-    <label className="field full"><span>Link to join or find it (optional)</span><input name="link" type="url" inputMode="url" maxLength={500} value={values.link} onChange={event => update("link", event.target.value)} placeholder="https://" /></label>
+    <div className="field full"><label htmlFor={`${fieldId}-link`}>Link to join or find it (optional)</label><input id={`${fieldId}-link`} name="link" type="url" inputMode="url" maxLength={500} value={values.link} onChange={event => update("link", event.target.value)} placeholder="https://" /><FieldError name={`${fieldId}-link`} messages={{ typeMismatch: "Enter a full https link to join or find the appointment." }} /></div>
     <label className="field full"><span>Details the customer should be reminded of (optional)</span><textarea name="details" maxLength={1000} rows={2} value={values.details} onChange={event => update("details", event.target.value)} placeholder="What to bring, where to park, who to ask for" /></label>
     <label className="field full checkbox-row"><input type="checkbox" name="allowOverlap" checked={values.allowOverlap} onChange={event => update("allowOverlap", event.target.checked)} /><span>Allow an intentional overlap with another event{availability && availability.bufferMinutes > 0 ? ` or its ${availability.bufferMinutes}-minute buffer` : ""}</span></label>
     </div></details>
     <div className="form-actions field full calendar-save-actions"><p className="muted-copy">Saved to your calendar only. No invitation is sent.{values.kind === "MEETING" && values.contactId ? " Your stage rules may start follow-ups for this person." : ""}</p>{entry && <a className="button" href={`/api/calendar/export?id=${encodeURIComponent(entry.id)}`}>Download for sharing</a>}{pending ? <span className="button" aria-disabled="true">Cancel</span> : <Link className="button" href={`/calendar?date=${date}`} onClick={cancel}>Cancel</Link>}<button className="button primary" disabled={pending}>{pending ? "Saving…" : entry ? "Save changes" : "Save event"}</button></div>
   </fieldset>
-  </form>;
+  </FieldErrorScope></form>;
 }

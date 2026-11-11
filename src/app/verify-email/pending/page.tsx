@@ -1,4 +1,5 @@
 import { ActionForm } from "@/components/ActionForm";
+import { FieldError } from "@/components/FieldError";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { PasswordInput } from "@/components/PasswordInput";
 import type { Metadata } from "next";
@@ -7,6 +8,7 @@ import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
 import { changeUnverifiedEmailFormAction, resendVerificationFormAction } from "@/lib/auth-actions";
 import { AUTH_EMAILS_PER_RECIPIENT_PER_DAY } from "@/lib/email-budget";
+import { EMAIL_FIELD_MESSAGES, EMAIL_TYPE_MESSAGE } from "@/lib/field-validation";
 import { verifiedErrorMessage } from "@/lib/form-errors";
 
 export const metadata: Metadata = { title: "Verify email" };
@@ -40,17 +42,17 @@ export default async function VerifyEmailPendingPage({ searchParams }: { searchP
         {error && <Notice type="error">{error}</Notice>}
         {developmentVerificationUrl && process.env.NODE_ENV !== "production" && <Notice type="info">Development email preview: <Link href={developmentVerificationUrl}><strong>verify this account</strong></Link>.</Notice>}
         <ActionForm action={resendVerificationFormAction} className="form-stack">
-          <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" inputMode="email" autoComplete="email" maxLength={254} defaultValue={email} required /></div>
+          <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" inputMode="email" autoComplete="email" maxLength={254} defaultValue={email} required /><FieldError name="email" messages={EMAIL_FIELD_MESSAGES} /></div>
           <FormSubmitButton label="Send another verification link" pendingLabel="Please wait…" />
         </ActionForm>
         <details className="verify-email-change">
           <summary>Typed the wrong email?</summary>
           <p>If a text invitation brought you here and you mistyped your email, correct it and we’ll send the link to the new address. Enter the email and password you signed up with.</p>
           <ActionForm action={changeUnverifiedEmailFormAction} className="form-stack">
-            <div className="field"><label htmlFor="currentEmail">Email you signed up with</label><input id="currentEmail" name="email" type="email" inputMode="email" autoComplete="off" maxLength={254} defaultValue={email} required /></div>
-            <div className="field"><label htmlFor="currentPassword">Password</label><PasswordInput id="currentPassword" name="password" autoComplete="current-password" maxLength={72} required /></div>
-            <div className="field"><label htmlFor="newEmail">Correct email</label><input id="newEmail" name="newEmail" type="email" inputMode="email" autoComplete="email" maxLength={254} required /></div>
-            <div className="field"><label htmlFor="confirmNewEmail">Confirm correct email</label><input id="confirmNewEmail" name="confirmNewEmail" type="email" inputMode="email" autoComplete="off" maxLength={254} required /></div>
+            <div className="field"><label htmlFor="currentEmail">Email you signed up with</label><input id="currentEmail" name="email" type="email" inputMode="email" autoComplete="off" maxLength={254} defaultValue={email} required /><FieldError name="currentEmail" messages={{ valueMissing: "Enter the email you signed up with.", typeMismatch: EMAIL_TYPE_MESSAGE }} /></div>
+            <div className="field"><label htmlFor="currentPassword">Password</label><PasswordInput id="currentPassword" name="password" autoComplete="current-password" maxLength={72} required /><FieldError name="currentPassword" messages={{ valueMissing: "Enter the password you signed up with." }} /></div>
+            <div className="field"><label htmlFor="newEmail">Correct email</label><input id="newEmail" name="newEmail" type="email" inputMode="email" autoComplete="email" maxLength={254} required /><FieldError name="newEmail" messages={{ valueMissing: "Enter the correct email address.", typeMismatch: EMAIL_TYPE_MESSAGE }} /></div>
+            <div className="field"><label htmlFor="confirmNewEmail">Confirm correct email</label><input id="confirmNewEmail" name="confirmNewEmail" type="email" inputMode="email" autoComplete="off" maxLength={254} required /><FieldError name="confirmNewEmail" messages={{ valueMissing: "Enter the correct email address again.", typeMismatch: EMAIL_TYPE_MESSAGE }} /></div>
             <FormSubmitButton label="Change email and send link" pendingLabel="Please wait…" />
           </ActionForm>
         </details>

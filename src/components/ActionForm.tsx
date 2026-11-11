@@ -2,6 +2,7 @@
 import { useActionState, useEffect, useId, useRef, type ReactNode } from "react";
 import type { FormResult } from "@/lib/form-errors";
 import { FormGuard } from "@/components/FormGuard";
+import { FieldErrorScope, useFieldValidation } from "@/components/FieldError";
 
 export function ActionForm({ action, children, className = "form-stack", protect = false }: {
   action: (previous: FormResult, data: FormData) => Promise<FormResult>; children: ReactNode; className?: string; protect?: boolean;
@@ -15,15 +16,17 @@ export function ActionForm({ action, children, className = "form-stack", protect
   }, {});
   const error = useRef<HTMLParagraphElement>(null), form = useRef<HTMLFormElement>(null);
   const errorId = useId();
+  // Fields with a <FieldError> slot are checked beside the field before sending (JITM-08 §2.37).
+  const { validate, scope } = useFieldValidation(form);
   useEffect(() => {
     if (!state.error) return;
     for (const input of form.current?.querySelectorAll<HTMLInputElement>('input[autocomplete="current-password"],input[autocomplete="new-password"]') ?? []) input.value = "";
     for (const control of form.current?.querySelectorAll<HTMLElement>("input:not([type=hidden]),textarea,select") ?? []) control.setAttribute("aria-describedby", [...new Set([...(control.getAttribute("aria-describedby") ?? "").split(/\s+/), errorId].filter(Boolean))].join(" "));
     error.current?.focus();
   }, [state]);
-  return <form ref={form} action={submit} className={className} onReset={event => event.preventDefault()} aria-describedby={state.error ? errorId : undefined}>
+  return <form ref={form} action={submit} onSubmit={validate} className={className} onReset={event => event.preventDefault()} aria-describedby={state.error ? errorId : undefined}>
     {protect && <FormGuard guardOtherForms />}
     {state.error && <p id={errorId} ref={error} tabIndex={-1} role="alert" className="notice error">{state.error}</p>}
-    {children}
+    <FieldErrorScope value={scope}>{children}</FieldErrorScope>
   </form>;
 }

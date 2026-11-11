@@ -26,6 +26,7 @@ import { prisma } from "@/lib/prisma";
 import { timezoneForUser } from "@/lib/display-preferences";
 import { ViewOnlySupportSessionError, requireWritableWorkspace } from "@/lib/writable-workspace";
 import { WorkspaceScopeError } from "@/lib/workspace-repository";
+import { CONTACT_IDENTITY_MESSAGE } from "@/lib/field-validation";
 
 function value(formData: FormData, key: string): string {
   return String(formData.get(key) ?? "").trim();
@@ -157,7 +158,7 @@ function contactPayload(formData: FormData, region: string) {
     }
   );
   const displayName = [firstName, lastName].filter(Boolean).join(" ") || company || emails[0]?.value || phones[0]?.value;
-  if (!displayName) throw new ContactFieldError("Add a name, company, email, or phone number.", "firstName");
+  if (!displayName) throw new ContactFieldError(CONTACT_IDENTITY_MESSAGE, "firstName");
   return {
     firstName: firstName || null,
     lastName: lastName || null,

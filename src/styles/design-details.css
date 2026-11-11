@@ -138,6 +138,8 @@
 .calendar-entry-fields > .calendar-title { grid-column: 1; margin: 0 0 20px; }
 .calendar-title input { background: transparent; font-size: 1.5rem; font-weight: 600; border-color: transparent; padding: 8px 0; }
 .calendar-title input:focus { border-color: var(--border); }
+/* The title row's label is a <label> so its inline error can sit outside it; it keeps the plain look it had as a span. */
+.calendar-title > label { font-size: inherit; font-weight: inherit; }
 .calendar-entry-fields > .calendar-kind { grid-column: 2; align-self: start; }
 .calendar-kind select { border: 0; border-radius: 24px; font-size: .8125rem; width: 128px; }
 @media (width < 768px) {

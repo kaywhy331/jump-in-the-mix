@@ -1,4 +1,5 @@
 import { ActionForm } from "@/components/ActionForm";
+import { FieldError } from "@/components/FieldError";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { PasswordInput } from "@/components/PasswordInput";
 import type { Metadata } from "next";
@@ -8,6 +9,7 @@ import { Notice } from "@/components/Notice";
 import { requestPasswordResetFormAction } from "@/lib/auth-actions";
 import { AUTH_EMAILS_PER_RECIPIENT_PER_DAY } from "@/lib/email-budget";
 import { env } from "@/lib/env";
+import { EMAIL_FIELD_MESSAGES } from "@/lib/field-validation";
 import { verifiedErrorMessage } from "@/lib/form-errors";
 import { transactionalEmailConfigured } from "@/lib/transactional-email";
 
@@ -32,7 +34,7 @@ export default async function ForgotPasswordPage({ searchParams }: { searchParam
         {error && <Notice type="error">{error}</Notice>}
         {developmentResetUrl && process.env.NODE_ENV !== "production" && <Notice type="info">Development email preview: <Link href={developmentResetUrl}><strong>open the reset link</strong></Link>.</Notice>}
         {emailAvailable && <ActionForm action={requestPasswordResetFormAction} className="form-stack">
-          <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" inputMode="email" autoComplete="email" maxLength={254} required autoFocus /></div>
+          <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" inputMode="email" autoComplete="email" maxLength={254} required autoFocus /><FieldError name="email" messages={EMAIL_FIELD_MESSAGES} /></div>
           <FormSubmitButton label="Send reset link" pendingLabel="Please wait…" />
         </ActionForm>}
         <p><Link href="/contact">Contact support</Link> if you cannot recover your account.</p>

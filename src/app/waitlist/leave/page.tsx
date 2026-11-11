@@ -1,7 +1,9 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { CheckedForm, FieldError } from "@/components/FieldError";
 import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
+import { EMAIL_FIELD_MESSAGES } from "@/lib/field-validation";
 import { verifiedErrorMessage } from "@/lib/form-errors";
 import { requestStopInvitationsAction, stopInvitationsAction } from "@/lib/invitation-preference-actions";
 
@@ -24,10 +26,10 @@ export default async function LeaveWaitlistPage({ searchParams }: { searchParams
       <form action={stopInvitationsAction}><input type="hidden" name="token" value={token} /><button className="button primary" type="submit">Leave waitlist and stop invitations</button></form>
     </> : <>
       <p>We’ll email a link so you can confirm that you want to leave and stop invitation emails.</p>
-      <form action={requestStopInvitationsAction} className="form-stack">
-        <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" autoComplete="email" maxLength={254} required /></div>
+      <CheckedForm action={requestStopInvitationsAction} className="form-stack">
+        <div className="field"><label htmlFor="email">Email</label><input id="email" name="email" type="email" autoComplete="email" maxLength={254} required /><FieldError name="email" messages={EMAIL_FIELD_MESSAGES} /></div>
         <button className="button primary" type="submit">Email me a confirmation link</button>
-      </form>
+      </CheckedForm>
     </>}
     <div className="auth-footer"><Link className="button" href="/">Back to home</Link></div>
   </section></main>;

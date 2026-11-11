@@ -62,7 +62,8 @@
 .homepage #waitlist input::placeholder { color: var(--text-3); }
 .homepage #waitlist .notice { color: var(--text); }
 /* Inside the band the light theme's --late (3.32:1 on #1A1830) is too dim; the band tokens carry readable status colours in both themes. */
-.homepage #waitlist .inline-form-error { color: var(--band-late); }
+.homepage #waitlist .inline-form-error, .homepage #waitlist .inline-field-error { color: var(--band-late); }
+.homepage #waitlist input[aria-invalid="true"] { border-color: var(--band-late); }
 .homepage #waitlist .inline-form-success { color: var(--band-success); }
 @media (max-width: 1000px) {
   .public-page .hero { grid-template-columns: 1fr; grid-template-areas: "copy" "demo" "situations"; grid-template-rows: auto; max-width: 740px; gap: var(--space-5); }

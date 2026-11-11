@@ -32,6 +32,11 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 /* Inline form outcomes (waitlist): status colour plus wording; live regions keep them announced. */
 .inline-form-error { margin: 0; color: var(--late); font-size: .875rem; font-weight: 600; }
 .inline-form-success { margin: 0; color: var(--status-success-ink); font-size: .875rem; font-weight: 600; }
+/* The shared inline field error (FieldError, JITM-08 §2.37): how to fix the field, beside it, with an icon as well as colour. */
+.inline-field-error { display: flex; align-items: flex-start; gap: var(--space-1); margin: 0; color: var(--danger); font-size: var(--font-size-sm); font-weight: 600; overflow-wrap: anywhere; }
+.inline-field-error > svg { flex: none; width: 1em; height: 1lh; }
+.form-stack > .inline-field-error { margin-top: calc(var(--space-2) * -1); }
+:is(input, select, textarea)[aria-invalid="true"] { border-color: var(--danger); }
 /* The required-fields note spans a two-column form instead of taking one cell. */
 .form-grid > .form-required-note, .calendar-entry-fields > .form-required-note { grid-column: 1 / -1; }
 /* Strips that scroll sideways fade at the edge where more waits. The fade follows the scroll position

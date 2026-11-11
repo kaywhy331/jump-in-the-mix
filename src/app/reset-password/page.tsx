@@ -1,4 +1,5 @@
 import { ActionForm } from "@/components/ActionForm";
+import { FieldError } from "@/components/FieldError";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { PasswordInput } from "@/components/PasswordInput";
 import type { Metadata } from "next";
@@ -6,9 +7,14 @@ import Link from "next/link";
 import { Logo } from "@/components/Logo";
 import { Notice } from "@/components/Notice";
 import { resetPasswordFormAction } from "@/lib/auth-actions";
+import type { FieldMessages } from "@/lib/field-validation";
 import { verifiedErrorMessage } from "@/lib/form-errors";
 
 export const metadata: Metadata = { title: "Choose a new password" };
+
+// The server's rule (password-policy.ts), said beside each field before sending.
+const NEW_PASSWORD: FieldMessages = { valueMissing: "Enter a new password.", tooShort: "Use a password with at least 12 characters." };
+const CONFIRM_PASSWORD: FieldMessages = { valueMissing: "Enter the new password again.", tooShort: "Use a password with at least 12 characters." };
 
 type SearchParams = { token?: string; error?: string; sig?: string };
 
@@ -28,8 +34,8 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
         ) : (
           <ActionForm action={resetPasswordFormAction} className="form-stack">
             <input type="hidden" name="token" value={token} />
-            <div className="field"><label htmlFor="password">New password</label><PasswordInput id="password" name="password"  autoComplete="new-password" minLength={12} maxLength={72} required autoFocus /><small>Use at least 12 characters.</small></div>
-            <div className="field"><label htmlFor="confirmPassword">Confirm new password</label><PasswordInput id="confirmPassword" name="confirmPassword"  autoComplete="new-password" minLength={12} maxLength={72} required /></div>
+            <div className="field"><label htmlFor="password">New password</label><PasswordInput id="password" name="password"  autoComplete="new-password" minLength={12} maxLength={72} required autoFocus /><FieldError name="password" messages={NEW_PASSWORD} /><small>Use at least 12 characters.</small></div>
+            <div className="field"><label htmlFor="confirmPassword">Confirm new password</label><PasswordInput id="confirmPassword" name="confirmPassword"  autoComplete="new-password" minLength={12} maxLength={72} required /><FieldError name="confirmPassword" messages={CONFIRM_PASSWORD} /></div>
             <FormSubmitButton label="Reset password" pendingLabel="Please wait…" />
           </ActionForm>
         )}
