@@ -31,11 +31,17 @@ export type SwipeRelease = "commit" | "cancel";
  * Idle → Pending on a touch → Dragging once 10 px of travel locks this gesture's axis and direction →
  * Settling on release (commit or cancel) → Idle. Any other first movement leaves the touch to native
  * scrolling. A second pointer or a cancelled pointer springs back, and a new touch catches a settling surface.
+ *
+ * A touch on content that scrolls first (`scroll`) stays Pending while native scrolling takes its travel, and
+ * the same touch hands off to Dragging once that content reaches its end with the finger still heading the
+ * gesture's way. Dragging back past the hand-off point returns the travel to native scrolling.
  */
 export class SwipeTracker {
   phase: SwipePhase = "idle";
   /** How far the surface has moved in the gesture's direction, in px. Never negative. */
   distance = 0;
+  /** Whether the held touch began on content that scrolls first (see `scroll`). */
+  scrolling = false;
   private pointer: number | null = null;
   private origin = { x: 0, y: 0 };
   private delta = { x: 0, y: 0 };
@@ -55,18 +61,38 @@ export class SwipeTracker {
     this.base = resume ? Math.max(0, at) : 0;
     this.distance = this.base;
     this.samples = [{ t, distance: this.base }];
+    this.scrolling = false;
     this.phase = resume ? "dragging" : "pending";
     return this.phase;
   }
 
-  move(pointer: number, x: number, y: number, t: number): SwipePhase {
+  /**
+   * A pointer went down on content that scrolls before this gesture (inner scroll goes first). Native scrolling
+   * keeps the touch; `move` reports whether that content can still scroll toward the finger (`ahead`).
+   */
+  scroll(pointer: number, x: number, y: number, t: number): SwipePhase {
+    if (this.pointer !== null) { this.cancel(this.pointer); return this.phase; }
+    this.down(pointer, x, y, t);
+    this.scrolling = true;
+    return this.phase;
+  }
+
+  /** `ahead`: for a touch that scrolls first, whether its content can still scroll toward the finger. */
+  move(pointer: number, x: number, y: number, t: number, ahead = false): SwipePhase {
     if (pointer !== this.pointer) return this.phase;
     this.delta = { x: x - this.origin.x, y: y - this.origin.y };
+    if (this.scrolling) {
+      // Native scrolling has this travel, so the gesture is measured from here: while the content is not at its
+      // end, and once the finger is back at or behind the point where it handed off.
+      const along = this.base + this.direction * this.delta[this.axis];
+      if (this.phase === "pending" ? ahead : along <= 0) return this.rebase(x, y, t);
+    }
     if (this.phase === "pending") {
       if (Math.max(Math.abs(this.delta.x), Math.abs(this.delta.y)) < SWIPE.axisLock) return this.phase;
       const axis: Axis = Math.abs(this.delta.x) > Math.abs(this.delta.y) ? "x" : "y";
-      // Another axis, or this axis the other way, is native scrolling for the rest of the touch.
-      if (axis !== this.axis || Math.sign(this.delta[axis]) !== this.direction) return this.reset();
+      // Another axis, or this axis the other way, is native scrolling for the rest of the touch. A touch that
+      // scrolls first keeps waiting for its content's end instead.
+      if (axis !== this.axis || Math.sign(this.delta[axis]) !== this.direction) return this.scrolling ? this.rebase(x, y, t) : this.reset();
       this.phase = "dragging";
     }
     if (this.phase !== "dragging") return this.phase;
@@ -98,6 +124,7 @@ export class SwipeTracker {
     // Nothing commits before release, and dragging or flinging back cancels (WCAG 2.5.2).
     const commit = speed >= SWIPE.fling || (this.distance >= size * SWIPE.commit[this.axis] && speed > -SWIPE.fling);
     this.pointer = null;
+    this.scrolling = false;
     this.phase = "settling";
     return commit ? "commit" : "cancel";
   }
@@ -107,6 +134,7 @@ export class SwipeTracker {
     if (pointer !== this.pointer) return null;
     if (this.phase !== "dragging") { this.reset(); return null; }
     this.pointer = null;
+    this.scrolling = false;
     this.phase = "settling";
     return "cancel";
   }
@@ -117,9 +145,21 @@ export class SwipeTracker {
     this.distance = 0;
   }
 
+  /** Native scrolling took the travel so far: Pending again, measured from here, in the same touch. */
+  private rebase(x: number, y: number, t: number): SwipePhase {
+    this.origin = { x, y };
+    this.delta = { x: 0, y: 0 };
+    this.base = 0;
+    this.distance = 0;
+    this.samples = [{ t, distance: 0 }];
+    this.phase = "pending";
+    return this.phase;
+  }
+
   private reset(): SwipePhase {
     this.pointer = null;
     this.samples = [];
+    this.scrolling = false;
     this.phase = "idle";
     return this.phase;
   }
@@ -153,6 +193,71 @@ export function scrolledBelowTop(target: SwipeNode, surface: SwipeNode): boolean
     if (node.scrollTop > 0) return true;
   }
   return false;
+}
+
+/** Whether `node` is `surface` or inside it. */
+function within(node: SwipeNode | null, surface: SwipeNode): boolean {
+  for (; node; node = node.parentElement) if (node === surface) return true;
+  return false;
+}
+
+/** Whether a touch may start a gesture on a surface: never ("blocked"), once inner scrolling reaches its end ("scroll"), or now. */
+export type Start = "blocked" | "scroll" | "start";
+
+/** What `startOn` reads about a touch. The surface's own rules are thunks, so they run only after the shared exclusions. */
+export interface StartCheck {
+  target: SwipeNode;
+  surface: SwipeNode;
+  x: number;
+  viewportWidth: number;
+  overflowX: (node: SwipeNode) => string;
+  /** The surface's own start rule, after the shared exclusions. */
+  accepts?: () => boolean;
+  /** Whether content under the touch can still scroll toward the finger, so native scrolling goes first. */
+  scrollsFirst?: () => boolean;
+}
+
+/** The start rules every gesture start passes, a catch included (NATIVE-NAVIGATION.md §4, §5). */
+export function startOn(check: StartCheck): Start {
+  const { target, surface } = check;
+  // Only the top layer reacts: a touch off the surface, or in a layer nested in its markup, is not its touch.
+  if (!within(target, surface) || target.closest("dialog") !== surface.closest("dialog")) return "blocked";
+  if (blockedStart(target, surface, check.x, check.viewportWidth, check.overflowX)) return "blocked";
+  if (check.accepts && !check.accepts()) return "blocked";
+  return check.scrollsFirst?.() ? "scroll" : "start";
+}
+
+/** What a new pointer means to a surface. */
+export type Claim =
+  /** Not this surface's touch: nothing on the surface changes, and the browser keeps its own behaviour. */
+  | "native"
+  /** Another finger while a gesture holds one: spring back, so pinch zoom stays the browser's. */
+  | "cancel"
+  /** A fresh touch: Pending until 10 px of travel locks the axis. */
+  | "track"
+  /** A new touch on a settling surface: Dragging from where the surface is. */
+  | "catch"
+  /** Inner scroll goes first: native scrolling, handing off to the gesture at its end in the same touch. */
+  | "scroll";
+
+/**
+ * The one arbitration rule, for every way a gesture starts or continues (NATIVE-NAVIGATION.md §4–§6). It runs
+ * for every pointer that goes down anywhere on the page, before the engine cancels a settle or captures a pointer.
+ * `start` runs the start rules (`startOn`) only when a start is possible.
+ */
+export function arbitrate(phase: SwipePhase, pointer: { primary: boolean }, catchable: boolean, start: () => Start): Claim {
+  // One finger only: any other pointer, wherever it lands, cancels a gesture that holds one.
+  if (phase === "pending" || phase === "dragging") return "cancel";
+  // A finger that joins another touch never starts a gesture.
+  if (!pointer.primary) return "native";
+  // A guard is deciding: the surface waits for its answer.
+  if (phase === "settling" && !catchable) return "native";
+  const verdict = start();
+  if (verdict === "blocked") return "native";
+  // A catch passes the same exclusions as a fresh start. Where inner scroll goes first, the settle finishes and the
+  // touch scrolls.
+  if (phase === "settling") return verdict === "start" ? "catch" : "native";
+  return verdict === "start" ? "track" : "scroll";
 }
 
 /** A motion token's duration in ms (JITM-06 §2.39). Under reduced motion every settle is instant. */

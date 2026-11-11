@@ -1,6 +1,6 @@
 import { readFileSync, readdirSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { SWIPE, SWIPE_IGNORE, SwipeTracker, blockedStart, motionMs, scrolledBelowTop, type SwipeNode } from "@/lib/gestures/swipe";
+import { SWIPE, SWIPE_IGNORE, SwipeTracker, arbitrate, blockedStart, motionMs, scrolledBelowTop, startOn, type Start, type SwipeNode, type SwipePhase } from "@/lib/gestures/swipe";
 
 // A sheet dismiss: vertical, downward, on a 600 px sheet. 30% is 180 px.
 const SHEET = 600;
@@ -234,6 +234,194 @@ describe("inner scroll goes first", () => {
     // iOS reports a negative scrollTop while rubber-banding at the top.
     list.scrollTop = -12;
     expect(scrolledBelowTop(row, panel)).toBe(false);
+  });
+});
+
+describe("inner scroll hands off to dismissal in the same pull", () => {
+  /** Pull down from y 0 in 10 px steps of 20 ms; the content is scrolled `scrolled` px, and native scrolling takes the pull until it is at 0. */
+  function pull(tracker: SwipeTracker, scrolled: number, to: number) {
+    let t = 0, top = scrolled;
+    tracker.scroll(1, 100, 0, t);
+    for (let y = 10; y <= to; y += 10) {
+      // Native scrolling moves the content with the finger until it reaches its top.
+      tracker.move(1, 100, y, t += 20, top > 0);
+      top = Math.max(0, top - 10);
+    }
+    return t;
+  }
+
+  it("leaves the travel to native scrolling while the content can still scroll, and nothing moves", () => {
+    const tracker = sheet();
+    expect(tracker.scroll(1, 100, 0, 0)).toBe("pending");
+    expect(tracker.scrolling).toBe(true);
+    for (let y = 20; y <= 200; y += 20) {
+      expect(tracker.move(1, 100, y, y, true)).toBe("pending");
+      expect(tracker.distance).toBe(0);
+      // The browser keeps the touch for its scrolling.
+      expect(tracker.leaning()).toBe(false);
+    }
+  });
+
+  it("drags from the moment the content reaches its top, then commits past 30% and springs back short of it", () => {
+    const commit = sheet();
+    // 80 px of scrolling, then 30% of the sheet and a little more.
+    const t = pull(commit, 80, 80 + SHEET * SWIPE.commit.y + 20);
+    expect(commit.phase).toBe("dragging");
+    expect(commit.distance).toBeGreaterThanOrEqual(SHEET * SWIPE.commit.y);
+    expect(commit.distance).toBeLessThanOrEqual(SHEET * SWIPE.commit.y + 20);
+    expect(commit.up(1, 100, 80 + SHEET * SWIPE.commit.y + 20, t + 200, SHEET)).toBe("commit");
+
+    const cancel = sheet();
+    const end = pull(cancel, 80, 80 + SHEET * SWIPE.commit.y - 20);
+    expect(cancel.phase).toBe("dragging");
+    expect(cancel.distance).toBeGreaterThan(0);
+    expect(cancel.distance).toBeLessThan(SHEET * SWIPE.commit.y);
+    expect(cancel.up(1, 100, 80 + SHEET * SWIPE.commit.y - 20, end + 200, SHEET)).toBe("cancel");
+  });
+
+  it("still needs 10 px past the top before anything moves", () => {
+    const tracker = sheet();
+    tracker.scroll(1, 100, 0, 0);
+    tracker.move(1, 100, 80, 80, true);
+    expect(tracker.move(1, 100, 80 + SWIPE.axisLock - 1, 90, false)).toBe("pending");
+    expect(tracker.move(1, 100, 80 + SWIPE.axisLock, 100, false)).toBe("dragging");
+    expect(tracker.distance).toBe(SWIPE.axisLock);
+  });
+
+  it("measures a fling from the hand-off, not from the scrolling before it", () => {
+    const tracker = sheet();
+    tracker.scroll(1, 100, 0, 0);
+    tracker.move(1, 100, 300, 600, true);
+    // 60 px in 100 ms past the top is 0.6 px/ms.
+    for (let step = 1; step <= 5; step++) tracker.move(1, 100, 300 + step * 12, 600 + step * 20, false);
+    expect(tracker.up(1, 100, 360, 700, SHEET)).toBe("commit");
+  });
+
+  it("keeps waiting, rather than letting go, when the finger heads the other way or sideways at the top", () => {
+    const tracker = sheet();
+    tracker.scroll(1, 100, 0, 0);
+    tracker.move(1, 100, 50, 50, true);
+    expect(tracker.move(1, 100, 30, 60, false)).toBe("pending");
+    expect(tracker.move(1, 130, 32, 70, false)).toBe("pending");
+    expect(tracker.scrolling).toBe(true);
+    // Back down past the top, in the same touch.
+    expect(tracker.move(1, 130, 50, 80, false)).toBe("dragging");
+    expect(tracker.distance).toBe(18);
+  });
+
+  it("gives the travel back to native scrolling when the finger returns past the hand-off point", () => {
+    const tracker = sheet();
+    tracker.scroll(1, 100, 0, 0);
+    tracker.move(1, 100, 80, 80, true);
+    tracker.move(1, 100, 200, 200, false);
+    expect(tracker.distance).toBe(120);
+    expect(tracker.move(1, 100, 80, 300, false)).toBe("pending");
+    expect(tracker.distance).toBe(0);
+    tracker.move(1, 100, 40, 340, true);
+    // At the top again, the pull drags again.
+    expect(tracker.move(1, 100, 100, 400, false)).toBe("dragging");
+    expect(tracker.distance).toBe(60);
+  });
+
+  it("lets a second finger or a cancelled touch end the wait, and a lift without a hand-off does nothing", () => {
+    const second = sheet();
+    second.scroll(1, 100, 0, 0);
+    expect(second.scroll(2, 200, 0, 10)).toBe("idle");
+    expect(second.move(1, 100, 300, 20, false)).toBe("idle");
+
+    const cancelled = sheet();
+    cancelled.scroll(1, 100, 0, 0);
+    expect(cancelled.cancel(1)).toBeNull();
+    expect(cancelled.phase).toBe("idle");
+    expect(cancelled.scrolling).toBe(false);
+
+    const lifted = sheet();
+    lifted.scroll(1, 100, 0, 0);
+    lifted.move(1, 100, 60, 60, true);
+    expect(lifted.up(1, 100, 60, 80, SHEET)).toBeNull();
+    expect(lifted.phase).toBe("idle");
+  });
+
+  it("is an ordinary touch again after a hand-off settles", () => {
+    const tracker = sheet();
+    const t = pull(tracker, 40, 300);
+    tracker.up(1, 100, 300, t + 200, SHEET);
+    tracker.settled();
+    expect(tracker.scrolling).toBe(false);
+    tracker.down(2, 100, 0, 1_000);
+    expect(tracker.move(2, 100, -20, 1_020)).toBe("idle");
+  });
+});
+
+describe("one arbitration rule for every start and every other pointer", () => {
+  const never = (): Start => { throw new Error("The start rules must not run."); };
+  const claim = (phase: SwipePhase, start: () => Start, { primary = true, catchable = true } = {}) => arbitrate(phase, { primary }, catchable, start);
+
+  it("cancels a held gesture for any other pointer, wherever it lands, without asking the start rules", () => {
+    for (const phase of ["pending", "dragging"] as const) {
+      expect(claim(phase, never)).toBe("cancel");
+      expect(claim(phase, never, { primary: false })).toBe("cancel");
+    }
+  });
+
+  it("never starts from a finger that joins another touch, or while a guard decides", () => {
+    expect(claim("idle", never, { primary: false })).toBe("native");
+    expect(claim("settling", never, { primary: false })).toBe("native");
+    expect(claim("settling", never, { catchable: false })).toBe("native");
+  });
+
+  it("starts, scrolls first or leaves the touch alone, as the start rules say", () => {
+    expect(claim("idle", () => "start")).toBe("track");
+    expect(claim("idle", () => "scroll")).toBe("scroll");
+    expect(claim("idle", () => "blocked")).toBe("native");
+  });
+
+  it("catches a settling surface only where a fresh touch could start", () => {
+    expect(claim("settling", () => "start")).toBe("catch");
+    expect(claim("settling", () => "blocked")).toBe("native");
+    // Inner scroll still goes first: the settle finishes and the touch scrolls.
+    expect(claim("settling", () => "scroll")).toBe("native");
+  });
+
+  describe("start rules", () => {
+    const layer = el("dialog");
+    const surface = el("div", {}, layer);
+    const body = el("div", {}, surface);
+    const check = (target: SwipeNode, more: Partial<Parameters<typeof startOn>[0]> = {}) =>
+      startOn({ target, surface, x: 200, viewportWidth: 400, overflowX: overflow, ...more });
+
+    it("leaves touches off the surface, and in a layer nested in its markup, to their owners", () => {
+      expect(check(el("div", {}, layer))).toBe("blocked");
+      expect(check(el("div"))).toBe("blocked");
+      const nested = el("dialog", {}, body);
+      expect(check(el("button", {}, nested))).toBe("blocked");
+      expect(check(el("button", {}, body))).toBe("start");
+    });
+
+    it("applies every shared exclusion before the surface's own rules", () => {
+      const refuse = { accepts: never as unknown as () => boolean, scrollsFirst: never as unknown as () => boolean };
+      for (const target of [el("input", {}, body), el("select", {}, body), el("div", { role: "slider" }, body), el("span", {}, el("div", { contenteditable: "true" }, body)), el("p", {}, el("div", { "data-swipe-ignore": "" }, body)), el("button", {}, el("div", {}, body, { scrollWidth: 900, overflowX: "auto" }))]) {
+        expect(check(target, refuse)).toBe("blocked");
+      }
+      expect(check(body, { ...refuse, x: SWIPE.edge - 1 })).toBe("blocked");
+      expect(check(body, { ...refuse, x: 400 - SWIPE.edge + 1 })).toBe("blocked");
+    });
+
+    it("then asks the surface: refused, inner scroll first, or a start", () => {
+      expect(check(body, { accepts: () => false, scrollsFirst: never as unknown as () => boolean })).toBe("blocked");
+      expect(check(body, { accepts: () => true, scrollsFirst: () => true })).toBe("scroll");
+      expect(check(body, { accepts: () => true, scrollsFirst: () => false })).toBe("start");
+      expect(check(body)).toBe("start");
+    });
+
+    it("so a catch on a settling surface obeys the same exclusions and layers", () => {
+      const settlingClaim = (target: SwipeNode, x = 200) => arbitrate("settling", { primary: true }, true, () => check(target, { x }));
+      for (const target of [el("input", {}, body), el("div", { role: "slider" }, body), el("p", {}, el("div", { "data-swipe-ignore": "" }, body)), el("button", {}, el("div", {}, body, { scrollWidth: 900, overflowX: "scroll" })), el("button", {}, el("dialog", {}, body))]) {
+        expect(settlingClaim(target)).toBe("native");
+      }
+      expect(settlingClaim(body, SWIPE.edge - 1)).toBe("native");
+      expect(settlingClaim(body)).toBe("catch");
+    });
   });
 });
 

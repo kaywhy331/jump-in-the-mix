@@ -1,5 +1,6 @@
 import { createHash, randomUUID } from "node:crypto";
 import { test, expect, type Locator, type Page } from "@playwright/test";
+import { SWIPE } from "../src/lib/gestures/swipe";
 import { prisma } from "../src/lib/prisma";
 
 // Swipe down to dismiss bottom sheets (JITM-NAV-01; JITM-08 §2.46; docs/design/NATIVE-NAVIGATION.md §3 D).
@@ -73,14 +74,41 @@ async function touchDrag(page: Page, from: Locator | { x: number; y: number }, d
   await send("touchEnd", steps * step + (fling ? 0.01 : 0.2));
   await cdp.detach();
 }
+/**
+ * A real touch held down between steps, so a test can look mid-gesture, add a second finger, then lift. Moves go in
+ * 10 px steps 25 ms apart; the lift waits 200 ms, so distance alone decides the release.
+ */
+async function press(page: Page, at: { x: number; y: number }) {
+  const cdp = await page.context().newCDPSession(page);
+  const start = Date.now() / 1000;
+  let time = 0, y = at.y;
+  const send = (type: "touchStart" | "touchMove" | "touchEnd", touchPoints: Array<{ x: number; y: number; id: number }>) =>
+    cdp.send("Input.dispatchTouchEvent", { type, timestamp: start + time, touchPoints });
+  await send("touchStart", [{ x: at.x, y, id: 1 }]);
+  return {
+    async move(dy: number) {
+      const steps = Math.max(1, Math.round(Math.abs(dy) / 10));
+      for (let step = 1; step <= steps; step++) { time += 0.025; y += dy / steps; await send("touchMove", [{ x: at.x, y, id: 1 }]); }
+    },
+    /** A second finger goes down while this one stays. */
+    async add(other: { x: number; y: number }) { time += 0.025; await send("touchStart", [{ x: at.x, y, id: 1 }, { ...other, id: 2 }]); },
+    async lift() { time += 0.2; await send("touchEnd", []); await cdp.detach(); }
+  };
+}
+const swipeState = (surface: Locator) => surface.evaluate(element => element.dataset.swipeState ?? "");
+const offsetOf = (surface: Locator) => surface.evaluate(element => new DOMMatrixReadOnly(getComputedStyle(element).transform).m42);
 /** A point on the sheet's body, below its header, that is not a field or a control. */
 async function bodyPoint(sheet: Locator) {
   return sheet.evaluate(dialog => {
     const panel = dialog.querySelector<HTMLElement>(":scope > .sheet-panel")!;
     const box = panel.getBoundingClientRect(), top = panel.querySelector(".sheet-header")!.getBoundingClientRect().bottom;
-    for (let y = top + 16; y < box.bottom - 16; y += 8) {
+    // Clear of fields and controls by a margin, so the browser's touch targeting cannot land on one.
+    const plain = (y: number) => {
       const target = document.elementFromPoint(box.left + box.width / 2, y);
-      if (target && panel.contains(target) && !target.closest("input, textarea, select, [contenteditable], a, button, .review-action-bar")) return { x: box.left + box.width / 2, y };
+      return target && panel.contains(target) && !target.closest("input, textarea, select, [contenteditable], a, button, .review-action-bar");
+    };
+    for (let y = top + 16; y < box.bottom - 16; y += 8) {
+      if ([-16, 0, 16].every(offset => plain(y + offset))) return { x: box.left + box.width / 2, y };
     }
     throw new Error("The sheet shows no plain body content.");
   });
@@ -114,7 +142,7 @@ test.describe("on a touch phone", () => {
     await expect(sheet).not.toHaveAttribute("open", "");
   });
 
-  test("inner content scrolls first, and dismissal from the body starts only at its top", async ({ page }) => {
+  test("inner content scrolls first, and dismissal from the body starts at its top, in the same pull", async ({ page }) => {
     // At this height the review scrolls.
     await page.setViewportSize({ width: 390, height: 600 });
     await today(page);
@@ -124,12 +152,24 @@ test.describe("on a touch phone", () => {
     // The body keeps native scrolling.
     await touchDrag(page, await bodyPoint(sheet), -300);
     await expect.poll(scrollTop).toBeGreaterThan(50);
-    const scrolled = await scrollTop();
     await atRest(sheet);
-    // Pulling down on the body scrolls it back to its top; the sheet stays, even once the top is reached mid-touch.
-    await touchDrag(page, await bodyPoint(sheet), scrolled + 150);
-    await expect.poll(scrollTop).toBe(0);
+    // Read once native scrolling has finished.
+    let scrolled = -1;
+    await expect.poll(async () => { const previous = scrolled; scrolled = await scrollTop(); return scrolled === previous; }).toBe(true);
+    // Pulling down on the body scrolls it back toward its top first; the sheet stays put meanwhile.
+    const pull = await press(page, await bodyPoint(sheet));
+    await pull.move(scrolled / 2);
+    await expect.poll(scrollTop).toBeLessThan(scrolled);
+    expect(await scrollTop()).toBeGreaterThan(0);
+    expect(await panel.evaluate(element => element.style.transform + (element.dataset.swipeState ?? ""))).toBe("");
+    // Once the top is reached, the same pull moves the sheet; released short of 30%, it springs back.
+    await pull.move(scrolled / 2 + 120);
+    await expect.poll(() => swipeState(panel)).toBe("dragging");
+    expect(await scrollTop()).toBe(0);
+    expect(await offsetOf(panel)).toBeGreaterThan(0);
+    await pull.lift();
     await atRest(sheet);
+    expect(await scrollTop()).toBe(0);
     // A pinned header still drags the sheet closed while the body is scrolled.
     await panel.evaluate(element => { element.scrollTop = element.scrollHeight; });
     expect(await scrollTop()).toBeGreaterThan(50);
@@ -140,6 +180,109 @@ test.describe("on a touch phone", () => {
     await panel.evaluate(element => { element.scrollTop = 0; });
     await touchDrag(page, await bodyPoint(sheet), 300);
     await expect(sheet).not.toHaveAttribute("open", "");
+  });
+
+  test("one continuous pull from a scrolled body scrolls it to its top, then dismisses past 30%, and springs back short of it", async ({ page }) => {
+    await page.setViewportSize({ width: 390, height: 600 });
+    await today(page);
+    await openReview(page);
+    const sheet = review(page), panel = panelOf(sheet);
+    const scrollTop = () => panel.evaluate(element => element.scrollTop);
+    const height = (await panel.boundingBox())!.height;
+    const pullFrom = async (travel: number) => {
+      await panel.evaluate(element => { element.scrollTop = 80; });
+      expect(await scrollTop()).toBe(80);
+      const pull = await press(page, await bodyPoint(sheet));
+      await pull.move(travel);
+      // Native scrolling went first, all the way to the top, then the same touch took the sheet.
+      await expect.poll(() => swipeState(panel)).toBe("dragging");
+      expect(await scrollTop()).toBe(0);
+      await pull.lift();
+    };
+    // 80 px of scrolling and the browser's touch slop come first; then less than 30% of the sheet's height.
+    await pullFrom(80 + height * SWIPE.commit.y - 40);
+    await atRest(sheet);
+    expect(await scrollTop()).toBe(0);
+    // 80 px of scrolling, the slop, then well past 30%.
+    await pullFrom(80 + height * SWIPE.commit.y + 100);
+    await expect(sheet).not.toHaveAttribute("open", "");
+  });
+
+  test("a second finger anywhere, even on the backdrop outside the sheet, cancels the drag and springs back", async ({ page }) => {
+    await today(page);
+    await openFilter(page);
+    const sheet = filter(page), panel = panelOf(sheet);
+    const box = (await headerOf(sheet).boundingBox())!;
+    const outside = { x: 100, y: 10 };
+    expect(await panel.evaluate((element, { x, y }) => !element.contains(document.elementFromPoint(x, y)), outside)).toBe(true);
+    const drag = await press(page, { x: box.x + box.width / 2, y: box.y + 12 });
+    await drag.move(80);
+    await expect.poll(() => swipeState(panel)).toBe("dragging");
+    await expect.poll(() => offsetOf(panel)).toBe(80);
+    await drag.add(outside);
+    await expect.poll(() => swipeState(panel)).not.toBe("dragging");
+    // The first finger no longer drives anything, even far past 30%.
+    await drag.move(300);
+    await drag.lift();
+    await atRest(sheet);
+    await expect(sheet).toBeVisible();
+  });
+
+  test("a touch on a settling sheet catches it only where a fresh touch could start: never on an opt-out, a field, a slider, a sideways scroller, the screen edge or a nested layer", async ({ page }) => {
+    await today(page);
+    await openFilter(page);
+    const sheet = filter(page), panel = panelOf(sheet), header = headerOf(sheet);
+    // A long spring-back, from the existing token, so each touch lands while the sheet settles.
+    await panel.evaluate(element => element.style.setProperty("--motion-cancel", "2000ms"));
+    // Stand-ins for the controls the exclusions protect, and a layer nested in the sheet's markup.
+    await panel.evaluate(element => {
+      const body = element.querySelector(".sheet-body") ?? element;
+      body.insertAdjacentHTML("afterbegin", `<div data-test-swipe="slider" role="slider" tabindex="0" aria-label="Test slider" aria-valuenow="1" style="height:40px"></div>
+        <div data-test-swipe="scroller" style="overflow-x:auto;height:40px"><div style="width:2000px;height:40px"></div></div>
+        <dialog data-test-swipe="nested"><p style="height:120px;width:240px">Nested layer</p></dialog>`);
+    });
+    // Points are measured as the touch lands: a settling sheet is still part way down.
+    const centre = async (target: Locator) => { const area = (await target.boundingBox())!; return { x: area.x + area.width / 2, y: area.y + area.height / 2 }; };
+    const grip = () => centre(header);
+    const springBack = async () => {
+      await atRest(sheet);
+      const drag = await press(page, await grip());
+      await drag.move(80);
+      await drag.lift();
+      await expect.poll(() => swipeState(panel)).toBe("cancel");
+    };
+    const touchDuringSettle = async (point: { x: number; y: number }) => {
+      const touch = await press(page, point);
+      await touch.move(30);
+      const state = await swipeState(panel);
+      await touch.lift();
+      return state;
+    };
+    const cases: Array<[string, () => Promise<{ x: number; y: number }>]> = [
+      ["data-swipe-ignore", async () => { await header.evaluate(element => element.setAttribute("data-swipe-ignore", "")); return grip(); }],
+      ["a field", () => centre(sheet.locator("select").first())],
+      ["a slider", () => centre(sheet.locator('[data-test-swipe="slider"]'))],
+      ["a sideways scroller", () => centre(sheet.locator('[data-test-swipe="scroller"]'))],
+      ["the 24 px screen edge", async () => ({ x: 10, y: (await grip()).y })],
+      ["a nested layer", async () => { await sheet.locator('[data-test-swipe="nested"]').evaluate(element => (element as HTMLDialogElement).showModal()); return centre(sheet.locator('[data-test-swipe="nested"] p')); }]
+    ];
+    for (const [name, place] of cases) {
+      await springBack();
+      const point = await place();
+      // The touch lands on the settling sheet itself, so only the exclusion can keep it from catching.
+      expect.soft(await panel.evaluate((element, { x, y }) => element.contains(document.elementFromPoint(x, y)), point), name).toBe(true);
+      // Each case is reported on its own.
+      expect.soft(await touchDuringSettle(point), name).toBe("cancel");
+      await header.evaluate(element => element.removeAttribute("data-swipe-ignore"));
+      await sheet.locator('[data-test-swipe="nested"]').evaluate(element => (element as HTMLDialogElement).close());
+    }
+    // Where a fresh touch could start, the same touch does catch the settling sheet.
+    await springBack();
+    const catcher = await press(page, await grip());
+    await catcher.move(30);
+    await expect.poll(() => swipeState(panel)).toBe("dragging");
+    await catcher.lift();
+    await atRest(sheet);
   });
 
   test("a fling closes from a short distance, and fields, edges and upward drags never dismiss", async ({ page }) => {
