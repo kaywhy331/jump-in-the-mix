@@ -1,0 +1,16 @@
+{
+  "description": "Read by scripts/test-env.mjs at run time. The command run by `node scripts/test-env.mjs run` starts from an EMPTY environment: only the names in `inherit` pass through from the caller, then the env file and the pins are added. docs/LOCAL_TESTING.md justifies every name and path here. Database inputs, loader inputs (DOTENV_*, NODE_OPTIONS, npm_config_*, JITI_*, TSX_*) and NODE_ENV are refused in `inherit`.",
+  "inherit": {
+    "all": ["PATH", "HOME", "TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "NO_COLOR", "FORCE_COLOR", "CI"],
+    "win32": ["SystemRoot", "SystemDrive", "WINDIR", "ComSpec", "PATHEXT", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA"]
+  },
+  "files": {
+    "envFile": ".artifacts/test-env/{database}.env",
+    "npmUserConfig": ".artifacts/test-env/{database}.npmrc",
+    "npmGlobalConfig": ".artifacts/test-env/{database}.global.npmrc"
+  },
+  "npmConfigPins": {
+    "npm_config_userconfig": "npmUserConfig",
+    "npm_config_globalconfig": "npmGlobalConfig"
+  }
+}

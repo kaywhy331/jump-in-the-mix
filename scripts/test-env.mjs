@@ -13,16 +13,23 @@
 // is cleared or set to the validated test database, and the final driver configuration is
 // checked before any connection or child process is created.
 //
-// The child's own loaders are pinned too. prisma.config.ts, vitest.config.ts and the database
-// scripts import dotenv/config, which takes its file, override and vault key from DOTENV_*
-// variables; the names are read from the installed dotenv at run time, the file is pinned to
-// the env file and every other control is set empty. Inherited NODE_OPTIONS (which can preload
-// code), npm's node-options and the config loaders' JITI_* and TSX_* inputs are removed. The
-// child's dotenv load is replayed before the spawn and must change nothing.
+// The command that `run` starts gets an EMPTY environment, not from the caller's: only the
+// names allowlisted in scripts/test-env.config.json pass through (PATH, HOME and a few more),
+// then the env file and the pins are added. No inherited npm, Node, dotenv, Prisma or Vitest
+// setting can reach it, whatever its name. The pins fix every loader input the child reads:
+// - dotenv/config (prisma.config.ts, vitest.config.ts, the database scripts) takes its file,
+//   override and vault key from DOTENV_* variables; the names are read from the installed dotenv,
+//   the file is pinned to the env file and every other control is set empty;
+// - NODE_OPTIONS (which can preload code) is fixed to CI's value or empty;
+// - npm's user and global config files are pinned to owned, empty files next to the env file.
+// Before the spawn, the child's dotenv load is replayed and must change nothing, and the npm the
+// child will find on its PATH is loaded with its own config loader: npm must read no project
+// .npmrc, no setting from its config files, and hand its scripts an environment that still
+// passes every check, for the command itself and for an npm started from one of its scripts.
 import { spawn as spawnProcess } from "node:child_process";
-import { existsSync, mkdirSync, readFileSync, renameSync, rmSync, writeFileSync } from "node:fs";
+import { existsSync, mkdirSync, readFileSync, realpathSync, renameSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
-import { dirname, join, relative, resolve, sep } from "node:path";
+import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
 import { parse as parseDotenv } from "dotenv";
 import pg from "pg";
@@ -37,6 +44,8 @@ const { parse: parseConnectionString } = requireFromPg("pg-connection-string");
 const ConnectionParameters = requireFromPg("./connection-parameters.js");
 
 const ROOT = resolve(dirname(fileURLToPath(import.meta.url)), "..");
+// The one config this script owns: the inherited-variable allowlist and the pinned file paths.
+export const CONFIG_FILE = join(dirname(fileURLToPath(import.meta.url)), "test-env.config.json");
 
 export const DATABASE_PREFIX = "jitm_design_";
 export const DATABASE_NAME_PATTERN = /^jitm_design_[a-z0-9_]{1,40}$/;
@@ -63,12 +72,19 @@ const SPECIAL_PG_VARIABLES = ["PGAPPNAME", "PGSSLMODE", "PGPASSFILE", "PGHOSTADD
 // (dotenvLoaderInputs); any other DOTENV_* name is removed as well.
 const DOTENV_VARIABLE = /^DOTENV_/u;
 // Inputs of the loaders around the child's config files: jiti (Prisma's config loader) takes
-// import aliases from JITI_*, and tsx takes a tsconfig path from TSX_*. Removed from the child.
+// import aliases from JITI_*, and tsx takes a tsconfig path from TSX_*. Never in the child.
 const CONFIG_LOADER_VARIABLE = /^(?:JITI|TSX)_/u;
 // Node reads NODE_OPTIONS before any config file, and its --require and --import preload code; npm
-// turns its node-options setting, which the environment can supply, into NODE_OPTIONS for scripts.
+// turns its node-options setting, from any of its config layers, into NODE_OPTIONS for scripts.
 const NODE_OPTIONS = "NODE_OPTIONS";
+// npm reads every npm_config_* variable, in any letter case, as a setting (npm's loadEnv).
+const NPM_CONFIG_VARIABLE = /^npm_config_/iu;
 const NPM_NODE_OPTIONS = /^npm_config_node[-_]options$/iu;
+// The npm layers that are files; the helper's own files must set nothing, and no project file may exist.
+const NPM_FILE_LAYERS = ["project", "user", "global"];
+const NPM_CLI_SCRIPT = /[\\/]bin[\\/](np[mx])-cli\.js$/u;
+const DATABASE_PLACEHOLDER = "{database}";
+const FILE_KEYS = ["envFile", "npmUserConfig", "npmGlobalConfig"];
 
 export class GuardError extends Error {
   constructor(message) {
@@ -84,13 +100,97 @@ export function projectPaths(root = ROOT) {
   return {
     root,
     example: join(root, ".env.example"),
-    workflow: join(root, ".github", "workflows", "ci.yml"),
-    envDirectory: join(root, ".artifacts", "test-env")
+    workflow: join(root, ".github", "workflows", "ci.yml")
   };
 }
 
+const isDatabaseInput = (key) => PG_VARIABLE.test(key) || DATABASE_URL_INPUT.test(key);
+
+function isLoaderInput(name) {
+  return DOTENV_VARIABLE.test(name) || CONFIG_LOADER_VARIABLE.test(name) || NPM_CONFIG_VARIABLE.test(name) || name === NODE_OPTIONS;
+}
+
+// Checks the config this script owns. The allowlist may never name a database input, a loader
+// input or NODE_ENV (next build fails under development); file paths stay inside the repository.
+export function parseTestEnvConfig(value) {
+  if (!isRecord(value)) refuse("test-env.config.json must hold an object.");
+  const { inherit, files, npmConfigPins } = value;
+  if (!isRecord(inherit) || !Array.isArray(inherit.all)) refuse("test-env.config.json needs inherit.all: the variables the child may inherit on every platform.");
+  const lists = {};
+  for (const [platform, names] of Object.entries(inherit)) {
+    if (!Array.isArray(names)) refuse(`inherit.${platform} must be a list of variable names.`);
+    for (const name of names) {
+      if (typeof name !== "string" || !ENV_KEY.test(name)) refuse(`inherit.${platform} has an invalid variable name ${JSON.stringify(name)}.`);
+      // Windows reads names in any letter case, so the upper-case form is checked as well.
+      for (const form of new Set([name, name.toUpperCase()])) {
+        if (isDatabaseInput(form) || isLoaderInput(form) || form === "NODE_ENV") {
+          refuse(`inherit.${platform} names ${name}, which can change the database or what the child's loaders read; the child never inherits it.`);
+        }
+      }
+    }
+    lists[platform] = Object.freeze([...names]);
+  }
+  if (!isRecord(files)) refuse("test-env.config.json needs files: the env file and npm config file paths.");
+  const templates = {};
+  for (const key of FILE_KEYS) {
+    const template = files[key];
+    if (typeof template !== "string" || !template.includes(DATABASE_PLACEHOLDER) || isAbsolute(template) || template.split(/[\\/]/u).includes("..")) {
+      refuse(`files.${key} must be a relative path inside the repository that contains ${DATABASE_PLACEHOLDER}.`);
+    }
+    templates[key] = template;
+  }
+  // npm refuses to load one file as both its user and its global config.
+  if (new Set(Object.values(templates)).size !== FILE_KEYS.length) refuse("files must name three different paths.");
+  if (!isRecord(npmConfigPins)) refuse("test-env.config.json needs npmConfigPins: the npm settings that name its config files.");
+  const pins = {};
+  for (const [name, fileKey] of Object.entries(npmConfigPins)) {
+    if (!/^npm_config_[a-z0-9_]+$/u.test(name)) refuse(`npmConfigPins has an invalid npm variable ${JSON.stringify(name)}.`);
+    if (!FILE_KEYS.includes(fileKey) || fileKey === "envFile") refuse(`npmConfigPins.${name} must name one of the npm config files.`);
+    pins[name] = fileKey;
+  }
+  for (const required of ["npm_config_userconfig", "npm_config_globalconfig"]) {
+    if (!pins[required]) refuse(`npmConfigPins must pin ${required}, or npm reads the caller's npmrc files.`);
+  }
+  return Object.freeze({ inherit: Object.freeze(lists), files: Object.freeze(templates), npmConfigPins: Object.freeze(pins) });
+}
+
+let ownConfig;
+export function testEnvConfig() {
+  if (!ownConfig) {
+    let value;
+    try { value = JSON.parse(readFileSync(CONFIG_FILE, "utf8")); } catch (error) { refuse(`Cannot read ${CONFIG_FILE}: ${error.message}`); }
+    ownConfig = parseTestEnvConfig(value);
+  }
+  return ownConfig;
+}
+
+// The files the helper owns for one database, from the config's templates.
+export function testEnvFiles(database, root = ROOT, config = testEnvConfig()) {
+  assertDatabaseName(database);
+  const paths = {};
+  for (const [key, template] of Object.entries(config.files)) {
+    const path = resolve(root, template.split(DATABASE_PLACEHOLDER).join(database));
+    const inside = relative(root, path);
+    if (!inside || inside.startsWith("..") || isAbsolute(inside)) refuse(`files.${key} resolves outside the repository.`);
+    paths[key] = path;
+  }
+  return paths;
+}
+
 export function envFilePath(database, root = ROOT) {
-  return join(projectPaths(root).envDirectory, `${assertDatabaseName(database)}.env`);
+  return testEnvFiles(database, root).envFile;
+}
+
+// The names the child may inherit on this platform. Windows compares names without letter case.
+export function inheritedNames(platform = process.platform, config = testEnvConfig()) {
+  return [...config.inherit.all, ...(config.inherit[platform] ?? [])];
+}
+
+// The child's starting environment: the allowlisted names the caller has set, and nothing else.
+export function allowlistedEnvironment(env, platform = process.platform, config = testEnvConfig()) {
+  const fold = platform === "win32" ? (name) => name.toUpperCase() : (name) => name;
+  const allowed = new Set(inheritedNames(platform, config).map(fold));
+  return Object.fromEntries(Object.entries(env).filter(([name, value]) => typeof value === "string" && allowed.has(fold(name))));
 }
 
 export function assertDatabaseName(database) {
@@ -261,15 +361,24 @@ export function loaderPins(envFile, ci) {
   return pins;
 }
 
-function isLoaderInput(name) {
-  return DOTENV_VARIABLE.test(name) || CONFIG_LOADER_VARIABLE.test(name) || NPM_NODE_OPTIONS.test(name) || name === NODE_OPTIONS;
+// npm's user and global config files, pinned to the helper's own empty files (the config names them).
+export function npmConfigPins(files, config = testEnvConfig()) {
+  return new Map(Object.entries(config.npmConfigPins).map(([name, fileKey]) => [name, portablePath(files[fileKey])]));
 }
 
-// Every loader input in `env` must be one of the pins, with the pinned value.
-export function assertLoaderPins(env, pins) {
+// Every pin the child gets: dotenv, NODE_OPTIONS and npm's config files.
+export function childPins(files, ci, config = testEnvConfig()) {
+  return new Map([...loaderPins(files.envFile, ci), ...npmConfigPins(files, config)]);
+}
+
+// Every loader input in `env` must be one of the pins, with the pinned value. In the environment npm
+// hands to a script, npm adds its own settings as npm_config_*; those are checked against npm itself
+// (assertNpmConfig), except node-options, which must never be there.
+export function assertLoaderPins(env, pins, { npmExports = false } = {}) {
   for (const [name, value] of Object.entries(env)) {
-    if (value === undefined || !isLoaderInput(name)) continue;
-    if (!pins.has(name)) refuse(`${name} is set; it could change what the child's loaders read. It must be absent.`);
+    if (value === undefined || !isLoaderInput(name) || pins.has(name)) continue;
+    if (npmExports && NPM_CONFIG_VARIABLE.test(name) && !NPM_NODE_OPTIONS.test(name)) continue;
+    refuse(`${name} is set; it could change what the child's loaders read. It must be absent.`);
   }
   for (const [name, value] of pins) {
     if (env[name] !== value) refuse(`${name} must be ${JSON.stringify(value)} so the child's loaders read only the env file; found ${JSON.stringify(env[name] ?? null)}.`);
@@ -362,8 +471,9 @@ export function databaseUrlInputNames(...sources) {
   return [...names].sort();
 }
 
-export function buildEnvironment({ exampleText, ci, database, inherited = {}, envFile = envFilePath(database) }) {
+export function buildEnvironment({ exampleText, ci, database, inherited = {}, root = ROOT, envFile }) {
   assertDatabaseName(database);
+  const files = { ...testEnvFiles(database, root), ...(envFile ? { envFile } : {}) };
   const example = parseDotenv(exampleText);
   const values = new Map(Object.entries({ ...example, ...ci.jobEnvironment, ...ci.stepEnvironment }));
   const target = { host: ci.host, port: ci.port, user: ci.user, password: ci.password, database };
@@ -371,11 +481,11 @@ export function buildEnvironment({ exampleText, ci, database, inherited = {}, en
   for (const name of databaseUrlInputNames(example, ci.jobEnvironment, ci.stepEnvironment, inherited)) if (name !== "DATABASE_URL") isolation.set(name, "");
   const pgValues = targetPgValues(target);
   for (const name of pgVariableNames(inherited)) isolation.set(name, pgValues[name] ?? "");
-  const pins = loaderPins(envFile, ci);
+  const pins = childPins(files, ci);
   for (const [name, value] of pins) isolation.set(name, value);
   for (const name of [...values.keys()]) if (isLoaderInput(name)) values.delete(name);
   for (const name of isolation.keys()) values.delete(name);
-  return { base: values, isolation, values: new Map([...values, ...isolation]), target, pins };
+  return { base: values, isolation, values: new Map([...values, ...isolation]), target, pins, files };
 }
 
 export function renderEnvFile({ base, isolation, database }) {
@@ -393,7 +503,7 @@ export function renderEnvFile({ base, isolation, database }) {
     }
   };
   section(base);
-  lines.push("", "# Isolation: the test database, every other database input cleared, and dotenv pinned to this file.");
+  lines.push("", "# Isolation: the test database, every other database input cleared, dotenv pinned to this file and npm to its own empty config files.");
   section(isolation);
   return `${lines.join("\n")}\n`;
 }
@@ -412,17 +522,162 @@ function expectedTarget(ci, database) {
 
 const quoteIdentifier = (name) => `"${assertDatabaseName(name)}"`;
 
-const isDatabaseInput = (key) => PG_VARIABLE.test(key) || DATABASE_URL_INPUT.test(key);
-
 // Strips every inherited database input so pg cannot pick one up.
 export function withoutDatabaseInputs(env) {
   return Object.fromEntries(Object.entries(env).filter(([key]) => !isDatabaseInput(key)));
 }
 
-// Strips every inherited database and loader input so a child process cannot pick one up.
-export function withoutChildInputs(env) {
-  return Object.fromEntries(Object.entries(env).filter(([key]) => !isDatabaseInput(key) && !isLoaderInput(key)));
+// npm: the effective configuration, read with the installed npm's own config loader.
+
+const executableName = (program) => basename(String(program)).toLowerCase().replace(/\.(?:cmd|exe|bat|ps1)$/u, "");
+const pathSeparator = (platform) => (platform === "win32" ? ";" : ":");
+
+function environmentValue(env, name, platform) {
+  if (platform !== "win32") return env[name];
+  const key = Object.keys(env).find((candidate) => candidate.toUpperCase() === name);
+  return key === undefined ? undefined : env[key];
 }
+
+// Finds `name` the way a spawn with this environment does: on the child's own PATH.
+export function findOnPath(name, env, platform = process.platform) {
+  const extensions = platform === "win32" ? ["", ...String(environmentValue(env, "PATHEXT", platform) ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean)] : [""];
+  for (const directory of String(environmentValue(env, "PATH", platform) ?? "").split(pathSeparator(platform))) {
+    if (!directory) continue;
+    for (const extension of extensions) {
+      const candidate = join(directory, `${name}${extension}`);
+      try { if (statSync(candidate).isFile()) return candidate; } catch { /* not in this directory */ }
+    }
+  }
+  return null;
+}
+
+// The npm installation behind an npm or npx executable: <root>/bin/np[mx]-cli.js through links, or
+// the node_modules/npm folder beside a Windows shim. Anything else is unknown.
+export function npmRootOf(executable) {
+  let real;
+  try { real = realpathSync(executable); } catch { return null; }
+  if (NPM_CLI_SCRIPT.test(real)) return dirname(dirname(real));
+  for (const candidate of new Set([join(dirname(executable), "node_modules", "npm"), join(dirname(real), "node_modules", "npm")])) {
+    if (existsSync(join(candidate, "bin", "npm-cli.js"))) return candidate;
+  }
+  return null;
+}
+
+// npm reads npm_config_<key> in any letter case and normalises the key (npm's loadEnv).
+const npmKey = (name) => name.slice("npm_config_".length).replace(/(?!^)_/gu, "-").toLowerCase();
+
+// The npm runs a command can start: the command's own npm (npm, npx, or node .../npm-cli.js) with
+// its arguments, and the npm on the child's PATH with none, as a script or a shell starts it.
+export function npmInvocations(command, env, { cwd, platform = process.platform }) {
+  const invocations = [];
+  const add = (executable, argv, label) => {
+    const root = npmRootOf(executable);
+    if (!root) refuse(`${label} is ${executable}, and the helper cannot find npm's own config loader behind it, so npm's effective configuration cannot be checked.`);
+    invocations.push({ root, argv, label });
+  };
+  const [program, ...args] = command;
+  const name = executableName(program);
+  if (name === "npm" || name === "npx") {
+    const executable = /[\\/]/u.test(program) ? resolve(cwd, program) : findOnPath(program, env, platform);
+    // When it is not on the child's PATH, the spawn cannot start it either.
+    if (executable) add(executable, name === "npx" ? ["exec", ...args] : args, `The command's ${name}`);
+  } else if (name === "node" && NPM_CLI_SCRIPT.test(String(args[0] ?? ""))) {
+    const script = resolve(cwd, args[0]);
+    add(script, NPM_CLI_SCRIPT.exec(script)[1] === "npx" ? ["exec", ...args.slice(1)] : args.slice(1), "The command's npm");
+  }
+  const fromPath = findOnPath("npm", env, platform);
+  if (fromPath) add(fromPath, [], "The npm on the child's PATH");
+  return invocations;
+}
+
+// Loads npm's configuration as that npm will in the child, with its own @npmcli/config. A project
+// .npmrc is refused before any file is read: no environment value can override what it sets, and it
+// may hold registry tokens, so the helper never opens it.
+export async function loadNpmConfig({ root, env, cwd, argv = [], platform = process.platform }) {
+  const requireFromNpm = createRequire(join(root, "package.json"));
+  let Config, definitions, shorthands, flatten;
+  try {
+    Config = requireFromNpm("@npmcli/config");
+    ({ definitions, shorthands, flatten } = requireFromNpm("@npmcli/config/lib/definitions"));
+  } catch (error) {
+    refuse(`Cannot load npm's config loader from ${root} (${error.message}), so npm's effective configuration cannot be checked.`);
+  }
+  const options = () => ({ definitions, shorthands, flatten, npmPath: root, env: { ...env }, argv: [process.execPath, join(root, "bin", "npm-cli.js"), ...argv], cwd, platform, execPath: process.execPath });
+  try {
+    // npm's own prefix walk (the --prefix flag, else the nearest package.json, else a workspace root).
+    const prefix = new Config(options());
+    prefix.loadDefaults();
+    prefix.loadCLI();
+    prefix.loadEnv();
+    await prefix.loadLocalPrefix();
+    const projectFile = resolve(prefix.localPrefix, ".npmrc");
+    if (existsSync(projectFile)) {
+      refuse(`npm would read the project config ${projectFile} after these checks, and it outranks every config file the helper pins (node-options, script-shell and the rest). Move it out of ${prefix.localPrefix}; the helper does not open it.`);
+    }
+    const config = new Config(options());
+    await config.load();
+    return config;
+  } catch (error) {
+    if (error instanceof GuardError) throw error;
+    refuse(`npm's config loader in ${root} failed (${error.message}), so npm's effective configuration cannot be checked.`);
+  }
+}
+
+// npm's effective configuration must leave the pins alone: its user and global config are the
+// helper's files, no config file sets anything, the environment gives it nothing but those pins, and
+// nothing sets node-options (npm would replace NODE_OPTIONS with it for every script).
+export function assertNpmConfig(config, pins, { label, environmentPinsOnly = true }) {
+  const npmPins = [...pins].filter(([name]) => NPM_CONFIG_VARIABLE.test(name));
+  for (const [name, value] of npmPins) {
+    const key = npmKey(name);
+    const effective = config.get(key);
+    if (typeof effective !== "string" || resolve(effective) !== resolve(value)) {
+      refuse(`${label}: npm's ${key} would be ${JSON.stringify(effective ?? null)} (from npm's ${config.find(key)} config), not the helper's file ${value}.`);
+    }
+  }
+  for (const where of NPM_FILE_LAYERS) {
+    const layer = config.data.get(where);
+    const keys = Object.keys(layer.raw ?? {});
+    if (keys.length) refuse(`${label}: npm's ${where} config ${layer.source} sets ${keys.join(", ")}; the helper's npm config files must set nothing.`);
+  }
+  if (environmentPinsOnly) {
+    const allowed = new Set(npmPins.map(([name]) => npmKey(name)));
+    const extra = Object.keys(config.data.get("env").raw ?? {}).filter((key) => !allowed.has(key));
+    if (extra.length) refuse(`${label}: the environment gives npm the settings ${extra.join(", ")}; only the helper's config files may be set.`);
+  }
+  if (config.get("node-options")) {
+    refuse(`${label}: npm's node-options is set (from npm's ${config.find("node-options")} config); npm would replace the pinned NODE_OPTIONS with it for every script.`);
+  }
+}
+
+// Before the spawn, every npm the child can start is loaded with its own config loader, and the
+// environment it hands to its scripts must pass `checkScriptEnvironment`. So is an npm that one of
+// those scripts starts in turn: in the package folder, with node_modules/.bin first on its PATH.
+export async function assertNpmBoundary(env, { command, cwd, platform = process.platform, pins, checkScriptEnvironment }) {
+  const checked = [];
+  for (const { root, argv, label } of npmInvocations(command, env, { cwd, platform })) {
+    const config = await loadNpmConfig({ root, env, cwd, argv, platform });
+    assertNpmConfig(config, pins, { label });
+    checkScriptEnvironment(config.env, label);
+    checked.push({ label, root, localPrefix: config.localPrefix });
+
+    const nestedLabel = `${label}, then npm from a script in ${config.localPrefix}`;
+    const scriptPath = [join(config.localPrefix, "node_modules", ".bin"), environmentValue(config.env, "PATH", platform) ?? ""].join(pathSeparator(platform));
+    const nestedExecutable = findOnPath("npm", { PATH: scriptPath, PATHEXT: environmentValue(config.env, "PATHEXT", platform) }, platform);
+    if (!nestedExecutable) continue;
+    const nestedRoot = npmRootOf(nestedExecutable);
+    if (!nestedRoot) refuse(`${nestedLabel}: npm is ${nestedExecutable}, and the helper cannot find npm's own config loader behind it.`);
+    const nested = await loadNpmConfig({ root: nestedRoot, env: config.env, cwd: config.localPrefix, argv: [], platform });
+    // A script's environment already carries npm's own exported settings.
+    assertNpmConfig(nested, pins, { label: nestedLabel, environmentPinsOnly: false });
+    checkScriptEnvironment(nested.env, nestedLabel);
+    checked.push({ label: nestedLabel, root: nestedRoot, localPrefix: nested.localPrefix });
+  }
+  return checked;
+}
+
+// The npm config files the helper owns: present, so npm has nothing to fall back to, and empty.
+const npmConfigText = (database, role) => `# Generated by scripts/test-env.mjs: npm's ${role} config while testing against ${database}.\n# Deliberately empty, so npm reads no setting from your home or global npmrc. Do not edit.\n`;
 
 async function defaultConnect(config) {
   const client = (() => {
@@ -460,8 +715,9 @@ async function create(io, [name, ...extra]) {
   const database = resolveDatabaseName(name);
   const paths = projectPaths(io.root);
   const ci = await readCiConfiguration(io.readText(paths.workflow));
-  const path = envFilePath(database, io.root);
-  const environment = buildEnvironment({ exampleText: io.readText(paths.example), ci, database, inherited: io.env, envFile: path });
+  const files = testEnvFiles(database, io.root);
+  const path = files.envFile;
+  const environment = buildEnvironment({ exampleText: io.readText(paths.example), ci, database, inherited: io.env, root: io.root });
   const text = renderEnvFile({ ...environment, database });
   const values = Object.fromEntries(environment.values);
   assertIsolatedEnvironment(values, expectedTarget(ci, database));
@@ -474,9 +730,16 @@ async function create(io, [name, ...extra]) {
       refuse(`${database} already exists. Drop it with npm run test:env:drop -- ${database}, then create it again.`);
     }
     await client.query(`CREATE DATABASE ${quoteIdentifier(database)} TEMPLATE template0`);
+    const written = [];
     try {
       io.writeEnvFile(path, text);
+      written.push(path);
+      for (const [file, role] of [[files.npmUserConfig, "user"], [files.npmGlobalConfig, "global"]]) {
+        io.writeEnvFile(file, npmConfigText(database, role));
+        written.push(file);
+      }
     } catch (error) {
+      for (const file of written) io.removeFile(file);
       await client.query(`DROP DATABASE IF EXISTS ${quoteIdentifier(database)} WITH (FORCE)`);
       throw error;
     }
@@ -487,7 +750,7 @@ async function create(io, [name, ...extra]) {
   const shown = relative(process.cwd(), path) || path;
   io.stdout([
     `Created ${database} on ${ci.host}:${ci.port} as the CI test role.`,
-    `Env file: ${shown}`,
+    `Env file: ${shown} (npm reads only ${relative(process.cwd(), files.npmUserConfig) || files.npmUserConfig} and its global twin)`,
     `Load it:  set -a; . ${shown}; set +a`,
     `Or run:   node scripts/test-env.mjs run ${database} -- <command>`,
     `Drop it:  npm run test:env:drop -- ${database}`
@@ -500,7 +763,7 @@ async function drop(io, [name, ...extra]) {
   const database = resolveDatabaseName(name);
   const paths = projectPaths(io.root);
   const ci = await readCiConfiguration(io.readText(paths.workflow));
-  const path = envFilePath(database, io.root);
+  const files = testEnvFiles(database, io.root);
   const maintenance = maintenanceConfig(ci);
 
   const client = await io.connect(maintenance);
@@ -512,8 +775,8 @@ async function drop(io, [name, ...extra]) {
     await client.end();
   }
   if (present) throw new Error(`${database} still exists after DROP DATABASE.`);
-  io.removeFile(path);
-  io.stdout(`Dropped ${database}: absent from pg_database on ${ci.host}:${ci.port}. Removed its env file.`);
+  for (const file of [files.envFile, files.npmUserConfig, files.npmGlobalConfig]) io.removeFile(file);
+  io.stdout(`Dropped ${database}: absent from pg_database on ${ci.host}:${ci.port}. Removed its env file and npm config files.`);
   return 0;
 }
 
@@ -523,24 +786,41 @@ async function run(io, [name, ...rest]) {
   if (command.length === 0) refuse(`Name the command to run, for example: node scripts/test-env.mjs run ${database} -- npm test`);
   const paths = projectPaths(io.root);
   const ci = await readCiConfiguration(io.readText(paths.workflow));
-  const path = envFilePath(database, io.root);
+  const files = testEnvFiles(database, io.root);
+  const path = files.envFile;
   if (!io.fileExists(path)) refuse(`${database} has no env file. Create it with npm run test:env -- ${database}`);
   const fileText = io.readText(path);
   const fileValues = parseDotenv(fileText);
-  const pins = loaderPins(path, ci);
+  const pins = childPins(files, ci);
   // A file written before the pins existed lacks them; any loader input it does carry must match.
   for (const [name, value] of Object.entries(fileValues)) {
     if (isLoaderInput(name) && pins.get(name) !== value) refuse(`The env file sets ${name}, which would change what the child's loaders read. Drop and create ${database} again.`);
   }
-  const childEnvironment = withoutChildInputs(io.env);
-  // An inherited NODE_ENV (development) breaks next build; the tools choose their own.
-  delete childEnvironment.NODE_ENV;
-  Object.assign(childEnvironment, fileValues, Object.fromEntries(pins));
+  // The child starts EMPTY: the allowlisted names the caller has set (scripts/test-env.config.json),
+  // then the env file, then the pins. Nothing else the caller exports reaches it, whatever its name.
+  const childEnvironment = { ...allowlistedEnvironment(io.env, io.platform), ...fileValues, ...Object.fromEntries(pins) };
   const expected = expectedTarget(ci, database);
   assertIsolatedEnvironment(childEnvironment, expected);
   assertLoaderPins(childEnvironment, pins);
   assertChildDotenvLoad(childEnvironment, { envFile: path, fileText, args: command, expected });
-  return io.spawn(command[0], command.slice(1), { cwd: process.cwd(), env: childEnvironment });
+  // What npm will hand its scripts, read with npm's own config loader: it must pass the same checks.
+  await assertNpmBoundary(childEnvironment, {
+    command,
+    cwd: io.cwd,
+    platform: io.platform,
+    pins,
+    checkScriptEnvironment: (scriptEnvironment, label) => {
+      try {
+        assertIsolatedEnvironment(scriptEnvironment, expected);
+        assertLoaderPins(scriptEnvironment, pins, { npmExports: true });
+        assertChildDotenvLoad(scriptEnvironment, { envFile: path, fileText, args: [], expected });
+      } catch (error) {
+        if (error instanceof GuardError) refuse(`${label}: ${error.message}`);
+        throw error;
+      }
+    }
+  });
+  return io.spawn(command[0], command.slice(1), { cwd: io.cwd, env: childEnvironment });
 }
 
 const USAGE = [
@@ -554,6 +834,8 @@ export async function main(argv, dependencies = {}) {
   const io = {
     root: ROOT,
     env: process.env,
+    cwd: process.cwd(),
+    platform: process.platform,
     readText: (path) => readFileSync(path, "utf8"),
     fileExists: (path) => existsSync(path),
     writeEnvFile: defaultWriteEnvFile,

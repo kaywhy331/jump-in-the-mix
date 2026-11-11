@@ -1,10 +1,15 @@
 import { spawnSync } from "node:child_process";
-import { existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, writeFileSync } from "node:fs";
+import { randomBytes, randomInt } from "node:crypto";
+import { chmodSync, existsSync, mkdirSync, mkdtempSync, readFileSync, rmSync, statSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
+import net from "node:net";
 import { tmpdir } from "node:os";
-import { dirname, join } from "node:path";
+import { delimiter, dirname, join } from "node:path";
+import { pathToFileURL } from "node:url";
 import { parse as parseDotenv } from "dotenv";
-import { afterAll, beforeAll, describe, expect, it, vi } from "vitest";
+import { afterAll, beforeAll, beforeEach, describe, expect, it, vi } from "vitest";
+// R2 helpers are read through the namespace, so the R2 cases also load (and fail) against the R1 helper.
+import * as helper from "../scripts/test-env.mjs";
 import {
   assertChildDotenvLoad,
   assertDatabaseName,
@@ -107,7 +112,7 @@ function harness({ ci = ciFixture(), example = exampleFixture(), env = {}, files
 async function envFileFor(database = "jitm_design_fixture", overrides = {}) {
   const ci = await readCiConfiguration(ciFixture());
   // Written for the harness root, as create writes it, so the dotenv file pin names this file.
-  const environment = buildEnvironment({ exampleText: exampleFixture(), ci, database, envFile: envFilePath(database, root) });
+  const environment = buildEnvironment({ exampleText: exampleFixture(), ci, database, envFile: envFilePath(database, root), root });
   const values = new Map([...environment.values, ...Object.entries(overrides)]);
   for (const [key, value] of Object.entries(overrides)) if (value === undefined) values.delete(key);
   return [...values].map(([key, value]) => `${key}="${value}"`).join("\n");
@@ -482,7 +487,7 @@ describe("DB-01: nothing the child loads can change the validated database", () 
     mkdirSync(childDirectory);
     writeFileSync(join(childDirectory, ".env"), `DATABASE_URL=${outside("dotenv_cwd")}\nRECOVERY_TEST_DATABASE_URL=${outside("recovery_cwd")}\nDOTENV_CONFIG_OVERRIDE=true\n`);
     const ci = await readCiConfiguration(ciText);
-    const environment = buildEnvironment({ exampleText: exampleFixture(), ci, database: "jitm_design_fixture", envFile });
+    const environment = buildEnvironment({ exampleText: exampleFixture(), ci, database: "jitm_design_fixture", envFile, root: fixtureRoot });
     mkdirSync(dirname(envFile), { recursive: true });
     writeFileSync(envFile, renderEnvFile({ ...environment, database: "jitm_design_fixture" }), { mode: 0o600 });
   });
@@ -656,5 +661,356 @@ describe("DB-01: nothing the child loads can change the validated database", () 
     expect(() => check({ DOTENV_CONFIG_PATH: "" })).toThrow(/\.env in the working directory/u);
     expect(() => check({}, { text: `${fileText}EXTRA_SETTING=1\n` })).toThrow(/would change EXTRA_SETTING/u);
     expect(() => check({}, { args: ["vitest", "dotenv_config_path=/elsewhere/poison.env"] })).toThrow(/passes dotenv options/u);
+  });
+});
+
+// DB-02 (JITM-TESTENV-01-R2) is the third instance of one class: the helper removed known-bad
+// inherited variables (a denylist), and an inherited npm_config_userconfig named an npmrc whose
+// node-options preloaded code after the helper's checks. Now the child starts from an EMPTY
+// environment plus an allowlist read from scripts/test-env.config.json, npm's user and global
+// config are pinned to owned empty files, and the npm the child will run is loaded with npm's own
+// config loader before the spawn. Each indirection below is first shown to redirect a real npm
+// script without the helper, then the same npm script runs with the environment the helper hands
+// its child. Rejections open no socket, no connection and no child process.
+const npmOnPath = (() => {
+  for (const directory of String(process.env.PATH ?? "").split(delimiter)) {
+    const candidate = join(directory, "npm");
+    try { if (directory && statSync(candidate).isFile()) return candidate; } catch { /* next directory */ }
+  }
+  return null;
+})();
+
+describe.skipIf(process.platform === "win32" || !npmOnPath)("DB-02 class (R2): the child starts empty and npm's configuration is pinned", () => {
+  const requireFromTests = createRequire(import.meta.url);
+  const work = mkdtempSync(join(tmpdir(), "jitm-test-env-r2-"));
+  afterAll(() => rmSync(work, { recursive: true, force: true }));
+  const file = name => join(work, name);
+  const fixtureRoot = file("repo");
+  const project = file("project");
+  const cleanHome = file("home");
+  const poisonHome = file("poisoned-home");
+  const poisonLog = file("poison.log");
+  const outside = database => `postgresql://prod:prod@outside.example.test:5432/${database}`;
+  const ciText = ciFixture();
+  const envFile = envFilePath("jitm_design_fixture", fixtureRoot);
+  const ownedNpmrc = () => helper.testEnvFiles?.("jitm_design_fixture", fixtureRoot).npmUserConfig ?? join(dirname(envFile), "jitm_design_fixture.npmrc");
+  const PATH = process.env.PATH ?? "";
+  const guarded = { host: "127.0.0.1", database: "jitm_design_fixture", recovery: "", nodeOptions: "", poisoned: null, connections: 0 };
+  const command = ["npm", "run", "--silent", "inspect"];
+
+  // Sockets opened in this process while a refusal runs (pg and every other client use net.Socket).
+  let sockets = 0;
+  const originalConnect = net.Socket.prototype.connect;
+  beforeAll(() => { net.Socket.prototype.connect = function (...args) { sockets += 1; return originalConnect.apply(this, args); }; });
+  afterAll(() => { net.Socket.prototype.connect = originalConnect; });
+
+  beforeAll(async () => {
+    for (const directory of [project, cleanHome, poisonHome, file("evil-prefix/etc"), file("fake-bin")]) mkdirSync(directory, { recursive: true });
+    const poisonCjs = file("poison.cjs");
+    writeFileSync(poisonCjs, [
+      `require("node:fs").appendFileSync(${JSON.stringify(poisonLog)}, process.pid + " require\\n");`,
+      'globalThis.__jitmPoison = "require";',
+      `process.env.DATABASE_URL = ${JSON.stringify(outside("npm_poison"))};`,
+      `process.env.RECOVERY_TEST_DATABASE_URL = ${JSON.stringify(outside("recovery_poison"))};`
+    ].join("\n"));
+    writeFileSync(file("poison.mjs"), [
+      'import { appendFileSync } from "node:fs";',
+      `appendFileSync(${JSON.stringify(poisonLog)}, process.pid + " import\\n");`,
+      'globalThis.__jitmPoison = "import";',
+      `process.env.DATABASE_URL = ${JSON.stringify(outside("npm_poison"))};`,
+      `process.env.RECOVERY_TEST_DATABASE_URL = ${JSON.stringify(outside("recovery_poison"))};`
+    ].join("\n"));
+    const nodeOptionsNpmrc = `node-options=--require=${poisonCjs}\n`;
+    writeFileSync(file("node-options.npmrc"), nodeOptionsNpmrc);
+    writeFileSync(file("evil-prefix/etc/npmrc"), nodeOptionsNpmrc);
+    writeFileSync(join(poisonHome, ".npmrc"), nodeOptionsNpmrc);
+    writeFileSync(join(poisonHome, ".env"), `DATABASE_URL=${outside("home_env")}\nRECOVERY_TEST_DATABASE_URL=${outside("home_recovery")}\n`);
+    writeFileSync(file("poison.env"), `DATABASE_URL=${outside("dotenv_path")}\nRECOVERY_TEST_DATABASE_URL=${outside("dotenv_recovery")}\n`);
+    writeFileSync(file("poison-shell.sh"), [
+      "#!/bin/sh",
+      `echo "$$ script-shell" >> '${poisonLog}'`,
+      `export DATABASE_URL='${outside("script_shell")}'`,
+      `export RECOVERY_TEST_DATABASE_URL='${outside("script_shell_recovery")}'`,
+      'exec /bin/sh "$@"'
+    ].join("\n"));
+    chmodSync(file("poison-shell.sh"), 0o755);
+    writeFileSync(file("fake-bin/npm"), "#!/bin/sh\necho not npm\n");
+    chmodSync(file("fake-bin/npm"), 0o755);
+
+    // The probe loads dotenv/config as prisma.config.ts and vitest.config.ts do, then builds a pg
+    // client and reports the target it resolves. Its socket connect throws: it never connects.
+    const probe = file("probe.mjs");
+    writeFileSync(probe, [
+      'import net from "node:net";',
+      "let connections = 0;",
+      'net.Socket.prototype.connect = function () { connections += 1; throw new Error("the probe opens no connection"); };',
+      `await import(${JSON.stringify(pathToFileURL(requireFromTests.resolve("dotenv/config")).href)});`,
+      `const { default: pg } = await import(${JSON.stringify(pathToFileURL(requireFromTests.resolve("pg")).href)});`,
+      "const parameters = new pg.Client(process.env.DATABASE_URL ? { connectionString: process.env.DATABASE_URL } : {}).connectionParameters;",
+      "process.stdout.write(`\\nPROBE ${JSON.stringify({ host: parameters.host, database: parameters.database, recovery: process.env.RECOVERY_TEST_DATABASE_URL ?? null, nodeOptions: process.env.NODE_OPTIONS ?? null, poisoned: globalThis.__jitmPoison ?? null, connections })}\\n`);"
+    ].join("\n"));
+    writeFileSync(join(project, "package.json"), JSON.stringify({ name: "jitm-r2-probe", private: true, scripts: { inspect: `node ${JSON.stringify(probe)}` } }, null, 2));
+
+    // The fixture's env file and npm config files, written by create itself.
+    const client = { query: vi.fn(async () => ({ rows: [] })), end: vi.fn(async () => {}) };
+    const created = await main(["create", "fixture"], {
+      root: fixtureRoot,
+      env: { PATH },
+      readText: path => {
+        if (path === projectPaths(fixtureRoot).workflow) return ciText;
+        if (path === projectPaths(fixtureRoot).example) return exampleFixture();
+        throw new Error(`unexpected read ${path}`);
+      },
+      writeEnvFile: (path, text) => { mkdirSync(dirname(path), { recursive: true }); writeFileSync(path, text, { mode: 0o600 }); },
+      removeFile: path => rmSync(path, { force: true }),
+      connect: vi.fn(async () => client),
+      spawn: vi.fn(),
+      stdout: vi.fn(),
+      stderr: vi.fn()
+    });
+    expect(created).toBe(0);
+  });
+
+  beforeEach(() => writeFileSync(poisonLog, ""));
+
+  // Runs the probe's npm script in `env`, as the child would, and returns what the probe resolved.
+  function npmProbe(env, { cwd = project, args = command.slice(1) } = {}) {
+    const result = spawnSync(npmOnPath, args, { cwd, env, encoding: "utf8", timeout: 60_000 });
+    const line = result.stdout.split("\n").find(entry => entry.startsWith("PROBE "));
+    if (result.status !== 0 || !line) throw new Error(`npm ${args.join(" ")} failed (${result.status}): ${result.stderr}`);
+    return JSON.parse(line.slice("PROBE ".length));
+  }
+  const baselineEnvironment = (poison, home = cleanHome) => ({ PATH, HOME: home, CI: "true", DATABASE_URL: goodUrl(), RECOVERY_TEST_DATABASE_URL: "", NODE_OPTIONS: "", ...poison });
+  const redirected = probe => probe.host === "outside.example.test" || String(probe.recovery).includes("outside.example.test") || probe.poisoned !== null;
+
+  function dependencies(ambient, cwd) {
+    return {
+      root: fixtureRoot,
+      env: ambient,
+      cwd,
+      platform: process.platform,
+      readText: vi.fn(path => {
+        if (path === projectPaths(fixtureRoot).workflow) return ciText;
+        if (path === envFile) return readFileSync(path, "utf8");
+        throw new Error(`unexpected read ${path}`);
+      }),
+      fileExists: vi.fn(path => existsSync(path)),
+      writeEnvFile: vi.fn(),
+      removeFile: vi.fn(),
+      connect: vi.fn(async () => { throw new Error("no connection may be opened"); }),
+      spawn: vi.fn(async () => 0),
+      stdout: vi.fn(),
+      stderr: vi.fn()
+    };
+  }
+
+  // The environment `run` hands its child, captured at the spawn.
+  async function childEnvironment(ambient, { argv = command, cwd = project } = {}) {
+    const deps = dependencies(ambient, cwd);
+    const code = await main(["run", "fixture", "--", ...argv], deps);
+    expect(code, deps.stderr.mock.calls.join("\n")).toBe(0);
+    expect(deps.connect).not.toHaveBeenCalled();
+    expect(deps.spawn).toHaveBeenCalledTimes(1);
+    return deps.spawn.mock.calls[0][2].env;
+  }
+
+  // A refusal: exit 1, no child process, no connection, no socket.
+  async function refusal(ambient, { argv = command, cwd = project } = {}) {
+    const deps = dependencies(ambient, cwd);
+    const before = sockets;
+    const code = await main(["run", "fixture", "--", ...argv], deps);
+    const errors = deps.stderr.mock.calls.map(call => call[0]).join("\n");
+    expect(code, errors).toBe(1);
+    expect(deps.spawn).not.toHaveBeenCalled();
+    expect(deps.connect).not.toHaveBeenCalled();
+    expect(sockets - before).toBe(0);
+    return errors;
+  }
+
+  const indirections = [
+    ["DB-02: an inherited npm_config_userconfig whose npmrc sets node-options", () => ({ npm_config_userconfig: file("node-options.npmrc") })],
+    ["NPM_CONFIG_USERCONFIG in upper case", () => ({ NPM_CONFIG_USERCONFIG: file("node-options.npmrc") })],
+    ["a global npmrc that sets node-options (Npm_Config_Globalconfig, mixed case)", () => ({ Npm_Config_Globalconfig: file("node-options.npmrc") })],
+    ["an npm prefix whose etc/npmrc sets node-options (npm_config_prefix)", () => ({ npm_config_prefix: file("evil-prefix") })],
+    ["npm's node-options set directly (NPM_CONFIG_NODE_OPTIONS)", () => ({ NPM_CONFIG_NODE_OPTIONS: `--require=${file("poison.cjs")}` })],
+    ["npm's script shell (npm_config_script_shell)", () => ({ npm_config_script_shell: file("poison-shell.sh") })],
+    ["NODE_OPTIONS with --require", () => ({ NODE_OPTIONS: `--require=${file("poison.cjs")}` })],
+    ["NODE_OPTIONS with --import", () => ({ NODE_OPTIONS: `--import=${pathToFileURL(file("poison.mjs")).href}` })],
+    ["DOTENV_CONFIG_PATH with DOTENV_CONFIG_OVERRIDE=true (DB-01)", () => ({ DOTENV_CONFIG_PATH: file("poison.env"), DOTENV_CONFIG_OVERRIDE: "true" })]
+  ];
+
+  it.each(indirections)("keeps the validated database when the caller sets %s", async (_label, poison) => {
+    expect(redirected(npmProbe(baselineEnvironment(poison())))).toBe(true);
+    const env = await childEnvironment({ PATH, HOME: cleanHome, CI: "true", DATABASE_URL: outside("ambient"), PGHOST: "outside.example.test", ...poison() });
+    writeFileSync(poisonLog, "");
+    expect(npmProbe(env)).toEqual(guarded);
+    expect(readFileSync(poisonLog, "utf8")).toBe("");
+  }, 120_000);
+
+  it("keeps the validated database when HOME holds a poisoned .npmrc and .env", async () => {
+    expect(redirected(npmProbe(baselineEnvironment({}, poisonHome)))).toBe(true);
+    const env = await childEnvironment({ PATH, HOME: poisonHome, CI: "true" });
+    expect(env.HOME).toBe(poisonHome);
+    writeFileSync(poisonLog, "");
+    expect(npmProbe(env)).toEqual(guarded);
+    expect(readFileSync(poisonLog, "utf8")).toBe("");
+  }, 120_000);
+
+  it("keeps the validated database when the working directory holds a poisoned .env", async () => {
+    const dotenvFile = join(project, ".env");
+    writeFileSync(dotenvFile, `DATABASE_URL=${outside("cwd_env")}\nRECOVERY_TEST_DATABASE_URL=${outside("cwd_recovery")}\nNODE_OPTIONS=--require=${file("poison.cjs")}\nnpm_config_userconfig=${file("node-options.npmrc")}\n`);
+    try {
+      expect(redirected(npmProbe({ PATH, HOME: cleanHome, CI: "true" }))).toBe(true);
+      const env = await childEnvironment({ PATH, HOME: cleanHome, CI: "true" });
+      expect(npmProbe(env)).toEqual(guarded);
+      expect(readFileSync(poisonLog, "utf8")).toBe("");
+    } finally {
+      rmSync(dotenvFile, { force: true });
+    }
+  }, 120_000);
+
+  it("refuses a poisoned .npmrc in the working directory before any child, without opening it", async () => {
+    const npmrc = join(project, ".npmrc");
+    writeFileSync(npmrc, `node-options=--require=${file("poison.cjs")}\n`);
+    try {
+      expect(redirected(npmProbe(baselineEnvironment({})))).toBe(true);
+      expect(await refusal({ PATH, HOME: cleanHome, CI: "true" })).toMatch(/project config .*\.npmrc/u);
+    } finally {
+      rmSync(npmrc, { force: true });
+    }
+  }, 120_000);
+
+  it.each([
+    ["a user config", () => ["npm", `--userconfig=${file("node-options.npmrc")}`, "run", "inspect"], /userconfig would be/u],
+    ["node-options", () => ["npm", `--node-options=--require=${file("poison.cjs")}`, "run", "inspect"], /node-options is set/u],
+    ["node-options through npx", () => ["npx", `--node-options=--require=${file("poison.cjs")}`, "node", "-e", "0"], /node-options is set/u]
+  ])("refuses a command whose npm flags set %s", async (_label, argv, message) => {
+    expect(await refusal({ PATH, HOME: cleanHome, CI: "true" }, { argv: argv() })).toMatch(message);
+  });
+
+  it("follows npm's own precedence: a --globalconfig flag loses to the pinned global config", async () => {
+    // npm applies the environment's globalconfig over the flag (its default layer defines the key with
+    // a setter), so the helper, which asks npm's own loader, lets the command run; the script stays put.
+    const argv = ["npm", `--globalconfig=${file("node-options.npmrc")}`, "run", "--silent", "inspect"];
+    const env = await childEnvironment({ PATH, HOME: cleanHome, CI: "true" }, { argv });
+    expect(npmProbe(env, { args: argv.slice(1) })).toEqual(guarded);
+    expect(readFileSync(poisonLog, "utf8")).toBe("");
+  }, 120_000);
+
+  it("refuses when the helper's own npm config file has been given a setting", async () => {
+    const owned = ownedNpmrc();
+    const original = existsSync(owned) ? readFileSync(owned, "utf8") : null;
+    writeFileSync(owned, `node-options=--require=${file("poison.cjs")}\n`);
+    try {
+      expect(await refusal({ PATH, HOME: cleanHome, CI: "true" })).toMatch(/user config .* sets node-options/u);
+    } finally {
+      if (original === null) rmSync(owned, { force: true }); else writeFileSync(owned, original);
+    }
+  });
+
+  it("refuses an npm whose own config loader the helper cannot find", async () => {
+    expect(await refusal({ PATH: `${file("fake-bin")}${delimiter}${PATH}`, HOME: cleanHome, CI: "true" })).toMatch(/cannot find npm's own config loader/u);
+  });
+
+  it("refuses an env file that points npm at another config file", async () => {
+    const original = readFileSync(envFile, "utf8");
+    writeFileSync(envFile, original.replace(/^npm_config_userconfig=.*$/mu, "") + `npm_config_userconfig="${file("node-options.npmrc")}"\n`);
+    try {
+      expect(await refusal({ PATH, HOME: cleanHome, CI: "true" })).toMatch(/sets npm_config_userconfig/u);
+    } finally {
+      writeFileSync(envFile, original);
+    }
+  });
+
+  it("passes none of 200 random unknown inherited variables to the child", async () => {
+    const prefixes = ["", "X_", "npm_config_", "NPM_CONFIG_", "Npm_Config_", "DOTENV_", "NODE_", "PRISMA_", "VITEST_", "VITE_", "NEXT_", "TSX_", "JITI_", "PG", "lower_", "__"];
+    const unknown = {};
+    while (Object.keys(unknown).length < 200) {
+      const suffix = randomBytes(6).toString("hex");
+      const name = `${prefixes[randomInt(prefixes.length)]}R2${randomInt(2) ? suffix.toUpperCase() : suffix}`;
+      unknown[name] = randomInt(2) ? outside(`random_${suffix}`) : `value-${randomBytes(8).toString("hex")}`;
+    }
+    const allowed = { PATH, HOME: cleanHome, CI: "true" };
+    const env = await childEnvironment({ ...allowed, ...unknown });
+    const leaked = Object.keys(unknown).filter(name => name in env);
+    expect(leaked, `leaked: ${leaked.join(", ")}`).toEqual([]);
+    const values = new Set(Object.values(unknown));
+    expect(Object.entries(env).filter(([, value]) => values.has(value))).toEqual([]);
+    // Every name in the child is an allowlisted one the caller set, an env-file key or a pin.
+    const fileKeys = Object.keys(parseDotenv(readFileSync(envFile, "utf8")));
+    const pins = helper.childPins(helper.testEnvFiles("jitm_design_fixture", fixtureRoot), await readCiConfiguration(ciText));
+    const expectedKeys = new Set([...Object.keys(allowed).filter(name => helper.inheritedNames().includes(name)), ...fileKeys, ...pins.keys()]);
+    expect(Object.keys(env).filter(name => !expectedKeys.has(name))).toEqual([]);
+    expect(npmProbe(env)).toEqual(guarded);
+  }, 120_000);
+
+  it("checks the npm that a script starts in turn, with npm's own loader", async () => {
+    const env = await childEnvironment({ PATH, HOME: cleanHome, CI: "true" });
+    const files = helper.testEnvFiles("jitm_design_fixture", fixtureRoot);
+    const pins = helper.childPins(files, await readCiConfiguration(ciText));
+    const seen = [];
+    const checked = await helper.assertNpmBoundary(env, { command, cwd: project, pins, checkScriptEnvironment: (scriptEnvironment, label) => seen.push([label, scriptEnvironment.NODE_OPTIONS, scriptEnvironment.npm_config_userconfig]) });
+    expect(checked.map(entry => entry.localPrefix)).toEqual([project, project, project, project]);
+    expect(seen.filter(([label]) => /then npm from a script/u.test(label))).toHaveLength(2);
+    for (const [, nodeOptions, userconfig] of seen) expect([nodeOptions, userconfig]).toEqual(["", files.npmUserConfig]);
+  });
+
+  it("writes npm's user and global config files empty and pins npm to them in the env file", () => {
+    const files = helper.testEnvFiles("jitm_design_fixture", fixtureRoot);
+    const values = parseDotenv(readFileSync(envFile, "utf8"));
+    expect(values).toMatchObject({ npm_config_userconfig: files.npmUserConfig, npm_config_globalconfig: files.npmGlobalConfig });
+    for (const path of [files.npmUserConfig, files.npmGlobalConfig]) {
+      expect(readFileSync(path, "utf8").split("\n").filter(line => line.trim() && !line.startsWith("#"))).toEqual([]);
+    }
+    expect(files.npmUserConfig).not.toBe(files.npmGlobalConfig);
+  });
+
+  it("drops the env file and both npm config files", async () => {
+    const run = harness();
+    expect(await main(["drop", "qa1"], run.dependencies)).toBe(0);
+    const files = helper.testEnvFiles("jitm_design_qa1", root);
+    expect(run.dependencies.removeFile.mock.calls.map(call => call[0]).sort()).toEqual([files.envFile, files.npmUserConfig, files.npmGlobalConfig].sort());
+  });
+});
+
+describe("the allowlist config (scripts/test-env.config.json)", () => {
+  const config = () => JSON.parse(readFileSync(helper.CONFIG_FILE, "utf8"));
+  const docs = () => readFileSync(join(projectPaths().root, "docs", "LOCAL_TESTING.md"), "utf8");
+
+  it("parses, and docs/LOCAL_TESTING.md justifies every inherited name and pinned path", () => {
+    const parsed = helper.parseTestEnvConfig(config());
+    const text = docs();
+    for (const name of Object.values(parsed.inherit).flat()) expect(text, name).toContain(`\`${name}\``);
+    for (const template of Object.values(parsed.files)) expect(text, template).toContain(`\`${template}\``);
+    for (const name of Object.keys(parsed.npmConfigPins)) expect(text, name).toContain(`\`${name}\``);
+  });
+
+  it.each(["DATABASE_URL", "netlify_db_url", "PGHOST", "NODE_OPTIONS", "Node_Options", "npm_config_userconfig", "NPM_CONFIG_PREFIX", "DOTENV_KEY", "DOTENV_CONFIG_PATH", "JITI_ALIAS", "TSX_TSCONFIG_PATH", "NODE_ENV"])("refuses %s in the allowlist", name => {
+    const value = config();
+    value.inherit.all = [...value.inherit.all, name];
+    expect(() => helper.parseTestEnvConfig(value)).toThrow(/never inherits it/u);
+  });
+
+  it.each([
+    ["an absolute path", files => ({ ...files, envFile: "/tmp/{database}.env" })],
+    ["a path that leaves the repository", files => ({ ...files, npmUserConfig: "../{database}.npmrc" })],
+    ["a path without the database", files => ({ ...files, npmGlobalConfig: ".artifacts/test-env/global.npmrc" })],
+    ["one file as both npm configs", files => ({ ...files, npmGlobalConfig: files.npmUserConfig })]
+  ])("refuses %s for a pinned file", (_label, change) => {
+    const value = config();
+    value.files = change(value.files);
+    expect(() => helper.parseTestEnvConfig(value)).toThrow(/files/u);
+  });
+
+  it("refuses a config that leaves npm's user or global config unpinned", () => {
+    const value = config();
+    delete value.npmConfigPins.npm_config_globalconfig;
+    expect(() => helper.parseTestEnvConfig(value)).toThrow(/must pin npm_config_globalconfig/u);
+  });
+
+  it("matches names without letter case only on Windows", () => {
+    const env = { Path: "C:\\\\bin", PATH: "/usr/bin", npm_config_userconfig: "x", Home: "/h" };
+    expect(helper.allowlistedEnvironment(env, "linux")).toEqual({ PATH: "/usr/bin" });
+    expect(helper.allowlistedEnvironment(env, "win32")).toEqual({ Path: "C:\\\\bin", PATH: "/usr/bin", Home: "/h" });
   });
 });
