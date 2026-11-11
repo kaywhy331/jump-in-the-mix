@@ -42,6 +42,8 @@
     "typecheck": "tsc --noEmit",
     "test": "vitest run",
     "test:isolated": "node scripts/test-isolated-database.mjs",
+    "test:env": "node scripts/test-env.mjs create",
+    "test:env:drop": "node scripts/test-env.mjs drop",
     "test:e2e": "playwright test",
     "test:a11y": "playwright test e2e/accessibility.spec.ts",
     "test:lighthouse": "node scripts/run-lighthouse.mjs",
