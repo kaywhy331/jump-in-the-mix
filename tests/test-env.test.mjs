@@ -1570,6 +1570,7 @@ describe("R3: the boundary config (scripts/test-env.config.json) and the docs", 
 // child process, and every start of the entry point empties the scratch HOME and leaves only the
 // toolchain links in its bin folder. The cases are built from the shells this machine has.
 import { readdirSync } from "node:fs";
+import { relative } from "node:path";
 
 // The shells this machine has: each run.shells name on the standard path and each entry of the
 // system's shell list, by real file. `interpreter` marks the ones whose real name is a shell name
@@ -1684,6 +1685,8 @@ describe.skipIf(process.platform === "win32" || !onStandardPath("bash"))("R4: ru
     ["env -Sbash", () => ["env", "-Sbash"]],
     ["env PATH=<folder> <alias of bash> -ic", () => ["env", `PATH=${at("aliases")}`, "notashell", "-ic", command]],
     ["env --chdir=<folder> ./<alias of bash> -c", () => ["env", `--chdir=${at("aliases")}`, "./notashell", "-c", command]],
+    ["env -C <relative folder> ./<alias of bash> -c", () => ["env", "-C", relative(process.cwd(), at("aliases")), "./notashell", "-c", command]],
+    ["env --chdir=<relative folder> ./<alias of bash> -ic", () => ["env", `--chdir=${relative(process.cwd(), at("aliases"))}`, "./notashell", "-ic", command]],
     ["env -S with a variable", () => ["env", "-S", "${SHELL} -i"]],
     ["nice bash -c", () => ["nice", "bash", "-c", command]],
     ["timeout 5 rbash -ic", () => ["timeout", "5", "rbash", "-ic", command]]

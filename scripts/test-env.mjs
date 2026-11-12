@@ -1160,13 +1160,14 @@ function isFolder(path) {
 
 // The shell a wrapper's own arguments hand it, or null. run does not parse each wrapper's options:
 // any word that names a shell, or leads to one (on the child's PATH, from the working directory or
-// from any folder those arguments name, as env --chdir and env PATH=... would), counts.
+// from any folder those arguments name, absolute or relative, as env --chdir and env PATH=...
+// would), counts.
 function wrapperShell(entry, context, scanned) {
   const words = entry.args.flatMap((argument) => {
     if (argument.includes("${")) refuse(`run refuses ${entry.program} ${argument}: the wrapper ${entry.wrapper} would expand that variable, which run cannot see. ${shellUsage(context.config)}.`);
     return wrapperWords(argument);
   });
-  const folders = [...new Set(words.filter((word) => isAbsolute(word) && isFolder(word)))];
+  const folders = [...new Set(words.map((word) => resolve(context.cwd, word)).filter(isFolder))];
   const places = [context, ...folders.map((folder) => ({ ...context, cwd: folder, env: { ...context.env, PATH: folder } }))];
   for (const word of words) {
     if (isShellName(basename(word), context.config)) return { word, shell: basename(word) };
@@ -1192,6 +1193,9 @@ export function assertResolvedCommand(command, { env = {}, cwd = process.cwd(), 
   const [program] = command;
   if (typeof program !== "string" || program === "") refuse("Name the program to run.");
   const context = { env, cwd, platform, config, hashes: new Map() };
+  // The system's shells and wrappers, found once on the child's own PATH; a wrapper's folders reuse them.
+  knownFiles(context, "shell");
+  knownFiles(context, "wrapper");
   const started = startedPrograms(command, context);
   if (!started) refuse(`run cannot find ${program}${/\//u.test(program) ? " as an executable file" : ` on the child's PATH (${environmentValue(env, "PATH", platform) ?? ""})`}, so it cannot check what it starts.`);
   const called = basename(program);
