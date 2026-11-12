@@ -163,10 +163,8 @@
 }
 @media(max-width:1199px){
   .workspace{grid-template-columns:minmax(0,1fr);padding-bottom:calc(110px + env(safe-area-inset-bottom))}
-  .workspace[data-mobile-pane=people]>.main,.workspace[data-mobile-pane=people]>.sidebar,
-  .workspace[data-mobile-pane=map]>.directory,.workspace[data-mobile-pane=map]>.sidebar,
-  .workspace[data-mobile-pane=details]>.directory,.workspace[data-mobile-pane=details]>.main{display:none}
-  .workspace>.sidebar{border-top:0}
+  .workspace[data-mobile-pane]>[data-pager-pane]:not([data-pager-selected]){display:none}
+  .workspace>[data-pager-pane]>.sidebar{border-top:0}
 }
 @media(max-width:600px){
   .main .canvas{height:50dvh;min-height:290px}

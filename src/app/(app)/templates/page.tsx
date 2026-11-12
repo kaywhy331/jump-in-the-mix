@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MixLibraryShell } from "@/components/MixLibraryShell";
+import { ScrollPagerPanel } from "@/components/ScrollPager";
 import { ReadyMadeMixWorkspace } from "@/components/ReadyMadeMixWorkspace";
 import { AppIcon } from "@/components/AppIcon";
 import { MixFavoriteButton } from "@/components/MixFavoriteButton";
@@ -80,7 +81,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
     {params.setup === "individual" && <Notice type="success">Your preferences are saved. Choose a Mix below, preview its follow-ups, then add it to your account. Return here to add more, or open Journey to connect them.</Notice>}
     <UrlErrorNotice params={params} viewer={session} />
     <MixLibraryShell selectedMixId={selected?.id} explicitSelection={Boolean(params.mix)}>
-      <aside className="mix-library-directory" aria-label="Ready-made Mix library">
+      <ScrollPagerPanel pane="library"><aside className="mix-library-directory" aria-label="Ready-made Mix library">
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions">
           <Link className="icon-button" href="/mixes/new?custom=1" aria-label="Create your own" title="Create your own"><AppIcon name="plus" /></Link>
           <Sheet trigger={<button className="icon-button" type="button" aria-label="More ready-made Mix tools" title="More ready-made Mix tools"><AppIcon name="more" /></button>} title="Ready-made Mix tools">
@@ -117,7 +118,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
           </div>;
         })}</nav> : <p className="muted-copy">{favorites ? "Favorite a Mix to find it here." : "No Mixes found."}</p>}
         {totalPages > 1 && <nav className="mix-library-pagination" aria-label="Ready-made Mix result pages">{currentPage > 1 && <Link className="icon-button" href={href({ page: String(currentPage - 1) })} aria-label="Previous ready-made Mixes"><AppIcon name="arrowLeft" /></Link>}<span>{currentPage} / {totalPages}</span>{currentPage < totalPages && <Link className="icon-button" href={href({ page: String(currentPage + 1) })} aria-label="Next ready-made Mixes"><AppIcon name="arrowLeft" style={{ transform: "rotate(180deg)" }} /></Link>}</nav>}
-      </aside>
+      </aside></ScrollPagerPanel>
       {selected ? <ReadyMadeMixWorkspace key={selected.id} template={selected} metadata={selectedMetadata} copies={copies} canUse={!impersonation} /> : <EmptyState title={favorites ? "No favorite Mixes yet" : "No Mixes match"} description={favorites ? "Use the heart beside a Mix to keep it here." : "Try another search or clear your filters."} actionHref="/templates" actionLabel="Browse ready-made Mixes" />}
     </MixLibraryShell>
   </div>;

@@ -1,18 +1,21 @@
 "use client";
-import { useEffect, useId, useLayoutEffect, useRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from "react";
+import { createContext, useContext, useEffect, useId, useLayoutEffect, useMemo, useRef, useState, type HTMLAttributes, type KeyboardEvent, type ReactNode } from "react";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 
 /**
- * Pane paging (JITM-08 §2.46, docs/design/NATIVE-NAVIGATION.md §3 B). The pane tabs are ARIA tabs everywhere. On a coarse
- * pointer up to 1024px the panes also sit side by side in one native scroll-snap track, so a swipe pages with the browser's
- * own momentum and snap. Everywhere else the screen's own CSS shows one pane at a time from `data-mobile-pane`, as before.
+ * Pane paging (JITM-08 §2.46, docs/design/NATIVE-NAVIGATION.md §3 B). The pane tabs are ARIA tabs everywhere, and each pane
+ * is a tab panel (`ScrollPagerPanel`) named by its tab, around the screen's own landmark. On a coarse pointer up to 1024px
+ * the panels also sit side by side in one native scroll-snap track, so a swipe pages with the browser's own momentum and
+ * snap. Everywhere else the screen's own CSS shows one panel at a time from `data-mobile-pane`, as before.
  */
 export const SCROLL_PAGER_MEDIA = "(pointer: coarse) and (width <= 1024px)";
 /** Bubbles from the track when a horizontal swipe pushes past the first or last pane: the nested-pager hand-off (§3 B). */
 export const SCROLL_PAGER_OVERSCROLL = "scrollpager:overscroll";
 
 /** Gesture values from the spec's engine table (NATIVE-NAVIGATION §6); the native scroll owns every other value. */
-const AXIS_LOCK_PX = 10, EDGE_PX = 24, VELOCITY_WINDOW_MS = 100;
+const AXIS_LOCK_PX = 10, VELOCITY_WINDOW_MS = 100;
+/** The width at each screen edge that belongs to the system's own gestures (§4, JITM-08 §2.47), read from its one token. */
+const EDGE_TOKEN = "--swipe-edge-exclusion";
 /** Browsers without `scrollend` settle the selection once scrolling has been quiet this long. */
 const SCROLL_IDLE_MS = 120;
 /** A gesture never starts on these (JITM-08 §2.47). */
@@ -22,8 +25,6 @@ export type ScrollPagerPane<T extends string> = {
   id: T;
   label: string;
   icon: AppIconName;
-  /** Selector for the pane inside the track, relative to the track (`:scope > …`). */
-  target: string;
   disabled?: boolean;
 };
 
@@ -49,20 +50,44 @@ type Props<T extends string> = {
 };
 
 type Edge = { x: number; y: number; first: boolean; last: boolean; lock: "x" | "y" | null; edge: ScrollPagerOverscroll["edge"] | null; samples: { t: number; x: number }[] };
+/** A touch that started in a reserved screen edge, until its axis is known. */
+type Reserved = { x: number; y: number; target: Element; lock: "x" | null };
+
+const tabId = (pager: string, pane: string) => `${pager}-tab-${pane}`;
+const panelId = (pager: string, pane: string) => `${pager}-panel-${pane}`;
+const Pager = createContext<{ id: string; selected: string; paging: boolean } | null>(null);
+
+/**
+ * One pane of a ScrollPager: a tab panel named by its tab (spec §3 B, JITM-10 §2.26), wrapped around the screen's own
+ * landmark, which stays inside it. Outside paging the wrapper adds no box, so each screen's layout is its own. While paging,
+ * the panels that are not selected are off-screen and inert; the screen's switcher CSS hides them otherwise. Rendered
+ * outside a pager (a pane shown on its own page), it adds nothing.
+ */
+export function ScrollPagerPanel({ pane, children }: { pane: string; children: ReactNode }) {
+  const pager = useContext(Pager);
+  if (!pager) return <>{children}</>;
+  const selected = pane === pager.selected;
+  return <div className="scroll-pager-panel" role="tabpanel" id={panelId(pager.id, pane)} aria-labelledby={tabId(pager.id, pane)} data-pager-pane={pane} data-pager-selected={selected || undefined} inert={pager.paging && !selected}>{children}</div>;
+}
 
 export function ScrollPager<T extends string>({ label, panes, selected, onSelect, onOverscroll, tabsClassName, trackClassName, trackProps, children }: Props<T>) {
-  const id = useId(), tabsRef = useRef<HTMLDivElement>(null), trackRef = useRef<HTMLDivElement>(null), indicatorRef = useRef<HTMLSpanElement>(null);
+  const id = useId(), rootRef = useRef<HTMLDivElement>(null), tabsRef = useRef<HTMLDivElement>(null), trackRef = useRef<HTMLDivElement>(null), indicatorRef = useRef<HTMLSpanElement>(null);
   const [paging, setPaging] = useState(false), [controls, setControls] = useState<Partial<Record<T, string>>>({});
   const latest = useRef({ panes, selected, onSelect, onOverscroll, paging });
   latest.current = { panes, selected, onSelect, onOverscroll, paging };
   const synced = useRef(false), owned = useRef(false);
+  const context = useMemo(() => ({ id, selected, paging }), [id, selected, paging]);
 
+  /** A pane's tab panel, when this screen renders it inside the track. */
+  const panelOf = (pane: T) => {
+    const element = document.getElementById(panelId(id, pane));
+    return element && trackRef.current?.contains(element) ? element : null;
+  };
   /** Each pane the owner can page to, in order: enabled and present in the track. */
   const pages = () => {
-    const track = trackRef.current;
-    if (!track) return [];
+    if (!trackRef.current) return [];
     return latest.current.panes.flatMap(pane => {
-      const element = pane.disabled ? null : track.querySelector<HTMLElement>(pane.target);
+      const element = pane.disabled ? null : panelOf(pane.id);
       return element ? [{ pane, element }] : [];
     });
   };
@@ -118,19 +143,10 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     return () => media.removeEventListener("change", update);
   });
 
-  // Tabs name their panes; while paging, only the selected pane takes part (the others are off-screen, like hidden panes).
+  // Each tab controls its panel when this screen has one (a new Mega-Mix has no Details yet).
   useLayoutEffect(() => {
-    const track = trackRef.current;
-    if (!track) return;
     const next: Partial<Record<T, string>> = {};
-    for (const pane of panes) {
-      const element = track.querySelector<HTMLElement>(pane.target);
-      if (!element) continue;
-      if (!element.id) element.id = `${id}-${pane.id}`;
-      next[pane.id] = element.id;
-      element.dataset.pagerPane = pane.id;
-      element.inert = paging && pane.id !== selected;
-    }
+    for (const pane of panes) if (panelOf(pane.id)) next[pane.id] = panelId(id, pane.id);
     setControls(current => panes.every(pane => current[pane.id] === next[pane.id]) ? current : next);
   });
 
@@ -151,7 +167,10 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
   useEffect(() => {
     const track = trackRef.current;
     if (!track || !paging) return;
-    let frame = 0, idle = 0, fingers = 0, released: number | null = null, edge: Edge | null = null;
+    let frame = 0, idle = 0, fingers = 0, released: number | null = null, edge: Edge | null = null, reserved: Reserved | null = null;
+    /** The reserved width at each screen edge, from the token (it can change with the screen). */
+    const reservedWidth = () => parseFloat(getComputedStyle(rootRef.current ?? track).getPropertyValue(EDGE_TOKEN)) || 0;
+    let edgeWidth = reservedWidth();
     const emit = (phase: ScrollPagerOverscroll["phase"], state: Edge, x: number) => {
       const outward = state.edge === "first" ? 1 : -1, recent = state.samples.filter(sample => sample.t >= state.samples[state.samples.length - 1].t - VELOCITY_WINDOW_MS);
       const elapsed = recent.length > 1 ? recent[recent.length - 1].t - recent[0].t : 0;
@@ -185,12 +204,35 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     const onTouchStart = (event: TouchEvent) => {
       fingers = event.touches.length;
       released = null;
+      reserved = null;
       if (fingers !== 1) { cancel(); return; }
       const touch = event.touches[0], offsets = pages().map(page => offsetOf(page.element));
       const target = event.target instanceof Element ? event.target : null;
-      edge = target && !target.closest(EXCLUDED) && !scrollsSideways(target, track) && touch.clientX >= EDGE_PX && touch.clientX <= window.innerWidth - EDGE_PX && offsets.length
+      const inEdge = touch.clientX < edgeWidth || touch.clientX > window.innerWidth - edgeWidth;
+      // A field keeps its own native touch (it never pages: scroll-pager.css); anything else starting in an edge is held.
+      if (inEdge && target && !target.closest(EXCLUDED)) reserved = { x: touch.clientX, y: touch.clientY, target, lock: null };
+      edge = target && !target.closest(EXCLUDED) && !scrollsSideways(target, track) && !inEdge && offsets.length
         ? { x: touch.clientX, y: touch.clientY, first: track.scrollLeft <= offsets[0] + 1, last: track.scrollLeft >= offsets[offsets.length - 1] - 1, lock: null, edge: null, samples: [{ t: event.timeStamp, x: touch.clientX }] }
         : null;
+    };
+    /**
+     * A sideways pull that starts in a reserved screen edge never pages: the edges belong to the system's own gestures
+     * (§4, JITM-08 §2.47), which the browser keeps, since the touch start is never cancelled. Cancelling the sideways moves
+     * before the browser starts scrolling keeps the track still. A vertical pull is left to native scrolling from the 10px
+     * axis lock on, a horizontal scroller under the finger that can still move keeps its own scroll, and a second finger
+     * leaves pinch zoom to the browser. Only the first moves of a touch can block scrolling, and only edge touches do.
+     */
+    const onReservedMove = (event: TouchEvent) => {
+      if (!reserved) return;
+      if (event.touches.length !== 1) { reserved = null; return; }
+      const touch = event.touches[0], dx = touch.clientX - reserved.x, dy = touch.clientY - reserved.y;
+      if (!reserved.lock) {
+        const moved = Math.max(Math.abs(dx), Math.abs(dy));
+        if (Math.abs(dy) >= Math.abs(dx)) { if (moved >= AXIS_LOCK_PX) reserved = null; return; }
+        if (scrollsToward(reserved.target, track, dx)) { reserved = null; return; }
+        if (moved >= AXIS_LOCK_PX) reserved.lock = "x";
+      }
+      if (event.cancelable) event.preventDefault();
     };
     const onTouchMove = (event: TouchEvent) => {
       if (!edge) return;
@@ -210,12 +252,13 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     };
     const onTouchEnd = (event: TouchEvent) => {
       fingers = event.touches.length;
+      reserved = null;
       if (edge?.edge) emit(event.type === "touchcancel" ? "cancel" : "end", edge, event.changedTouches[0]?.clientX ?? edge.x);
       edge = null;
       if (!fingers && reduced() && !pages().some(page => Math.abs(offsetOf(page.element) - track.scrollLeft) <= 0.5)) released = track.scrollLeft;
     };
     const onWheel = (event: WheelEvent) => { if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) owned.current = true; };
-    const onResize = () => { const page = pages().find(item => item.pane.id === latest.current.selected); if (!fingers && page) track.scrollTo({ left: offsetOf(page.element), behavior: "instant" }); paint(); };
+    const onResize = () => { edgeWidth = reservedWidth(); const page = pages().find(item => item.pane.id === latest.current.selected); if (!fingers && page) track.scrollTo({ left: offsetOf(page.element), behavior: "instant" }); paint(); };
     const resize = new ResizeObserver(onResize);
     resize.observe(track);
     if (tabsRef.current) resize.observe(tabsRef.current);
@@ -224,6 +267,8 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     track.addEventListener("wheel", onWheel, { passive: true });
     track.addEventListener("touchstart", onTouchStart, { passive: true });
     track.addEventListener("touchmove", onTouchMove, { passive: true });
+    // Not passive: it cancels the sideways moves of a touch that started in a reserved edge.
+    track.addEventListener("touchmove", onReservedMove, { passive: false });
     track.addEventListener("touchend", onTouchEnd, { passive: true });
     track.addEventListener("touchcancel", onTouchEnd, { passive: true });
     return () => {
@@ -233,6 +278,7 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
       track.removeEventListener("wheel", onWheel);
       track.removeEventListener("touchstart", onTouchStart);
       track.removeEventListener("touchmove", onTouchMove);
+      track.removeEventListener("touchmove", onReservedMove);
       track.removeEventListener("touchend", onTouchEnd);
       track.removeEventListener("touchcancel", onTouchEnd);
     };
@@ -251,12 +297,12 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
   };
   const focusable = panes.find(pane => pane.id === selected && !pane.disabled)?.id ?? panes.find(pane => !pane.disabled)?.id;
 
-  return <div className="scroll-pager" data-paging={paging || undefined}>
+  return <div ref={rootRef} className="scroll-pager" data-paging={paging || undefined}>
     <div ref={tabsRef} role="tablist" aria-label={label} className={`scroll-pager-tabs${tabsClassName ? ` ${tabsClassName}` : ""}`} onKeyDown={onKeyDown}>
-      {panes.map(pane => <button key={pane.id} id={`${id}-tab-${pane.id}`} type="button" role="tab" data-pane={pane.id} aria-selected={pane.id === selected} aria-controls={controls[pane.id]} tabIndex={pane.id === focusable ? 0 : -1} disabled={pane.disabled} onClick={() => onSelect(pane.id)}><AppIcon name={pane.icon} />{pane.label}</button>)}
+      {panes.map(pane => <button key={pane.id} id={tabId(id, pane.id)} type="button" role="tab" data-pane={pane.id} aria-selected={pane.id === selected} aria-controls={controls[pane.id]} tabIndex={pane.id === focusable ? 0 : -1} disabled={pane.disabled} onClick={() => onSelect(pane.id)}><AppIcon name={pane.icon} />{pane.label}</button>)}
       <span ref={indicatorRef} className="scroll-pager-indicator" aria-hidden="true" />
     </div>
-    <div ref={trackRef} {...trackProps} className={`scroll-pager-track${trackClassName ? ` ${trackClassName}` : ""}`} data-mobile-pane={paging ? undefined : selected}>{children}</div>
+    <div ref={trackRef} {...trackProps} className={`scroll-pager-track${trackClassName ? ` ${trackClassName}` : ""}`} data-mobile-pane={paging ? undefined : selected}><Pager.Provider value={context}>{children}</Pager.Provider></div>
   </div>;
 }
 
@@ -265,6 +311,16 @@ function scrollsSideways(from: Element, track: Element) {
   for (let node: Element | null = from; node && node !== track; node = node.parentElement) {
     const overflow = getComputedStyle(node).overflowX;
     if ((overflow === "auto" || overflow === "scroll") && node.scrollWidth > node.clientWidth) return true;
+  }
+  return false;
+}
+
+/** True when a sideways scroller between the touch and the track can still move with a finger travelling `dx`. */
+function scrollsToward(from: Element, track: Element, dx: number) {
+  for (let node: Element | null = from; node && node !== track; node = node.parentElement) {
+    const overflow = getComputedStyle(node).overflowX;
+    if ((overflow !== "auto" && overflow !== "scroll") || node.scrollWidth <= node.clientWidth) continue;
+    if (dx > 0 ? node.scrollLeft > 0.5 : node.scrollLeft < node.scrollWidth - node.clientWidth - 0.5) return true;
   }
   return false;
 }
