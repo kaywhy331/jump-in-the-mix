@@ -2,7 +2,7 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { DOCKED_REVIEW_MEDIA } from "@/lib/sheet-layout";
-import { SwipeTracker, arbitrate, motionMs, scrolledBelowTop, startOn, type Axis, type Direction, type SwipeNode, type SwipeRelease } from "@/lib/gestures/swipe";
+import { SwipeTracker, arbitrate, motionMs, scrolledBelowTop, startOn, type Axis, type Direction, type Start, type SwipeNode, type SwipeRelease } from "@/lib/gestures/swipe";
 
 export type SwipeOptions = {
   axis: Axis;
@@ -34,7 +34,7 @@ export function useSwipe(ref: { readonly current: HTMLElement | null }, options:
     const surface = ref.current;
     if (bound.current?.surface === surface) return;
     bound.current?.unbind();
-    bound.current = surface ? { surface, unbind: bind(surface, latest) } : null;
+    bound.current = surface ? { surface, unbind: bindSwipe(surface, latest) } : null;
   });
   useEffect(() => () => { bound.current?.unbind(); bound.current = null; }, []);
 }
@@ -42,7 +42,11 @@ export function useSwipe(ref: { readonly current: HTMLElement | null }, options:
 /** The touch the engine holds. One that scrolls first is read from Touch Events: once its native scrolling starts, the browser cancels its pointer. */
 type Held = { pointer: number; target: Element; touch: boolean };
 
-function bind(surface: HTMLElement, options: RefObject<SwipeOptions>): () => void {
+/** A contact other than a fresh touch never starts a gesture, so its arbitration never asks the start rules. */
+const noStart = (): Start => "blocked";
+
+/** Binds the engine to `surface` and returns the unbind. Exported for the unit tests that drive its event paths. */
+export function bindSwipe(surface: HTMLElement, options: RefObject<SwipeOptions>): () => void {
   const { axis, direction } = options.current;
   const tracker = new SwipeTracker(axis, direction);
   const page = surface.ownerDocument;
@@ -105,6 +109,19 @@ function bind(surface: HTMLElement, options: RefObject<SwipeOptions>): () => voi
     try { surface.setPointerCapture(pointer); } catch { /* The pointer already ended, or the browser took it for scrolling. */ }
   };
 
+  /** The held gesture springs back, or a touch still Pending is let go. */
+  const drop = () => {
+    const hold = holding();
+    if (hold) settle(tracker.cancel(hold.pointer));
+  };
+  /**
+   * Another contact, or the browser taking the held touch, whichever event stream reports it: the one arbitration
+   * rule decides, so a gesture that holds a touch springs back wherever the contact lands. Once the browser has
+   * taken a touch for native scrolling it sends no pointer for a finger that joins that touch, only Touch Events,
+   * so this runs from both streams.
+   */
+  const contact = () => { if (arbitrate(tracker.phase, { primary: false }, settling !== null, noStart) === "cancel") drop(); };
+
   // Every pointer that goes down anywhere on the page passes the one arbitration rule, so a second finger on the
   // backdrop or another layer cancels too, and a catch passes the same start rules before anything is cancelled.
   const down = (event: PointerEvent) => {
@@ -119,11 +136,7 @@ function bind(surface: HTMLElement, options: RefObject<SwipeOptions>): () => voi
         scrollsFirst: scrollsFirst && (() => scrollsFirst(target, surface))
       });
     });
-    if (claim === "cancel") {
-      const hold = holding();
-      if (hold) settle(tracker.cancel(hold.pointer));
-      return;
-    }
+    if (claim === "cancel") return drop();
     if (claim === "native" || !(target instanceof Element)) return;
     const { pointerId: pointer, clientX: x, clientY: y, timeStamp: t } = event;
     if (claim === "catch") {
@@ -168,10 +181,18 @@ function bind(surface: HTMLElement, options: RefObject<SwipeOptions>): () => voi
 
   const move = (event: PointerEvent) => { if (holding()?.touch === false) follow(event.pointerId, event.clientX, event.clientY, event.timeStamp); };
   const up = (event: PointerEvent) => { if (holding()?.touch === false) lift(event.pointerId, event.clientX, event.clientY, event.timeStamp); };
-  const cancel = (event: PointerEvent) => { if (holding()?.touch === false) settle(tracker.cancel(event.pointerId)); };
+  // As its native scrolling starts, the browser cancels the pointer of a touch that scrolls first; Touch Events go
+  // on following that touch to its end. Any other cancelled pointer, anywhere, is a contact like any other.
+  const cancel = (event: PointerEvent) => {
+    const hold = holding();
+    if (!(hold?.touch && event.pointerId === hold.pointer)) contact();
+  };
+  // More than one finger on the screen, wherever the new one landed. Read passively: pinch zoom and scrolling stay
+  // the browser's.
+  const fingers = (event: TouchEvent) => { if (event.touches.length > 1) contact(); };
   // Pointer Events track the touch. Where the surface also scrolls, this keeps the browser from claiming a touch
   // the engine owns; a touch that leans the other way stays native scrolling. A touch that scrolls first is
-  // followed here, through its native scrolling.
+  // followed here, through its native scrolling. The page's `fingers` runs first, so a held touch is the only one.
   const touchMove = (event: TouchEvent) => {
     const hold = holding();
     if (hold?.touch && event.touches.length === 1) follow(hold.pointer, event.touches[0].clientX, event.touches[0].clientY, event.timeStamp);
@@ -181,21 +202,24 @@ function bind(surface: HTMLElement, options: RefObject<SwipeOptions>): () => voi
     const hold = holding(), touch = event.changedTouches[0];
     if (hold?.touch && event.touches.length === 0 && touch) lift(hold.pointer, touch.clientX, touch.clientY, event.timeStamp);
   };
-  const touchCancel = () => { const hold = holding(); if (hold?.touch) settle(tracker.cancel(hold.pointer)); };
   // While a touch that scrolled first moves the surface, its content stays where it handed off.
   const scrolled = (event: Event) => {
     const content = event.target instanceof Element ? event.target : null, at = content && pinned.get(content);
     if (content && at && tracker.phase === "dragging") { content.scrollTop = at.top; content.scrollLeft = at.left; }
   };
 
+  // Every contact is read at the page, in the capture phase, so it counts wherever it lands: the surface, the
+  // backdrop or another layer.
   const listeners: Array<[EventTarget, string, EventListener, AddEventListenerOptions]> = [
     [page, "pointerdown", down as EventListener, { capture: true }],
+    [page, "pointercancel", cancel as EventListener, { capture: true }],
+    [page, "touchstart", fingers as EventListener, { capture: true, passive: true }],
+    [page, "touchmove", fingers as EventListener, { capture: true, passive: true }],
+    [page, "touchcancel", contact, { capture: true, passive: true }],
     [surface, "pointermove", move as EventListener, {}],
     [surface, "pointerup", up as EventListener, {}],
-    [surface, "pointercancel", cancel as EventListener, {}],
     [surface, "touchmove", touchMove as EventListener, { passive: false }],
     [surface, "touchend", touchEnd as EventListener, { passive: true }],
-    [surface, "touchcancel", touchCancel, { passive: true }],
     [surface, "scroll", scrolled, { capture: true, passive: true }]
   ];
   for (const [target, type, listener, init] of listeners) target.addEventListener(type, listener, init);

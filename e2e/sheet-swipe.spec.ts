@@ -90,8 +90,11 @@ async function press(page: Page, at: { x: number; y: number }) {
       const steps = Math.max(1, Math.round(Math.abs(dy) / 10));
       for (let step = 1; step <= steps; step++) { time += 0.025; y += dy / steps; await send("touchMove", [{ x: at.x, y, id: 1 }]); }
     },
-    /** A second finger goes down while this one stays. */
-    async add(other: { x: number; y: number }) { time += 0.025; await send("touchStart", [{ x: at.x, y, id: 1 }, { ...other, id: 2 }]); },
+    /**
+     * A second finger goes down while this one stays, and stays down while this one moves. On the lift, points
+     * release in id order: `id` 0 lifts before this finger, so this one is the last to leave the screen.
+     */
+    async add(other: { x: number; y: number }, id = 2) { time += 0.025; await send("touchStart", [{ x: at.x, y, id: 1 }, { ...other, id }]); },
     async lift() { time += 0.2; await send("touchEnd", []); await cdp.detach(); }
   };
 }
@@ -226,6 +229,114 @@ test.describe("on a touch phone", () => {
     await drag.lift();
     await atRest(sheet);
     await expect(sheet).toBeVisible();
+  });
+
+  // NAV-QA-02, as the QA reproduced it. Once native scrolling has taken a touch, the browser cancels its pointer and
+  // reports a finger that joins it only through Touch Events, with no pointerdown. A second touch must still cancel
+  // and spring back wherever it lands (NATIVE-NAVIGATION.md §4, JITM-08 §2.47).
+  test.describe("a second finger during a pull that native scrolling hands to the sheet", () => {
+    /** The QA's observation window after the second finger landed. */
+    const QA_WINDOW_MS = 300;
+    /** The QA's landing point, outside the sheet. */
+    const QA_POINT = { x: 90, y: 5 };
+    const landings: Record<string, (panel: Locator) => Promise<{ x: number; y: number }>> = {
+      "outside the sheet": async () => QA_POINT,
+      // The middle of the panel's visible part, a quarter of the way across: clear of the first finger.
+      "inside the panel": panel => panel.evaluate(element => {
+        const box = element.getBoundingClientRect();
+        return { x: box.left + box.width / 4, y: (Math.max(box.top, 0) + Math.min(box.bottom, innerHeight)) / 2 };
+      }),
+      // Half way down the backdrop above the sheet, three quarters of the way across.
+      "on the backdrop": panel => panel.evaluate(element => {
+        const box = element.getBoundingClientRect();
+        return { x: box.left + box.width * 0.75, y: box.top / 2 };
+      })
+    };
+    /** Where a point lands: on the panel, or outside it on the sheet's dialog and its backdrop. */
+    const landsOn = (sheet: Locator, { x, y }: { x: number; y: number }) => sheet.evaluate((dialog, { x, y }) => {
+      const target = document.elementFromPoint(x, y);
+      return dialog.querySelector(":scope > .sheet-panel")!.contains(target) ? "panel" : target === dialog ? "backdrop" : target?.tagName.toLowerCase() ?? "nothing";
+    }, { x, y });
+    /** Every way the panel moves from now on: dragging, settling or springing back. */
+    const watchForMoves = (panel: Locator) => panel.evaluate(element => {
+      const marks = window as unknown as { swipeMoves: string[] };
+      marks.swipeMoves = [];
+      new MutationObserver(() => { if (element.dataset.swipeState) marks.swipeMoves.push(element.dataset.swipeState); }).observe(element, { attributes: true, attributeFilter: ["data-swipe-state"] });
+    });
+    const moves = (page: Page) => page.evaluate(() => (window as unknown as { swipeMoves: string[] }).swipeMoves);
+    /** Records the contacts the browser reports, as the QA traced them. */
+    const traceContacts = (page: Page) => page.evaluate(() => {
+      const marks = window as unknown as { swipeTrace: string[] };
+      marks.swipeTrace = [];
+      for (const type of ["pointerdown", "pointercancel", "touchstart"]) {
+        window.addEventListener(type, event => { marks.swipeTrace.push(event instanceof TouchEvent ? `${type} ${event.touches.length}` : type); }, { capture: true, passive: true });
+      }
+    });
+    const contacts = (page: Page) => page.evaluate(() => (window as unknown as { swipeTrace: string[] }).swipeTrace);
+    /** The path NAV-QA-02 found: the browser took the first touch for scrolling, and the second finger came with no pointer. */
+    const QA_TRACE = ["pointerdown", "touchstart 1", "pointercancel", "touchstart 2"];
+    /** The QA's set-up: a 390x600 phone, the review's body scrolled 80 px, a touch on its plain content. */
+    async function scrolledReview(page: Page) {
+      await page.setViewportSize({ width: 390, height: 600 });
+      await today(page);
+      await openReview(page);
+      const sheet = review(page), panel = panelOf(sheet);
+      await panel.evaluate(element => { element.scrollTop = 80; });
+      expect(await panel.evaluate(element => element.scrollTop)).toBe(80);
+      return { sheet, panel, scrollTop: () => panel.evaluate(element => element.scrollTop) };
+    }
+
+    for (const [landing, place] of Object.entries(landings)) {
+      for (const travel of [190, 390]) {
+        test(`${landing}, after a ${travel} px pull reached the top and took the sheet: it springs back within ${QA_WINDOW_MS} ms`, async ({ page }) => {
+          const { sheet, panel, scrollTop } = await scrolledReview(page);
+          await traceContacts(page);
+          const pull = await press(page, await bodyPoint(sheet));
+          // One continuous pull in 10 px steps: native scrolling to the top, then the same touch drags the sheet.
+          await pull.move(travel);
+          await expect.poll(() => swipeState(panel)).toBe("dragging");
+          expect(await scrollTop()).toBe(0);
+          expect(await offsetOf(panel)).toBeGreaterThan(0);
+          const point = await place(panel);
+          expect(await landsOn(sheet, point)).toBe(landing === "inside the panel" ? "panel" : "backdrop");
+          await pull.add(point);
+          await expect.poll(() => swipeState(panel), { timeout: QA_WINDOW_MS }).not.toBe("dragging");
+          expect(await contacts(page)).toEqual(QA_TRACE);
+          // Both fingers still down: the sheet is back at rest.
+          await expect.poll(() => offsetOf(panel)).toBe(0);
+          await expect.poll(() => swipeState(panel)).toBe("");
+          await watchForMoves(panel);
+          // The first finger keeps pulling, far past 30%, then both lift: it drives nothing.
+          await pull.move(300);
+          await pull.lift();
+          await atRest(sheet);
+          expect(await moves(page)).toEqual([]);
+          await expect(sheet.getByRole("heading", { name: "Alex Rivera" })).toBeVisible();
+        });
+      }
+
+      test(`${landing}, while native scrolling still has the pull: the sheet never moves for the rest of that touch`, async ({ page }) => {
+        const { sheet, panel, scrollTop } = await scrolledReview(page);
+        await traceContacts(page);
+        const pull = await press(page, await bodyPoint(sheet));
+        await pull.move(40);
+        await expect.poll(scrollTop).toBeLessThan(80);
+        expect(await scrollTop()).toBeGreaterThan(0);
+        expect(await swipeState(panel)).toBe("");
+        await watchForMoves(panel);
+        const point = await place(panel);
+        expect(await landsOn(sheet, point)).toBe(landing === "inside the panel" ? "panel" : "backdrop");
+        // The other finger lifts first, so the pull is the last touch on the screen.
+        await pull.add(point, 0);
+        expect(await contacts(page)).toEqual(QA_TRACE);
+        // The first finger keeps pulling, far past 30%, then lifts after the other: the sheet never moves.
+        await pull.move(390);
+        await pull.lift();
+        await atRest(sheet);
+        expect(await moves(page)).toEqual([]);
+        await expect(sheet.getByRole("heading", { name: "Alex Rivera" })).toBeVisible();
+      });
+    }
   });
 
   test("a touch on a settling sheet catches it only where a fresh touch could start: never on an opt-out, a field, a slider, a sideways scroller, the screen edge or a nested layer", async ({ page }) => {
