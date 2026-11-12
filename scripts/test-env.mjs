@@ -8,10 +8,13 @@
 //
 // The entry point never searches the caller's PATH and starts node twice under env -i: first
 // with `launch-plan` (launchPlan below), which checks the arguments, resolves the toolchain from
-// scripts/test-env.config.json and prepares the database's owned scratch HOME and toolchain bin
-// folder; then for the command itself, with only that HOME, a PATH of that folder and the
-// system's standard path, and the allowlisted names. launchBoundary refuses any other start.
-// The calling session is trusted, not hostile (docs/LOCAL_TESTING.md, "The trust boundary").
+// scripts/test-env.config.json and prepares the database's owned scratch HOME (empty again at
+// every start) and toolchain bin folder; then for the command itself, with only that HOME, a PATH
+// of that folder and the system's standard path, and the allowlisted names. launchBoundary
+// refuses any other start. `run` takes plain argv: it resolves the program it is given to what it
+// really is and refuses a shell outside the documented form, whatever its name (assertPlainCommand,
+// assertResolvedCommand). The calling session is trusted, not hostile (docs/LOCAL_TESTING.md,
+// "The trust boundary").
 //
 // The connection settings come from the CI `validate` job in .github/workflows/ci.yml,
 // read with a YAML parser at run time; the env file starts from .env.example. The helper
@@ -34,7 +37,8 @@
 // .npmrc, no setting from its config files, and hand its scripts an environment that still
 // passes every check, for the command itself and for an npm started from one of its scripts.
 import { spawn as spawnProcess } from "node:child_process";
-import { existsSync, lstatSync, mkdirSync, readFileSync, readlinkSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
+import { createHash } from "node:crypto";
+import { accessSync, closeSync, constants as fsConstants, existsSync, lstatSync, mkdirSync, openSync, readdirSync, readFileSync, readlinkSync, readSync, realpathSync, renameSync, rmSync, statSync, symlinkSync, writeFileSync } from "node:fs";
 import { createRequire } from "node:module";
 import { basename, dirname, isAbsolute, join, relative, resolve, sep } from "node:path";
 import { fileURLToPath, pathToFileURL } from "node:url";
@@ -156,13 +160,25 @@ function parseBoundary(boundary, fileTemplates) {
   return Object.freeze({ node, npm, ...folders, path: Object.freeze([...path]) });
 }
 
-// The run section: the shells `run` holds to the plain-argv rule, and the options they must carry.
+// The run section: the shells `run` holds to the plain-argv rule and the options they must carry;
+// the system's own list of shells and the shell exec falls back to for a text file with no #! line;
+// and the wrappers (programs that start another program) that may not be handed a shell.
 function parseRun(run) {
   if (!isRecord(run) || !Array.isArray(run.shells) || !Array.isArray(run.shellOptions)) refuse("test-env.config.json needs run.shells and run.shellOptions: the shells run checks and the options that keep their startup files unread.");
   for (const shell of run.shells) if (typeof shell !== "string" || !/^[a-z0-9]+$/u.test(shell)) refuse(`run.shells has an invalid program name ${JSON.stringify(shell)}.`);
   for (const option of run.shellOptions) if (typeof option !== "string" || !/^--[a-z]+$/u.test(option)) refuse(`run.shellOptions has an invalid option ${JSON.stringify(option)}.`);
   if (run.shellOptions.length === 0) refuse("run.shellOptions must name the options that stop a shell reading its startup files.");
-  return Object.freeze({ shells: Object.freeze([...run.shells]), shellOptions: Object.freeze([...run.shellOptions]) });
+  if (run.shellsFile !== undefined && run.shellsFile !== null && (typeof run.shellsFile !== "string" || !isAbsolute(run.shellsFile) || UNSAFE_PATH.test(run.shellsFile))) refuse("run.shellsFile must be the absolute path of the system's list of shells (/etc/shells), or null.");
+  if (typeof run.fallbackShell !== "string" || !isAbsolute(run.fallbackShell) || UNSAFE_PATH.test(run.fallbackShell)) refuse("run.fallbackShell must be the absolute path of the shell exec runs a text file with no #! line with (/bin/sh).");
+  if (!Array.isArray(run.wrappers) || run.wrappers.length === 0) refuse("test-env.config.json needs run.wrappers: the programs that start another program (env and the like), which run refuses when they are handed a shell.");
+  for (const wrapper of run.wrappers) if (typeof wrapper !== "string" || !/^[a-z0-9][a-z0-9._+-]*\*?$/u.test(wrapper)) refuse(`run.wrappers has an invalid program name ${JSON.stringify(wrapper)}; a trailing * matches any ending.`);
+  return Object.freeze({
+    shells: Object.freeze([...run.shells]),
+    shellsFile: run.shellsFile ?? null,
+    fallbackShell: run.fallbackShell,
+    shellOptions: Object.freeze([...run.shellOptions]),
+    wrappers: Object.freeze([...run.wrappers])
+  });
 }
 
 // Checks the config this script owns. The allowlist may never name a database input, a loader
@@ -793,6 +809,25 @@ function ownedFolder(path, label) {
   assertOwnedFolder(path, label);
 }
 
+// An owned folder made empty again: after the same checks, whatever an earlier command left in it
+// is removed, so nothing one run writes there (an rc file, an npmrc, a tool) is there for the next.
+function freshFolder(path, label) {
+  let present = true;
+  try { lstatSync(path); } catch { present = false; }
+  if (present) {
+    assertOwnedFolder(path, label);
+    rmSync(path, { recursive: true, force: true });
+  }
+  mkdirSync(path, { recursive: true, mode: 0o700 });
+  assertOwnedFolder(path, label);
+}
+
+// An owned folder that holds only `names`: every other entry is removed (a link is removed, never followed).
+function prunedFolder(path, label, names) {
+  ownedFolder(path, label);
+  for (const entry of readdirSync(path)) if (!names.includes(entry)) rmSync(join(path, entry), { recursive: true, force: true });
+}
+
 // Points `link` at `target`; a link that already does is kept, anything else is replaced at once.
 function linkTo(target, link) {
   try { if (readlinkSync(link) === target) return; } catch { /* absent, or not a link */ }
@@ -808,9 +843,10 @@ function commandDatabase(argv) {
 }
 
 // Step one of the entry point, run under `env -i PATH=<standard path>`: check the arguments, find
-// the toolchain, and create the database's scratch HOME and bin folder (node, npm and npx links).
-// Returns null for an unknown command (the caller prints usage). Nothing here reads the caller's
-// environment: it has none.
+// the toolchain, and prepare the database's scratch HOME and bin folder. Every start makes the HOME
+// empty again and leaves only the node, npm and npx links in the bin folder, so no rc file, npmrc
+// or tool an earlier command left there reaches this one. Returns null for an unknown command (the
+// caller prints usage). Nothing here reads the caller's environment: it has none.
 export function launchPlan({ argv, env, execPath, execArgv = [], root = ROOT, platform = process.platform, config = testEnvConfig() }) {
   if (platform === "win32") refuse("scripts/test-env is a POSIX launcher; on Windows, run it inside WSL.");
   if (execArgv.length) refuse(`node was started with ${execArgv.join(" ")}; the entry point starts it with no options.`);
@@ -825,8 +861,8 @@ export function launchPlan({ argv, env, execPath, execArgv = [], root = ROOT, pl
   const npm = toolchainNpm(node, config);
   const { home, bin } = boundaryPaths(database, root, config);
   for (const path of [home, bin]) if (UNSAFE_PATH.test(path) || path.includes(":")) refuse(`The repository path ${JSON.stringify(path)} has a character the launcher cannot pass on (: or a line break).`);
-  ownedFolder(home, "The scratch HOME");
-  ownedFolder(bin, "The toolchain folder");
+  freshFolder(home, "The scratch HOME");
+  prunedFolder(bin, "The toolchain folder", TOOLCHAIN_LINKS.map(([program]) => program));
   for (const [program] of TOOLCHAIN_LINKS) linkTo(program === "node" ? node : npm[program], join(bin, program));
   const path = config.boundary.path.map((entry) => (entry === PATH_BIN ? bin : entry === PATH_STANDARD ? standard : entry)).join(":");
   return { database, node, home, bin, path, inherit: inheritedNames(platform, config) };
@@ -867,21 +903,33 @@ export function launchBoundary({ argv, env, execPath, execArgv = [], root = ROOT
   return { database, node, home, bin, path: env.PATH };
 }
 
-// Plain argv only. A named shell (run.shells) must carry run.shellOptions (--noprofile --norc) and
-// a command (-c) or a script, and must not be interactive, a login shell or read commands from
-// standard input: those forms read startup files (~/.bashrc, ~/.profile, /etc/profile) after the
-// checks. Other programs start as they are, with no shell between them and the helper.
+// Plain argv only (docs/LOCAL_TESTING.md, "Plain argv only"). `run` checks the command twice, both
+// times before any child process:
+// - by name, first (assertPlainCommand): a program named like a shell (run.shells) must take the
+//   documented form, run.shellOptions (--noprofile --norc) before any single-letter option and a
+//   command (-c) or a script, and must not be interactive, a login shell or read commands from
+//   standard input: those forms read startup files (~/.bashrc, ~/.profile, /etc/profile) or the
+//   terminal after the checks.
+// - by what the program really is, last, against the child's own environment
+//   (assertResolvedCommand): every file the spawn could start under that name, through every link
+//   and every #! line, as exec and the kernel follow them. A file that is a shell, whatever name
+//   or path it was called by, takes the same documented form; a script whose #! line (or exec's
+//   fallback for a text file with none) starts a shell is refused; a wrapper (run.wrappers: env,
+//   nice, timeout, ...) that is handed a shell is refused; a program run cannot find or read is
+//   refused. Other programs start as they are, with no shell between them and the helper.
 const SHELL_REFUSED_LETTERS = { i: "an interactive shell", l: "a login shell", s: "a shell that reads commands from standard input" };
 const SHELL_REFUSED_LONG = /^--(?:login|interactive|rcfile|init-file)(?:=|$)/u;
 const SHELL_REFUSED_SETTINGS = new Set(["interactive", "login"]);
+// A shell installed under a versioned name, such as ksh93, zsh5 or bash-5.2.
+const SHELL_VERSION = /^-?\d[\d.]*$/u;
+// The first block of a file: enough for a #! line and to tell a binary (a NUL byte) from text.
+const HEADER_BYTES = 4096;
 
-export function assertPlainCommand(command, config = testEnvConfig()) {
-  const [program, ...args] = command;
-  if (typeof program !== "string" || program === "") refuse("Name the program to run.");
-  const name = basename(program);
-  if (name.startsWith("-")) refuse(`${program} names a login shell; run starts a plain program.`);
-  if (!config.run.shells.includes(name)) return;
-  const usage = `Name the program directly, or start a shell with ${config.run.shellOptions.join(" ")} -c '<command>' (bash takes them; dash, the sh of Debian and Ubuntu, does not)`;
+const shellUsage = (config) => `Name the program directly, or start a shell with ${config.run.shellOptions.join(" ")} -c '<command>' (bash takes them; dash, the sh of Debian and Ubuntu, does not)`;
+
+// The documented form, for a program known to be a shell. `name` is how the messages name it.
+function assertShellForm(name, args, config) {
+  const usage = shellUsage(config);
   const seen = new Set();
   let short = false, commandString = false, operand = false;
   for (let index = 0; index < args.length; index += 1) {
@@ -914,6 +962,255 @@ export function assertPlainCommand(command, config = testEnvConfig()) {
   const missing = config.run.shellOptions.filter((option) => !seen.has(option));
   if (missing.length) refuse(`run refuses ${name} without ${missing.join(" ")}: it would read its startup files. ${usage}.`);
   if (!commandString && !operand) refuse(`run refuses ${name} with no -c and no script: it would read commands from the terminal. ${usage}.`);
+}
+
+const isShellName = (name, config) => config.run.shells.some((shell) => name === shell || (name.startsWith(shell) && SHELL_VERSION.test(name.slice(shell.length))));
+const isWrapperName = (name, config) => config.run.wrappers.some((wrapper) => (wrapper.endsWith("*") ? name.startsWith(wrapper.slice(0, -1)) : name === wrapper));
+
+// The check by name: R3's rule, for every name in run.shells.
+export function assertPlainCommand(command, config = testEnvConfig()) {
+  const [program, ...args] = command;
+  if (typeof program !== "string" || program === "") refuse("Name the program to run.");
+  const name = basename(program);
+  if (name.startsWith("-")) refuse(`${program} names a login shell; run starts a plain program.`);
+  if (isShellName(name, config)) assertShellForm(name, args, config);
+}
+
+function isExecutable(path) {
+  try {
+    if (!statSync(path).isFile()) return false;
+    accessSync(path, fsConstants.X_OK);
+    return true;
+  } catch {
+    return false;
+  }
+}
+
+// Every file a spawn of `program` could start: the path itself when it names a folder (or when a #!
+// line names it: the kernel never searches PATH), else every executable match on the child's PATH.
+// exec takes the first match it may run; run checks them all. An empty PATH entry is the working
+// directory, as for exec.
+function programFiles(program, context, { asPath = false } = {}) {
+  const { env, cwd, platform } = context;
+  if (asPath || (platform === "win32" ? /[\\/]/u : /\//u).test(program)) {
+    const file = resolve(cwd, program);
+    return isExecutable(file) ? [file] : [];
+  }
+  const extensions = platform === "win32" ? ["", ...String(environmentValue(env, "PATHEXT", platform) ?? ".COM;.EXE;.BAT;.CMD").split(";").filter(Boolean)] : [""];
+  const files = [];
+  for (const directory of String(environmentValue(env, "PATH", platform) ?? "").split(pathSeparator(platform))) {
+    for (const extension of extensions) {
+      const file = join(resolve(cwd, directory || "."), `${program}${extension}`);
+      if (!files.includes(file) && isExecutable(file)) files.push(file);
+    }
+  }
+  return files;
+}
+
+// The files this system's shells and wrappers are, through their links, found the way run finds a
+// program: each run.shells and run.wrappers name on the child's PATH, and for shells each entry of
+// the system's shell list (run.shellsFile) and the fallback shell (run.fallbackShell).
+function knownFiles(context, kind) {
+  const cache = kind === "shell" ? "shellFiles" : "wrapperFiles";
+  if (context[cache]) return context[cache];
+  const { config } = context;
+  const paths = [];
+  for (const name of kind === "shell" ? config.run.shells : config.run.wrappers.filter((wrapper) => !wrapper.endsWith("*"))) paths.push(...programFiles(name, context));
+  if (kind === "shell") {
+    paths.push(config.run.fallbackShell);
+    if (config.run.shellsFile) {
+      let text = "";
+      try { text = readFileSync(config.run.shellsFile, "utf8"); } catch { /* this system keeps no shell list */ }
+      for (const line of text.split("\n")) {
+        const entry = line.trim();
+        if (entry && !entry.startsWith("#") && isAbsolute(entry)) paths.push(entry);
+      }
+    }
+  }
+  const files = new Map();
+  for (const path of paths) {
+    try {
+      const real = realpathSync(path);
+      const stats = statSync(real);
+      if (stats.isFile() && !files.has(real)) files.set(real, stats);
+    } catch { /* not installed here */ }
+  }
+  context[cache] = files;
+  return files;
+}
+
+function fileHash(path, context) {
+  if (!context.hashes.has(path)) context.hashes.set(path, createHash("sha256").update(readFileSync(path)).digest("hex"));
+  return context.hashes.get(path);
+}
+
+// What a file is: the shell or wrapper it is, or null. By the name it was called by or its real
+// name, as the same file as one of the system's (a link, or a hard link), or as a copy of one.
+function identity(kind, calledName, real, stats, context) {
+  const named = kind === "shell" ? isShellName : isWrapperName;
+  if (named(calledName, context.config)) return calledName;
+  const realName = basename(real);
+  if (named(realName, context.config)) return realName;
+  const known = knownFiles(context, kind);
+  for (const [file, fileStats] of known) if (file === real || (fileStats.dev === stats.dev && fileStats.ino === stats.ino)) return basename(file);
+  for (const [file, fileStats] of known) {
+    try {
+      if (fileStats.size === stats.size && fileHash(file, context) === fileHash(real, context)) return basename(file);
+    } catch { /* unreadable: not compared */ }
+  }
+  return null;
+}
+
+// How the kernel starts a file: through the interpreter its #! line names, with the rest of that
+// line as one optional argument; as a binary (a NUL byte in its first block); or, for text with no
+// usable #! line, with the fallback shell, as exec does when the kernel refuses the file (ENOEXEC).
+function fileHeader(real) {
+  let head;
+  try {
+    const descriptor = openSync(real, "r");
+    try {
+      const buffer = Buffer.alloc(HEADER_BYTES);
+      head = buffer.subarray(0, readSync(descriptor, buffer, 0, buffer.length, 0)).toString("latin1");
+    } finally {
+      closeSync(descriptor);
+    }
+  } catch (error) {
+    return { kind: "unreadable", reason: error.code ?? error.message };
+  }
+  if (head.startsWith("#!")) {
+    const line = head.slice(2).split("\n", 1)[0].replace(/^[ \t]+/u, "").replace(/[ \t\r]+$/u, "");
+    const match = /^([^ \t]+)(?:[ \t]+(.+))?$/u.exec(line);
+    if (match) return { kind: "script", interpreter: match[1], argument: match[2] ?? null };
+  }
+  return head.includes("\0") ? { kind: "binary" } : { kind: "text" };
+}
+
+// Each program the spawn of `command` can end up running, for every file its name leads to:
+// { kind: "shell" | "wrapper" | "program" | "unreadable", ... } with the arguments it gets, and the
+// script whose #! line (or exec's fallback) started it. `wrapped` is how many of those arguments a
+// wrapper reads as its own: all of them when the command names it, only the #! line's word when a
+// #! line names it (the script and its arguments go to the program that line starts). Returns null
+// when the name leads to no file.
+function startedPrograms(command, context, { asPath = false, wrapped = Infinity, chain = [] } = {}) {
+  const [program, ...args] = command;
+  const files = programFiles(program, context, { asPath });
+  if (files.length === 0) return null;
+  const started = [];
+  for (const file of files) {
+    let real, stats;
+    try {
+      real = realpathSync(file);
+      stats = statSync(real);
+    } catch (error) {
+      started.push({ kind: "unreadable", program, file, reason: error.code ?? error.message });
+      continue;
+    }
+    const shell = identity("shell", basename(program), real, stats, context);
+    if (shell) {
+      started.push({ kind: "shell", shell, program, file, real, args });
+      continue;
+    }
+    if (chain.includes(real)) {
+      started.push({ kind: "unreadable", program, file, reason: "its #! lines start it again" });
+      continue;
+    }
+    const header = fileHeader(real);
+    if (header.kind === "unreadable") {
+      started.push({ kind: "unreadable", program, file, reason: header.reason });
+      continue;
+    }
+    if (header.kind === "script" || header.kind === "text") {
+      const [interpreter, ...extra] = header.kind === "script" ? [header.interpreter, ...(header.argument === null ? [] : [header.argument])] : [context.config.run.fallbackShell];
+      const inner = startedPrograms([interpreter, ...extra, file, ...args], context, { asPath: true, wrapped: extra.length, chain: [...chain, real] });
+      if (!inner) {
+        started.push({ kind: "unreadable", program, file, reason: `its interpreter ${interpreter} is not an executable file` });
+        continue;
+      }
+      const line = header.kind === "script" ? `#!${[interpreter, ...extra].join(" ")}` : null;
+      for (const entry of inner) started.push({ ...entry, script: entry.script ?? { program, file, line } });
+      continue;
+    }
+    const wrapper = identity("wrapper", basename(program), real, stats, context);
+    if (wrapper) {
+      started.push({ kind: "wrapper", wrapper, program, file, real, args: args.slice(0, wrapped) });
+      continue;
+    }
+    started.push({ kind: "program", program, file, real });
+  }
+  return started;
+}
+
+// The words a wrapper's argument can hand on as a program or a folder: split at white space, =
+// and :, with quotes and backslashes removed (env -S splits its string so, and \_ is a space
+// there), plus the rest of a single-letter option cluster, as in -Sbash.
+function wrapperWords(argument) {
+  const words = new Set();
+  for (const piece of String(argument).replace(/\\_/gu, " ").split(/[\s=:]+/u)) {
+    const word = piece.replace(/["'\\]/gu, "");
+    if (!word) continue;
+    words.add(word);
+    if (/^-[^-]/u.test(word)) for (let index = 2; index < word.length; index += 1) words.add(word.slice(index));
+  }
+  return [...words];
+}
+
+function isFolder(path) {
+  try { return statSync(path).isDirectory(); } catch { return false; }
+}
+
+// The shell a wrapper's own arguments hand it, or null. run does not parse each wrapper's options:
+// any word that names a shell, or leads to one (on the child's PATH, from the working directory or
+// from any folder those arguments name, as env --chdir and env PATH=... would), counts.
+function wrapperShell(entry, context, scanned) {
+  const words = entry.args.flatMap((argument) => {
+    if (argument.includes("${")) refuse(`run refuses ${entry.program} ${argument}: the wrapper ${entry.wrapper} would expand that variable, which run cannot see. ${shellUsage(context.config)}.`);
+    return wrapperWords(argument);
+  });
+  const folders = [...new Set(words.filter((word) => isAbsolute(word) && isFolder(word)))];
+  const places = [context, ...folders.map((folder) => ({ ...context, cwd: folder, env: { ...context.env, PATH: folder } }))];
+  for (const word of words) {
+    if (isShellName(basename(word), context.config)) return { word, shell: basename(word) };
+    for (const place of places) {
+      for (const started of startedPrograms([word], place) ?? []) {
+        const key = started.real ?? started.file;
+        if (scanned.has(key)) continue;
+        scanned.add(key);
+        if (started.kind === "shell") return { word, shell: started.shell };
+        if (started.kind === "wrapper") {
+          const inner = wrapperShell(started, place, scanned);
+          if (inner) return { word, shell: inner.shell };
+        }
+      }
+    }
+  }
+  return null;
+}
+
+// The check by what the program really is, with the environment and working directory the child
+// gets (run passes them). Returns what it found, for the messages and the tests.
+export function assertResolvedCommand(command, { env = {}, cwd = process.cwd(), platform = process.platform, config = testEnvConfig() } = {}) {
+  const [program] = command;
+  if (typeof program !== "string" || program === "") refuse("Name the program to run.");
+  const context = { env, cwd, platform, config, hashes: new Map() };
+  const started = startedPrograms(command, context);
+  if (!started) refuse(`run cannot find ${program}${/\//u.test(program) ? " as an executable file" : ` on the child's PATH (${environmentValue(env, "PATH", platform) ?? ""})`}, so it cannot check what it starts.`);
+  const called = basename(program);
+  for (const entry of started) {
+    if (entry.kind === "unreadable") refuse(`run cannot tell what ${program} starts: ${entry.file} (${entry.reason}).`);
+    if (entry.kind === "shell" && entry.script) {
+      const how = entry.script.line ? `its #! line (${entry.script.line}) starts ${entry.shell}` : `it has no #! line, so exec runs it with ${config.run.fallbackShell} (${entry.shell})`;
+      refuse(`run refuses ${program}: ${how}, a shell, which run starts only in the documented form. Start the script as bash ${config.run.shellOptions.join(" ")} ${program}.`);
+    }
+    if (entry.kind === "shell") assertShellForm(entry.shell === called ? called : `${called} (${entry.shell}, ${entry.real})`, entry.args, config);
+    if (entry.kind === "wrapper") {
+      const found = wrapperShell(entry, context, new Set());
+      if (found) {
+        const via = entry.script ? `its #! line (${entry.script.line}) runs ${entry.wrapper}, which` : entry.wrapper === called ? called : `${called} (${entry.wrapper})`;
+        refuse(`run refuses ${program}: ${via} would start ${found.word}${found.shell === basename(found.word) ? "" : ` (${found.shell})`}, a shell, through a wrapper. Start the shell itself in the documented form. ${shellUsage(config)}.`);
+      }
+    }
+  }
+  return started;
 }
 
 // The npm config files the helper owns: present, so npm has nothing to fall back to, and empty.
@@ -1066,6 +1363,8 @@ async function run(io, [name, ...rest]) {
       }
     }
   });
+  // Last, with the child's own PATH and working directory: what the program really is (DB-06).
+  assertResolvedCommand(command, { env: childEnvironment, cwd: io.cwd, platform: io.platform });
   return io.spawn(command[0], command.slice(1), { cwd: io.cwd, env: childEnvironment });
 }
 

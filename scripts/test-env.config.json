@@ -1,5 +1,5 @@
 {
-  "description": "Read by scripts/test-env (the one entry point) and scripts/test-env.mjs at run time. The entry point starts the helper under env -i: HOME and PATH are set from `boundary`, and only the names in `inherit` pass through from the caller. The command `run` starts gets the same, then the env file and the pins. docs/LOCAL_TESTING.md justifies every name and path here. Database inputs, loader inputs (DOTENV_*, NODE_OPTIONS, npm_config_*, JITI_*, TSX_*, BASH_ENV, ENV), NODE_ENV, HOME and PATH are refused in `inherit`.",
+  "description": "Read by scripts/test-env (the one entry point) and scripts/test-env.mjs at run time. The entry point starts the helper under env -i: HOME and PATH are set from `boundary`, and only the names in `inherit` pass through from the caller. The command `run` starts gets the same, then the env file and the pins. `run` holds the program to the plain-argv rule by what it really is: a shell (by a name in `run.shells`, a file in the system's `run.shellsFile`, the same file or a copy), a wrapper (`run.wrappers`) or a file the kernel runs with `run.fallbackShell`. docs/LOCAL_TESTING.md justifies every name and path here. Database inputs, loader inputs (DOTENV_*, NODE_OPTIONS, npm_config_*, JITI_*, TSX_*, BASH_ENV, ENV), NODE_ENV, HOME and PATH are refused in `inherit`.",
   "inherit": {
     "all": ["TMPDIR", "LANG", "LC_ALL", "LC_CTYPE", "TERM", "NO_COLOR", "FORCE_COLOR", "CI"],
     "win32": ["SystemRoot", "SystemDrive", "WINDIR", "ComSpec", "PATHEXT", "TEMP", "TMP", "USERPROFILE", "APPDATA", "LOCALAPPDATA"]
@@ -21,7 +21,10 @@
     "path": ["{bin}", "{standard}"]
   },
   "run": {
-    "shells": ["sh", "bash", "dash", "ash", "ksh", "mksh", "pdksh", "zsh", "yash", "fish", "csh", "tcsh"],
-    "shellOptions": ["--noprofile", "--norc"]
+    "shells": ["sh", "bash", "rbash", "dash", "ash", "ksh", "ksh93", "lksh", "mksh", "pdksh", "oksh", "posh", "zsh", "yash", "fish", "csh", "tcsh", "hush", "busybox", "toybox"],
+    "shellsFile": "/etc/shells",
+    "fallbackShell": "/bin/sh",
+    "shellOptions": ["--noprofile", "--norc"],
+    "wrappers": ["env", "exec", "nice", "nohup", "timeout", "stdbuf", "setsid", "setpriv", "ionice", "chrt", "taskset", "flock", "time", "xargs", "sudo", "doas", "su", "runuser", "chroot", "unshare", "nsenter", "script", "ld.so", "ld-linux*", "ld-musl*"]
   }
 }

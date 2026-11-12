@@ -10,9 +10,10 @@
 #   (`command -p getconf PATH`); node comes from the link boundary.node names in
 #   scripts/test-env.config.json, else from that standard path; npm from that node's installation.
 # - node runs twice, both times under `env -i`. First with only the standard PATH, to check the
-#   arguments and create the database's owned scratch HOME and its toolchain bin folder (node, npm
-#   and npx links). Then for the command itself, with only that HOME, a PATH of that folder and
-#   the standard path, and the names scripts/test-env.config.json allowlists that the caller sets.
+#   arguments, make the database's owned scratch HOME empty again (every start) and leave only the
+#   node, npm and npx links in its toolchain bin folder. Then for the command itself, with only
+#   that HOME, a PATH of that folder and the standard path, and the names
+#   scripts/test-env.config.json allowlists that the caller sets.
 # No NODE_OPTIONS, npm setting, npmrc, dotenv control or home rc file of the caller reaches node.
 # The calling session is trusted, not hostile: /bin/sh, the system's standard utilities, the
 # toolchain and the repository files are part of the trusted machine.
@@ -36,6 +37,9 @@ root=$(cd -P -- "$here/.." && pwd -P) || refuse "cannot find the repository from
 config=$root/scripts/test-env.config.json
 helper=$root/scripts/test-env.mjs
 [ -f "$config" ] && [ -f "$helper" ] || refuse "$root is not the repository: scripts/test-env.config.json and scripts/test-env.mjs are missing"
+# Bootstrap: the helper itself loads dotenv, pg and js-yaml from the repository's node_modules, so
+# `npm ci` runs once, before this entry point and outside it (docs/LOCAL_TESTING.md, "Bootstrap").
+[ -d "$root/node_modules" ] || refuse "$root/node_modules is missing: run npm ci once first, before the entry point (docs/LOCAL_TESTING.md, Bootstrap)"
 
 # boundary.node: one "node": "<path>" line in the config. The helper checks the node it is
 # started with against the parsed config, so a mismatch here is refused there.

@@ -1564,3 +1564,293 @@ describe("R3: the boundary config (scripts/test-env.config.json) and the docs", 
     for (const phrase of ["scripts/test-env create", "scripts/test-env run", "scripts/test-env drop", "The trust boundary", "trusted, not hostile", "npm run test:env", "outside the boundary", "env -i", "getconf PATH", "bash -ic", "bash -lc", "sh -i"]) expect(text, phrase).toContain(phrase);
   });
 });
+
+// R4 (DB-06): run resolves the program to what it really is. A shell under any name or path, a
+// script whose #! line starts one and a wrapper handed one are refused before any connection or
+// child process, and every start of the entry point empties the scratch HOME and leaves only the
+// toolchain links in its bin folder. The cases are built from the shells this machine has.
+import { readdirSync } from "node:fs";
+
+// The shells this machine has: each run.shells name on the standard path and each entry of the
+// system's shell list, by real file. `interpreter` marks the ones whose real name is a shell name
+// (tmux, which some systems list, is not), and only those are started on a helper without R4.
+function presentShells() {
+  const run = helper.testEnvConfig().run ?? {};
+  const names = new Set([...(run.shells ?? []), "rbash", "busybox"]);
+  const found = new Map();
+  const add = path => {
+    try {
+      const real = realpathSync(path);
+      if (statSync(real).isFile() && !found.has(real)) found.set(real, { real, path, name: path.split("/").pop(), interpreter: names.has(real.split("/").pop().replace(/-?\d[\d.]*$/u, "")) });
+    } catch { /* not installed */ }
+  };
+  for (const name of names) for (const directory of standardPath.split(":").filter(Boolean)) add(join(directory, name));
+  let list = "";
+  try { list = readFileSync(run.shellsFile ?? "/etc/shells", "utf8"); } catch { /* no shell list */ }
+  for (const line of list.split("\n")) if (line.trim() && !line.trim().startsWith("#")) add(line.trim());
+  return [...found.values()];
+}
+const onStandardPath = name => (process.platform === "win32" ? null : helper.findOnPath(name, { PATH: standardPath }));
+// Every path the system's shell list gives rbash (for example /bin/rbash and /usr/bin/rbash).
+const rbashPaths = () => {
+  let list = "";
+  try { list = readFileSync(helper.testEnvConfig().run?.shellsFile ?? "/etc/shells", "utf8"); } catch { /* no shell list */ }
+  return [...new Set([...list.split("\n").map(line => line.trim()).filter(line => line.endsWith("/rbash")), onStandardPath("rbash")].filter(Boolean))];
+};
+
+describe.skipIf(process.platform === "win32" || !onStandardPath("bash"))("R4: run refuses every shell identity, whatever it is called (DB-06), with no connection and no child process", () => {
+  const file = envFilePath("jitm_design_fixture", root);
+  let work;
+  const shells = presentShells();
+  const bash = () => realpathSync(onStandardPath("bash"));
+  const env = () => onStandardPath("env");
+  const at = name => join(work, name);
+  const command = "node -e 0";
+
+  beforeAll(() => {
+    work = realpathSync(mkdtempSync(join(tmpdir(), "jitm-test-env-r4-")));
+    mkdirSync(at("aliases"), { recursive: true });
+    symlinkSync(bash(), at("aliases/notashell"));
+    shells.forEach((shell, index) => symlinkSync(shell.real, at(`aliases/program-${index}`)));
+    copyFileSync(bash(), at("copied-tool"));
+    chmodSync(at("copied-tool"), 0o755);
+    const scripts = {
+      "rbash-script": `#!${rbashPaths()[0] ?? bash()} -i\nnode -e 0\n`,
+      "env-bash-script": `#!${env()} bash\nnode -e 0\n`,
+      "headerless-script": "node -e 0\n",
+      "node-script.mjs": `#!${env()} node\nprocess.exit(0);\n`
+    };
+    for (const [name, text] of Object.entries(scripts)) {
+      writeFileSync(at(name), text);
+      chmodSync(at(name), 0o755);
+    }
+  });
+  afterAll(() => { if (work) rmSync(work, { recursive: true, force: true }); });
+
+  const attempt = async argv => {
+    const run = harness({ files: { [file]: await envFileFor() } });
+    const code = await main(["run", "fixture", "--", ...argv], run.dependencies);
+    return { code, run };
+  };
+  const refusedHere = async argv => {
+    const { code, run } = await attempt(argv);
+    expect(code, run.errors()).toBe(1);
+    expect(run.errors()).toMatch(/test-env refused/u);
+    expect(run.dependencies.spawn).not.toHaveBeenCalled();
+    expect(run.dependencies.connect).not.toHaveBeenCalled();
+    return run.errors();
+  };
+
+  it.each([
+    ["rbash -ic", () => ["rbash", "-ic", command]],
+    ["rbash -lc", () => ["rbash", "-lc", command]],
+    ["rbash -c", () => ["rbash", "-c", command]]
+  ])("refuses `%s`", async (_label, argv) => {
+    if (!onStandardPath("rbash")) return;
+    expect(await refusedHere(argv())).toMatch(/rbash/u);
+  });
+
+  it("refuses rbash by every path the system's shell list gives it", async () => {
+    expect(rbashPaths().length).toBeGreaterThan(0);
+    for (const path of rbashPaths()) expect(await refusedHere([path, "-ic", command])).toMatch(/rbash -ic/u);
+  });
+
+  it("refuses a link to bash under another name, but starts it in the documented form", async () => {
+    expect(await refusedHere([at("aliases/notashell"), "-ic", command])).toMatch(/notashell \(bash, .*\) -ic: an interactive shell/u);
+    expect(await refusedHere([at("aliases/notashell"), "-c", command])).toMatch(/without --noprofile --norc/u);
+    const { code, run } = await attempt([at("aliases/notashell"), "--noprofile", "--norc", "-c", command]);
+    expect(code, run.errors()).toBe(0);
+    expect(run.dependencies.spawn).toHaveBeenCalledTimes(1);
+  });
+
+  it("refuses a copy of bash under another name", async () => {
+    expect(await refusedHere([at("copied-tool"), "-ic", command])).toMatch(/copied-tool \(bash, .*\) -ic/u);
+  });
+
+  it("refuses each shell this machine has, called through a link under another name", async () => {
+    expect(shells.length).toBeGreaterThan(0);
+    for (const [index, shell] of shells.entries()) expect(await refusedHere([at(`aliases/program-${index}`), "-c", command]), shell.path).toMatch(/program-\d+ \(/u);
+  });
+
+  it("refuses busybox's shell", async () => {
+    if (!onStandardPath("busybox")) return;
+    expect(await refusedHere(["busybox", "sh", "-c", command])).toMatch(/busybox/u);
+  });
+
+  it.each([
+    ["env bash -c", () => [env(), "bash", "-c", command]],
+    ["env -i rbash -ic", () => ["env", "-i", "rbash", "-ic", command]],
+    ["env -S 'bash -ic …'", () => ["env", "-S", `bash -ic '${command}'`]],
+    ["env -Sbash", () => ["env", "-Sbash"]],
+    ["env PATH=<folder> <alias of bash> -ic", () => ["env", `PATH=${at("aliases")}`, "notashell", "-ic", command]],
+    ["env --chdir=<folder> ./<alias of bash> -c", () => ["env", `--chdir=${at("aliases")}`, "./notashell", "-c", command]],
+    ["env -S with a variable", () => ["env", "-S", "${SHELL} -i"]],
+    ["nice bash -c", () => ["nice", "bash", "-c", command]],
+    ["timeout 5 rbash -ic", () => ["timeout", "5", "rbash", "-ic", command]]
+  ])("refuses the wrapper `%s`", async (_label, argv) => {
+    const [program] = argv();
+    if (!program.includes("/") && !onStandardPath(program)) return;
+    expect(await refusedHere(argv())).toMatch(/wrapper/u);
+  });
+
+  it("still starts a wrapper that is handed no shell, and npm, whose #! line names env", async () => {
+    expect(await refusedHere(["env", "bash", "-c", command])).toMatch(/env would start bash/u);
+    for (const argv of [["env", "FOO=1", "npm", "test"], ["npm", "test"], [at("node-script.mjs")]]) {
+      const { code, run } = await attempt(argv);
+      expect(code, run.errors()).toBe(0);
+      expect(run.dependencies.spawn).toHaveBeenCalledTimes(1);
+    }
+  });
+
+  it.each([
+    ["a #! line that starts an interactive rbash", "rbash-script", /#! line \(#!.*-i\) starts/u],
+    ["#!/usr/bin/env bash", "env-bash-script", /#! line \(#!.* bash\) runs env, which would start bash/u],
+    ["a text file with no #! line, which exec runs with /bin/sh", "headerless-script", /no #! line, so exec runs it with/u]
+  ])("refuses a script with %s", async (_label, name, message) => {
+    expect(await refusedHere([at(name)])).toMatch(message);
+  });
+
+  it("refuses a program it cannot find on the child's PATH, such as the shell builtin exec", async () => {
+    expect(await refusedHere(["exec", "bash", "-ic", command])).toMatch(/cannot find exec on the child's PATH/u);
+  });
+});
+
+// Through the entry point itself, as the QA reproduced DB-06: an owned HOME whose .bashrc re-points
+// DATABASE_URL, then each shell form. A connection would reach the counting server; a child, the
+// rc file or a planted tool would write to the marker.
+describe.skipIf(process.platform === "win32" || spawnSync("bash", ["--noprofile", "--norc", "-c", "true"]).status !== 0)("R4: through scripts/test-env, no shell identity starts and nothing persists in the owned folders (DB-06)", () => {
+  let connections = 0;
+  const server = net.createServer(socket => { connections += 1; socket.destroy(); });
+  const fixture = r3Fixture("jitm-test-env-r4-launcher-");
+  const launcher = () => join(fixture.fixtureRoot, "scripts", "test-env");
+  const guarded = () => ({ host: "127.0.0.1", database: "jitm_design_fixture", recovery: "", nodeOptions: "", home: fixture.boundary.home, connections: 0 });
+  const PATH = process.env.PATH ?? "";
+  const base = () => ({ PATH, HOME: fixture.file("parent-home"), ...(process.env.TMPDIR ? { TMPDIR: process.env.TMPDIR } : {}) });
+  const shells = presentShells().filter(shell => shell.interpreter);
+  const spawned = () => `node ${fixture.file("spawned.cjs")}`;
+  // The rc the QA planted: it re-points the database and leaves a marker when a shell reads it.
+  const plantRc = () => {
+    const home = fixture.boundary.home;
+    mkdirSync(home, { recursive: true, mode: 0o700 });
+    const rc = `echo rc >> '${fixture.marker}'\nexport DATABASE_URL='${fixture.outside("owned_rc")}'\nprintf 'OWNED_RC_LOADED\\n'\n`;
+    for (const name of [".bashrc", ".bash_profile", ".profile"]) writeFileSync(join(home, name), rc);
+    writeFileSync(join(home, "left-over.txt"), "from an earlier run\n");
+  };
+
+  beforeAll(async () => {
+    await new Promise(resolvePromise => server.listen(0, "127.0.0.1", resolvePromise));
+    const { port: serverPort } = server.address();
+    await fixture.setup({ copyScripts: true, ciText: ciFixture({ url: `postgresql://${role}:${secret}@localhost:${serverPort}/jitm_design_fixture?schema=public`, ports: [`${serverPort}:5432`] }) });
+    mkdirSync(fixture.file("parent-home"), { recursive: true });
+    mkdirSync(fixture.file("aliases"), { recursive: true });
+    symlinkSync(realpathSync(onStandardPath("bash")), fixture.file("aliases/notashell"));
+    shells.forEach((shell, index) => symlinkSync(shell.real, fixture.file(`aliases/program-${index}`)));
+  });
+  afterAll(async () => {
+    if (server.listening) await new Promise(resolvePromise => server.close(resolvePromise));
+    fixture.cleanup();
+  });
+  beforeEach(() => writeFileSync(fixture.marker, ""));
+
+  const launch = (args, { env = {}, cwd = fixture.project, entry = launcher() } = {}) => spawnSync(entry, args, { cwd, env: { ...base(), ...env }, encoding: "utf8", timeout: 120_000 });
+  function refused(args) {
+    const before = connections;
+    const result = launch(args);
+    expect(result.status, result.stderr).toBe(1);
+    expect(result.stderr).toMatch(/test-env refused/u);
+    expect(result.stdout).not.toContain("OWNED_RC_LOADED");
+    expect(fixture.markers()).toEqual([]);
+    expect(connections - before).toBe(0);
+    return result.stderr;
+  }
+  function ran(args) {
+    const before = connections;
+    const result = launch(args);
+    expect(result.status, result.stderr).toBe(0);
+    expect(result.stdout).not.toContain("OWNED_RC_LOADED");
+    expect(fixture.markers()).toEqual([]);
+    expect(connections - before).toBe(0);
+    return result.stdout;
+  }
+
+  const reproduction = [
+    ["rbash -ic", () => ["rbash", "-ic"]],
+    ["rbash -lc", () => ["rbash", "-lc"]],
+    ["rbash -c", () => ["rbash", "-c"]],
+    ...rbashPaths().map(path => [`${path} -ic`, () => [path, "-ic"]]),
+    ["a link to bash under another name, -ic", () => [fixture.file("aliases/notashell"), "-ic"]],
+    ["a link to bash under another name, -c", () => [fixture.file("aliases/notashell"), "-c"]],
+    ["env bash -c", () => ["env", "bash", "-c"]],
+    ["env -i rbash -ic", () => ["env", "-i", "rbash", "-ic"]],
+    ...(onStandardPath("busybox") ? [["busybox sh -c", () => ["busybox", "sh", "-c"]]] : []),
+    ...shells.map((shell, index) => [`${shell.path} through a link under another name, -c`, () => [fixture.file(`aliases/program-${index}`), "-c"]])
+  ];
+
+  it.each(reproduction)("refuses `run -- %s` with an owned HOME whose .bashrc re-points the database", (_label, form) => {
+    plantRc();
+    refused(["run", "fixture", "--", ...form(), spawned()]);
+  });
+
+  it("empties the owned HOME at every start, so a planted rc is gone and a shell inside finds none", () => {
+    const report = fixture.file("home-report.mjs");
+    writeFileSync(report, "import { readdirSync } from 'node:fs';\nprocess.stdout.write(`\\nPROBE ${JSON.stringify({ home: process.env.HOME, entries: readdirSync(process.env.HOME).sort() })}\\n`);\n");
+    plantRc();
+    expect(fixture.probe(ran(["run", "fixture", "--", "node", report]))).toEqual({ home: fixture.boundary.home, entries: [] });
+    plantRc();
+    const probe = `node ${fixture.file("probe.mjs")}`;
+    expect(fixture.probe(ran(["run", "fixture", "--", "bash", "--noprofile", "--norc", "-c", `bash -ic '${probe}' 2>/dev/null`]))).toEqual(guarded());
+  });
+
+  it("leaves only node, npm and npx in the toolchain folder at every start, so a planted sh never runs npm's scripts", () => {
+    const bin = fixture.boundary.bin;
+    const sh = realpathSync(onStandardPath("sh"));
+    writeFileSync(join(bin, "sh"), `#!${sh}\necho 'planted sh' >> '${fixture.marker}'\nexport DATABASE_URL='${fixture.outside("planted_sh")}'\nexec ${sh} "$@"\n`);
+    chmodSync(join(bin, "sh"), 0o755);
+    expect(fixture.probe(ran(["run", "fixture", "--", "npm", "run", "--silent", "inspect"]))).toEqual(guarded());
+    expect(readdirSync(bin).sort()).toEqual(["node", "npm", "npx"]);
+  });
+
+  it("refuses to start before the bootstrap: npm ci runs once, before the entry point", () => {
+    const bare = fixture.file("bare-repo");
+    mkdirSync(join(bare, "scripts"), { recursive: true });
+    for (const name of ["test-env", "test-env.mjs", "test-env.config.json"]) copyFileSync(join(fixture.fixtureRoot, "scripts", name), join(bare, "scripts", name));
+    chmodSync(join(bare, "scripts", "test-env"), 0o755);
+    const before = connections;
+    const result = launch(["create", "fixture"], { entry: join(bare, "scripts", "test-env") });
+    expect(result.status).toBe(1);
+    expect(result.stderr).toMatch(/test-env refused: .*node_modules is missing: run npm ci once first, before the entry point/u);
+    expect(connections - before).toBe(0);
+    expect(existsSync(join(bare, ".artifacts"))).toBe(false);
+  });
+});
+
+describe("R4: the shell identities, wrappers and bootstrap in the config and the docs", () => {
+  const config = () => JSON.parse(readFileSync(helper.CONFIG_FILE, "utf8"));
+  const docs = () => readFileSync(join(projectPaths().root, "docs", "LOCAL_TESTING.md"), "utf8");
+
+  it("names rbash and busybox as shells, the system's shell list, the fallback shell and the wrappers", () => {
+    const { run } = helper.parseTestEnvConfig(config());
+    expect(run.shells).toEqual(expect.arrayContaining(["sh", "bash", "rbash", "dash", "zsh", "ksh", "mksh", "busybox"]));
+    expect(run.shellsFile).toMatch(/^\//u);
+    expect(run.fallbackShell).toMatch(/^\//u);
+    expect(run.wrappers).toEqual(expect.arrayContaining(["env", "exec", "nice", "timeout", "xargs"]));
+  });
+
+  it.each([
+    ["no wrappers", value => { value.run.wrappers = []; }, /run\.wrappers/u],
+    ["a wrapper given as a path", value => { value.run.wrappers = ["/usr/bin/env"]; }, /run\.wrappers/u],
+    ["a relative fallback shell", value => { value.run.fallbackShell = "sh"; }, /run\.fallbackShell/u],
+    ["a relative shell list", value => { value.run.shellsFile = "etc/shells"; }, /run\.shellsFile/u]
+  ])("refuses %s", (_label, change, message) => {
+    const value = config();
+    change(value);
+    expect(() => helper.parseTestEnvConfig(value)).toThrow(message);
+  });
+
+  it("docs/LOCAL_TESTING.md names the bootstrap, the acceptance order, the shell identities, the wrappers and the empty HOME", () => {
+    const text = docs();
+    const { run } = helper.parseTestEnvConfig(config());
+    for (const value of [run.shellsFile, run.fallbackShell, "run.shellsFile", "run.fallbackShell", "run.wrappers", "rbash", "busybox", "env bash -c", "#!/usr/bin/env bash"]) expect(text, value).toContain(`${value}`);
+    for (const phrase of ["### Bootstrap", "`npm ci` is a bootstrap step", "never through the entry point", "The acceptance order", "What counts as a shell", "byte-for-byte copy", "A wrapper handed a shell", "Why the shell form stays", "empty again at every start"]) expect(text, phrase).toContain(phrase);
+  });
+});
