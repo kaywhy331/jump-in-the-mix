@@ -10,7 +10,7 @@ test.skip(!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_desi
 test.use({ screenshot: "off", video: "off", trace: "off", serviceWorkers: "block" });
 test.setTimeout(180_000);
 
-let userId: string, workspaceId: string;
+let userId: string, workspaceId: string, megaMixId: string;
 const token = randomUUID(), mixes: string[] = [], templates: string[] = [], errors: string[] = [];
 const coarse = (name: string) => name === "mobile-chromium";
 
@@ -29,6 +29,7 @@ test.beforeAll(async () => {
       await prisma.mixStep.create({ data: { mixId: mix.id, stepVersionId: template.versions[0].id, dayOffset: beat * 7, sortOrder: beat } });
     }
   }
+  megaMixId = (await prisma.megaMixPipeline.create({ data: { workspaceId, name: "Pager Mega-Mix", members: { create: { mixId: mixes[0], position: 0 } } } })).id;
   for (const title of ["Pager ready-made one", "Pager ready-made two"]) templates.push((await prisma.sharedMix.create({ data: { title, description: "A ready-made plan you can adapt to your own words.", category: "Relationships", framework: "Ready-made", durationDays: 7, steps: [{ name: "Say hello", channel: "PHONE_CALL", script: "What would be helpful to talk about?", dayOffset: 0, sendTimeMinutes: 600 }], status: "APPROVED" } })).id);
 });
 test.beforeEach(async ({ page, context }) => {
@@ -173,6 +174,62 @@ test.describe("on a touch screen", () => {
     await expect(tablist(page, MIXES).getByRole("tab", { name: "Mixes", exact: true })).toHaveAttribute("aria-selected", "true");
   });
 
+  // NAV-QA-02: a sideways pull that starts in the 24px at either screen edge belongs to the system (§4, JITM-08 §2.47).
+  /** Holds a sideways pull and checks the track has not moved, then releases it and checks the pane is unchanged. */
+  const stays = async (page: Page, list: string, pane: string, label: string, from: { x: number; y: number }, dx: number) => {
+    const release = await swipe(page, from, dx, 0, { hold: true });
+    const held = await geometry(page, pane);
+    expect(Math.abs(held.left - held.offset), `a pull from x ${from.x} moved the track while held`).toBeLessThanOrEqual(1);
+    await release();
+    await page.waitForTimeout(600);
+    await restsOn(page, list, pane, label);
+  };
+  /** The reserved edge width, from the pager's one token: the spec's 24px. */
+  const reserve = (page: Page) => pager(page).evaluate(element => parseFloat(getComputedStyle(element).getPropertyValue("--swipe-edge-exclusion")));
+  /** The same pulls starting inside the content: twice the spec's 24px from each edge at 390px. */
+  const inside = { left: 48, right: 342 };
+
+  test("a pull from the left screen edge never pages (x 8, +290px at 390px)", async ({ page }) => {
+    await open(page, `/mixes?mix=${mixes[5]}`, 390, 844);
+    await restsOn(page, MIXES, "beats", "Beats");
+    await stays(page, MIXES, "beats", "Beats", { x: 8, y: 460 }, 290);
+    expect(await reserve(page)).toBe(24);
+  });
+
+  test("a pull from the right screen edge never pages (x 382, -290px at 390px)", async ({ page }) => {
+    await open(page, `/mixes?mix=${mixes[5]}`, 390, 844);
+    await tablist(page, MIXES).getByRole("tab", { name: "Mixes", exact: true }).click();
+    await restsOn(page, MIXES, "library", "Mixes");
+    await stays(page, MIXES, "library", "Mixes", { x: 382, y: 460 }, -290);
+    expect(await reserve(page)).toBe(24);
+  });
+
+  test("the same pulls from inside the content still page, and a vertical pull from an edge still scrolls", async ({ page }) => {
+    await open(page, `/mixes?mix=${mixes[5]}`, 390, 844);
+    await restsOn(page, MIXES, "beats", "Beats");
+    await swipe(page, { x: inside.left, y: 460 }, 290); await restsOn(page, MIXES, "library", "Mixes");
+    await swipe(page, { x: inside.right, y: 460 }, -290); await restsOn(page, MIXES, "beats", "Beats");
+    await tablist(page, MIXES).getByRole("tab", { name: "Mixes", exact: true }).click();
+    await restsOn(page, MIXES, "library", "Mixes");
+    // Only sideways paging is held back there: the pane's own vertical scroll stays native.
+    await swipe(page, { x: 8, y: 600 }, 0, -320);
+    await expect.poll(() => page.locator('[data-pager-pane="library"]').evaluate(element => element.scrollTop)).toBeGreaterThan(100);
+    expect((await geometry(page, "library")).left).toBe(0);
+  });
+
+  test("Journey's pager keeps both edges for the system too, and its content still pages", async ({ page }) => {
+    await open(page, "/journey", 390, 844);
+    await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 });
+    await tablist(page, JOURNEY).getByRole("tab", { name: "People", exact: true }).click();
+    await restsOn(page, JOURNEY, "people", "People");
+    await stays(page, JOURNEY, "people", "People", { x: 382, y: 460 }, -290);
+    await swipe(page, { x: inside.right, y: 460 }, -290); await restsOn(page, JOURNEY, "map", "Mixes");
+    await tablist(page, JOURNEY).getByRole("tab", { name: "Details", exact: true }).click();
+    await restsOn(page, JOURNEY, "details", "Details");
+    await stays(page, JOURNEY, "details", "Details", { x: 8, y: 460 }, 290);
+    await swipe(page, { x: inside.left, y: 460 }, 290); await restsOn(page, JOURNEY, "map", "Mixes");
+  });
+
   test("past the first and last panes the pager reports overscroll for the section hand-off", async ({ page }) => {
     await open(page, "/mixes");
     await restsOn(page, MIXES, "library", "Mixes");
@@ -224,7 +281,7 @@ test.describe("on a touch screen", () => {
     await previous(page); await restsOn(page, JOURNEY, "map", "Mixes");
     await previous(page); await restsOn(page, JOURNEY, "people", "People");
     await next(page); await restsOn(page, JOURNEY, "map", "Mixes");
-    await expect(page.getByRole("complementary", { name: "Journey details", exact: true })).toHaveAttribute("inert", "");
+    await expect(page.getByRole("tabpanel", { name: "Details", exact: true, includeHidden: true })).toHaveAttribute("inert", "");
   });
 
   test("Ready-made and Marketplace page their panes by swiping both ways", async ({ page }) => {
@@ -321,11 +378,62 @@ test("the pane tabs are ARIA tabs with arrow keys, names and selected states", a
   await open(page, "/journey", 390, 844);
   const journey = tablist(page, JOURNEY);
   await expect(journey.getByRole("tab")).toHaveText(["People", "Mixes", "Details"]);
-  await expect(journey.getByRole("tab", { name: "Mixes", exact: true })).toHaveAttribute("aria-controls", "journey-map-pane");
+  const map = await journey.getByRole("tab", { name: "Mixes", exact: true }).getAttribute("aria-controls");
+  await expect(page.locator(`[id="${map}"]`).locator("#journey-map-pane")).toHaveCount(1);
   await journey.getByRole("tab", { name: "Mixes", exact: true }).focus();
   await page.keyboard.press("ArrowLeft");
   await expect(journey.getByRole("tab", { name: "People", exact: true })).toHaveAttribute("aria-selected", "true");
   await expect(page.getByRole("complementary", { name: "Journey directory", exact: true })).toBeVisible();
+});
+
+/** The tab panels a screen reader can reach: not inert and not in a hidden subtree. */
+const reachablePanels = (page: Page) => page.evaluate(() => [...document.querySelectorAll<HTMLElement>("[role=tabpanel]")].filter(panel => {
+  if (panel.closest("[inert]")) return false;
+  for (let node: HTMLElement | null = panel; node; node = node.parentElement) if (getComputedStyle(node).display === "none") return false;
+  return true;
+}).map(panel => document.getElementById(panel.getAttribute("aria-labelledby") ?? "")?.textContent ?? ""));
+
+test("every pager page names one tab panel per tab, linked both ways, keeping its landmarks and arrow keys", async ({ page }) => {
+  const screens = [
+    { path: "/journey", list: JOURNEY, landmarks: [["complementary", "Journey directory"], ["region", "Mix and Beat journey"], ["complementary", "Journey details"]] },
+    { path: `/mixes?mix=${mixes[6]}`, list: MIXES, landmarks: [["complementary", "Mix library"], ["region", "Selected Mix"], ["complementary", "People and Journey connections"]] },
+    { path: `/mixes/mega?megaMix=${megaMixId}`, list: MIXES, landmarks: [["complementary", "Mega-Mix library"], ["region", "Selected Mega-Mix"], ["complementary", "Mega-Mix details"]] },
+    { path: `/templates?mix=${templates[1]}`, list: MIXES, landmarks: [["complementary", "Ready-made Mix library"], ["region", "Selected ready-made Mix"], ["complementary", "Ready-made Mix details"]] },
+    { path: "/marketplace?q=Pager%20ready-made%20one", choose: "Pager ready-made one", list: MIXES, landmarks: [["complementary", "Marketplace"], ["region", "Selected Mix"], ["complementary", "Add or share"]] }
+  ] as const;
+  for (const screen of screens) {
+    await open(page, screen.path, 390, 844);
+    if ("choose" in screen) { await page.locator(".mix-library-item", { hasText: screen.choose }).click(); await expect(page).toHaveURL(/item=/); }
+    if (screen.list === JOURNEY) await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 });
+    const where = screen.path;
+    await expect(page.getByRole("tablist"), where).toHaveCount(1);
+    const list = tablist(page, screen.list), labels = await list.getByRole("tab").allTextContents();
+    expect(labels, where).toHaveLength(3);
+    await expect(page.getByRole("tabpanel", { includeHidden: true }), where).toHaveCount(labels.length);
+    for (const [index, label] of labels.entries()) {
+      const tab = list.getByRole("tab", { name: label, exact: true }), id = await tab.getAttribute("id"), controls = await tab.getAttribute("aria-controls");
+      expect(id, `${where} ${label} tab id`).toBeTruthy();
+      expect(controls, `${where} ${label} aria-controls`).toBeTruthy();
+      const panel = page.getByRole("tabpanel", { name: label, exact: true, includeHidden: true });
+      await expect(panel, `${where} ${label} panel`).toHaveCount(1);
+      await expect(panel).toHaveAttribute("id", controls!);
+      await expect(panel).toHaveAttribute("aria-labelledby", id!);
+      // The pane's own landmark stays, inside its panel.
+      const [role, name] = screen.landmarks[index];
+      await expect(panel.getByRole(role, { name, exact: true, includeHidden: true }), `${where} ${label} landmark`).toHaveCount(1);
+    }
+    // Only the selected tab's panel is reachable; Left, Right, Home and End move the selection and the panel with it.
+    const selected = async () => (await list.locator("[role=tab][aria-selected=true]").textContent()) ?? "";
+    expect(await reachablePanels(page), where).toEqual([await selected()]);
+    await list.locator("[role=tab][aria-selected=true]").focus();
+    for (const [key, label] of [["Home", labels[0]], ["End", labels[2]], ["ArrowLeft", labels[1]], ["ArrowRight", labels[2]], ["ArrowRight", labels[0]], ["ArrowLeft", labels[2]]] as const) {
+      await page.keyboard.press(key);
+      const tab = list.getByRole("tab", { name: label, exact: true });
+      await expect(tab, `${where} ${key}`).toBeFocused();
+      await expect(tab, `${where} ${key}`).toHaveAttribute("aria-selected", "true");
+      await expect.poll(() => reachablePanels(page), `${where} ${key}`).toEqual([label]);
+    }
+  }
 });
 
 test("fine pointers keep the one-pane switcher at every width", async ({ page }, info) => {

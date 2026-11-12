@@ -124,11 +124,8 @@
   .mix-workspace-page .mix-editor-workspace { width: min(100%, 1096px); justify-self: center; padding-inline: 48px; }
 }
 @media (max-width: 1199px) {
-  .mix-library-shell[data-mobile-pane=library] .mix-edit-columns,
-  .mix-library-shell[data-mobile-pane=beats] .mix-library-directory,
-  .mix-library-shell[data-mobile-pane=beats] .mix-context-pane,
-  .mix-library-shell[data-mobile-pane=details] .mix-library-directory,
-  .mix-library-shell[data-mobile-pane=details] .mix-editor-workspace { display: none; }
+  /* One pane at a time: the tab panels that are not selected are hidden, with their landmarks (ScrollPagerPanel). */
+  .mix-library-shell[data-mobile-pane] [data-pager-pane]:not([data-pager-selected]) { display: none; }
   .mix-library-shell { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
   .mix-library-shell[data-mobile-pane=details] .mix-context-pane { border-top: 0; }
 }

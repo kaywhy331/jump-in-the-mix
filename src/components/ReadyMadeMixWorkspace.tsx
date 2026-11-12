@@ -9,6 +9,7 @@ import { salesPlanById } from "@/lib/sales-plan-library";
 import { approachLabel } from "@/lib/sales-approaches";
 import { normalizeSharedMixSteps, sharedMixContentIssue, sharedMixChannelLabel } from "@/lib/shared-mix";
 import { mixStatusLabel } from "@/lib/display-labels";
+import { ScrollPagerPanel } from "@/components/ScrollPager";
 
 type Props = {
   template: SharedMix;
@@ -28,7 +29,7 @@ export function ReadyMadeMixWorkspace({ template, metadata, copies, canUse }: Pr
   const useHref = `/templates/${template.id}/use`;
 
   return <div className="mix-edit-columns">
-    <section id="selected-mix" className="mix-editor-workspace" aria-label="Selected ready-made Mix">
+    <ScrollPagerPanel pane="beats"><section id="selected-mix" className="mix-editor-workspace" aria-label="Selected ready-made Mix">
       <header className="mix-selected-header"><div><h2>{template.title}</h2><span className="status-pill">Ready-made</span></div>
         {canUse && !issue && <Link className="button small ready-made-preview-use" href={useHref}><AppIcon name="import" />Use this Mix</Link>}
       </header>
@@ -37,8 +38,8 @@ export function ReadyMadeMixWorkspace({ template, metadata, copies, canUse }: Pr
         steps={steps.map((step, index) => ({ id: `${template.id}:${index}`, plannedAt: null, dayOffset: step.dayOffset, sendTimeMinutes: step.sendTimeMinutes, anchor: "CALENDAR_DAY", offsetMinutes: null, stepVersion: { subject: step.subject, body: step.body, script: step.script, stepTemplate: { name: step.name, channel: step.channel } } }))}
         gatedStepIds={[]} timezone="UTC" locale="en-US"
       />}
-    </section>
-    <aside className="mix-context-pane ready-made-context" aria-label="Ready-made Mix details">
+    </section></ScrollPagerPanel>
+    <ScrollPagerPanel pane="details"><aside className="mix-context-pane ready-made-context" aria-label="Ready-made Mix details">
       {canUse && !issue && <section className="ready-made-use"><h3><AppIcon name="import" />Make it yours</h3><p>Choose who it’s for and adjust the wording and timing.</p><Link className="button primary" href={useHref}><AppIcon name="import" />Use this Mix</Link></section>}
       <section><h3><AppIcon name="clock" />Starts</h3><p>{start}</p></section>
       <section><h3><AppIcon name="mixes" />At a glance</h3><dl className="ready-made-facts">
@@ -49,6 +50,6 @@ export function ReadyMadeMixWorkspace({ template, metadata, copies, canUse }: Pr
       </dl></section>
       {plan && <section><h3><AppIcon name="people" />Best for</h3><p>{plan.audience}</p><PlanApproachGuide plan={plan} /></section>}
       {copies.length > 0 && <section><h3><AppIcon name="check" />In My Mixes</h3><ul>{copies.map(mix => <li key={mix.id}><Link href={`/mixes?mix=${mix.id}`}><strong>{mix.name}</strong><small>{mixStatusLabel(mix.status)}</small></Link></li>)}</ul></section>}
-    </aside>
+    </aside></ScrollPagerPanel>
   </div>;
 }
