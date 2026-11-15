@@ -146,7 +146,7 @@ New work SHOULD name the goal it serves. [SOURCE docs/CANONICAL_PRODUCT_DECISION
 | Opt-in notifications: morning email, due push, weekly report | Shipped | `docs/CANONICAL_PRODUCT_DECISIONS.md:77` |
 | Waitlist and personal invitations | Shipped | §2.8; JITM-09 §2.17 |
 | Data controls: export, sessions, account deletion | Shipped | `docs/CANONICAL_PRODUCT_DECISIONS.md:111` |
-| Help and support conversations; staff console | Shipped | `docs/SUPPORT.md:3`; `docs/CANONICAL_PRODUCT_DECISIONS.md:16` |
+| Help and support conversations, redacted tester-report preview; staff console | Shipped (tester preview at `01935f2`) | `docs/SUPPORT.md:3`; `docs/TESTER_FEEDBACK_RELEASE_2026-10-03.md` |
 | Contact stages: optional labels such as Lead or Client, and the Mix each stage can start | Shipped | D16; `src/app/(app)/settings/page.tsx:11` |
 | No Mix status on every contact: the label, No Mix needed, the Contacts filter and bulk actions, the Today line and the Journey People status | Shipped (`prod-2026-10-06-4a77761`; devices NOT RUN) | D33; JITM-09 §2.76–§2.77; `docs/NO_MIX_STATUS_2026-10-05.md`; `docs/NO_MIX_STATUS_RELEASE_2026-10-06.md` |
 | The end-of-Mix question; a setting for where new contacts go; "Everyone" including people added later | Shipped (`prod-2026-10-07-501841e`; devices NOT RUN) | D33, D34, D48–D60; JITM-09 §2.77–§2.78; `docs/MIX_NEXT_STEP_2026-10-06.md`; `docs/MIX_NEXT_STEP_RELEASE_2026-10-07.md` |
