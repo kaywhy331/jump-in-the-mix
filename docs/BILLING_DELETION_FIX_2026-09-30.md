@@ -2,7 +2,7 @@
 
 The WF-05 review of the pricing and billing release found that deleting an account closed Stripe billing for the workspace the session opened (`requireWorkspace()`, the person's first membership), while the deletion removes the workspaces the person *owns*. With billing on, a member deleting their account could close the owner's paid plan, and an owner of several workspaces could keep being charged for the others. Kevin chose to release with billing off and fix it before billing is switched on ([release record](PRICING_REALTOR_BILLING_RELEASE_2026-09-30.md), Follow-ups). It had no effect in production: billing is off, so no billing row exists.
 
-**Status:** pull request open; not released. The release is a separate task (WF-06). It is code-only, with no migration.
+**Status:** PR #108, merged 2026-10-01 as `f1ac84d`. Live since 2026-10-01 17:28 UTC as `6cf9ad6` (tag `prod-2026-10-01-6cf9ad6`, [release record](PLAN_LIMITS_BILLING_DELETION_RELEASE_2026-10-01.md)).
 
 | Item | Value |
 | --- | --- |
