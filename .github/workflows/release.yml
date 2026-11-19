@@ -42,7 +42,8 @@ jobs:
   verify:
     permissions:
       contents: read
-    runs-on: ubuntu-latest
+    # Lift this pin after upgrading to Playwright >=1.61, which supports Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     # The serial 810-case browser matrix outgrew the previous 60-minute whole-job cap.
     # Keep every test and its timeout; reserve time for later gates and failure artifacts.
     timeout-minutes: 100

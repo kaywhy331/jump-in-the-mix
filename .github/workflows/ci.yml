@@ -21,7 +21,8 @@ env:
 
 jobs:
   validate:
-    runs-on: ubuntu-latest
+    # Lift this pin after upgrading to Playwright >=1.61, which supports Ubuntu 26.04.
+    runs-on: ubuntu-24.04
     timeout-minutes: *validate-timeout
     env:
       APP_URL: http://127.0.0.1:3000
