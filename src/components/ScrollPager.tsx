@@ -72,11 +72,18 @@ export function ScrollPagerPanel({ pane, children }: { pane: string; children: R
 
 export function ScrollPager<T extends string>({ label, panes, selected, onSelect, onOverscroll, tabsClassName, trackClassName, trackProps, children }: Props<T>) {
   const id = useId(), rootRef = useRef<HTMLDivElement>(null), tabsRef = useRef<HTMLDivElement>(null), trackRef = useRef<HTMLDivElement>(null), indicatorRef = useRef<HTMLSpanElement>(null);
-  const [paging, setPaging] = useState(false), [controls, setControls] = useState<Partial<Record<T, string>>>({});
-  const latest = useRef({ panes, selected, onSelect, onOverscroll, paging });
-  latest.current = { panes, selected, onSelect, onOverscroll, paging };
+  const [paging, setPaging] = useState(false), [rendered, setRendered] = useState<string[] | null>(null);
+  /**
+   * The panes a tab can show (JITM-10 §2.26): the owner's enabled panes whose panel this screen renders. Until the panels
+   * are known after mounting, the owner's list says which it renders, so the first HTML already links each tab to its panel.
+   * A tab with no panel is disabled and skipped, and the selection never rests on one: it falls back to the first pane.
+   */
+  const available = panes.filter(pane => !pane.disabled && (!rendered || rendered.includes(pane.id)));
+  const current = available.some(pane => pane.id === selected) ? selected : available[0]?.id ?? selected;
+  const latest = useRef({ panes, selected: current, onSelect, onOverscroll, paging });
+  latest.current = { panes, selected: current, onSelect, onOverscroll, paging };
   const synced = useRef(false), owned = useRef(false);
-  const context = useMemo(() => ({ id, selected, paging }), [id, selected, paging]);
+  const context = useMemo(() => ({ id, selected: current, paging }), [id, current, paging]);
 
   /** A pane's tab panel, when this screen renders it inside the track. */
   const panelOf = (pane: T) => {
@@ -143,26 +150,35 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     return () => media.removeEventListener("change", update);
   });
 
-  // Each tab controls its panel when this screen has one (a new Mega-Mix has no Details yet).
+  // Which panels this screen renders, after every render: a screen's state decides them (a new Mega-Mix has no Details).
   useLayoutEffect(() => {
-    const next: Partial<Record<T, string>> = {};
-    for (const pane of panes) if (panelOf(pane.id)) next[pane.id] = panelId(id, pane.id);
-    setControls(current => panes.every(pane => current[pane.id] === next[pane.id]) ? current : next);
+    const next = panes.flatMap(pane => panelOf(pane.id) ? [pane.id] : []);
+    setRendered(known => known && known.length === next.length && next.every(pane => known.includes(pane)) ? known : next);
   });
+
+  // The owner's selection follows the pane that shows when its own has no panel here.
+  useLayoutEffect(() => { if (current !== selected) onSelect(current); }, [current, selected, onSelect]);
+
+  // Focus and selection stay on the same tab: when the selection moves while a tab has focus, focus moves with it.
+  useLayoutEffect(() => {
+    const focused = document.activeElement;
+    if (!(focused instanceof HTMLElement) || !tabsRef.current?.contains(focused) || focused.dataset.pane === current) return;
+    tabsRef.current.querySelector<HTMLElement>(`[data-pane="${current}"]`)?.focus({ preventScroll: true });
+  }, [current]);
 
   // A tab, an arrow key or the screen itself changing the pane scrolls it into view; reduced motion jumps.
   useLayoutEffect(() => {
     const track = trackRef.current;
     if (!paging || !track) { synced.current = false; return; }
     owned.current = false;
-    const page = pages().find(item => item.pane.id === selected);
-    // A tab whose pane is not on this screen (a new Mega-Mix has no Details yet) leaves the pane that is showing selected.
+    const page = pages().find(item => item.pane.id === current);
+    // A selection that is not in the track yet settles on the pane that is showing.
     if (!page) settle();
     else if (Math.abs(offsetOf(page.element) - track.scrollLeft) > 1) track.scrollTo({ left: offsetOf(page.element), behavior: synced.current && !reduced() ? "smooth" : "instant" });
     synced.current = true;
     paint();
     // eslint-disable-next-line react-hooks/exhaustive-deps -- runs when the pane or the mode changes, not on every render
-  }, [paging, selected]);
+  }, [paging, current]);
 
   useEffect(() => {
     const track = trackRef.current;
@@ -285,24 +301,23 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     // eslint-disable-next-line react-hooks/exhaustive-deps -- the listeners read the latest props through `latest`
   }, [paging]);
 
-  // Left and Right move between tabs and wrap; Home and End go to the ends. Moving selects (the panes are already mounted).
+  // Left and Right move between the tabs that have a panel, and wrap; Home and End go to the ends. Moving selects.
   const onKeyDown = (event: KeyboardEvent<HTMLDivElement>) => {
-    const enabled = panes.filter(pane => !pane.disabled), current = enabled.findIndex(pane => pane.id === (event.target as HTMLElement).dataset.pane);
-    if (current < 0) return;
-    const index = event.key === "ArrowRight" ? (current + 1) % enabled.length : event.key === "ArrowLeft" ? (current - 1 + enabled.length) % enabled.length : event.key === "Home" ? 0 : event.key === "End" ? enabled.length - 1 : -1;
+    const from = available.findIndex(pane => pane.id === (event.target as HTMLElement).dataset.pane);
+    if (from < 0) return;
+    const index = event.key === "ArrowRight" ? (from + 1) % available.length : event.key === "ArrowLeft" ? (from - 1 + available.length) % available.length : event.key === "Home" ? 0 : event.key === "End" ? available.length - 1 : -1;
     if (index < 0) return;
     event.preventDefault();
-    tabsRef.current?.querySelector<HTMLElement>(`[data-pane="${enabled[index].id}"]`)?.focus();
-    onSelect(enabled[index].id);
+    tabsRef.current?.querySelector<HTMLElement>(`[data-pane="${available[index].id}"]`)?.focus();
+    onSelect(available[index].id);
   };
-  const focusable = panes.find(pane => pane.id === selected && !pane.disabled)?.id ?? panes.find(pane => !pane.disabled)?.id;
 
   return <div ref={rootRef} className="scroll-pager" data-paging={paging || undefined}>
     <div ref={tabsRef} role="tablist" aria-label={label} className={`scroll-pager-tabs${tabsClassName ? ` ${tabsClassName}` : ""}`} onKeyDown={onKeyDown}>
-      {panes.map(pane => <button key={pane.id} id={tabId(id, pane.id)} type="button" role="tab" data-pane={pane.id} aria-selected={pane.id === selected} aria-controls={controls[pane.id]} tabIndex={pane.id === focusable ? 0 : -1} disabled={pane.disabled} onClick={() => onSelect(pane.id)}><AppIcon name={pane.icon} />{pane.label}</button>)}
+      {panes.map(pane => { const shows = available.includes(pane); return <button key={pane.id} id={tabId(id, pane.id)} type="button" role="tab" data-pane={pane.id} aria-selected={pane.id === current} aria-controls={shows ? panelId(id, pane.id) : undefined} tabIndex={pane.id === current ? 0 : -1} disabled={!shows} onClick={() => onSelect(pane.id)}><AppIcon name={pane.icon} />{pane.label}</button>; })}
       <span ref={indicatorRef} className="scroll-pager-indicator" aria-hidden="true" />
     </div>
-    <div ref={trackRef} {...trackProps} className={`scroll-pager-track${trackClassName ? ` ${trackClassName}` : ""}`} data-mobile-pane={paging ? undefined : selected}><Pager.Provider value={context}>{children}</Pager.Provider></div>
+    <div ref={trackRef} {...trackProps} className={`scroll-pager-track${trackClassName ? ` ${trackClassName}` : ""}`} data-mobile-pane={paging ? undefined : current}><Pager.Provider value={context}>{children}</Pager.Provider></div>
   </div>;
 }
 
