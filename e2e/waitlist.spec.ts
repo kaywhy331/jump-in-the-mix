@@ -42,6 +42,17 @@ test("leave, confirmation, and receipt controls fit mobile and desktop in both t
     for (const colorScheme of ["light", "dark"] as const) for (const width of [320, 390, 1440]) {
       await page.emulateMedia({ colorScheme, reducedMotion: "reduce" });
       await page.setViewportSize({ width, height: 900 });
+      // Reduced-motion transitions can still leave inherited colours a frame behind the theme.
+      await page.waitForFunction(scheme => {
+        const root = getComputedStyle(document.documentElement);
+        const logo = document.querySelector(".logo > span:nth-child(2)");
+        const card = logo?.closest(".auth-card");
+        const canvas = document.createElement("canvas").getContext("2d");
+        if (!logo || !card || !canvas || root.colorScheme !== scheme) return false;
+        const normalize = (colour: string) => { canvas.fillStyle = colour; return canvas.fillStyle; };
+        return normalize(getComputedStyle(logo).color) === normalize(root.getPropertyValue("--text").trim())
+          && normalize(getComputedStyle(card).backgroundColor) === normalize(root.getPropertyValue("--raised").trim());
+      }, colorScheme);
       expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
       expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
     }

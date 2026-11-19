@@ -486,6 +486,7 @@ test.describe("on a touch phone", () => {
       });
       await touchDrag(page, headerOf(filter(page)), 400);
       await expect(filter(page)).toBeHidden();
+      await page.waitForFunction(() => { const marks = window as unknown as { swipeUp?: number; swipeClosed?: number }; return Number.isFinite(marks.swipeUp) && Number.isFinite(marks.swipeClosed); });
       return page.evaluate(() => { const marks = window as unknown as { swipeUp: number; swipeClosed: number }; return marks.swipeClosed - marks.swipeUp; });
     };
     await today(page);
