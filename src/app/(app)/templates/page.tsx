@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MixLibraryShell } from "@/components/MixLibraryShell";
+import { DIRECTORY_PANES, ITEM_PANES, MixLibraryShell } from "@/components/MixLibraryShell";
 import { ScrollPagerPanel } from "@/components/ScrollPager";
 import { ReadyMadeMixWorkspace } from "@/components/ReadyMadeMixWorkspace";
 import { AppIcon } from "@/components/AppIcon";
@@ -80,7 +80,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
   return <div className="page mix-workspace-page ready-made-workspace">
     {params.setup === "individual" && <Notice type="success">Your preferences are saved. Choose a Mix below, preview its follow-ups, then add it to your account. Return here to add more, or open Journey to connect them.</Notice>}
     <UrlErrorNotice params={params} viewer={session} />
-    <MixLibraryShell selectedMixId={selected?.id} explicitSelection={Boolean(params.mix)}>
+    <MixLibraryShell selectedMixId={selected?.id} explicitSelection={Boolean(params.mix)} panes={selected ? ITEM_PANES : DIRECTORY_PANES}>
       <ScrollPagerPanel pane="library"><aside className="mix-library-directory" aria-label="Ready-made Mix library">
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions">
           <Link className="icon-button" href="/mixes/new?custom=1" aria-label="Create your own" title="Create your own"><AppIcon name="plus" /></Link>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MixLibraryShell } from "@/components/MixLibraryShell";
+import { DIRECTORY_PANES, ITEM_PANES, MixLibraryShell } from "@/components/MixLibraryShell";
 import { ScrollPagerPanel } from "@/components/ScrollPager";
 import { MixWorkspace } from "@/components/MixWorkspace";
 import { MixLibraryNav } from "@/components/MixLibraryNav";
@@ -43,7 +43,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
     <UrlErrorNotice params={params} viewer={session} />
     <MarketplaceNotices workspaceId={workspace.id} />
     {(params.activated || params.paused || params.archived) && <Notice type="success">{params.activated ? "Mix started." : params.paused ? "Mix paused." : archivedNotice(params.archived)}</Notice>}
-    <MixLibraryShell selectedMixId={selected} explicitSelection={Boolean(params.mix)}>
+    <MixLibraryShell selectedMixId={selected} explicitSelection={Boolean(params.mix)} panes={selected ? ITEM_PANES : DIRECTORY_PANES}>
       <ScrollPagerPanel pane="library"><aside className="mix-library-directory" aria-label="Mix library">
         <header className="mix-directory-header">
           <h1>Mixes</h1>

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { MixLibraryShell } from "@/components/MixLibraryShell";
+import { DIRECTORY_PANES, ITEM_PANES, MixLibraryShell } from "@/components/MixLibraryShell";
 import { ScrollPagerPanel } from "@/components/ScrollPager";
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
@@ -56,7 +56,8 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
     {params.imported && <Notice type="success">Imported. No one was started; start people from Journey when you’re ready.</Notice>}
     {params.removed && <Notice type="success">Mega-Mix removed. Its Mixes are still in My Mixes.</Notice>}
     <MarketplaceNotices workspaceId={workspace.id} pipelineId={selected?.id} />
-    <MixLibraryShell selectedMixId={selected?.id ?? (creating ? "new" : undefined)} explicitSelection={Boolean(params.megaMix || creating)}>
+    {/* A new Mega-Mix shows its form and has no details yet. */}
+    <MixLibraryShell selectedMixId={selected?.id ?? (creating ? "new" : undefined)} explicitSelection={Boolean(params.megaMix || creating)} panes={creating ? ["library", "beats"] : selected ? ITEM_PANES : DIRECTORY_PANES}>
       <ScrollPagerPanel pane="library"><aside className="mix-library-directory" aria-label="Mega-Mix library">
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions">
           <BrandTermsHelp />
