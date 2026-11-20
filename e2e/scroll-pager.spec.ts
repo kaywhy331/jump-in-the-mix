@@ -1,3 +1,4 @@
+import { installNavDiag, navTrace } from "./nav-diag";
 import { createHash, randomUUID } from "node:crypto";
 import { test, expect, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
@@ -33,6 +34,7 @@ test.beforeAll(async () => {
   for (const title of ["Pager ready-made one", "Pager ready-made two"]) templates.push((await prisma.sharedMix.create({ data: { title, description: "A ready-made plan you can adapt to your own words.", category: "Relationships", framework: "Ready-made", durationDays: 7, steps: [{ name: "Say hello", channel: "PHONE_CALL", script: "What would be helpful to talk about?", dayOffset: 0, sendTimeMinutes: 600 }], status: "APPROVED" } })).id);
 });
 test.beforeEach(async ({ page, context }) => {
+  await installNavDiag(page);
   errors.length = 0;
   page.on("pageerror", error => errors.push(error.message));
   await context.addCookies([{ name: "jitm_session", value: token, url: process.env.APP_URL!, httpOnly: true, sameSite: "Strict" }]);
@@ -217,7 +219,8 @@ test.describe("on a touch screen", () => {
     expect((await geometry(page, "library")).left).toBe(0);
   });
 
-  test("Journey's pager keeps both edges for the system too, and its content still pages", async ({ page }) => {
+  for (let repetition = 1; repetition <= 30; repetition++) test("Journey's pager keeps both edges for the system too, and its content still pages #diag" + repetition, async ({ page }) => {
+  try {
     await open(page, "/journey", 390, 844);
     await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 });
     await tablist(page, JOURNEY).getByRole("tab", { name: "People", exact: true }).click();
@@ -228,6 +231,7 @@ test.describe("on a touch screen", () => {
     await restsOn(page, JOURNEY, "details", "Details");
     await stays(page, JOURNEY, "details", "Details", { x: 8, y: 460 }, 290);
     await swipe(page, { x: inside.left, y: 460 }, 290); await restsOn(page, JOURNEY, "map", "Mixes");
+  } catch (error) { throw new Error(String(error) + "\nNAVDIAG " + await navTrace(page)); }
   });
 
   test("past the first and last panes the pager reports overscroll for the section hand-off", async ({ page }) => {

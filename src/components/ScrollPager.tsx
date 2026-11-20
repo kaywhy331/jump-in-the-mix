@@ -127,6 +127,7 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
    * as a screen bringing an element into view or the route's #selected-mix, never changes the pane: the track returns to
    * the selected one. Overlapping scrolls can also leave the browser resting between snap points, so a rest always ends on a pane.
    */
+  const diag = (event: string, data: object = {}) => (window as unknown as { __navDiag?: (event: string, data: object) => void }).__navDiag?.(event, { selected: latest.current.selected, owned: owned.current, left: trackRef.current?.scrollLeft, ...data });
   const settle = () => {
     const track = trackRef.current;
     if (!track || !latest.current.paging) return;
@@ -134,6 +135,7 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     if (!list.length) return;
     const nearest = list.reduce((best, page) => Math.abs(offsetOf(page.element) - track.scrollLeft) < Math.abs(offsetOf(best.element) - track.scrollLeft) ? page : best);
     const chosen = owned.current ? nearest : list.find(page => page.pane.id === latest.current.selected) ?? nearest;
+    diag("settle", { chosen: chosen.pane.id, nearest: nearest.pane.id });
     owned.current = false;
     if (Math.abs(offsetOf(chosen.element) - track.scrollLeft) > 1) track.scrollTo({ left: offsetOf(chosen.element), behavior: reduced() ? "instant" : "smooth" });
     if (chosen.pane.id !== latest.current.selected) latest.current.onSelect(chosen.pane.id);
@@ -168,6 +170,7 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
   useLayoutEffect(() => {
     const track = trackRef.current;
     if (!paging || !track) { synced.current = false; return; }
+    diag("selection-sync", { current, paging });
     owned.current = false;
     const page = pages().find(item => item.pane.id === current);
     // A selection that is not in the track yet settles on the pane that is showing.
@@ -194,8 +197,9 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     };
     const cancel = () => { if (edge?.edge) emit("cancel", edge, edge.samples[edge.samples.length - 1]?.x ?? edge.x); edge = null; };
     const onScroll = () => {
+      diag("onScroll", { fingers, released });
       // The track only scrolls sideways under a finger when the owner is swiping it.
-      if (fingers > 0 && eligible) owned.current = true;
+      if (fingers > 0 && eligible) { owned.current = true; diag("owned:scroll", { fingers, eligible }); }
       if (!frame) frame = requestAnimationFrame(() => { frame = 0; paint(); });
       // Reduced motion: the browser has chosen the pane once the released scroll moves; jump there instead of animating.
       if (released !== null && fingers === 0 && Math.abs(track.scrollLeft - released) > 0.5) {
@@ -222,11 +226,13 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
       && x >= edgeWidth && x <= window.innerWidth - edgeWidth;
     const reserveGesture = (target: EventTarget | null, x: number) => {
       eligible = mayPage(target, x);
+      diag("reserveGesture", { eligible, x, previousOverflow: track.style.overflowX });
       track.style.overflowX = eligible ? "auto" : "hidden";
       if (!eligible) owned.current = false;
     };
     const onPointerDown = (event: PointerEvent) => reserveGesture(event.target, event.clientX);
     const onTouchStart = (event: TouchEvent) => {
+      diag("onTouchStart", { touches: event.touches.length });
       fingers = event.touches.length;
       released = null;
       if (fingers !== 1) { eligible = false; cancel(); return; }
@@ -253,6 +259,7 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
       emit("move", edge, touch.clientX);
     };
     const onTouchEnd = (event: TouchEvent) => {
+      diag("onTouchEnd", { type: event.type, touches: event.touches.length });
       fingers = event.touches.length;
       if (edge?.edge) emit(event.type === "touchcancel" ? "cancel" : "end", edge, event.changedTouches[0]?.clientX ?? edge.x);
       edge = null;
@@ -261,7 +268,7 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     const onWheel = (event: WheelEvent) => {
       if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
       reserveGesture(event.target, event.clientX);
-      if (eligible) owned.current = true;
+      if (eligible) { owned.current = true; diag("owned:wheel"); }
     };
     const onResize = () => { edgeWidth = reservedWidth(); const page = pages().find(item => item.pane.id === latest.current.selected); if (!fingers && page) track.scrollTo({ left: offsetOf(page.element), behavior: "instant" }); paint(); };
     const resize = new ResizeObserver(onResize);

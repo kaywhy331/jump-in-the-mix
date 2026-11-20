@@ -1,3 +1,4 @@
+import { installNavDiag, navTrace } from "./nav-diag";
 import { createHash, randomUUID } from "node:crypto";
 import { test, expect, type Locator, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
@@ -25,6 +26,7 @@ test.beforeAll(async () => {
   }
 });
 test.beforeEach(async ({ context, page }) => {
+  await installNavDiag(page);
   failures.length = 0;
   page.on("pageerror", error => failures.push(error.message));
   const current = await prisma.mixWorkflow.findUnique({ where: { workspaceId } });
@@ -209,7 +211,8 @@ test("invalid drops, Escape, pointer cancellation, and view changes leave no dra
   await page.getByRole("button", { name: "Progress", exact: true }).click(); await expect(page.locator("[data-workflow-port]")).toHaveCount(0);
 });
 
-test("zoomed dragging follows screen coordinates and touch selection works after scrolling", async ({ page, context }) => {
+for (let repetition = 1; repetition <= 30; repetition++) test("zoomed dragging follows screen coordinates and touch selection works after scrolling #diag" + repetition, async ({ page, context }) => {
+  try {
   await page.getByRole("button", { name: "Zoom out", exact: true }).click(); await page.getByRole("button", { name: "Zoom out", exact: true }).click();
   await expand(page); await drag(page, port(page, 0, true, "output"), port(page, 1, true, "input"));
   await editor(page).getByRole("button", { name: "Cancel", exact: true }).click();
@@ -235,6 +238,7 @@ test("zoomed dragging follows screen coordinates and touch selection works after
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
   await expect(editor(page).getByRole("combobox", { name: /^Continue to/ })).toHaveValue(`beat:${beats[1]}`);
   await cdp.detach();
+  } catch (error) { throw new Error(String(error) + "\nNAVDIAG " + await navTrace(page)); }
 });
 
 test("dragging near the canvas edge pans to a destination outside the initial view", async ({ page }) => {
