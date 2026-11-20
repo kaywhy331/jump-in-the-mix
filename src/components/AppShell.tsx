@@ -1,13 +1,14 @@
 "use client";
 
 import Link from "next/link";
-import { Fragment, useLayoutEffect, useRef } from "react";
+import { Fragment, Suspense, useLayoutEffect, useRef } from "react";
 import { Logo } from "@/components/Logo";
 import { AccountControl, AccountNav, Nav } from "@/components/Nav";
 import { AppearanceControl } from "@/components/Appearance";
 import { logoutAction } from "@/lib/auth-actions";
 import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 import { AppIcon } from "@/components/AppIcon";
+import { BackNavigation } from "@/components/BackNavigation";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 import { INVITATIONS_PATH, invitationsLeftLabel } from "@/lib/invitation-labels";
 
@@ -109,6 +110,7 @@ export function AppShell({
       <main id="workspace-main" tabIndex={-1} className="app-main">{children}</main>
       <div ref={mobileNav} className="mobile-nav"><Nav quickAdd={!impersonation} /></div>
       {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} locale={displayPreferences.locale} />}
+      <Suspense fallback={null}><BackNavigation /></Suspense>
     </div>
   );
 }

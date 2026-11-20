@@ -82,6 +82,7 @@ Kevin's "swipe to the next page".
 - **Never handle the same back twice.**
   - The browser's and Android's own back gestures stay untouched. The app never intercepts them or adds its own handler on top.
   - If the browser has already animated the back itself (for example, an iOS Safari edge swipe in a browser tab), the slide-back is skipped. Where the Navigation API reports this (`NavigateEvent.hasUAVisualTransition`), use it. Where the browser cannot tell, skip the slide-back in that browser rather than animate twice. JITM-NAV-04 verifies support on each target browser and records the source and date (JITM-15 §2.18).
+  - **Support, checked 2026-11-20** against https://github.com/mdn/browser-compat-data/blob/main/api/NavigateEvent.json: `hasUAVisualTransition` is in Chrome 118, Firefox 147, and Safari and iOS 26.2. Older versions cannot tell, so they skip the slide-back, except for a back the app starts itself (`BackLink`, the edge swipe).
 - **Installed iOS app:** in the installed app (`display-mode: standalone` with `navigator.standalone`, as `src/components/PwaInstallPrompt.tsx:24` detects it) iOS offers no back swipe and no back button. There, a swipe that starts within **20 px of the left edge** goes back. The page follows the finger, and the gesture commits by the same distance and velocity thresholds as A, then calls `history.back()`. This is the one exception to the 24 px edge exclusion (§4). The visible equivalent is `BackLink` (JITM-07 §2.8). Installed Android apps keep the system back and get no edge swipe.
 - **Ring stops:** the edge swipe never runs on a ring stop's own screen, where a horizontal swipe is A. A section swipe adds history like tapping the navigation, so Back after one returns to the previous section. A history move between two ring stops slides in ring order (Contacts enters from the left of Mixes, never from the right), not as a drill-in's slide-back.
 
@@ -259,6 +260,15 @@ These fill gaps in the approved concept. None changes a gesture, moves a thresho
 9. **Device qualification** is cited as JITM-10 §2.19, the rule that holds it. The brief named JITM-06.
 10. **The file name** is the one the task brief and the held slices use, `docs/design/NATIVE-NAVIGATION.md`, rather than JITM-15 §2.1's upper-snake living-reference pattern.
 
+JITM-NAV-04 (Hub job_d27a830383cf) added these while building C:
+
+11. **Journey details.** The People / Mixes / Details switcher is a pager (B), so moving between its panes adds no history. Journey details are reached by their addresses (`/journey?contactId=…`, `work`, `mix`), and those push history. This is a default decision; making the Details pane its own entry would be a new decision.
+12. **The edge swipe's touch** may land anywhere down the left 20 px of the app, beside the rail from 901 px too. Only the page follows the finger; the navigation, rail and header stay.
+13. **`touch-action: pan-y pinch-zoom`** is declared on the app only in the installed iOS app, and not while the page is zoomed in, so a zoomed page still pans sideways.
+14. **Scroll** is kept with each history entry and restored once the parent has rendered. A reload keeps the browser's own restoration.
+15. **`BackLink`** goes back through history when the previous entry is its parent, so the parent keeps its scroll and no entry is added. Otherwise it opens the parent, as before.
+
 ## 14. Changelog
 
 - 2026-11-11 — Initial version (JITM-NAV-00, base b9bfd1d6). Kevin's approval of 2026-11-08 is D130.
+- 2026-11-20 — JITM-NAV-04: browser support for C recorded (§3 C); readings 11–15.

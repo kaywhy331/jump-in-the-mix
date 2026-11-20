@@ -5,6 +5,7 @@ import { connection } from "next/server";
 import { headers } from "next/headers";
 import localFont from "next/font/local";
 import { appearanceScript } from "@/lib/appearance";
+import { popStateRelayScript } from "@/lib/back-navigation";
 import { AppearanceSync } from "@/components/Appearance";
 import { GlobalLiveSearch } from "@/components/GlobalLiveSearch";
 import { PwaRegistration } from "@/components/PwaRegistration";
@@ -49,7 +50,7 @@ export default async function RootLayout({ children }: Readonly<{ children: Reac
   const nonce = (await headers()).get("x-nonce") ?? undefined;
   return (
     <html lang="en" data-scroll-behavior="smooth" className={`${uiFont.variable} ${uiEmphasisFont.variable} ${voiceFont.variable}`} suppressHydrationWarning>
-      <head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: appearanceScript }} /></head>
+      <head><script nonce={nonce} dangerouslySetInnerHTML={{ __html: appearanceScript }} /><script nonce={nonce} dangerouslySetInnerHTML={{ __html: popStateRelayScript }} /></head>
       <body>
         <AppearanceSync />
         <PwaRegistration />

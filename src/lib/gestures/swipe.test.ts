@@ -209,6 +209,20 @@ describe("start exclusions", () => {
     expect(start(body, 400 - SWIPE.edge + 1)).toBe("edge");
   });
 
+  it("starts the installed iOS app's back swipe only within 20 px of the left edge, with every other exclusion kept", () => {
+    const back = (target: Fake, x: number) => blockedStart(target, surface, x, 400, overflow, true);
+    expect(SWIPE.backEdge).toBe(20);
+    expect(back(body, 0)).toBeNull();
+    expect(back(body, SWIPE.backEdge)).toBeNull();
+    expect(back(body, SWIPE.backEdge + 1)).toBe("edge");
+    expect(back(body, 200)).toBe("edge");
+    expect(back(body, 400 - SWIPE.edge + 1)).toBe("edge");
+    expect(back(el("input", { type: "text" }, body), 10)).toBe("ignored");
+    expect(back(el("button", {}, el("div", {}, body, { scrollWidth: 900, overflowX: "auto" })), 10)).toBe("scroller");
+    expect(startOn({ target: body, surface, x: 10, viewportWidth: 400, overflowX: overflow, fromLeftEdge: true })).toBe("start");
+    expect(startOn({ target: body, surface, x: 10, viewportWidth: 400, overflowX: overflow })).toBe("blocked");
+  });
+
   it("leaves anything that can scroll sideways to native scrolling", () => {
     const chips = el("div", {}, body, { scrollWidth: 900, overflowX: "auto" });
     expect(start(el("button", {}, chips))).toBe("scroller");

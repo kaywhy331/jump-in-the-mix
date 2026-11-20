@@ -3,6 +3,7 @@
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
 import { BEFORE_FORM_NAVIGATION } from "@/lib/form-navigation";
+import { isOwnBack } from "@/lib/back-navigation";
 
 /** Keep private drafts in memory and warn before leaving; never persist form contents. */
 export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery, nativeSubmit = false }: { forceDirty?: boolean; guardOtherForms?: boolean; preservedQuery?: Record<string, string>; nativeSubmit?: boolean }) {
@@ -58,8 +59,9 @@ export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery,
       if (!guardOtherForms || event.defaultPrevented || event.target === form || !(forced.current ?? dirty.current) || submitting.current) return;
       if (!window.confirm("This action can reload the page. Continue without saving the other form’s changes?")) { event.preventDefault(); event.stopImmediatePropagation(); }
     };
-    // The Navigation API also covers same-document Back/Forward where supported.
-    const navigate = (event: Event) => { const navigation = event as Event & { navigationType?: string }; if (navigation.navigationType === "traverse" && event.cancelable && !allow()) event.preventDefault(); };
+    // The Navigation API also covers same-document Back/Forward where supported. The app's own back (a back control,
+    // the edge swipe) has already asked, so it isn't asked twice.
+    const navigate = (event: Event) => { const navigation = event as Event & { navigationType?: string; destination?: { key?: string } }; if (navigation.navigationType === "traverse" && event.cancelable && !isOwnBack(navigation.destination?.key) && !allow()) event.preventDefault(); };
     const navigation = (window as Window & { navigation?: EventTarget }).navigation;
     const associated = (event: Event) => { const target = event.target as HTMLInputElement | null; if (target?.form === form) update(); };
     // Native GET review forms have no React pending state; other guards run in capture first.
