@@ -24,6 +24,28 @@ export function ringStop(url: URL): number {
   return url.searchParams.get("view") === "edit" ? -1 : (SECTION_RING as readonly string[]).indexOf(url.pathname);
 }
 
+/**
+ * The marker every visible Back control carries (`BackLink`, `ContactsBackLink`, a page's own link back to its parent):
+ * the edge swipe's visible equivalent (NATIVE-NAVIGATION.md §3 C, §8).
+ */
+export const BACK_CONTROL = "[data-back-link]";
+
+type Shown = { getClientRects(): { length: number }; checkVisibility?(options?: { visibilityProperty?: boolean }): boolean };
+
+/** The first of `controls` the page shows now, or null. One it does not render (a phone-only `BackLink` on a wide screen) is not shown. */
+export function shownBackControl<T extends Shown>(controls: Iterable<T>): T | null {
+  for (const control of controls) if (control.getClientRects().length > 0 && control.checkVisibility?.({ visibilityProperty: true }) !== false) return control;
+  return null;
+}
+
+/**
+ * Whether the installed iOS app's edge swipe may act on `url`: never on a ring stop's own screen, and only while the page
+ * shows its Back control (`shownBackControl`), whose return the swipe then makes. History alone never enables it.
+ */
+export function edgeBackActive(url: URL, control: object | null): boolean {
+  return ringStop(url) < 0 && control !== null;
+}
+
 /** A move between two ring stops slides in ring order; any other history move slides the way it went. */
 export function slideFor(from: URL, to: URL, back: boolean): Slide {
   const a = ringStop(from), b = ringStop(to);

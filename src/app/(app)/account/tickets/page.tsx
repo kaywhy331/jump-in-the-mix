@@ -31,6 +31,6 @@ export default async function SupportConversationsPage({ searchParams }: { searc
       <span className={`status-pill ${ticket.status === "RESOLVED" ? "done" : ""}`}>{supportStatusLabel(ticket.status)}</span>
     </Link>)}</div> : <EmptyState title="No conversations yet" description="Send us a question and keep the conversation here." actionHref="/help#contact-support" actionLabel="Ask for help" />}
     {pages > 1 && <nav className="pagination-bar" aria-label="Support conversation pages"><span>{total} conversations</span><div className="page-actions">{page > 1 && <Link className="button" href={`/account/tickets?page=${page - 1}`}>Previous</Link>}<span>Page {page} of {pages}</span>{page < pages && <Link className="button" href={`/account/tickets?page=${page + 1}`}>Next</Link>}</div></nav>}
-    <Link className="button support-back-link" href="/help">Back to help</Link>
+    <Link data-back-link className="button support-back-link" href="/help">Back to help</Link>
   </div>;
 }

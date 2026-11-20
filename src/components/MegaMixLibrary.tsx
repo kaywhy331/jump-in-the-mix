@@ -22,7 +22,7 @@ export function MegaMixLibrary({ selectedId, installed, added, canEdit, initialS
   return <div className={styles.workspace} data-pane={pane}>
     <h1 className="sr-only">Mega-Mixes</h1>
     <nav className={styles.panes} aria-label="Mega-Mix workspace panels">{([['library', 'Mega-mixes'], ['preview', 'Preview'], ['setup', installation ? 'My setup' : 'Add journey']] as const).map(([value, label]) => <button type="button" key={value} aria-pressed={pane === value} onClick={() => setPane(value)}>{label}</button>)}</nav>
-    <aside className={styles.directory} aria-label="Mega-Mix library"><h2>Mega-Mixes</h2><p>Choose a whole journey for your work.</p><Link className={styles.back} href="/templates"><AppIcon name="chevronLeft" />Ready-made Mixes</Link>
+    <aside className={styles.directory} aria-label="Mega-Mix library"><h2>Mega-Mixes</h2><p>Choose a whole journey for your work.</p><Link data-back-link className={styles.back} href="/templates"><AppIcon name="chevronLeft" />Ready-made Mixes</Link>
       <nav aria-label="Choose a Mega-Mix">{MEGA_MIXES.map(item => <Link className={styles.choice} href={`/templates/journeys?journey=${item.id}`} key={item.id} aria-current={item.id === blueprint.id ? "page" : undefined}><AppIcon name="journey" /><span><strong>{item.name}</strong><small>{item.nodes.length} connected mixes{installed.some(row => row.blueprintId === item.id) ? " · Added" : ""}</small></span></Link>)}</nav>
     </aside>
     <section className={styles.center} aria-label="Mega-Mix preview"><MegaMixPreview blueprint={blueprint} /><button className={`button primary ${styles.mobileNext}`} type="button" onClick={() => { setPane("setup"); window.scrollTo({ top: 0 }); }}>{installation ? "View my setup" : "Set up this journey"}</button></section>

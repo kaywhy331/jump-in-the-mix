@@ -1,6 +1,6 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { SECTION_RING, browserMayHaveAnimated, ringStop, slideFor } from "@/lib/back-navigation";
+import { BACK_CONTROL, SECTION_RING, browserMayHaveAnimated, edgeBackActive, ringStop, shownBackControl, slideFor } from "@/lib/back-navigation";
 
 // Back (JITM-08 §2.46, NATIVE-NAVIGATION.md §3 C).
 const url = (path: string) => new URL(path, "https://app.test");
@@ -10,6 +10,26 @@ describe("back", () => {
     expect(SECTION_RING).toEqual(["/jumps", "/contacts", "/mixes", "/more"]);
     expect(["/jumps", "/contacts?q=ana", "/mixes?mix=m1", "/more"].map(path => ringStop(url(path)))).toEqual([0, 1, 2, 3]);
     for (const path of ["/contacts/c1", "/mixes?mix=m1&view=edit", "/settings", "/journey?contactId=c1", "/calendar"]) expect(ringStop(url(path)), path).toBe(-1);
+  });
+
+  it("lets the edge swipe act only while the page shows its Back control: never for history alone, never on a ring stop", () => {
+    const control = (rects: number, visible?: boolean) => ({ getClientRects: () => ({ length: rects }), ...(visible === undefined ? {} : { checkVisibility: () => visible }) });
+    const shown = control(1), notRendered = control(0), hidden = control(1, false);
+    expect(BACK_CONTROL).toBe("[data-back-link]");
+    expect(shownBackControl([])).toBeNull();
+    expect(shownBackControl([notRendered, hidden])).toBeNull();
+    expect(shownBackControl([notRendered, hidden, shown, control(1, true)])).toBe(shown);
+    // A drill-in turns it on with its Back control shown, and off without one: none, or one not rendered at this width.
+    for (const path of ["/contacts/c1", "/contacts/c1/edit", "/mixes?mix=m1&view=edit", "/settings/business", "/journey?mix=m1"]) {
+      expect(edgeBackActive(url(path), shownBackControl([shown])), path).toBe(true);
+      expect(edgeBackActive(url(path), shownBackControl([notRendered])), path).toBe(false);
+      expect(edgeBackActive(url(path), null), path).toBe(false);
+    }
+    for (const path of ["/jumps", "/contacts", "/mixes?mix=m1", "/more"]) expect(edgeBackActive(url(path), shown), path).toBe(false);
+    // The component asks the rule, with the control it reads when the touch starts, and nothing about history.
+    const component = readFileSync("src/components/BackNavigation.tsx", "utf8");
+    expect(component).toMatch(/active: \(\) => installedIosApp\(\) && edgeBackActive\(new URL\(location\.href\), backControl\(\)\),/);
+    expect(component).not.toMatch(/canGoBack|history\.length/);
   });
 
   it("slides the way history moved, and in ring order between two ring stops", () => {

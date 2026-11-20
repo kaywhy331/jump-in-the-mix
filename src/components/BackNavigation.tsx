@@ -5,15 +5,14 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { allowFormNavigation } from "@/lib/form-navigation";
 import { useSwipe } from "@/lib/gestures/useSwipe";
 import {
-  arrived, beforePopState, browserMayHaveAnimated, goBack, installedIosApp, navigationApi, nextArrival, previousEntry,
-  restoreScroll, ringStop, slide, slideFor, slides, takeOwnBack, wait
+  BACK_CONTROL, arrived, backReturnsTo, beforePopState, browserMayHaveAnimated, edgeBackActive, goBack, installedIosApp,
+  navigationApi, nextArrival, previousEntry, restoreScroll, shownBackControl, slide, slideFor, slides, takeOwnBack, wait
 } from "@/lib/back-navigation";
 
 /** The page itself, which slides and, in the installed iOS app, follows the finger. */
 const page = () => document.getElementById("workspace-main");
-/** The page's visible back control, if it has one. */
-const backControl = () => [...document.querySelectorAll<HTMLAnchorElement>("#workspace-main [data-back-link]")].find(link => link.getClientRects().length > 0) ?? null;
-const canGoBack = () => navigationApi()?.canGoBack ?? history.length > 1;
+/** The Back control the page shows now, if any: the edge swipe's visible equivalent, read at use time. */
+const backControl = () => shownBackControl(document.querySelectorAll<HTMLAnchorElement>(`#workspace-main ${BACK_CONTROL}`));
 const samePage = (a: URL, b: URL) => a.pathname === b.pathname && a.search === b.search;
 /** How long the edge swipe waits for history to move before it springs back, as when there was nowhere to go. */
 const LEAVE_WAIT_MS = 500;
@@ -28,7 +27,7 @@ type SavedEntry = { key?: string; getState(): unknown };
  * Back for the app shell (JITM-08 §2.46, NATIVE-NAVIGATION.md §3 C). A history move slides the page in from its side
  * and restores its scroll. The browser handles its own back; this only holds the router for the frame the slide needs
  * to capture the old page, then hands it the same move, so each back runs once. In the installed iOS app, which has no
- * back swipe, a swipe from the left edge goes back.
+ * back swipe, a swipe from the left edge goes back wherever the page shows its Back control.
  */
 export function BackNavigation() {
   const router = useRouter();
@@ -129,22 +128,25 @@ export function BackNavigation() {
   }, []);
 
   // The installed iOS app's back swipe. Never on a ring stop's own screen, where a sideways swipe is section swipe,
-  // and only where there is a back: history's, or the page's back control when the app opened on this page.
+  // and only while the page shows its Back control, whose return the swipe makes: back through history when Back
+  // returns to the control's page, as the control does, otherwise to the control's page. History alone never enables it.
   // The touch may land anywhere down the edge, on a short page or beside the rail; the page alone follows the finger.
   useSwipe({ get current() { return document.querySelector<HTMLElement>(".app-shell"); } }, {
     axis: "x",
     direction: 1,
     fromLeftEdge: true,
     moves: page,
-    active: () => installedIosApp() && ringStop(new URL(location.href)) < 0 && (canGoBack() || backControl() !== null),
+    active: () => installedIosApp() && edgeBackActive(new URL(location.href), backControl()),
     size: () => window.innerWidth,
     onCommit: async () => {
-      const back = canGoBack(), control = backControl(), before = location.href;
+      const control = backControl(), before = location.href;
+      if (!control) return false;
+      const back = backReturnsTo(control.href);
       // The unsaved guards answer first, exactly as for the back control; keeping the edits springs the page back.
-      if (!allowFormNavigation(back ? previousEntry()?.url ?? before : control?.href ?? before)) return false;
+      if (!allowFormNavigation(back ? previousEntry()?.url ?? before : control.href)) return false;
       leaving.current = true;
       const arrival = nextArrival();
-      if (!back) { slide("back", () => router.push(control!.href)); return arrival; }
+      if (!back) { slide("back", () => router.push(control.href)); return arrival; }
       goBack();
       if (await Promise.race([arrival, wait(LEAVE_WAIT_MS).then(() => location.href !== before)])) return arrival;
       leaving.current = false;

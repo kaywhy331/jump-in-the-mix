@@ -39,7 +39,7 @@ export default async function EditContactPage({
       <header className="page-header">
         <div><h1>Edit {contact.displayName}</h1><p>Primary contact details are used in prepared follow-ups.</p></div>
         <div className="page-actions contact-detail-header-actions">
-          <Link className="button mobile-header-action" href={returnTo ?? `/contacts/${contact.id}`} aria-label={returnTo ? "Back to follow-up" : "Back to Contact"}><AppIcon name="chevronLeft" /><span>{returnTo ? "Back to follow-up" : "Back to Contact"}</span></Link>
+          <Link data-back-link className="button mobile-header-action" href={returnTo ?? `/contacts/${contact.id}`} aria-label={returnTo ? "Back to follow-up" : "Back to Contact"}><AppIcon name="chevronLeft" /><span>{returnTo ? "Back to follow-up" : "Back to Contact"}</span></Link>
         </div>
       </header>
       <UrlErrorNotice params={query} viewer={session} />

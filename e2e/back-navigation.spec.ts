@@ -192,6 +192,8 @@ test.describe("on a touch phone", () => {
       await open(page, "/contacts");
       await page.locator(`a.contact-open[href="/contacts/${contactId}"]`).click();
       await expect(page).toHaveURL(new RegExp(`/contacts/${contactId}$`));
+      // The edge swipe acts once the page shows its Back control; the contact's loading state shows none (JITM-NAV-04-R1).
+      await expect(page.locator("#workspace-main [data-back-link]").locator("visible=true").first()).toBeVisible();
       const before = await historyIndex(page), width = 390;
       // Short of 35%: it follows the finger 1:1, then springs back.
       const lift = await edgeDrag(page, SWIPE.backEdge - 4, width * (SWIPE.commit.x - 0.1), { hold: true });
@@ -216,6 +218,8 @@ test.describe("on a touch phone", () => {
       // A fling commits from a short distance.
       await page.locator(`a.contact-open[href="/contacts/${contactId}"]`).click();
       await expect(page).toHaveURL(new RegExp(`/contacts/${contactId}$`));
+      // The edge swipe acts once the page shows its Back control; the contact's loading state shows none (JITM-NAV-04-R1).
+      await expect(page.locator("#workspace-main [data-back-link]").locator("visible=true").first()).toBeVisible();
       await edgeDrag(page, 8, 60, { fling: true });
       await expect(page).toHaveURL(/\/contacts$/);
     });
@@ -329,5 +333,100 @@ test.describe("with a fine pointer", () => {
     await page.goBack();
     await expect(page).toHaveURL(/\/settings$/);
     expect(await slides(page)).toEqual([]);
+  });
+});
+
+// JITM-NAV-04-R1: the installed iOS app's edge swipe acts only while the page shows a visible Back control that makes
+// the same return (NATIVE-NAVIGATION.md §3 C, §8). History alone never enables it.
+test.describe("the edge swipe needs the page's visible Back control", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+  test.beforeEach(async ({ page }) => { await installed(page); });
+
+  /** The Back controls the page shows: the edge swipe's visible equivalent. */
+  const visibleBackControls = (page: Page) => page.locator("#workspace-main [data-back-link]").locator("visible=true");
+  /** An edge drag well past the commit distance: nothing follows the finger, and after release nothing has gone back. */
+  async function inertEdge(page: Page, how: string) {
+    const url = page.url(), index = await historyIndex(page), width = page.viewportSize()!.width;
+    const lift = await edgeDrag(page, SWIPE.backEdge - 12, width * 0.5, { hold: true });
+    expect(await main(page).getAttribute("data-swipe-state"), how).toBeNull();
+    expect(await offsetX(page), how).toBe(0);
+    await lift!();
+    // Longer than a back takes to start, then nothing has moved.
+    await page.waitForTimeout(1_000);
+    expect(page.url(), how).toBe(url);
+    expect(await historyIndex(page), how).toBe(index);
+  }
+
+  test("Journey opened from a selected Mix shows no Back control, so the edge moves nothing and does not go back", async ({ page }) => {
+    for (const colorScheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme });
+      await open(page, `/mixes?mix=${mixId}`);
+      await page.locator(".mix-phone-panes").getByRole("button", { name: "Details" }).click();
+      await page.getByRole("link", { name: "Open Journey" }).click();
+      await expect(page).toHaveURL(new RegExp(`/journey\\?mix=${mixId}`));
+      await expect(visibleBackControls(page), colorScheme).toHaveCount(0);
+      await inertEdge(page, `Journey from a selected Mix, ${colorScheme}`);
+    }
+  });
+
+  test("each drill-in's edge swipe makes its visible Back control's return; without a shown control, and on ring stops, nothing moves", async ({ page }) => {
+    test.setTimeout(360_000);
+    const parentState = () => { const url = new URL(page.url()); return url.pathname + url.search; };
+    /**
+     * Opens the drill-in, which shows its Back control; the edge swipe goes back one entry. Opened again, its Back
+     * control reaches the same page, with the same address (the parent's state).
+     */
+    const drillIn = async (name: string, from: string, enter: () => Promise<void>, at: RegExp) => {
+      await open(page, from);
+      await enter();
+      await expect(page, name).toHaveURL(at);
+      await expect(visibleBackControls(page), name).not.toHaveCount(0);
+      const index = await historyIndex(page);
+      await edgeDrag(page, SWIPE.backEdge - 12, page.viewportSize()!.width * 0.5);
+      await expect(page, name).not.toHaveURL(at);
+      const swiped = parentState();
+      expect(await historyIndex(page), name).toBe(index - 1);
+      await expect.poll(() => main(page).evaluate(element => element.style.transform + (element.dataset.swipeState ?? "")), name).toBe("");
+      await enter();
+      await expect(page, name).toHaveURL(at);
+      await visibleBackControls(page).first().click();
+      await expect(page, name).not.toHaveURL(at);
+      expect(parentState(), name).toBe(swiped);
+    };
+    for (const colorScheme of ["light", "dark"] as const) {
+      await page.emulateMedia({ colorScheme });
+      await page.setViewportSize({ width: 390, height: 844 });
+      const contact = new RegExp(`/contacts/${contactId}$`), editor = new RegExp(`/contacts/${contactId}/edit$`);
+      await drillIn(`contact detail, ${colorScheme}`, "/contacts", () => page.locator(`a.contact-open[href="/contacts/${contactId}"]`).click(), contact);
+      await drillIn(`contact editor, ${colorScheme}`, `/contacts/${contactId}`, () => page.locator(`#workspace-main a[href="/contacts/${contactId}/edit"]`).locator("visible=true").first().click(), editor);
+      await drillIn(`Mix editor, ${colorScheme}`, `/mixes?mix=${mixId}`, () => page.locator(".mix-view-tabs").getByRole("link", { name: "Edit" }).click(), /view=edit/);
+      await drillIn(`settings sub-page, ${colorScheme}`, "/settings", () => page.locator('#workspace-main a[href="/settings/business"]').first().click(), /\/settings\/business$/);
+      // A phone-only Back control: shown on a phone, so the edge swipe goes back...
+      await drillIn(`Settings from More, phone, ${colorScheme}`, "/more", () => page.locator('#workspace-main a.settings-hub-card[href="/settings"]').click(), /\/settings$/);
+      // ...and not rendered on a wide screen, which turns the edge swipe off even though history could go back.
+      await page.setViewportSize({ width: 1024, height: 1366 });
+      await open(page, "/more");
+      await page.locator('#workspace-main a.settings-hub-card[href="/settings"]').click();
+      await expect(page).toHaveURL(/\/settings$/);
+      await expect(visibleBackControls(page)).toHaveCount(0);
+      await expect(page.locator("#workspace-main [data-back-link]")).toHaveCount(1);
+      await inertEdge(page, `Settings from More, wide, ${colorScheme}`);
+      await page.setViewportSize({ width: 390, height: 844 });
+      // Journey opened from a selected Mix shows no Back control.
+      await open(page, `/mixes?mix=${mixId}`);
+      await page.locator(".mix-phone-panes").getByRole("button", { name: "Details" }).click();
+      await page.getByRole("link", { name: "Open Journey" }).click();
+      await expect(page).toHaveURL(new RegExp(`/journey\\?mix=${mixId}`));
+      await expect(visibleBackControls(page)).toHaveCount(0);
+      await inertEdge(page, `Journey from a selected Mix, ${colorScheme}`);
+      // Two ring stops, each reached so history could go back: the edge is not a back swipe there.
+      await open(page, "/contacts");
+      await page.locator(".mobile-nav").getByRole("link", { name: "Mixes" }).click();
+      await expect(page).toHaveURL(/\/mixes$/);
+      await inertEdge(page, `Mixes, ${colorScheme}`);
+      await page.locator(".mobile-nav").getByRole("link", { name: "Contacts" }).click();
+      await expect(page).toHaveURL(/\/contacts$/);
+      await inertEdge(page, `Contacts, ${colorScheme}`);
+    }
   });
 });

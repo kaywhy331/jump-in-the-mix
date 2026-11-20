@@ -63,7 +63,7 @@ export default async function SupportTicketPage({
         </div>
         <div className="page-actions">
           <Link className="button" href="/help">Help & FAQ</Link>
-          <Link className="button" href="/account/tickets">All tickets</Link>
+          <Link data-back-link className="button" href="/account/tickets">All tickets</Link>
         </div>
       </header>
 
