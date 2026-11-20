@@ -9,6 +9,7 @@ import { logoutAction } from "@/lib/auth-actions";
 import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 import { AppIcon } from "@/components/AppIcon";
 import { BackNavigation } from "@/components/BackNavigation";
+import { SectionSwipe } from "@/components/SectionSwipe";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 import { INVITATIONS_PATH, invitationsLeftLabel } from "@/lib/invitation-labels";
 
@@ -107,7 +108,7 @@ export function AppShell({
           {endImpersonationForm}
         </section>
       )}
-      <main id="workspace-main" tabIndex={-1} className="app-main">{children}</main>
+      <main id="workspace-main" tabIndex={-1} className="app-main">{children}<Suspense fallback={null}><SectionSwipe /></Suspense></main>
       <div ref={mobileNav} className="mobile-nav"><Nav quickAdd={!impersonation} /></div>
       {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} locale={displayPreferences.locale} />}
       <Suspense fallback={null}><BackNavigation /></Suspense>

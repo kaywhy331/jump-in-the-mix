@@ -56,9 +56,10 @@ describe("phone-first small-business product boundary", () => {
   });
 
   it("exposes the required navigation and global Quick Add", () => {
-    const nav = read("src/components/Nav.tsx");
-    for (const label of ["Today", "Contacts", "Mixes", "More"]) expect(nav).toContain(`label: "${label}"`);
-    expect(nav).not.toContain('label: "Templates"');
+    const nav = read("src/components/Nav.tsx"), links = read("src/lib/app-navigation.ts");
+    expect(nav).toContain("NAV_LINKS.map(");
+    for (const label of ["Today", "Contacts", "Mixes", "More"]) expect(links).toContain(`label: "${label}"`);
+    for (const source of [nav, links]) expect(source).not.toContain('label: "Templates"');
     expect(nav).toContain("QuickAddButton mobile");
     expect(read("src/components/AppShell.tsx")).toContain("<QuickAddButton />");
     expect(read("src/components/AppShell.tsx")).toMatch(/<QuickAddDialog\b/);

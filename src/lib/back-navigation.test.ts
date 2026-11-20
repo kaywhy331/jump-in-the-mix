@@ -1,6 +1,7 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
-import { BACK_CONTROL, SECTION_RING, browserMayHaveAnimated, edgeBackActive, ringStop, shownBackControl, slideFor } from "@/lib/back-navigation";
+import { NAV_LINKS } from "@/lib/app-navigation";
+import { BACK_CONTROL, SECTION_RING, browserMayHaveAnimated, edgeBackActive, ringNeighbour, ringStop, shownBackControl, slideFor } from "@/lib/back-navigation";
 
 // Back (JITM-08 §2.46, NATIVE-NAVIGATION.md §3 C).
 const url = (path: string) => new URL(path, "https://app.test");
@@ -10,6 +11,16 @@ describe("back", () => {
     expect(SECTION_RING).toEqual(["/jumps", "/contacts", "/mixes", "/more"]);
     expect(["/jumps", "/contacts?q=ana", "/mixes?mix=m1", "/more"].map(path => ringStop(url(path)))).toEqual([0, 1, 2, 3]);
     for (const path of ["/contacts/c1", "/mixes?mix=m1&view=edit", "/settings", "/journey?contactId=c1", "/calendar"]) expect(ringStop(url(path)), path).toBe(-1);
+  });
+
+  it("reads the ring from the bottom navigation, and steps to the neighbouring stop without wrapping at the ends", () => {
+    expect(SECTION_RING).toEqual(NAV_LINKS.filter(link => link.kind === "primary").map(link => link.href));
+    // The finger moving left (-1) goes to the next section, moving right (1) to the previous one.
+    expect(["/jumps", "/contacts?q=ana", "/mixes?mix=m1", "/more"].map(path => [ringNeighbour(url(path), 1), ringNeighbour(url(path), -1)])).toEqual([
+      [null, "/contacts"], ["/jumps", "/mixes"], ["/contacts", "/more"], ["/mixes", null]
+    ]);
+    // Never from a drill-in or a page off the ring.
+    for (const path of ["/contacts/c1", "/mixes?mix=m1&view=edit", "/journey", "/calendar", "/settings"]) expect([ringNeighbour(url(path), 1), ringNeighbour(url(path), -1)], path).toEqual([null, null]);
   });
 
   it("lets the edge swipe act only while the page shows its Back control: never for history alone, never on a ring stop", () => {

@@ -245,6 +245,8 @@ What the base already has, so NAV-06 does only the gaps (VERIFIED-CODE at b9bfd1
 
 Each slice follows WF-02 and its brief. Values come from this spec and the tokens, never literals.
 
+Status, 2026-11-20: gesture B (JITM-NAV-02) is not built and is parked since 2026-11-20; section swipe (JITM-NAV-03) does not depend on it.
+
 ## 13. Readings taken while writing
 
 These fill gaps in the approved concept. None changes a gesture, moves a threshold outside its approved range, or changes the section ring.
@@ -268,8 +270,15 @@ JITM-NAV-04 (Hub job_d27a830383cf) added these while building C:
 14. **Scroll** is kept with each history entry and restored once the parent has rendered. A reload keeps the browser's own restoration.
 15. **`BackLink`** goes back through history when the previous entry is its parent, so the parent keeps its scroll and no entry is added. Otherwise it opens the parent, as before.
 
+JITM-NAV-03 (Hub job_4223ce9963e3) added these while building A:
+
+16. **Without B, the Mixes switcher stays as it is.** A sideways swipe on Mixes changes the section, never the pane (the nested hand-off of §3 B and §5 item 5 waits for B). Returning to Mixes shows the pane the switcher shows after any return, as after a tap on the navigation.
+17. **The peek** is the neighbour's navigation label and icon over three loading blocks, beside the page and in view below the header. More gets a loading state like the other ring stops, so a swipe to it commits at once and its page can be prefetched.
+18. **The commit continues the slide.** The page stays where the finger left it, and the slide-back's View Transition starts from there (`--slide-offset`), with `--motion-settle`. The engine takes either direction along one axis, decided at axis lock, and the ring ends resist at one third of the travel.
+
 ## 14. Changelog
 
 - 2026-11-11 — Initial version (JITM-NAV-00, base b9bfd1d6). Kevin's approval of 2026-11-08 is D130.
 - 2026-11-20 — JITM-NAV-04: browser support for C recorded (§3 C); readings 11–15.
 - 2026-11-20 — JITM-NAV-04-R1: the installed iOS app's edge swipe needs the page's visible Back control (§3 C).
+- 2026-11-20 — JITM-NAV-03: status of B (§12); readings 16–18.

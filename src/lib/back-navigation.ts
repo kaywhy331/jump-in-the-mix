@@ -5,9 +5,10 @@
  * `BackLink` and `FormGuard` share.
  */
 import type { MouseEvent } from "react";
+import { SECTION_RING } from "@/lib/app-navigation";
 
-/** The section ring (JITM-07 §2.33), in the bottom navigation's order. */
-export const SECTION_RING = ["/jumps", "/contacts", "/mixes", "/more"] as const;
+/** The section ring (JITM-07 §2.33), in the bottom navigation's order, read from the navigation itself. */
+export { SECTION_RING };
 
 /** The side a page slides in from: the left going back, the right going forward. */
 export type Slide = "back" | "forward";
@@ -21,7 +22,16 @@ const RESTORE_WAIT_MS = 2000;
 
 /** The ring stop whose own screen `url` is, or -1. The Mix editor (`view=edit`) is a drill-in, not the Mixes screen. */
 export function ringStop(url: URL): number {
-  return url.searchParams.get("view") === "edit" ? -1 : (SECTION_RING as readonly string[]).indexOf(url.pathname);
+  return url.searchParams.get("view") === "edit" ? -1 : SECTION_RING.indexOf(url.pathname);
+}
+
+/**
+ * The ring stop a section swipe from `url` heads for, or null at a ring end or off the ring (JITM-07 §2.33). The finger
+ * moving left (`direction` -1) goes to the next section, moving right to the previous one. The ends don't wrap.
+ */
+export function ringNeighbour(url: URL, direction: -1 | 1): string | null {
+  const stop = ringStop(url);
+  return stop < 0 ? null : SECTION_RING[stop - direction] ?? null;
 }
 
 /**
@@ -154,12 +164,15 @@ let slideRunning: ViewTransition | null = null;
 
 /**
  * Runs `update`, the page change, in a View Transition that slides the new page in from `side`, with the motion tokens
- * (`src/styles/popups.css`). The navigation and the header stay put. Without slides the change is just made.
+ * (`src/styles/popups.css`). The navigation and the header stay put. Without slides the change is just made. `offset`
+ * is how far a section swipe already carried the slide (NATIVE-NAVIGATION.md §3 A): the slide continues from there.
  */
-export function slide(side: Slide, update: () => void) {
+export function slide(side: Slide, update: () => void, offset = 0) {
   if (!slides()) return update();
   const root = document.documentElement;
   root.dataset.slide = side;
+  root.style.setProperty("--slide-offset", `${offset}px`);
+  const done = () => { delete root.dataset.slide; root.style.removeProperty("--slide-offset"); };
   let transition: ViewTransition;
   try {
     transition = document.startViewTransition(async () => {
@@ -169,11 +182,11 @@ export function slide(side: Slide, update: () => void) {
     });
   } catch {
     // The page change never waits on the slide.
-    delete root.dataset.slide;
+    done();
     return update();
   }
   slideRunning = transition;
-  void transition.finished.finally(() => { if (slideRunning === transition) { slideRunning = null; delete root.dataset.slide; } });
+  void transition.finished.finally(() => { if (slideRunning === transition) { slideRunning = null; done(); } });
 }
 
 /**

@@ -3,6 +3,7 @@
 import { useEffect, useId, useState, useSyncExternalStore } from "react";
 import { AppIcon } from "@/components/AppIcon";
 import { QUICK_ADD_SHORTCUT_EVENT, readQuickAddShortcut, writeQuickAddShortcut } from "@/lib/quick-add-shortcut";
+import { SECTION_SWIPE_EVENT, readSectionSwipe, writeSectionSwipe } from "@/lib/app-navigation";
 
 type Appearance = "system" | "light" | "dark";
 const key = "jitm-appearance";
@@ -37,21 +38,33 @@ export function useQuickAddShortcut() {
   return useSyncExternalStore(subscribeQuickAddShortcut, readQuickAddShortcut, () => true);
 }
 
+// "Swipe between sections" is kept in this browser the same way (JITM-08 §2.49).
+const subscribeSectionSwipe = (notify: () => void) => {
+  window.addEventListener(SECTION_SWIPE_EVENT, notify);
+  window.addEventListener("storage", notify);
+  return () => { window.removeEventListener(SECTION_SWIPE_EVENT, notify); window.removeEventListener("storage", notify); };
+};
+
+/** Whether section swipe is on; the server and first paint assume the default, on. */
+export function useSectionSwipe() {
+  return useSyncExternalStore(subscribeSectionSwipe, readSectionSwipe, () => true);
+}
+
 /**
  * A sun and moon switch: the knob slides to the chosen side and the other side greys out. Until the
  * person chooses, it follows the device and shows the device's current look; "Match my device"
- * (full form only) returns to that. `compact` drops the hint, the reset and the Quick Add switch;
+ * (full form only) returns to that. `compact` drops the hint, the reset, the Quick Add switch and the swipe switch;
  * `labelHidden` keeps the "Appearance" name for assistive technology only.
  */
 export function AppearanceControl({ compact = false, labelHidden = false }: { compact?: boolean; labelHidden?: boolean }) {
   const id = useId();
-  const shortcutHintId = useId();
+  const shortcutHintId = useId(), swipeHintId = useId();
   const [appearance, setAppearance] = useState<Appearance>("system");
   const [deviceDark, setDeviceDark] = useState(false);
   // The knob only animates once the first read is done, so it never slides into place on load.
   const [ready, setReady] = useState(false);
   const [saved, setSaved] = useState(true);
-  const shortcut = useQuickAddShortcut();
+  const shortcut = useQuickAddShortcut(), sectionSwipe = useSectionSwipe();
   useEffect(() => {
     const update = () => setAppearance(valid(document.documentElement.dataset.theme ?? null));
     const media = window.matchMedia(darkQuery);
@@ -91,6 +104,8 @@ export function AppearanceControl({ compact = false, labelHidden = false }: { co
     {!compact && <>
       <label className="checkbox-row"><input type="checkbox" role="switch" checked={shortcut} aria-describedby={shortcutHintId} onChange={event => changeShortcut(event.target.checked)} /><span>Quick Add keyboard shortcut (N)</span></label>
       <p className="muted-copy" id={shortcutHintId}><small>Press N outside a text field to open Quick Add. Turn it off if it gets in the way of dictation or typing.</small></p>
+      <label className="checkbox-row"><input type="checkbox" role="switch" checked={sectionSwipe} aria-describedby={swipeHintId} onChange={event => setSaved(writeSectionSwipe(event.target.checked))} /><span>Swipe between sections</span></label>
+      <p className="muted-copy" id={swipeHintId}><small>On a touch screen, swipe left or right on Today, Contacts, Mixes or More to go to the next section. Turn it off if you swipe by accident.</small></p>
     </>}
   </>;
 }
