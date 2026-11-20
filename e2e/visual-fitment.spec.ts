@@ -373,3 +373,43 @@ test("Jump overflow provides first-class snooze presets", async ({ page }, testI
     await expect(page.getByText(/^Snoozed until .+\d{1,2}:\d{2}/)).toBeVisible();
   } finally { await removePendingJumpFixture(jumpId); }
 });
+
+for (const theme of ["light", "dark"] as const) {
+  for (const width of [320, 360, 375, 390, 412, 430]) {
+    test(`Mixes panes keep readable text and complete controls at ${width}px in ${theme}`, async ({ page }, testInfo) => {
+      await page.setViewportSize({ width, height: 844 });
+      await page.addInitScript(value => localStorage.setItem("jitm-appearance", value), theme);
+      await signIn(page);
+      await page.goto("/mixes");
+      await expect(page.locator("html")).toHaveAttribute("data-theme", theme);
+      await testInfo.attach("type-scale", {
+        body: JSON.stringify(await page.evaluate(() => {
+          const style = getComputedStyle(document.documentElement);
+          return { rootFontSize: style.fontSize, smallTextToken: style.getPropertyValue("--font-size-sm").trim() };
+        })),
+        contentType: "application/json"
+      });
+      const panels = page.getByRole("navigation", { name: "Mix workspace panels" });
+      const panes = [
+        { name: "Mixes", selector: ".mix-library-directory" },
+        { name: "Beats", selector: ".mix-editor-workspace" },
+        { name: "Details", selector: ".mix-context-pane" }
+      ];
+      for (const { name, selector } of panes) {
+        await test.step(`${name} pane`, async () => {
+          const button = panels.getByRole("button", { name, exact: true });
+          await button.click();
+          await expect(button).toHaveAttribute("aria-pressed", "true");
+          await expect(page.locator(selector)).toBeVisible();
+          if (name === "Beats") await expect(page.locator(".mix-beat-position").first()).toBeVisible();
+          const smallText = await textBelowFloor(page);
+          await testInfo.attach(`${name}-text-floor`, { body: JSON.stringify(smallText), contentType: "application/json" });
+          // Continue through every pane so a failure cannot leave another pane unchecked.
+          expect.soft(smallText, `${name} pane at ${width}px in ${theme}`).toEqual([]);
+          await expectNoHorizontalOverflow(page);
+          await expectNoClippedControls(page);
+        });
+      }
+    });
+  }
+}

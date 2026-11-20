@@ -49,7 +49,7 @@
 .mix-beat-preview h3 { margin: 0; font-size: inherit; font-weight: 500; }
 .mix-beat-preview ol { list-style: none; margin: 0; padding: 0; }
 .mix-beat-preview li { display: flex; align-items: flex-start; gap: 12px; position: relative; padding-bottom: 20px; }
-.mix-beat-position { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; margin-top: 14px; border: 1px solid var(--line); border-radius: 50%; color: var(--text-3); font-size: .75rem; background: var(--page); z-index: 1; }
+.mix-beat-position { display: grid; place-items: center; width: 28px; height: 28px; flex: 0 0 28px; margin-top: 14px; border: 1px solid var(--line); border-radius: 50%; color: var(--text-3); font-size: var(--font-size-sm); background: var(--page); z-index: 1; }
 .mix-beat-preview li:not(:last-child)::before { content: ""; position: absolute; left: 13px; top: 42px; bottom: -14px; width: 1px; background: var(--line); }
 .mix-beat-preview details { flex: 1; min-width: 0; border: 0; border-bottom: 1px solid var(--line); background: var(--page); }
 .mix-beat-preview summary { display: flex; align-items: center; gap: 10px; padding: 12px 0; cursor: pointer; list-style: none; }
