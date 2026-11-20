@@ -54,8 +54,8 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
         if (id !== sequence || gone) return;
         if (marker !== browserChangeMarker()) { void check(); return; }
         void clearForeignNotifications(result.scope);
-        if (result.scope === scope) {
-          signedOut = false;
+        // A sign-out signal holds until the discard below runs, even when the same account has signed in again since.
+        if (result.scope === scope && !signedOut) {
           clearPrivateBrowserState(scope);
           if (document.hidden) { hide(); setState("checking"); return; }
           setState("ready");
@@ -68,7 +68,7 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
           hide(); setState("expired");
         } else {
           hide(); clearPrivateBrowserState(); gone = true; setDiscarded(true);
-          setState(result.scope === null ? "signed-out" : "changed");
+          setState(result.scope === null || result.scope === scope ? "signed-out" : "changed");
         }
       } catch {
         // Either way the tab stays masked; only the wording differs. A lost connection is not an account problem.

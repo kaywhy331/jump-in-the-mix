@@ -193,6 +193,33 @@ test("confirmed sign-out clears recovery and an open private dialog in another t
   await other.close();
 });
 
+test("a sign-out signalled while a tab is offline discards its draft after the same account signs in again", async ({ page, context }) => {
+  await signIn(page, owners[0]); await page.goto(`/contacts/${owners[0].contactId}`); await ready(page);
+  const note = await openNote(page); await note.fill("Private Alpha offline draft");
+  await remember(page, "Alpha return");
+  const other = await context.newPage(); await other.goto("/more"); await ready(other);
+  // context.setOffline would also take the signing-out tab offline, so apply the same network emulation to this tab only.
+  const network = await context.newCDPSession(page);
+  const setOffline = (offline: boolean) => network.send("Network.emulateNetworkConditions", { offline, latency: 0, downloadThroughput: -1, uploadThroughput: -1 });
+  await setOffline(true);
+  await expect(page.getByRole("heading", { name: "Reconnect to continue" })).toBeVisible();
+  await other.getByRole("button", { name: "Sign out", exact: true }).click();
+  await expect(other).toHaveURL(/\/signed-out/);
+  await signIn(other, owners[0]);
+  await setOffline(false);
+  await page.bringToFront();
+  await expect(page.getByRole("heading", { name: "You’re signed out" })).toBeVisible();
+  await expect(page.locator(".app-shell")).toHaveCount(0);
+  await expect(page.locator("textarea")).toHaveCount(0);
+  expect(await page.evaluate(() => Object.keys(sessionStorage).filter(key => key.startsWith("jitm:private:")))).toEqual([]);
+  // The account is signed in again, so Sign in opens it without the discarded draft.
+  await page.getByRole("link", { name: "Sign in", exact: true }).click(); await ready(page);
+  await expectAccountOwner(page, "Private Alpha Owner");
+  await page.goto(`/contacts/${owners[0].contactId}`); await ready(page);
+  await expect(await openNote(page)).toHaveValue("");
+  await other.close();
+});
+
 test("offline drafts stay in the tab and return after reconnection", async ({ page, context }) => {
   await useOwner(context, page, owners[0]); await page.goto(`/contacts/${owners[0].contactId}`); await ready(page);
   const note = await openNote(page); await note.fill("Keep during a connection loss");
