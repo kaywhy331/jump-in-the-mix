@@ -9,12 +9,23 @@ export function privateStorageKey(scope: string, name: string): string {
   return `${PRIVATE_PREFIX}${scope}:${name}`;
 }
 
+// A copy of a storage area's keys. Removing an item can reorder the keys that remain
+// (Chromium orders them by hash), so never remove while walking the live storage:
+// take this snapshot first, then remove.
+export function storageKeys(storage: Pick<Storage, "length" | "key">): string[] {
+  const keys: string[] = [];
+  for (let index = 0; index < storage.length; index++) {
+    const key = storage.key(index);
+    if (key !== null) keys.push(key);
+  }
+  return keys;
+}
+
 export function clearPrivateBrowserState(keepScope?: string): void {
   try {
     const storage = window.sessionStorage;
-    for (let index = storage.length - 1; index >= 0; index--) {
-      const key = storage.key(index);
-      if (key && (LEGACY_KEYS.has(key) || (key.startsWith(PRIVATE_PREFIX) && (!keepScope || !key.startsWith(`${PRIVATE_PREFIX}${keepScope}:`))))) storage.removeItem(key);
+    for (const key of storageKeys(storage)) {
+      if (LEGACY_KEYS.has(key) || (key.startsWith(PRIVATE_PREFIX) && (!keepScope || !key.startsWith(`${PRIVATE_PREFIX}${keepScope}:`)))) storage.removeItem(key);
     }
   } catch { /* Browser recovery is optional when storage is unavailable. */ }
 }
