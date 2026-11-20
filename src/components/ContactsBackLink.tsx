@@ -5,6 +5,7 @@ import { useRouter } from "next/navigation";
 import type { MouseEvent, ReactNode } from "react";
 import { readContactListState } from "@/lib/contact-list-state";
 import { useBrowserScope } from "@/components/BrowserAccountBoundary";
+import { followBack } from "@/lib/back-navigation";
 
 export function ContactsBackLink({
   className,
@@ -18,12 +19,11 @@ export function ContactsBackLink({
   const router = useRouter();
   const scope = useBrowserScope();
 
+  // Back to the list as Back does; otherwise to the list the owner left, at its scroll (JITM-08 §2.46).
   const handleClick = (event: MouseEvent<HTMLAnchorElement>) => {
     const state = scope ? readContactListState(scope) : null;
-    if (!state) return;
-    event.preventDefault();
-    router.push(state.href, { scroll: false });
+    followBack(event, "/contacts", () => state ? router.push(state.href, { scroll: false }) : router.push("/contacts"));
   };
 
-  return <Link className={className} href="/contacts" aria-label={ariaLabel} onClick={handleClick}>{children}</Link>;
+  return <Link data-back-link className={className} href="/contacts" aria-label={ariaLabel} onClick={handleClick}>{children}</Link>;
 }

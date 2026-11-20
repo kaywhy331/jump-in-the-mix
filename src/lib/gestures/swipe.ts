@@ -13,6 +13,8 @@ export const SWIPE = {
   axisLock: 10,
   /** The left and right screen edges belong to the system's own gestures. */
   edge: 24,
+  /** The installed iOS app has no system back swipe, so its back swipe starts this close to the left edge (§3 C). */
+  backEdge: 20,
   /** A release at this speed or faster commits whatever the distance, in px/ms… */
   fling: 0.5,
   /** …measured over the last 100 ms before release. */
@@ -177,10 +179,13 @@ export interface SwipeNode {
   clientWidth: number;
 }
 
-/** Why a touch at `x` on `target` may not start a gesture on `surface`, or null when it may. */
-export function blockedStart(target: SwipeNode, surface: SwipeNode, x: number, viewportWidth: number, overflowX: (node: SwipeNode) => string): "ignored" | "edge" | "scroller" | null {
+/**
+ * Why a touch at `x` on `target` may not start a gesture on `surface`, or null when it may. `fromLeftEdge` is the
+ * installed iOS app's back swipe: the one start inside the edge, which must begin within `SWIPE.backEdge` of the left.
+ */
+export function blockedStart(target: SwipeNode, surface: SwipeNode, x: number, viewportWidth: number, overflowX: (node: SwipeNode) => string, fromLeftEdge = false): "ignored" | "edge" | "scroller" | null {
   if (target.closest(SWIPE_IGNORE)) return "ignored";
-  if (x < SWIPE.edge || x > viewportWidth - SWIPE.edge) return "edge";
+  if (fromLeftEdge ? x > SWIPE.backEdge : x < SWIPE.edge || x > viewportWidth - SWIPE.edge) return "edge";
   for (let node: SwipeNode | null = target; node && node !== surface; node = node.parentElement) {
     if (node.scrollWidth > node.clientWidth && /auto|scroll/.test(overflowX(node))) return "scroller";
   }
@@ -211,6 +216,8 @@ export interface StartCheck {
   x: number;
   viewportWidth: number;
   overflowX: (node: SwipeNode) => string;
+  /** The installed iOS app's back swipe: it starts at the left edge instead of outside the edges. */
+  fromLeftEdge?: boolean;
   /** The surface's own start rule, after the shared exclusions. */
   accepts?: () => boolean;
   /** Whether content under the touch can still scroll toward the finger, so native scrolling goes first. */
@@ -222,7 +229,7 @@ export function startOn(check: StartCheck): Start {
   const { target, surface } = check;
   // Only the top layer reacts: a touch off the surface, or in a layer nested in its markup, is not its touch.
   if (!within(target, surface) || target.closest("dialog") !== surface.closest("dialog")) return "blocked";
-  if (blockedStart(target, surface, check.x, check.viewportWidth, check.overflowX)) return "blocked";
+  if (blockedStart(target, surface, check.x, check.viewportWidth, check.overflowX, check.fromLeftEdge)) return "blocked";
   if (check.accepts && !check.accepts()) return "blocked";
   return check.scrollsFirst?.() ? "scroll" : "start";
 }

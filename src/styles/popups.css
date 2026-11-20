@@ -48,6 +48,28 @@
 [data-swipe-state="settle"] { transition: transform var(--motion-settle) var(--ease-settle); }
 [data-swipe-state="cancel"] { transition: transform var(--motion-cancel) var(--ease-settle); }
 
+/* Back (NATIVE-NAVIGATION.md §3 C): a history move slides the page in from its side, timed by the settle token, while
+   the header, bottom navigation and rail stay put. Script sets data-slide on touch screens only, never under reduced motion. */
+/* While the page follows the finger, it never widens the screen. */
+.app-shell:has(> .app-main[data-swipe-state]) { overflow-x: clip; }
+html[data-edge-back] .app-shell { touch-action: pan-y pinch-zoom; }
+.mobile-app-header { view-transition-name: app-header; }
+.mobile-nav { view-transition-name: app-nav; }
+.app-shell > .sidebar { view-transition-name: app-rail; }
+::view-transition { pointer-events: none; }
+::view-transition-group(app-header), ::view-transition-group(app-nav), ::view-transition-group(app-rail),
+::view-transition-new(app-header), ::view-transition-new(app-nav), ::view-transition-new(app-rail) { animation: none; }
+::view-transition-old(app-header), ::view-transition-old(app-nav), ::view-transition-old(app-rail) { display: none; }
+html[data-slide]::view-transition-old(root), html[data-slide]::view-transition-new(root) { animation: var(--motion-settle) var(--ease-settle) both; mix-blend-mode: normal; }
+html[data-slide="back"]::view-transition-old(root) { animation-name: slide-out-right; }
+html[data-slide="back"]::view-transition-new(root) { animation-name: slide-in-left; }
+html[data-slide="forward"]::view-transition-old(root) { animation-name: slide-out-left; }
+html[data-slide="forward"]::view-transition-new(root) { animation-name: slide-in-right; }
+@keyframes slide-in-left { from { transform: translateX(-100%); } }
+@keyframes slide-out-right { to { transform: translateX(100%); } }
+@keyframes slide-in-right { from { transform: translateX(100%); } }
+@keyframes slide-out-left { to { transform: translateX(-100%); } }
+
 /* Fixed panels use the shared surface, line, radius and overlay shadow, and stay above the
    bottom navigation wherever it is shown (up to 900px). */
 /* The install prompt keeps its deliberate brand border (it must stay distinct in dark mode). */

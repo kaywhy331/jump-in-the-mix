@@ -9,6 +9,10 @@ export type SwipeOptions = {
   direction: Direction;
   /** Whether the surface takes gestures in its current layout. The engine also runs for coarse pointers only. */
   active: (surface: HTMLElement) => boolean;
+  /** The installed iOS app's back swipe: a touch starts it only within `SWIPE.backEdge` of the left edge. */
+  fromLeftEdge?: boolean;
+  /** The element that follows the finger, when it is not the surface that takes the touch (the page inside the app). */
+  moves?: (surface: HTMLElement) => HTMLElement | null;
   /** The surface's own start rule, checked after the shared exclusions. */
   accepts?: (target: Element, surface: HTMLElement) => boolean;
   /**
@@ -58,10 +62,11 @@ export function bindSwipe(surface: HTMLElement, options: RefObject<SwipeOptions>
   // Where content that scrolled first stood when it handed off; it stays there while the surface moves instead.
   let pinned = new Map<Element, { top: number; left: number }>();
   const holding = () => (tracker.phase === "pending" || tracker.phase === "dragging" ? held : null);
+  const mover = () => options.current.moves?.(surface) ?? surface;
 
   const place = (distance: number) => {
     const offset = `${direction * distance}px`;
-    surface.style.transform = axis === "x" ? `translate3d(${offset}, 0, 0)` : `translate3d(0, ${offset}, 0)`;
+    mover().style.transform = axis === "x" ? `translate3d(${offset}, 0, 0)` : `translate3d(0, ${offset}, 0)`;
   };
   const paint = () => { frame = 0; place(tracker.distance); };
   const clear = () => {
@@ -70,12 +75,12 @@ export function bindSwipe(surface: HTMLElement, options: RefObject<SwipeOptions>
     frame = 0;
     settling = null;
     pinned = new Map();
-    surface.style.transform = "";
-    delete surface.dataset.swipeState;
+    mover().style.transform = "";
+    delete mover().dataset.swipeState;
   };
   // Where the surface is now, part way through a settle.
   const current = () => {
-    const transform = getComputedStyle(surface).transform;
+    const transform = getComputedStyle(mover()).transform;
     const matrix = new DOMMatrixReadOnly(transform === "none" ? undefined : transform);
     return direction * (axis === "x" ? matrix.m41 : matrix.m42);
   };
@@ -83,8 +88,8 @@ export function bindSwipe(surface: HTMLElement, options: RefObject<SwipeOptions>
     window.cancelAnimationFrame(frame);
     frame = 0;
     pinned = new Map();
-    const ms = motionMs(getComputedStyle(surface).getPropertyValue(state === "settle" ? "--motion-settle" : "--motion-cancel"), reduced.matches);
-    surface.dataset.swipeState = state;
+    const ms = motionMs(getComputedStyle(mover()).getPropertyValue(state === "settle" ? "--motion-settle" : "--motion-cancel"), reduced.matches);
+    mover().dataset.swipeState = state;
     place(distance);
     settling = done;
     // Under reduced motion the settle is instant.
@@ -105,7 +110,7 @@ export function bindSwipe(surface: HTMLElement, options: RefObject<SwipeOptions>
     });
   };
   const startDrag = (pointer: number) => {
-    surface.dataset.swipeState = "dragging";
+    mover().dataset.swipeState = "dragging";
     try { surface.setPointerCapture(pointer); } catch { /* The pointer already ended, or the browser took it for scrolling. */ }
   };
 
@@ -130,7 +135,7 @@ export function bindSwipe(surface: HTMLElement, options: RefObject<SwipeOptions>
       if (!coarse.matches || event.button !== 0 || !(target instanceof Element) || !options.current.active(surface)) return "blocked";
       const { accepts, scrollsFirst } = options.current;
       return startOn({
-        target, surface, x: event.clientX, viewportWidth: window.innerWidth,
+        target, surface, x: event.clientX, viewportWidth: window.innerWidth, fromLeftEdge: options.current.fromLeftEdge,
         overflowX: node => getComputedStyle(node as Element).overflowX,
         accepts: accepts && (() => accepts(target, surface)),
         scrollsFirst: scrollsFirst && (() => scrollsFirst(target, surface))
