@@ -26,7 +26,6 @@ import { compareJourneyNumbers, journeyTargetNumber, numberJourney } from "@/lib
 import { useCanvasPan } from "@/components/useCanvasPan";
 import { mixStatusLabel, pendingFollowUpsLabel, zoneLabel } from "@/lib/display-labels";
 import { useWorkflowMeasurements } from "@/components/useWorkflowMeasurements";
-import { ScrollPager, ScrollPagerPanel, type ScrollPagerPane } from "@/components/ScrollPager";
 
 export function WorkflowJourney({ initial, displayPreferences, initialMixId = "", initialContactId = "", children, showCheckIns = false, initialStartOpen = false, initialWorkLabel = "", initialInstanceId = "", initialMegaMixId = "" }: { children?: ReactNode; showCheckIns?: boolean; initial: WorkflowGraphView; displayPreferences: DisplayFormatPreferences; initialMixId?: string; initialContactId?: string; initialStartOpen?: boolean; initialWorkLabel?: string; initialInstanceId?: string; initialMegaMixId?: string }) {
   const [data, setData] = useState(initial), [mode, setMode] = useState<"Setup" | "Progress" | "Results">(initialStartOpen ? "Setup" : initial.analytics.summary.total ? "Progress" : "Setup");
@@ -274,15 +273,17 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
   const population = (node: string) => data.analytics.nodes[node] ?? emptyWorkflowCounts();
   const metricTotals = Object.values(data.metrics).reduce((sum, value) => ({ started: sum.started + value.started, waiting: sum.waiting + value.waiting, held: sum.held + value.held }), { started: 0, waiting: 0, held: 0 });
   const feedback = <>{notice && <p className="notice" role="status">{notice}{notice.startsWith("Start saved") && <> <Link href="/settings/notifications">Set up reminders for me (optional)</Link>. These remind you; they do not enable customer sending.</>}</p>}{error && <p className="notice error" role="alert">{error} <button type="button" className="text-button" onClick={() => void refresh().catch(reason => setError(reason.message))}>Retry</button></p>}</>;
-  // The middle pane shows the Mixes as a list or a map, so its tab names the Mixes, not one of its views (D95).
-  // On a touch screen up to 1024px the panes also page by swiping (JITM-08 §2.46).
-  return <ScrollPager label="Journey workspace panels" panes={journeyPanes} selected={pane} onSelect={setPane} tabsClassName={styles.paneNav} trackClassName={styles.workspace}>
-    <ScrollPagerPanel pane="people"><aside id="journey-people-pane" ref={directoryRef} className={styles.directory} aria-label="Journey directory">
+  return <div className={styles.workspace} data-mobile-pane={pane}>
+    {/* The middle pane shows the Mixes as a list or a map, so its tab names the Mixes, not one of its views (D95). */}
+    <nav className={styles.paneNav} aria-label="Journey workspace panels">
+      {(["people", "map", "details"] as const).map(value => <button type="button" key={value} aria-pressed={pane === value} aria-controls={`journey-${value}-pane`} onClick={() => setPane(value)}><AppIcon name={value === "people" ? "people" : value === "map" ? "journey" : "more"} />{value === "people" ? "People" : value === "map" ? "Mixes" : "Details"}</button>)}
+    </nav>
+    <aside id="journey-people-pane" ref={directoryRef} className={styles.directory} aria-label="Journey directory">
       <header className={styles.directoryHeader}><h1>Journey</h1><div><BrandTermsHelp /><Link className="icon-button" href="/mixes" aria-label="My Mixes" title="My Mixes"><AppIcon name="mixes" /></Link>{data.canEdit && <Link className="icon-button" href="/mixes/new?custom=1" aria-label="Create a Mix" title="Create a Mix"><AppIcon name="plus" /></Link>}</div></header>
       <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Choose a complete Mega-Mix</Link>
       <div inert={Boolean(editing)}><WorkflowPeople mapScope={mapScope} resultsScope={`Results: work started in the last ${resultDays} days using setup version ${data.revision}${contactId ? ` for ${selectedPerson?.displayName ?? "the selected person"}` : " for all contacts, including archived contacts"}.`} selectedContactId={contactId} pending={refreshing} data={data.analytics} mixes={data.mixes} mixNumbers={mixNumbers} node={peopleFilter.node} status={peopleFilter.status} stage={peopleFilter.stage} query={peopleFilter.query} onFilter={patch => setPeopleFilter(current => ({ ...current, ...patch }))} onPerson={selectPerson} displayPreferences={displayPreferences} /></div>
-    </aside></ScrollPagerPanel>
-    <ScrollPagerPanel pane="map"><section id="journey-map-pane" className={styles.main} aria-label="Mix and Beat journey">
+    </aside>
+    <section id="journey-map-pane" className={styles.main} aria-label="Mix and Beat journey">
       <header className={styles.mapHeader}><div><h2 ref={mapHeadingRef} tabIndex={-1}>Mixes</h2><p>{selectedPerson ? selectedPerson.displayName : megaMix === "none" ? "Mixes that are not in a Mega-Mix" : data.megaMixes.find(item => item.id === megaMix)?.name ?? "Your Mixes and the paths between them"}</p></div>{data.megaMixes.length > 0 && <div className={styles.megaMixSwitch}><label><span>Mega-Mix</span><select aria-label="Show Mega-Mix" value={megaMix} disabled={Boolean(editing)} onChange={event => { const value = event.target.value; setMegaMix(value); setSelected(""); setPathSelection(null); setSelectedRoute(""); setFitMode(false); setZoom(1); const url = new URL(window.location.href); if (value) url.searchParams.set("megaMix", value); else url.searchParams.delete("megaMix"); url.searchParams.delete("mix"); window.history.replaceState(window.history.state, "", url); }}><option value="">All Mixes</option>{data.megaMixes.map(item => <option key={item.id} value={item.id}>{item.name}</option>)}<option value="none">Not in a Mega-Mix</option></select></label><Link href={megaMix && megaMix !== "none" ? `/mixes/mega?megaMix=${encodeURIComponent(megaMix)}` : "/mixes/mega"}>Manage</Link></div>}{contactId && <div className={styles.actions}><button type="button" className={`text-button ${styles.detailsShortcut}`} onClick={revealDetails}>View details</button><button type="button" disabled={Boolean(editing)} className="text-button" onClick={clearPerson}>All people</button></div>}</header>
       <WorkflowCountStrip disabled={Boolean(editing)} counts={data.analytics.summary} value={mode === "Progress" && !peopleFilter.node ? peopleFilter.status : ""} onSelect={status => selectPeople("", status)} />
       <p className={`${styles.scope} ${styles.countScope}`}>{workflowCountScope} {mapScope}</p>
@@ -315,8 +316,8 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
       </section>}
       <div className={styles.footer}><span>Updated {formatTime(data.updatedAt, displayPreferences)}{editing ? " · refresh waits while editing" : ""}</span><span>{data.analytics.summary.current} people with ongoing work</span></div>
       {pane !== "details" && feedback}
-    </section></ScrollPagerPanel>
-    <ScrollPagerPanel pane="details"><aside id="journey-details-pane" ref={sidebarRef} className={styles.sidebar} aria-label="Journey details">
+    </section>
+    <aside id="journey-details-pane" ref={sidebarRef} className={styles.sidebar} aria-label="Journey details">
       <h2 className={styles.contextHeading} tabIndex={-1}>Details</h2>
       {pane === "details" && feedback}
       {pathSelection && !editing && <WorkflowPathActions key={`${pathSelection.id}:${JSON.stringify(pathSelection.rule)}`} selection={pathSelection} mixes={data.mixes} beatNumbers={beatNumbers} mixNumbers={mixNumbers} gatedStepIds={data.configuration.gatedStepIds} canEdit={canConfigure} onClose={clearPath} onEdit={() => { setMode("Setup"); setEditing(pathSelection.rule); }} onRemove={() => removePath(pathSelection.rule, pathSelection.removal)} onReview={rule => {
@@ -349,15 +350,9 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
         {!chosen && !contactId && mode === "Progress" && <section className={styles.contextEmpty}><AppIcon name="journey" /><h3>Your journey</h3><dl className={styles.overviewFacts}><div><dt>Mixes</dt><dd>{mixes.length}</dd></div><div><dt>Beats</dt><dd>{mixes.reduce((sum, mix) => sum + mix.steps.length, 0)}</dd></div><div><dt>Enabled connections</dt><dd>{data.configuration.rules.filter(rule => rule.enabled).length}</dd></div></dl><p>Select a person to see their progress, or a Mix on the map to explore its Beats and connections.</p><button type="button" className="text-button" onClick={() => selectPeople(peopleFilter.node)}>Choose a person</button></section>}
       </>}
       {children}
-    </aside></ScrollPagerPanel>
-  </ScrollPager>;
+    </aside>
+  </div>;
 }
-
-const journeyPanes: ScrollPagerPane<"people" | "map" | "details">[] = [
-  { id: "people", label: "People", icon: "people" },
-  { id: "map", label: "Mixes", icon: "journey" },
-  { id: "details", label: "Details", icon: "more" }
-];
 
 /** A Beat's number: its Mix's number and its letter within that Mix, such as A3.b. */
 function BeatNumber({ value }: { value?: string }) {

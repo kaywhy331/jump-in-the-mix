@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { DIRECTORY_PANES, ITEM_PANES, MixLibraryShell } from "@/components/MixLibraryShell";
-import { ScrollPagerPanel } from "@/components/ScrollPager";
+import { MixLibraryShell } from "@/components/MixLibraryShell";
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
@@ -56,9 +55,8 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
     {params.imported && <Notice type="success">Imported. No one was started; start people from Journey when you’re ready.</Notice>}
     {params.removed && <Notice type="success">Mega-Mix removed. Its Mixes are still in My Mixes.</Notice>}
     <MarketplaceNotices workspaceId={workspace.id} pipelineId={selected?.id} />
-    {/* A new Mega-Mix shows its form and has no details yet. */}
-    <MixLibraryShell selectedMixId={selected?.id ?? (creating ? "new" : undefined)} explicitSelection={Boolean(params.megaMix || creating)} panes={creating ? ["library", "beats"] : selected ? ITEM_PANES : DIRECTORY_PANES}>
-      <ScrollPagerPanel pane="library"><aside className="mix-library-directory" aria-label="Mega-Mix library">
+    <MixLibraryShell selectedMixId={selected?.id ?? (creating ? "new" : undefined)} explicitSelection={Boolean(params.megaMix || creating)}>
+      <aside className="mix-library-directory" aria-label="Mega-Mix library">
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions">
           <BrandTermsHelp />
           {!impersonation && <Link className="icon-button" href="/mixes/mega?new=1" aria-label="Create a Mega-Mix" title="Create a Mega-Mix"><AppIcon name="plus" /></Link>}
@@ -78,14 +76,14 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
             <span className="mix-row-icon" aria-hidden="true"><AppIcon name="journey" /></span>
             <span className="mix-row-copy"><strong>{item.name}</strong><small>{item.members.length} {item.members.length === 1 ? "Mix" : "Mixes"} · {beats(item)} Beats</small></span>
           </Link></div>)}</nav> : <p className="muted-copy">{q ? "No Mega-Mix matches." : "Group Mixes into a named pipeline, add a ready-made one, or import a file."}</p>}
-      </aside></ScrollPagerPanel>
+      </aside>
 
-      {creating ? <div className="mix-edit-columns"><ScrollPagerPanel pane="beats"><section id="selected-mix" className="mix-editor-workspace" aria-label="New Mega-Mix">
+      {creating ? <div className="mix-edit-columns"><section id="selected-mix" className="mix-editor-workspace" aria-label="New Mega-Mix">
         <header className="mix-selected-header"><div><h2>New Mega-Mix</h2></div></header>
         <p className="mix-selected-description">Name a pipeline and choose the Mixes that belong to it. Journey shows, numbers and exports each Mega-Mix on its own.</p>
         <MegaMixForm mixes={choices} />
-      </section></ScrollPagerPanel></div> : selected ? <div className="mix-edit-columns">
-        <ScrollPagerPanel pane="beats"><section id="selected-mix" className="mix-editor-workspace" aria-label="Selected Mega-Mix">
+      </section></div> : selected ? <div className="mix-edit-columns">
+        <section id="selected-mix" className="mix-editor-workspace" aria-label="Selected Mega-Mix">
           <header className="mix-selected-header"><div><h2>{selected.name}</h2><span className="status-pill">{selected.members.length} {selected.members.length === 1 ? "Mix" : "Mixes"}</span></div>
             <nav className="mix-view-tabs" aria-label="Mega-Mix view">{!impersonation && <MarketplaceShare kind="MEGA_MIX" targetId={selected.id} targetName={selected.name} workspaceId={workspace.id} canEdit={workspace.ownerId === user.id} />}<Link className="button small" href={`/mixes/mega?megaMix=${encodeURIComponent(selected.id)}`} aria-current={!editing ? "page" : undefined}><AppIcon name="eye" />Preview</Link>{!impersonation && <Link className="button small" href={`/mixes/mega?megaMix=${encodeURIComponent(selected.id)}&edit=1`} aria-current={editing ? "page" : undefined}><AppIcon name="edit" />Edit</Link>}</nav>
           </header>
@@ -96,8 +94,8 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
               <PortableOutline value={exported.package} label={`${selected.name} Beats in journey order`} />
             </> : <EmptyState title="No Mixes yet" description="Choose the Mixes that belong to this pipeline." actionHref={`/mixes/mega?megaMix=${encodeURIComponent(selected.id)}&edit=1`} actionLabel="Choose Mixes" />}
           </>}
-        </section></ScrollPagerPanel>
-        <ScrollPagerPanel pane="details"><aside className="mix-context-pane" aria-label="Mega-Mix details">
+        </section>
+        <aside className="mix-context-pane" aria-label="Mega-Mix details">
           <section><h3><AppIcon name="journey" />Journey</h3><p>See people, progress and connections for just this pipeline.</p><Link className="button small" href={`/journey?megaMix=${encodeURIComponent(selected.id)}`}><AppIcon name="journey" />Open in Journey</Link></section>
           <section><h3><AppIcon name="info" />About</h3><p>{originLabel(selected.origin)}</p>
             {exported && (exported.omittedConnections > 0 || exported.skippedMixes > 0) && <p className="muted-copy">{exported.omittedConnections > 0 ? `${exported.omittedConnections} ${exported.omittedConnections === 1 ? "path leads" : "paths lead"} to Mixes outside this Mega-Mix and ${exported.omittedConnections === 1 ? "is" : "are"} not included in its file. ` : ""}{exported.skippedMixes > 0 ? `${exported.skippedMixes} ${exported.skippedMixes === 1 ? "Mix has" : "Mixes have"} no Beats or a fixed-date start and ${exported.skippedMixes === 1 ? "is" : "are"} left out of its file.` : ""}</p>}
@@ -107,7 +105,7 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
             {exported && <DuplicateMegaMixForm pipeline={{ id: selected.id, name: selected.name }} />}
             <RemoveMegaMixButton pipeline={{ id: selected.id, name: selected.name }} share={share} />
           </div></details>}
-        </aside></ScrollPagerPanel>
+        </aside>
       </div> : <EmptyState title="Name your first Mega-Mix" description="A Mega-Mix groups connected Mixes into one named pipeline you can view, number, export and share." actionHref={impersonation ? "/templates/journeys" : "/mixes/mega?new=1"} actionLabel={impersonation ? "Browse ready-made Mega-Mixes" : "Create a Mega-Mix"} />}
     </MixLibraryShell>
   </div>;

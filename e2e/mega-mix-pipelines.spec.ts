@@ -185,12 +185,12 @@ test("Mega-Mixes reflow in both themes, work by keyboard and pass accessibility 
     await page.evaluate(theme => { localStorage.setItem("jitm-appearance", theme); document.documentElement.dataset.theme = theme; }, theme);
     for (const width of [320, 390, 834, 1440, 1920]) {
       await page.setViewportSize({ width, height: width > 1000 ? 1000 : 844 });
-      if (width < 1200) await page.getByRole("tablist", { name: "Mix workspace panels" }).getByRole("tab", { name: "Beats" }).click();
+      if (width < 1200) await page.getByRole("navigation", { name: "Mix workspace panels" }).getByRole("button", { name: "Beats" }).click();
       await expect(page.getByRole("list", { name: "Contractor Beats in journey order" })).toBeVisible();
       expect(await page.evaluate(() => document.documentElement.scrollWidth > window.innerWidth + 1)).toBe(false);
       await page.screenshot({ path: `${dir}/mega-${width}-${theme}.png` });
       expect((await axeInPage(page).include(".mix-workspace-page").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
-      if (width < 1200) await page.getByRole("tablist", { name: "Mix workspace panels" }).getByRole("tab", { name: "Mixes" }).click();
+      if (width < 1200) await page.getByRole("navigation", { name: "Mix workspace panels" }).getByRole("button", { name: "Mixes" }).click();
     }
   }
   await page.setViewportSize({ width: 1440, height: 1000 });

@@ -104,16 +104,16 @@ test("choosing a Mix in the list shows its details, by touch and by keyboard", a
   const details = page.getByRole("complementary", { name: "Journey details" });
   await expect(details.getByRole("heading", { name: "Details", exact: true })).toBeFocused();
   await expect(details.getByRole("heading", { name: /Mike follow-up/ })).toBeVisible();
-  await page.getByRole("tablist", { name: "Journey workspace panels" }).getByRole("tab", { name: "Mixes", exact: true }).click();
+  await page.getByRole("navigation", { name: "Journey workspace panels" }).getByRole("button", { name: "Mixes", exact: true }).click();
   await expect(firstRow(page)).toHaveAttribute("aria-pressed", "true");
 });
 
 test("a tablet that opens on Details shows the map at 100% on the first numbered Mix", async ({ page }) => {
   await page.setViewportSize({ width: 834, height: 1000 });
   await page.goto("/journey?touchpoint=quiet-days", { waitUntil: "networkidle" });
-  const panels = page.getByRole("tablist", { name: "Journey workspace panels" });
-  await expect(panels.getByRole("tab", { name: "Details", exact: true })).toHaveAttribute("aria-selected", "true");
-  await panels.getByRole("tab", { name: "Mixes", exact: true }).click();
+  const panels = page.getByRole("navigation", { name: "Journey workspace panels" });
+  await expect(panels.getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-pressed", "true");
+  await panels.getByRole("button", { name: "Mixes", exact: true }).click();
   await expect(canvas(page)).toBeVisible();
   await expect(page.getByRole("button", { name: "Reset zoom to 100%", exact: true })).toHaveText("100%");
   await expect.poll(() => firstMixInView(page)).toBe("in view");

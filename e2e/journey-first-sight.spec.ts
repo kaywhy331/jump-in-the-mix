@@ -36,7 +36,7 @@ test.afterAll(async () => {
 
 const canvas = (page: Page) => page.getByRole("region", { name: /^Scrollable journey diagram/ });
 const showAs = (page: Page, name: "Map" | "List") => page.getByRole("group", { name: "Show the journey as" }).getByRole("button", { name, exact: true });
-const panels = (page: Page) => page.getByRole("tablist", { name: "Journey workspace panels" });
+const panels = (page: Page) => page.getByRole("navigation", { name: "Journey workspace panels" });
 async function openJourney(page: Page, width: number, height: number) {
   await page.setViewportSize({ width, height });
   await page.goto("/journey", { waitUntil: "networkidle" });
@@ -47,10 +47,10 @@ async function openJourney(page: Page, width: number, height: number) {
 async function eachPane(page: Page, check: (pane: string) => Promise<void>) {
   if (!(await panels(page).isVisible())) return check("all");
   for (const name of ["People", "Mixes", "Details"]) {
-    await panels(page).getByRole("tab", { name, exact: true }).click();
+    await panels(page).getByRole("button", { name, exact: true }).click();
     await check(name);
   }
-  await panels(page).getByRole("tab", { name: "Mixes", exact: true }).click();
+  await panels(page).getByRole("button", { name: "Mixes", exact: true }).click();
 }
 /** Text on the map that has no room: cut off, ellipsized, or wider or taller than its own box. */
 async function clippedMapText(page: Page) {
@@ -130,7 +130,7 @@ test("the map and the list lead with the plain name; Journey numbers come second
 for (const [width, height] of [[1440, 900], [834, 1112]] as const) {
   test(`no map label is clipped when Journey opens at ${width}px, also at 200% text`, async ({ page }) => {
     await openJourney(page, width, height);
-    if (await panels(page).isVisible()) await panels(page).getByRole("tab", { name: "Mixes", exact: true }).click();
+    if (await panels(page).isVisible()) await panels(page).getByRole("button", { name: "Mixes", exact: true }).click();
     await expect(page.getByRole("button", { name: "Reset zoom to 100%", exact: true })).toHaveText("100%");
     const label = canvas(page).locator("[data-workflow-edge-label]").filter({ hasText: longPath }).first();
     await expect(label).toBeAttached();

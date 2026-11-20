@@ -23,7 +23,6 @@ import { contactStageChoices } from "@/lib/mix-stage";
 import { localDateTimeLabel, mixStatusLabel, zoneLabel } from "@/lib/display-labels";
 import { previewBeatWording, readBeatPreviewContext } from "@/lib/workflow-start-preview";
 import { UserFacingError } from "@/lib/user-facing-error";
-import { ScrollPagerPanel } from "@/components/ScrollPager";
 
 
 export type MixWorkspaceSearchParams = { view?: string; activate?: string; error?: string; at?: string; sig?: string; created?: string; updated?: string; imported?: string; previewContact?: string; previewSearch?: string };
@@ -95,7 +94,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
   const wording = previewContext ? Object.fromEntries(mix.steps.map(beat => [beat.id, previewBeatWording(beat.stepVersion, previewContext.contact, previewContext.workspace.profile, previewContext.workspace.owner, beat.stepVersion.stepTemplate.channel)])) : undefined;
   const related = workflow.configuration.rules.filter(rule => rule.source.mixId === mix.id || rule.routes.some(route => route.target?.mixId === mix.id) || rule.join?.target.mixId === mix.id);
   return <div className="mix-edit-columns">
-    <ScrollPagerPanel pane="beats"><section id="selected-mix" className="mix-editor-workspace" aria-label="Selected Mix">
+    <section id="selected-mix" className="mix-editor-workspace" aria-label="Selected Mix">
       <header className="mix-selected-header"><div><h2>{mix.name}</h2><span className="status-pill">{mixStatusLabel(mix.status)}</span></div>
         <nav className="mix-view-tabs" aria-label="Mix view">{!impersonation && mix.source !== "ONE_TIME" && <MarketplaceShare kind="MIX" targetId={mix.id} targetName={mix.name} workspaceId={workspace.id} canEdit={workspace.ownerId === user.id} />}<Link className="button small" href={baseHref} aria-current={!editing ? "page" : undefined}><AppIcon name="eye" />Preview</Link>{!impersonation && <Link className="button small" href={`${baseHref}&view=edit`} aria-current={editing ? "page" : undefined}><AppIcon name="edit" />Edit</Link>}{!impersonation && mix.status === "ACTIVE" && mix.source !== "ONE_TIME" && <Link className="button small primary mix-start-action" href={`/journey?mix=${encodeURIComponent(mix.id)}&start=1`} aria-label={`Start ${mix.name} for someone`}><AppIcon name="play" />Start</Link>}</nav>
       </header>
@@ -174,12 +173,12 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
           }))
         }}
       /> : <MixBeatPreview steps={mix.steps} gatedStepIds={workflow.configuration.gatedStepIds} timezone={timezone} locale={activationPreference?.locale ?? "en-US"} triggerMode={mix.triggerMode} wording={wording} contactName={previewContext?.contact.displayName} />}
-    </section></ScrollPagerPanel>
-    <ScrollPagerPanel pane="details"><aside className="mix-context-pane" aria-label="People and Journey connections">
+    </section>
+    <aside className="mix-context-pane" aria-label="People and Journey connections">
       <section><h3><AppIcon name="clock" />Starts</h3><p>{mix.triggerMode === "MANUAL_START" ? "When you start it or a connected path arrives." : mix.triggerMode === "BROADCAST" ? "On a scheduled date." : "When its date is added."}</p>{mix.stage?.isActive && <p>Moves people to the {mix.stage.name} stage.{contactStages?.paused ? " Automatic transitions are paused, so no one moves for now." : ""}</p>}{broadcastSchedule && <p>{localDateTimeLabel(formatDateInput(broadcastSchedule.localDate), formatTimeInput(broadcastSchedule.timeMinutes), activationPreference?.locale ?? "en-US", new Date(), broadcastSchedule.timezone)} · {zoneLabel(broadcastSchedule.timezone)}</p>}</section>
       <section><h3><AppIcon name="people" />People</h3><strong className="mix-context-count">{memberCount}</strong>{members.length ? <ul>{members.slice(0, 5).map(person => <li key={person.id}><Link href={`/contacts/${person.id}`}><strong>{person.displayName}</strong><small>{person.jumps[0]?.reason ?? "No pending Beat"}</small></Link></li>)}</ul> : <p>No one in this Mix yet.</p>}<Link className="button small" href={`/journey?mix=${mix.id}${memberCount ? "" : "&start=1"}`}><AppIcon name="people" />{memberCount ? "View people" : "Start for someone"}</Link></section>
       <section><h3><AppIcon name="journey" />Connections</h3>{related.length ? <ul>{related.map(rule => <li key={rule.id}><Link href={`/journey?mix=${mix.id}${memberCount ? "" : "&start=1"}`}><strong>{rule.name}</strong><small>{rule.source.mixId === mix.id ? "Continues from here" : "Connects into this Mix"}{!rule.enabled ? " · off" : ""}</small></Link></li>)}</ul> : <p>No connected paths yet.</p>}<Link className="button small" href={`/journey?mix=${mix.id}${memberCount ? "" : "&start=1"}`}><AppIcon name="journey" />Open Journey</Link>{stages.length > 0 && <details><summary>Contact stages</summary>{stages.map(stage => <p key={stage.id}>{stage.name}</p>)}</details>}</section>
       {!impersonation && <details className="mix-manage"><summary><AppIcon name="settings" />Manage Mix</summary><div>{mix.source !== "ONE_TIME" && mix.triggerMode !== "BROADCAST" && mix.steps.length > 0 && <a className="button small" href={`/api/mixes/${encodeURIComponent(mix.id)}/export`} download><AppIcon name="export" />Export file</a>}{mix.status === "ACTIVE" ? <form action={pauseMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small" type="submit"><AppIcon name="pause" />Pause Mix</button></form> : activationPreference?.reviewMixActivation !== false ? <Link className="button small" href={`${baseHref}&view=edit&activate=1`}><AppIcon name="play" />Review and start</Link> : <form action={activateMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button small" type="submit"><AppIcon name="play" />Start Mix</button></form>}<ConfirmDialog trigger={<><AppIcon name="archive" />Archive Mix</>} title={`Archive ${mix.name}?`} description={archiveCopy} danger><form action={archiveMixAction}><input type="hidden" name="mixId" value={mix.id}/><button className="button danger" type="submit">Archive Mix</button></form></ConfirmDialog></div></details>}
-    </aside></ScrollPagerPanel>
+    </aside>
   </div>;
 }

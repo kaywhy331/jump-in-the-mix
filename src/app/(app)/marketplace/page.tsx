@@ -1,7 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { DIRECTORY_PANES, ITEM_PANES, MixLibraryShell } from "@/components/MixLibraryShell";
-import { ScrollPagerPanel } from "@/components/ScrollPager";
+import { MixLibraryShell } from "@/components/MixLibraryShell";
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
@@ -64,16 +63,14 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
   const ownPane = item?.type === "listing" && item.own;
   // A hidden share is still under review while a report is open or a request waits; otherwise staff kept it hidden.
   const reviewing = item?.type === "listing" && item.own && (item.openReports > 0 || item.reviewBlock === "pending");
-  // The item's panes show when there is something to show, or the author's own pane; the pager's tabs follow the same test.
-  const showsItem = item && (item.value || ownPane);
 
   return <div className="page mix-workspace-page marketplace-page">
     {params.shared && <Notice type="success">Shared. People see your latest saved version, and your edits appear as soon as you save them.</Notice>}
     {params.unshared && <Notice type="success">Sharing stopped. Copies people already added stay theirs.</Notice>}
     {params.reported && <Notice type="success">{params.reported === "hidden" ? "Thanks. The share is hidden while our team reviews it." : "Thanks. Our team will review this share."}</Notice>}
     {params.review === "requested" && <Notice type="success">Sent. Our team will look at your changes and let you know. The share stays hidden until then.</Notice>}
-    <MixLibraryShell selectedMixId={item ? selectedKey : undefined} explicitSelection={Boolean(params.item)} panes={showsItem ? ITEM_PANES : DIRECTORY_PANES}>
-      <ScrollPagerPanel pane="library"><aside className="mix-library-directory" aria-label="Marketplace">
+    <MixLibraryShell selectedMixId={item ? selectedKey : undefined} explicitSelection={Boolean(params.item)}>
+      <aside className="mix-library-directory" aria-label="Marketplace">
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions"><BrandTermsHelp /></div></header>
         <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My Mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace" aria-current="page"><AppIcon name="store" />Marketplace</Link></nav>
         <nav className="marketplace-sections" aria-label="Marketplace section">
@@ -114,10 +111,10 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
           </div>;
         })}</nav> : <p className="muted-copy">{section === "mine" ? "Share a Mix or Mega-Mix from its page to see it here." : filters.favorites ? "Favorite something to find it here." : "Nothing matches. Try another search or clear your filters."}</p>}
         {pages > 1 && <nav className="mix-library-pagination" aria-label="Marketplace result pages">{page > 1 && <Link className="icon-button" href={href({ page: String(page - 1), item: undefined })} aria-label="Previous results"><AppIcon name="arrowLeft" /></Link>}<span>{page} / {pages}</span>{page < pages && <Link className="icon-button" href={href({ page: String(page + 1), item: undefined })} aria-label="Next results"><AppIcon name="arrowLeft" style={{ transform: "rotate(180deg)" }} /></Link>}</nav>}
-      </aside></ScrollPagerPanel>
+      </aside>
 
-      {showsItem ? <div className="mix-edit-columns">
-        <ScrollPagerPanel pane="beats"><section id="selected-mix" className="mix-editor-workspace" aria-label={`Selected ${kindLabel(itemKind)}`}>
+      {item && (item.value || ownPane) ? <div className="mix-edit-columns">
+        <section id="selected-mix" className="mix-editor-workspace" aria-label={`Selected ${kindLabel(itemKind)}`}>
           <header className="mix-selected-header"><div><h2>{item.title}</h2><span className="status-pill">{kindLabel(itemKind)}</span></div>
             {item.type === "listing" && !item.own && <ListingFavoriteButton listingId={item.id} name={item.title} initial={item.favorite} count={item.favorites} canEdit={!impersonation} />}
           </header>
@@ -127,8 +124,8 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
           {item.summary && <p className="mix-selected-description">{item.summary}</p>}
           {facts && <p className="mega-mix-facts">{itemKind === "MEGA_MIX" ? `${facts.mixes} Mixes · ` : ""}{facts.beats} Beats{itemKind === "MEGA_MIX" ? ` · ${facts.connections} paths` : ""} · {channels}{"favorites" in item && item.favorites !== undefined ? ` · ${item.favorites} ${item.favorites === 1 ? "favorite" : "favorites"}` : ""}{"added" in item && item.added ? ` · added ${item.added} ${item.added === 1 ? "time" : "times"}` : ""}</p>}
           {item.value && <PortableOutline value={item.value} label={`${item.title} Beats in journey order`} />}
-        </section></ScrollPagerPanel>
-        <ScrollPagerPanel pane="details"><aside className="mix-context-pane" aria-label="Add or share">
+        </section>
+        <aside className="mix-context-pane" aria-label="Add or share">
           {item.type === "official-mega" && <section><h3><AppIcon name="journey" />Add to your account</h3>{item.installed ? <p>Already in your account as <Link href={`/mixes/mega?megaMix=${encodeURIComponent(item.installed.id)}`}>{item.installed.name}</Link>.</p> : <p>Choose your working days and preferred channel, then review before anything is added.</p>}<Link className="button small" href={item.setupHref}><AppIcon name="plus" />{item.installed ? "Open setup" : "Set up this Mega-Mix"}</Link></section>}
           {item.type === "official-mix" && <section><h3><AppIcon name="mixes" />Add to your account</h3><p>Choose who it’s for and when it starts, then review before anything is added.</p><Link className="button small" href={item.setupHref}><AppIcon name="plus" />Set up this Mix</Link></section>}
           {item.type === "listing" && !item.own && item.value && <>
@@ -155,7 +152,7 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
             <section><h3><AppIcon name="flag" />Reports</h3>{item.reports.length ? <><ul className="marketplace-reports">{item.reports.map(report => <li key={report.id}><strong>{reasonLabel(report.reason)}</strong><small>{formatDateTime(report.createdAt.toISOString(), display)} · {report.status === "OPEN" ? report.autoHidden ? "hidden while we review" : "being reviewed" : report.status === "DISMISSED" ? (item.listing.status === "LIVE" ? "reviewed: shared" : "reviewed: report dismissed") : item.listing.status === "HIDDEN" ? "reviewed: share stays hidden" : "reviewed: report upheld"}</small>{report.details && <p>{report.details}</p>}{report.reviewNote && <p><em>Our team: {report.reviewNote}</em></p>}</li>)}</ul>
               {!impersonation && <form action={markReportsSeenAction}><input type="hidden" name="listingId" value={item.id} /><button className="button small" type="submit"><AppIcon name="check" />Mark as read</button></form>}</> : <p>No reports.</p>}</section>
           </>}
-        </aside></ScrollPagerPanel>
+        </aside>
       </div> : <EmptyState title={section === "mine" ? "Nothing shared yet" : "Nothing to show"} description={section === "mine" ? "Open a Mix or Mega-Mix and choose Share. It appears here, with its favorites and any reports." : "Try another search or clear your filters."} actionHref={section === "mine" ? "/mixes/mega" : "/marketplace"} actionLabel={section === "mine" ? "Open Mega-Mixes" : "Browse the Marketplace"} />}
     </MixLibraryShell>
   </div>;

@@ -11,12 +11,12 @@ test.skip(!/^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_desi
 test.use({ screenshot: "off", video: "off", trace: "off", serviceWorkers: "block" });
 let f: Awaited<ReturnType<typeof journeyPersonFocusFixture>>;
 const token = randomUUID();
-const panes = (page: Page) => page.getByRole("tablist", { name: "Journey workspace panels", exact: true });
+const panes = (page: Page) => page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
 const view = (page: Page, name: string) => page.getByRole("group", { name: "Show the journey as" }).getByRole("button", { name, exact: true });
 const canvas = (page: Page) => page.getByRole("region", { name: /^Scrollable journey diagram/ });
 const node = (page: Page, name: string) => page.locator(`[data-workflow-node="${f.mixes[name]}"]`);
 const row = (page: Page, name: string) => page.locator(`[data-list-mix="${f.mixes[name]}"]`);
-async function pane(page: Page, name: string) { if (await panes(page).isVisible()) await panes(page).getByRole("tab", { name, exact: true }).click(); }
+async function pane(page: Page, name: string) { if (await panes(page).isVisible()) await panes(page).getByRole("button", { name, exact: true }).click(); }
 async function revealed(page: Page) {
   return canvas(page).evaluate((el, id) => {
     const box = el.querySelector(`[data-workflow-node="${id}"]`)!.getBoundingClientRect(), frame = el.getBoundingClientRect();
@@ -52,9 +52,9 @@ test("choosing a person marks starts and work, reveals real paths, and preserves
 test("a phone deep link reveals the person's row every time Mixes returns from Details (JRN-02)", async ({ page, isMobile }) => {
   await page.setViewportSize({ width: 390, height: 844 });
   await page.goto(`/journey?contactId=${f.contactId}&work=${f.work.id}`, { waitUntil: "networkidle" });
-  await expect(panes(page).getByRole("tab", { name: "Details", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(panes(page).getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-pressed", "true");
   for (let visit = 0; visit < 2; visit++) {
-    const mixes = panes(page).getByRole("tab", { name: "Mixes", exact: true });
+    const mixes = panes(page).getByRole("button", { name: "Mixes", exact: true });
     if (isMobile) await mixes.tap(); else { await mixes.focus(); await page.keyboard.press("Space"); }
     await expect(row(page, "Current work")).toBeInViewport();
     await expect(row(page, "Personal start")).toContainText("Pia Fixture is here");

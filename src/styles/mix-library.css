@@ -84,10 +84,7 @@
 .mix-phone-panes { display: flex; gap: 4px; padding: 8px 20px; border-bottom: 1px solid var(--line); }
 .mix-phone-panes button { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--text-3); font: inherit; font-size: .8125rem; cursor: pointer; }
 .mix-phone-panes svg { width: 16px; height: 16px; }
-.mix-phone-panes [aria-selected=true] { background: var(--violet-wash); color: var(--violet-text); font-weight: 600; }
-/* While the panes page by swiping (ScrollPager), the editor and its context are panes of the track, not one column. */
-.scroll-pager[data-paging] .mix-edit-columns { display: contents; }
-.scroll-pager[data-paging] .mix-context-pane { border-top: 0; }
+.mix-phone-panes [aria-pressed=true] { background: var(--violet-wash); color: var(--violet-text); font-weight: 600; }
 .mix-favorite-control { display: inline-flex; align-items: center; }
 .mix-favorite { width: 44px; height: 44px; color: var(--text-3); }
 .mix-library-row .mix-favorite { border: 0; background: transparent; }
@@ -124,8 +121,11 @@
   .mix-workspace-page .mix-editor-workspace { width: min(100%, 1096px); justify-self: center; padding-inline: 48px; }
 }
 @media (max-width: 1199px) {
-  /* One pane at a time: the tab panels that are not selected are hidden, with their landmarks (ScrollPagerPanel). */
-  .mix-library-shell[data-mobile-pane] [data-pager-pane]:not([data-pager-selected]) { display: none; }
+  .mix-library-shell[data-mobile-pane=library] .mix-edit-columns,
+  .mix-library-shell[data-mobile-pane=beats] .mix-library-directory,
+  .mix-library-shell[data-mobile-pane=beats] .mix-context-pane,
+  .mix-library-shell[data-mobile-pane=details] .mix-library-directory,
+  .mix-library-shell[data-mobile-pane=details] .mix-editor-workspace { display: none; }
   .mix-library-shell { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
   .mix-library-shell[data-mobile-pane=details] .mix-context-pane { border-top: 0; }
 }

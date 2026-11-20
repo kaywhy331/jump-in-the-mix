@@ -35,8 +35,8 @@ test.beforeEach(async ({ page, context }) => {
   await page.goto("/journey", { waitUntil: "networkidle" });
 });
 async function people(page: Page) {
-  const panes = page.getByRole("tablist", { name: "Journey workspace panels", exact: true });
-  if (await panes.isVisible()) await panes.getByRole("tab", { name: "People", exact: true }).click();
+  const panes = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
+  if (await panes.isVisible()) await panes.getByRole("button", { name: "People", exact: true }).click();
   await expect(roster(page)).toBeVisible();
 }
 test("Stage, Current Mix, Status and all Next actions are visible without hover; touch and keyboard open actions", async ({ page, isMobile }) => {
@@ -70,7 +70,7 @@ test("both themes and the width/text matrix retain readable text, contrast, focu
     const bounds = (await row.boundingBox())!;
     expect(bounds.x).toBeGreaterThanOrEqual(0); expect(bounds.x + bounds.width).toBeLessThanOrEqual(width + 1);
     for (const control of await row.locator("button, a").all()) {
-      const box = await control.evaluate(element => { const rect = element.getBoundingClientRect(); return { width: rect.width, height: rect.height }; });
+      const box = (await control.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
     }
     const action = row.getByRole("link", { name: "Record outcome", exact: true }).first();

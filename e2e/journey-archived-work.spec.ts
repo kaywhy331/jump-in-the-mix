@@ -21,8 +21,8 @@ test.beforeEach(async ({ page, context }) => {
   await page.goto("/journey", { waitUntil: "networkidle" });
 });
 async function showMixes(page: Page, view: "List" | "Map") {
-  const panes = page.getByRole("tablist", { name: "Journey workspace panels", exact: true });
-  if (await panes.isVisible()) await panes.getByRole("tab", { name: "Mixes", exact: true }).click();
+  const panes = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
+  if (await panes.isVisible()) await panes.getByRole("button", { name: "Mixes", exact: true }).click();
   await page.getByRole("button", { name: view, exact: true }).click();
 }
 function mixRow(page: Page, id: string, view: "List" | "Map") {
@@ -30,8 +30,8 @@ function mixRow(page: Page, id: string, view: "List" | "Map") {
 }
 for (const view of ["List", "Map"] as const) test(`${view}: archived mark, exact count and one keyboard/touch action open its people`, async ({ page, isMobile }) => {
   // The action must remain useful after a previous search excluded everybody.
-  const panes = page.getByRole("tablist", { name: "Journey workspace panels", exact: true });
-  if (await panes.isVisible()) await panes.getByRole("tab", { name: "People", exact: true }).click();
+  const panes = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
+  if (await panes.isVisible()) await panes.getByRole("button", { name: "People", exact: true }).click();
   await people(page).getByRole("searchbox", { name: "Find a person" }).fill("Missing fixture");
   await people(page).getByRole("button", { name: "Search", exact: true }).click();
   await expect(people(page).locator("article")).toHaveCount(0);
@@ -72,7 +72,7 @@ test("both views keep contrast, targets and text at all widths in both themes", 
       const row = mixRow(page, f.pending.id, view), action = row.getByRole("button", { name: /3 pending follow-ups\. View people$/ });
       await action.scrollIntoViewIfNeeded();
       await expect(row.getByText("3 pending follow-ups", { exact: true })).toBeVisible();
-      const box = await action.evaluate(element => { const rect = element.getBoundingClientRect(); return { width: rect.width, height: rect.height }; });
+      const box = (await action.boundingBox())!;
       expect(box.width).toBeGreaterThanOrEqual(44); expect(box.height).toBeGreaterThanOrEqual(44);
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       expect(await action.evaluate(el => el.scrollWidth <= el.clientWidth + 1 && el.scrollHeight <= el.clientHeight + 1)).toBe(true);

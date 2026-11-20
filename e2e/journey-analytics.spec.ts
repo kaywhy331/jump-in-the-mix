@@ -164,9 +164,9 @@ test("Journey pane boundaries match Contacts and Mixes, and narrow panes keep se
   }
   for (const width of [320, 390, 767, 768, 834, 900, 901, 1099, 1100, 1194, 1199, 1200, 1279, 1280, 1440, 1699, 1700, 1920, 2560, 3440, 3840]) for (const theme of ["light", "dark"]) {
     await page.setViewportSize({ width, height: 1080 }); await page.evaluate(value => document.documentElement.dataset.theme = value, theme);
-    const panels = page.getByRole("tablist", { name: "Journey workspace panels", exact: true });
+    const panels = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
     for (const pane of width < 1200 ? ["People", "Mixes", "Details"] : ["Mixes"]) {
-      if (width < 1200) await panels.getByRole("tab", { name: pane, exact: true }).click();
+      if (width < 1200) await panels.getByRole("button", { name: pane, exact: true }).click();
       expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);
       if ([320, 834, 1440, 1920, 3840].includes(width)) {
         const scan = await axeInPage(page).include('#journey-people-pane').include('#journey-map-pane').include('#journey-details-pane').withTags(["wcag2a", "wcag2aa", "wcag21aa"]).analyze();
@@ -176,38 +176,38 @@ test("Journey pane boundaries match Contacts and Mixes, and narrow panes keep se
     }
   }
   await page.setViewportSize({ width: 390, height: 844 });
-  const panels = page.getByRole("tablist", { name: "Journey workspace panels", exact: true });
-  await panels.getByRole("tab", { name: "People", exact: true }).click();
+  const panels = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
+  await panels.getByRole("button", { name: "People", exact: true }).click();
   await roster(page).getByRole("button", { name: "View Alex's journey", exact: true }).click();
-  await expect(panels.getByRole("tab", { name: "Mixes", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(panels.getByRole("button", { name: "Mixes", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.getByRole("combobox", { name: "Highlight work", exact: true })).toHaveValue(alexWork);
-  await panels.getByRole("tab", { name: "Details", exact: true }).click();
+  await panels.getByRole("button", { name: "Details", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Alex", exact: true })).toBeVisible();
-  await panels.getByRole("tab", { name: "People", exact: true }).click();
+  await panels.getByRole("button", { name: "People", exact: true }).click();
   await expect(roster(page).getByRole("button", { name: "View Alex's journey", exact: true })).toHaveAttribute("aria-pressed", "true");
 });
 
 test("connection drafts survive pane changes and narrow deep links reveal check-ins", async ({ page }) => {
   await page.setViewportSize({ width: 390, height: 844 });
-  const panels = page.getByRole("tablist", { name: "Journey workspace panels", exact: true });
+  const panels = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
   await page.getByRole("button", { name: "Setup", exact: true }).click();
   await page.locator(`[data-workflow-node="${mixes[0]}"]`).getByRole("button", { name: /^Welcome(?: On| Beats| Mix|$)/ }).click();
   // Selecting keeps the map in view (040fc25); the Mix's details open on request.
-  await expect(panels.getByRole("tab", { name: "Mixes", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(panels.getByRole("button", { name: "Mixes", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "View Mix details", exact: true }).click();
-  await expect(panels.getByRole("tab", { name: "Details", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(panels.getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-pressed", "true");
   await page.getByRole("button", { name: "Connect next", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Connect what happens next", exact: true })).toBeFocused();
   const draft = page.getByRole("textbox", { name: "Connection name", exact: true }); await draft.fill("Keep this unsaved connection");
-  await panels.getByRole("tab", { name: "Mixes", exact: true }).click();
+  await panels.getByRole("button", { name: "Mixes", exact: true }).click();
   await expect(page.getByRole("region", { name: "Mix and Beat journey", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Progress", exact: true })).toBeDisabled();
-  await panels.getByRole("tab", { name: "Details", exact: true }).click();
+  await panels.getByRole("button", { name: "Details", exact: true }).click();
   await expect(draft).toHaveValue("Keep this unsaved connection");
   for (const width of [320, 834, 1920, 390]) { await page.setViewportSize({ width, height: 844 }); await expect(draft).toHaveValue("Keep this unsaved connection"); }
   await page.getByRole("button", { name: "Cancel", exact: true }).click();
   await page.goto("/journey?touchpoint=quiet-days", { waitUntil: "networkidle" });
-  await expect(panels.getByRole("tab", { name: "Details", exact: true })).toHaveAttribute("aria-selected", "true");
+  await expect(panels.getByRole("button", { name: "Details", exact: true })).toHaveAttribute("aria-pressed", "true");
   await expect(page.locator('#journey-details-pane details[open]').filter({ hasText: "Just saying hello" })).toBeVisible();
   await page.evaluate(() => document.documentElement.style.fontSize = "200%");
   expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true);

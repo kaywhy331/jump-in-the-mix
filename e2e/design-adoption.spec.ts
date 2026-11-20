@@ -107,8 +107,8 @@ test("narrow journey controls and wide preference fields stay aligned", async ({
   // three-pane workspace whose People pane holds the person search and roster on a narrow screen.
   await page.goto("/journey");
   await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "");
-  const panes = page.getByRole("tablist", { name: "Journey workspace panels", exact: true });
-  await panes.getByRole("tab", { name: "People", exact: true }).click();
+  const panes = page.getByRole("navigation", { name: "Journey workspace panels", exact: true });
+  await panes.getByRole("button", { name: "People", exact: true }).click();
   const people = page.getByRole("region", { name: "Journey people", exact: true });
   const person = people.getByRole("button", { name: /^View .+'s journey$/ }).first();
   await person.waitFor();

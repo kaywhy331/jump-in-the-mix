@@ -1,8 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
-import { DIRECTORY_PANES, ITEM_PANES, MixLibraryShell } from "@/components/MixLibraryShell";
-import { ScrollPagerPanel } from "@/components/ScrollPager";
+import { MixLibraryShell } from "@/components/MixLibraryShell";
 import { MixWorkspace } from "@/components/MixWorkspace";
 import { MixLibraryNav } from "@/components/MixLibraryNav";
 import { AppIcon } from "@/components/AppIcon";
@@ -43,8 +42,8 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
     <UrlErrorNotice params={params} viewer={session} />
     <MarketplaceNotices workspaceId={workspace.id} />
     {(params.activated || params.paused || params.archived) && <Notice type="success">{params.activated ? "Mix started." : params.paused ? "Mix paused." : archivedNotice(params.archived)}</Notice>}
-    <MixLibraryShell selectedMixId={selected} explicitSelection={Boolean(params.mix)} panes={selected ? ITEM_PANES : DIRECTORY_PANES}>
-      <ScrollPagerPanel pane="library"><aside className="mix-library-directory" aria-label="Mix library">
+    <MixLibraryShell selectedMixId={selected} explicitSelection={Boolean(params.mix)}>
+      <aside className="mix-library-directory" aria-label="Mix library">
         <header className="mix-directory-header">
           <h1>Mixes</h1>
           <div className="mix-directory-actions">
@@ -73,7 +72,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
         {(q || status || favorites) && <Link className="mix-clear-filters" href="/mixes"><AppIcon name="close" />Clear filters</Link>}
         {mixes.length ? <MixLibraryNav showTabs={false} mixes={mixes.map(mix => ({ ...mix, favorite: mix.favorites.length > 0 }))} selected={selected} href={id => `${href({ mix: id })}#selected-mix`} canEdit={!impersonation} /> : <p className="muted-copy">{favorites ? "Favorite a Mix to find it here." : "No Mixes found."}</p>}
         {pages > 1 && <nav className="mix-library-pagination" aria-label="Mix result pages">{page > 1 && <Link className="icon-button" href={href({ page: String(page - 1) })} aria-label="Previous Mixes"><AppIcon name="arrowLeft" /></Link>}<span>{page} / {pages}</span>{page < pages && <Link className="icon-button" href={href({ page: String(page + 1) })} aria-label="Next Mixes"><AppIcon name="arrowLeft" style={{ transform: "rotate(180deg)" }} /></Link>}</nav>}
-      </aside></ScrollPagerPanel>
+      </aside>
       {selected ? <MixWorkspace key={selected} mixId={selected} embedded query={params} libraryHref={href({ mix: selected })} /> : <EmptyState title={q || status || favorites ? "No matching Mixes" : "Create your first Mix"} description={q || status || favorites ? "Try another search or clear your filters." : "Choose a ready-made Mix or create your own."} actionHref={q || status || favorites ? "/mixes" : "/templates"} actionLabel={q || status || favorites ? "Clear filters" : "Browse ready-made Mixes"} />}
     </MixLibraryShell>
   </div>;
