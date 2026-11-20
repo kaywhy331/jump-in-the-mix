@@ -227,6 +227,7 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     const reserveGesture = (target: EventTarget | null, x: number) => {
       eligible = mayPage(target, x);
       diag("reserveGesture", { eligible, x, previousOverflow: track.style.overflowX });
+      track.style.scrollSnapType = eligible ? "" : "none";
       track.style.overflowX = eligible ? "auto" : "hidden";
       if (!eligible) owned.current = false;
     };

@@ -11,7 +11,7 @@ export async function installNavDiag(page: Page) {
   Object.assign(window,{__navDiag:record,__navEvents:events});
   for(const name of ['pointerdown','pointerup','pointermove','pointercancel','touchstart','touchmove','touchend','touchcancel','focusin']) document.addEventListener(name,e=>{
    const t=e instanceof TouchEvent ? e.touches[0]??e.changedTouches[0] : e instanceof PointerEvent ? e : null;
-   record(name,{target:target(e.target),x:t?.clientX,y:t?.clientY,hit:t?target(document.elementFromPoint(t.clientX,t.clientY)):null,prevented:e.defaultPrevented,tracks:state()});
+   record(name,{target:target(e.target),x:t?.clientX,y:t?.clientY,hit:t?target(document.elementFromPoint(t.clientX,t.clientY)):null,prevented:e.defaultPrevented,ports: name==='pointerup'||name==='pointerdown' ? Array.from(document.querySelectorAll('[data-workflow-port]')).map(p=>({target:target(p),rect:p.getBoundingClientRect().toJSON()})) : undefined,tracks:state()});
   },{capture:true,passive:true});
   const focus=HTMLElement.prototype.focus; HTMLElement.prototype.focus=function(options){record('focus',{target:target(this),options,stack:new Error().stack?.split('\n').slice(2,5),tracks:state()});return focus.call(this,options);};
   const scroll=Element.prototype.scrollIntoView; Element.prototype.scrollIntoView=function(options){record('scrollIntoView',{target:target(this),options,stack:new Error().stack?.split('\n').slice(2,5),tracks:state()});return scroll.call(this,options);};
@@ -21,5 +21,5 @@ export async function installNavDiag(page: Page) {
  });
 }
 export async function navTrace(page: Page) {
- return page.evaluate(() => JSON.stringify((window as unknown as {__navEvents:object[]}).__navEvents?.slice(-130)));
+ return page.evaluate(() => JSON.stringify((window as unknown as {__navEvents:Record<string, unknown>[]}).__navEvents?.slice(-600).map(e => ({...e,tracks: Array.isArray(e.tracks) ? e.tracks.map(t => ({left:t.left,selected:t.selected,overflow:t.overflow})) : undefined}))));
 }

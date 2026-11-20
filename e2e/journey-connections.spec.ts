@@ -233,6 +233,7 @@ for (let repetition = 1; repetition <= 30; repetition++) test("zoomed dragging f
   await expect(port(page, 0, true, "output")).toBeFocused();
   await canvas(page).evaluate(element => { element.scrollTop = 0; element.scrollLeft = 40; element.scrollIntoView({ block: "center", behavior: "instant" }); });
   const from = await center(port(page, 1, false, "output")), to = await center(port(page, 1, true, "input"));
+  await page.evaluate(points => (window as unknown as {__navDiag:(event:string,data:object)=>void}).__navDiag("test:measured-ports", points), {from,to});
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ ...from, id: 2 }] });
   for (let i = 1; i <= 10; i++) await cdp.send("Input.dispatchTouchEvent", { type: "touchMove", touchPoints: [{ x: from.x + (to.x - from.x) * i / 10, y: from.y + (to.y - from.y) * i / 10, id: 2 }] });
   await cdp.send("Input.dispatchTouchEvent", { type: "touchEnd", touchPoints: [] });
