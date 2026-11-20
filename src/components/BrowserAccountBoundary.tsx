@@ -6,7 +6,9 @@ import { revealObscuredFocus } from "@/lib/focus-visibility";
 
 const AccountScope = createContext<string | null>(null);
 export function useBrowserScope() { return useContext(AccountScope); }
-type State = "checking" | "ready" | "offline" | "expired" | "changed" | "signed-out";
+// "offline": no answer reached the tab (no connection, a network error or no reply in time).
+// "unconfirmed": the server answered, but not with a usable account check.
+type State = "checking" | "ready" | "offline" | "unconfirmed" | "expired" | "changed" | "signed-out";
 
 export function BrowserAccountBoundary({ scope, children }: { scope: string; children: ReactNode }) {
   const [state, setState] = useState<State>("checking");
@@ -42,8 +44,10 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
       const active = controller;
       const timeout = window.setTimeout(() => active.abort(), 10_000);
       if (mask) { hide(); setState("checking"); }
+      let answered = false;
       try {
         const response = await fetch("/api/auth/browser-context", { cache: "no-store", credentials: "same-origin", signal: active.signal });
+        answered = true;
         if (!response.ok) throw new Error("Unavailable");
         const result: unknown = await response.json();
         if (!result || typeof result !== "object" || !("scope" in result) || (result.scope !== null && typeof result.scope !== "string")) throw new Error("Invalid response");
@@ -67,7 +71,8 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
           setState(result.scope === null ? "signed-out" : "changed");
         }
       } catch {
-        if (id === sequence && !gone) { hide(); setState("offline"); }
+        // Either way the tab stays masked; only the wording differs. A lost connection is not an account problem.
+        if (id === sequence && !gone) { hide(); setState(answered && navigator.onLine ? "unconfirmed" : "offline"); }
       } finally { window.clearTimeout(timeout); }
     };
     const onSignal = (message: unknown) => {
@@ -115,7 +120,7 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); }
     }}><div className="auth-card">
       <h1 id="browser-account-title">{state === "checking" ? "Checking your account…" : state === "changed" ? "Your account changed" : state === "signed-out" ? "You’re signed out" : state === "expired" ? "Sign in to continue" : "Reconnect to continue"}</h1>
-      <p role="status">{state === "checking" ? "Your workspace will be ready in a moment." : state === "changed" || state === "signed-out" ? "This tab’s previous account has been cleared." : state === "expired" ? standalone ? "Sign in again to continue on this screen. Changes that haven’t been saved yet may be lost." : "Sign in to the same account in another tab, then return here to keep your draft." : "We couldn’t confirm your account. Reconnect, then try again. Your unsaved work stays in this tab."}</p>
+      <p role="status">{state === "checking" ? "Your workspace will be ready in a moment." : state === "changed" || state === "signed-out" ? "This tab’s previous account has been cleared." : state === "expired" ? standalone ? "Sign in again to continue on this screen. Changes that haven’t been saved yet may be lost." : "Sign in to the same account in another tab, then return here to keep your draft." : state === "offline" ? "You’re offline. Your unsaved work stays in this tab." : "We couldn’t confirm your account. Reconnect, then try again. Your unsaved work stays in this tab."}</p>
       {(state === "changed" || state === "signed-out") ? <a className="button primary" href={state === "changed" ? "/jumps" : "/login"}>{state === "changed" ? "Open current account" : "Sign in"}</a> : state !== "checking" && <div className="page-actions">
         {state === "expired" && (standalone
           ? <a className="button primary" href={`/login?next=${encodeURIComponent(`${window.location.pathname}${window.location.search}`)}`}>Sign in</a>
