@@ -232,6 +232,11 @@ for (let repetition = 1; repetition <= 30; repetition++) test("zoomed dragging f
   // closeEditor refocuses and scrolls the origin port in the next animation frame; wait for that so it cannot move the ports after they are measured.
   await expect(port(page, 0, true, "output")).toBeFocused();
   await canvas(page).evaluate(element => { element.scrollTop = 0; element.scrollLeft = 40; element.scrollIntoView({ block: "center", behavior: "instant" }); });
+  // Diagnostic causal intervention: measure drag coordinates only after the pager correction completes.
+  await expect.poll(() => page.locator(".scroll-pager-track").evaluate(track => {
+    const panel = track.querySelector<HTMLElement>("[data-pager-selected]")!;
+    return Math.abs(panel.getBoundingClientRect().left - track.getBoundingClientRect().left);
+  })).toBeLessThanOrEqual(1);
   const from = await center(port(page, 1, false, "output")), to = await center(port(page, 1, true, "input"));
   await page.evaluate(points => (window as unknown as {__navDiag:(event:string,data:object)=>void}).__navDiag("test:measured-ports", points), {from,to});
   await cdp.send("Input.dispatchTouchEvent", { type: "touchStart", touchPoints: [{ ...from, id: 2 }] });

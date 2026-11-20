@@ -21,5 +21,13 @@ export async function installNavDiag(page: Page) {
  });
 }
 export async function navTrace(page: Page) {
- return page.evaluate(() => JSON.stringify((window as unknown as {__navEvents:Record<string, unknown>[]}).__navEvents?.slice(-600).map(e => ({...e,tracks: Array.isArray(e.tracks) ? e.tracks.map(t => ({left:t.left,selected:t.selected,overflow:t.overflow})) : undefined}))));
+ return page.evaluate(() => {
+  const events = (window as unknown as {__navEvents:Record<string, unknown>[]}).__navEvents ?? [];
+  const marker = [...events].reverse().find(e => e.event === "test:measured-ports");
+  return JSON.stringify(events.slice(-600).filter(e => e.event !== "frame" && e.event !== "dom-scroll").map(e => ({
+   ...e,
+   tracks: Array.isArray(e.tracks) ? e.tracks.map(t => ({left:t.left,selected:t.selected,overflow:t.overflow})) : undefined,
+   ports: marker && Number(e.t) >= Number(marker.t) && Array.isArray(e.ports) ? e.ports.map(p => ({target:p.target,rect:{x:p.rect.x,y:p.rect.y,width:p.rect.width,height:p.rect.height}})) : undefined
+  })));
+ });
 }

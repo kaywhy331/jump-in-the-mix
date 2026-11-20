@@ -148,7 +148,7 @@ test("mobile navigation fills the footer with five evenly spaced controls", asyn
   await expect(page.locator(".sidebar")).toBeVisible();
 });
 
-test("meaningful text remains readable on phone-sized screens", async ({ page }, testInfo) => {
+for (let repetition = 1; repetition <= 30; repetition++) test("meaningful text remains readable on phone-sized screens #diag" + repetition, async ({ page }, testInfo) => {
   test.setTimeout(120_000);
   test.skip(testInfo.project.name !== "mobile-chromium", "Phone typography is checked once.");
   await signIn(page);
