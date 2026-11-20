@@ -1,17 +1,17 @@
 /* Mega-Mixes: named pipelines, their numbered outline, import and forms. Shared tokens only. */
-.beat-number { display: inline-grid; place-items: center; flex-shrink: 0; min-width: 32px; height: 24px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: var(--violet-wash); color: var(--violet-text); font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
-.mix-number { display: inline-grid; place-items: center; min-width: 32px; height: 24px; margin-right: 8px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: var(--brand); color: var(--on-brand); font-size: .75rem; font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; vertical-align: 1px; }
+.beat-number { display: inline-grid; place-items: center; flex-shrink: 0; min-width: 32px; height: 24px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: var(--violet-wash); color: var(--violet-text); font-size: var(--font-size-sm); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; }
+.mix-number { display: inline-grid; place-items: center; min-width: 32px; height: 24px; margin-right: 8px; padding: 0 6px; box-sizing: border-box; border-radius: 999px; background: var(--brand); color: var(--on-brand); font-size: var(--font-size-sm); font-weight: 700; font-variant-numeric: tabular-nums; white-space: nowrap; vertical-align: 1px; }
 .mega-mix-facts { margin: -12px 0 24px; color: var(--text-3); font-size: .8125rem; }
 .portable-outline { list-style: none; margin: 0; padding: 0; display: grid; gap: 24px; }
 .portable-outline-mix h3 { display: flex; align-items: center; gap: 10px; margin: 0 0 8px; padding-bottom: 8px; border-bottom: 1px solid var(--line); font-size: .9375rem; font-weight: 600; }
-.portable-outline-mix h3 small { display: block; color: var(--text-3); font-size: .75rem; font-weight: 400; margin-top: 2px; }
+.portable-outline-mix h3 small { display: block; color: var(--text-3); font-size: var(--font-size-sm); font-weight: 400; margin-top: 2px; }
 .portable-outline-icon { display: grid; place-items: center; flex: 0 0 32px; width: 32px; height: 32px; border-radius: 10px; background: var(--violet-wash); color: var(--violet-mark); }
 .portable-outline-icon svg { width: 18px; height: 18px; }
 .portable-outline-beats { list-style: none; margin: 0; padding: 0; }
 .portable-outline-beats li { display: flex; align-items: flex-start; gap: 12px; padding: 8px 0; }
 .portable-outline-beats li > span { min-width: 0; }
 .portable-outline-beats strong { display: block; font-size: .875rem; font-weight: 500; overflow-wrap: anywhere; }
-.portable-outline-beats small { display: block; color: var(--text-3); font-size: .75rem; margin-top: 2px; }
+.portable-outline-beats small { display: block; color: var(--text-3); font-size: var(--font-size-sm); margin-top: 2px; }
 .portable-outline-paths { list-style: none; margin: 4px 0 0; padding: 0 0 0 44px; display: grid; gap: 4px; font-size: .8125rem; color: var(--text-2); }
 .portable-outline-paths li { display: flex; gap: 6px; align-items: flex-start; overflow-wrap: anywhere; }
 .portable-outline-paths svg { width: 14px; height: 14px; flex-shrink: 0; margin-top: 3px; color: var(--violet-mark); }

@@ -18,8 +18,6 @@
 /* Each panel positions its own absolute children (such as visually hidden labels), so the track clips them off-screen
    instead of widening the page. */
 .scroll-pager[data-paging] .scroll-pager-panel { position: relative; display: block; flex: 0 0 100%; align-self: stretch; box-sizing: border-box; width: 100%; min-width: 0; overflow-x: hidden; overflow-y: auto; scroll-snap-align: start; scroll-snap-stop: always; }
-/* A swipe never starts on a field, a slider or an opted-out surface (JITM-08 §2.47): vertical scrolling stays native there. */
-.scroll-pager[data-paging] [data-pager-pane] :is(input, textarea, select, [contenteditable]:not([contenteditable=false]), [role=slider], [data-swipe-ignore]) { touch-action: pan-y pinch-zoom; }
 @media (prefers-reduced-motion: reduce) {
   .scroll-pager-track { scroll-behavior: auto; }
 }

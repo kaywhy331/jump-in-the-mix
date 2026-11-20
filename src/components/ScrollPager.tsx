@@ -19,7 +19,7 @@ const EDGE_TOKEN = "--swipe-edge-exclusion";
 /** Browsers without `scrollend` settle the selection once scrolling has been quiet this long. */
 const SCROLL_IDLE_MS = 120;
 /** A gesture never starts on these (JITM-08 §2.47). */
-const EXCLUDED = "input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='slider'], [data-swipe-ignore]";
+const EXCLUDED = "input, textarea, select, [contenteditable]:not([contenteditable='false']), [role='slider'], [data-swipe-ignore], dialog[open], [role='dialog'], [aria-modal='true']";
 
 export type ScrollPagerPane<T extends string> = {
   id: T;
@@ -50,8 +50,6 @@ type Props<T extends string> = {
 };
 
 type Edge = { x: number; y: number; first: boolean; last: boolean; lock: "x" | "y" | null; edge: ScrollPagerOverscroll["edge"] | null; samples: { t: number; x: number }[] };
-/** A touch that started in a reserved screen edge, until its axis is known. */
-type Reserved = { x: number; y: number; target: Element; lock: "x" | null };
 
 const tabId = (pager: string, pane: string) => `${pager}-tab-${pane}`;
 const panelId = (pager: string, pane: string) => `${pager}-panel-${pane}`;
@@ -183,7 +181,7 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
   useEffect(() => {
     const track = trackRef.current;
     if (!track || !paging) return;
-    let frame = 0, idle = 0, fingers = 0, released: number | null = null, edge: Edge | null = null, reserved: Reserved | null = null;
+    let frame = 0, idle = 0, fingers = 0, released: number | null = null, edge: Edge | null = null, eligible = false;
     /** The reserved width at each screen edge, from the token (it can change with the screen). */
     const reservedWidth = () => parseFloat(getComputedStyle(rootRef.current ?? track).getPropertyValue(EDGE_TOKEN)) || 0;
     let edgeWidth = reservedWidth();
@@ -197,7 +195,7 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     const cancel = () => { if (edge?.edge) emit("cancel", edge, edge.samples[edge.samples.length - 1]?.x ?? edge.x); edge = null; };
     const onScroll = () => {
       // The track only scrolls sideways under a finger when the owner is swiping it.
-      if (fingers > 0) owned.current = true;
+      if (fingers > 0 && eligible) owned.current = true;
       if (!frame) frame = requestAnimationFrame(() => { frame = 0; paint(); });
       // Reduced motion: the browser has chosen the pane once the released scroll moves; jump there instead of animating.
       if (released !== null && fingers === 0 && Math.abs(track.scrollLeft - released) > 0.5) {
@@ -217,38 +215,26 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
       if (!Reflect.has(window, "onscrollend")) { window.clearTimeout(idle); idle = window.setTimeout(() => { if (!fingers) settle(); }, SCROLL_IDLE_MS); }
     };
     const onScrollEnd = () => { released = null; if (!fingers) settle(); };
+    // Keep the native event and the child's own touch-action unchanged. Only this track loses its
+    // horizontal scroll affordance for an excluded gesture; its descendants still scroll and drag.
+    const mayPage = (target: EventTarget | null, x: number) => target instanceof Element
+      && !target.closest(EXCLUDED) && !scrollsSideways(target, track)
+      && x >= edgeWidth && x <= window.innerWidth - edgeWidth;
+    const reserveGesture = (target: EventTarget | null, x: number) => {
+      eligible = mayPage(target, x);
+      track.style.overflowX = eligible ? "auto" : "hidden";
+      if (!eligible) owned.current = false;
+    };
+    const onPointerDown = (event: PointerEvent) => reserveGesture(event.target, event.clientX);
     const onTouchStart = (event: TouchEvent) => {
       fingers = event.touches.length;
       released = null;
-      reserved = null;
-      if (fingers !== 1) { cancel(); return; }
+      if (fingers !== 1) { eligible = false; cancel(); return; }
       const touch = event.touches[0], offsets = pages().map(page => offsetOf(page.element));
-      const target = event.target instanceof Element ? event.target : null;
-      const inEdge = touch.clientX < edgeWidth || touch.clientX > window.innerWidth - edgeWidth;
-      // A field keeps its own native touch (it never pages: scroll-pager.css); anything else starting in an edge is held.
-      if (inEdge && target && !target.closest(EXCLUDED)) reserved = { x: touch.clientX, y: touch.clientY, target, lock: null };
-      edge = target && !target.closest(EXCLUDED) && !scrollsSideways(target, track) && !inEdge && offsets.length
+      reserveGesture(event.target, touch.clientX);
+      edge = eligible && offsets.length
         ? { x: touch.clientX, y: touch.clientY, first: track.scrollLeft <= offsets[0] + 1, last: track.scrollLeft >= offsets[offsets.length - 1] - 1, lock: null, edge: null, samples: [{ t: event.timeStamp, x: touch.clientX }] }
         : null;
-    };
-    /**
-     * A sideways pull that starts in a reserved screen edge never pages: the edges belong to the system's own gestures
-     * (§4, JITM-08 §2.47), which the browser keeps, since the touch start is never cancelled. Cancelling the sideways moves
-     * before the browser starts scrolling keeps the track still. A vertical pull is left to native scrolling from the 10px
-     * axis lock on, a horizontal scroller under the finger that can still move keeps its own scroll, and a second finger
-     * leaves pinch zoom to the browser. Only the first moves of a touch can block scrolling, and only edge touches do.
-     */
-    const onReservedMove = (event: TouchEvent) => {
-      if (!reserved) return;
-      if (event.touches.length !== 1) { reserved = null; return; }
-      const touch = event.touches[0], dx = touch.clientX - reserved.x, dy = touch.clientY - reserved.y;
-      if (!reserved.lock) {
-        const moved = Math.max(Math.abs(dx), Math.abs(dy));
-        if (Math.abs(dy) >= Math.abs(dx)) { if (moved >= AXIS_LOCK_PX) reserved = null; return; }
-        if (scrollsToward(reserved.target, track, dx)) { reserved = null; return; }
-        if (moved >= AXIS_LOCK_PX) reserved.lock = "x";
-      }
-      if (event.cancelable) event.preventDefault();
     };
     const onTouchMove = (event: TouchEvent) => {
       if (!edge) return;
@@ -268,12 +254,15 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     };
     const onTouchEnd = (event: TouchEvent) => {
       fingers = event.touches.length;
-      reserved = null;
       if (edge?.edge) emit(event.type === "touchcancel" ? "cancel" : "end", edge, event.changedTouches[0]?.clientX ?? edge.x);
       edge = null;
-      if (!fingers && reduced() && !pages().some(page => Math.abs(offsetOf(page.element) - track.scrollLeft) <= 0.5)) released = track.scrollLeft;
+      if (eligible && !fingers && reduced() && !pages().some(page => Math.abs(offsetOf(page.element) - track.scrollLeft) <= 0.5)) released = track.scrollLeft;
     };
-    const onWheel = (event: WheelEvent) => { if (Math.abs(event.deltaX) > Math.abs(event.deltaY)) owned.current = true; };
+    const onWheel = (event: WheelEvent) => {
+      if (Math.abs(event.deltaX) <= Math.abs(event.deltaY)) return;
+      reserveGesture(event.target, event.clientX);
+      if (eligible) owned.current = true;
+    };
     const onResize = () => { edgeWidth = reservedWidth(); const page = pages().find(item => item.pane.id === latest.current.selected); if (!fingers && page) track.scrollTo({ left: offsetOf(page.element), behavior: "instant" }); paint(); };
     const resize = new ResizeObserver(onResize);
     resize.observe(track);
@@ -281,10 +270,9 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
     track.addEventListener("scroll", onScroll, { passive: true });
     track.addEventListener("scrollend", onScrollEnd);
     track.addEventListener("wheel", onWheel, { passive: true });
+    track.addEventListener("pointerdown", onPointerDown, { capture: true, passive: true });
     track.addEventListener("touchstart", onTouchStart, { passive: true });
     track.addEventListener("touchmove", onTouchMove, { passive: true });
-    // Not passive: it cancels the sideways moves of a touch that started in a reserved edge.
-    track.addEventListener("touchmove", onReservedMove, { passive: false });
     track.addEventListener("touchend", onTouchEnd, { passive: true });
     track.addEventListener("touchcancel", onTouchEnd, { passive: true });
     return () => {
@@ -292,9 +280,10 @@ export function ScrollPager<T extends string>({ label, panes, selected, onSelect
       track.removeEventListener("scroll", onScroll);
       track.removeEventListener("scrollend", onScrollEnd);
       track.removeEventListener("wheel", onWheel);
+      track.style.removeProperty("overflow-x");
+      track.removeEventListener("pointerdown", onPointerDown, true);
       track.removeEventListener("touchstart", onTouchStart);
       track.removeEventListener("touchmove", onTouchMove);
-      track.removeEventListener("touchmove", onReservedMove);
       track.removeEventListener("touchend", onTouchEnd);
       track.removeEventListener("touchcancel", onTouchEnd);
     };
@@ -326,16 +315,6 @@ function scrollsSideways(from: Element, track: Element) {
   for (let node: Element | null = from; node && node !== track; node = node.parentElement) {
     const overflow = getComputedStyle(node).overflowX;
     if ((overflow === "auto" || overflow === "scroll") && node.scrollWidth > node.clientWidth) return true;
-  }
-  return false;
-}
-
-/** True when a sideways scroller between the touch and the track can still move with a finger travelling `dx`. */
-function scrollsToward(from: Element, track: Element, dx: number) {
-  for (let node: Element | null = from; node && node !== track; node = node.parentElement) {
-    const overflow = getComputedStyle(node).overflowX;
-    if ((overflow !== "auto" && overflow !== "scroll") || node.scrollWidth <= node.clientWidth) continue;
-    if (dx > 0 ? node.scrollLeft > 0.5 : node.scrollLeft < node.scrollWidth - node.clientWidth - 0.5) return true;
   }
   return false;
 }
