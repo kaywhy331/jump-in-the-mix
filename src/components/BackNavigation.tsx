@@ -1,7 +1,7 @@
 "use client";
 
 import { useEffect, useLayoutEffect, useRef } from "react";
-import { usePathname, useRouter, useSearchParams } from "next/navigation";
+import { usePathname, useSearchParams } from "next/navigation";
 import { allowFormNavigation } from "@/lib/form-navigation";
 import { useSwipe } from "@/lib/gestures/useSwipe";
 import {
@@ -30,7 +30,6 @@ type SavedEntry = { key?: string; getState(): unknown };
  * back swipe, a swipe from the left edge goes back wherever the page shows its Back control.
  */
 export function BackNavigation() {
-  const router = useRouter();
   const pathname = usePathname(), search = useSearchParams().toString();
   const committed = useRef("");
   const restore = useRef<number | null>(null);
@@ -129,7 +128,7 @@ export function BackNavigation() {
 
   // The installed iOS app's back swipe. Never on a ring stop's own screen, where a sideways swipe is section swipe,
   // and only while the page shows its Back control, whose return the swipe makes: back through history when Back
-  // returns to the control's page, as the control does, otherwise to the control's page. History alone never enables it.
+  // returns to the control's page, as the control does, otherwise by activating the control itself. History alone never enables it.
   // The touch may land anywhere down the edge, on a short page or beside the rail; the page alone follows the finger.
   useSwipe({ get current() { return document.querySelector<HTMLElement>(".app-shell"); } }, {
     axis: "x",
@@ -142,12 +141,12 @@ export function BackNavigation() {
       const control = backControl(), before = location.href;
       if (!control) return false;
       const back = backReturnsTo(control.href);
-      // The unsaved guards answer first, exactly as for the back control; keeping the edits springs the page back.
-      if (!allowFormNavigation(back ? previousEntry()?.url ?? before : control.href)) return false;
+      // History needs the programmatic guard; activating the control runs its own click guard exactly once.
+      if (back && !allowFormNavigation(previousEntry()?.url ?? before)) return false;
       leaving.current = true;
       const arrival = nextArrival();
-      if (!back) { slide("back", () => router.push(control.href)); return arrival; }
-      goBack();
+      if (back) goBack();
+      else slide("back", () => control.click());
       if (await Promise.race([arrival, wait(LEAVE_WAIT_MS).then(() => location.href !== before)])) return arrival;
       leaving.current = false;
       return false;

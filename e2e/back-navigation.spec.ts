@@ -430,3 +430,149 @@ test.describe("the edge swipe needs the page's visible Back control", () => {
     }
   });
 });
+
+// JITM-NAV-04-F1: the control owns the return, including state that its href does not encode.
+import { readdirSync, readFileSync } from "node:fs";
+import { dirname, join, relative, resolve } from "node:path";
+import { fileURLToPath } from "node:url";
+import { BACK_CONTROL, ringStop } from "../src/lib/back-navigation";
+
+/** Discover pages through the actual marker and their local component imports; new users join this coverage. */
+function markedBackPages() {
+  const root = resolve(dirname(fileURLToPath(import.meta.url)), "../src");
+  const files = (folder: string): string[] => readdirSync(folder, { withFileTypes: true }).flatMap(entry =>
+    entry.isDirectory() ? files(join(folder, entry.name)) : entry.name.endsWith(".tsx") ? [join(folder, entry.name)] : []);
+  const sources = new Map(files(root).map(file => [file, readFileSync(file, "utf8")]));
+  const marker = BACK_CONTROL.slice(1, -1);
+  const marked = new Set([...sources].filter(([, source]) => new RegExp(`\\s${marker}(?:[\\s=>])`).test(source)).map(([file]) => file));
+  let changed = true;
+  while (changed) {
+    changed = false;
+    for (const [file, source] of sources) {
+      if (marked.has(file)) continue;
+      const imports = [...source.matchAll(/from\s+["']([^"']+)["']/g)].map(([, specifier]) =>
+        specifier.startsWith("@/") ? resolve(root, specifier.slice(2)) : resolve(dirname(file), specifier));
+      if (imports.some(imported => marked.has(`${imported}.tsx`))) { marked.add(file); changed = true; }
+    }
+  }
+  return [...marked].filter(file => file.endsWith("/page.tsx") && relative(root, file).startsWith("app/(app)/"))
+    .map(file => "/" + relative(join(root, "app"), dirname(file)).split("/").filter(part => !part.startsWith("(")).join("/")).sort();
+}
+
+const markedControl = (page: Page) => page.locator(`#workspace-main ${BACK_CONTROL}`).locator("visible=true").first();
+const address = (page: Page) => { const url = new URL(page.url()); return url.pathname + url.search; };
+async function mismatchedPreviousEntry(page: Page) {
+  const href = await markedControl(page).getAttribute("href");
+  const previous = await page.evaluate(() => {
+    const navigation = (window as unknown as { navigation: { currentEntry: { index: number }; entries(): Array<{ index: number; url: string }> } }).navigation;
+    return navigation.entries().find(entry => entry.index === navigation.currentEntry.index - 1)?.url;
+  });
+  expect(previous, "the comparison must exercise the fallback, with a real previous entry").toBeTruthy();
+  expect(new URL(previous!).pathname).not.toBe(new URL(href!, page.url()).pathname);
+}
+async function filteredContactRoundTrip(page: Page) {
+  await open(page, "/contacts?q=Person");
+  await page.locator(`a.contact-open[href="/contacts/${contactId}"]`).click();
+  await expect(page).toHaveURL(new RegExp(`/contacts/${contactId}$`));
+  await markedControl(page).waitFor({ state: "visible" });
+  await page.locator(`#workspace-main a[href="/contacts/${contactId}/edit"]`).locator("visible=true").first().click();
+  await expect(page).toHaveURL(new RegExp(`/contacts/${contactId}/edit$`));
+  await page.getByRole("link", { name: "Back to Contact", exact: true }).click();
+  await expect(page).toHaveURL(new RegExp(`/contacts/${contactId}$`));
+  await expect(markedControl(page)).toBeVisible();
+  await mismatchedPreviousEntry(page);
+}
+
+test.describe("JITM-NAV-04-F1 same return in the installed iOS app", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+  test.beforeEach(async ({ page }) => { await installed(page); });
+  let megaMixId: string, ticketId: string;
+  test.beforeAll(async () => {
+    megaMixId = (await prisma.megaMixPipeline.create({ data: { workspaceId, name: "Back return fixture", members: { create: { mixId, position: 1 } } } })).id;
+    ticketId = (await prisma.supportTicket.create({ data: { workspaceId, requesterUserId: userId, reference: `back-${randomUUID()}`, title: "Back return fixture", category: "GENERAL" } })).id;
+  });
+  test.afterAll(async () => {
+    if (ticketId) await prisma.supportTicket.deleteMany({ where: { id: ticketId, workspaceId } });
+  });
+
+  test("NAVQC-01: list filter survives contact, editor, Back to Contact, then the edge swipe", async ({ page }) => {
+    await filteredContactRoundTrip(page);
+    await markedControl(page).click();
+    await expect(page).toHaveURL(/\/contacts\?q=Person$/);
+    const pressed = address(page);
+    await filteredContactRoundTrip(page);
+    await edgeDrag(page, SWIPE.backEdge - 12, page.viewportSize()!.width * 0.5);
+    await expect(page).toHaveURL(new URL(pressed, process.env.APP_URL).href);
+  });
+
+  for (const route of markedBackPages()) {
+    test(`marked Back page ${route}: a mismatched previous entry returns to the control's address`, async ({ page }, testInfo) => {
+      const path = route.replace("[contactId]", contactId).replace("[ticketId]", ticketId).replace("[mixId]", mixId);
+      expect(path, "new dynamic routes need an isolated fixture").not.toContain("[");
+      const query = route === "/mixes" ? `?mix=${mixId}&view=edit` : route === "/mixes/mega" ? `?megaMix=${megaMixId}&edit=1` : "";
+      const target = path + query;
+      const prepare = async () => {
+        if (route === "/contacts/[contactId]") return filteredContactRoundTrip(page);
+        await open(page, "/jumps");
+        await open(page, target);
+        if (route === "/templates/journeys") await page.getByRole("navigation", { name: "Mega-Mix workspace panels" }).getByRole("button", { name: "Mega-mixes", exact: true }).click();
+        // The contact directory renders its shared profile only at wide widths; ring stops keep section swipe.
+        if (ringStop(new URL(target, process.env.APP_URL)) >= 0) return;
+        await expect(markedControl(page), route).toBeVisible();
+        await mismatchedPreviousEntry(page);
+      };
+      await prepare();
+      if (ringStop(new URL(target, process.env.APP_URL)) >= 0) {
+        await expect(markedControl(page)).toHaveCount(0);
+        await edgeDrag(page, SWIPE.backEdge - 12, page.viewportSize()!.width * 0.5);
+        await expect(page).toHaveURL(new URL(target, process.env.APP_URL).href);
+        return;
+      }
+      const starting = address(page);
+      const label = (await markedControl(page).textContent())?.trim();
+      await markedControl(page).click();
+      await expect.poll(() => address(page)).not.toBe(starting);
+      const pressed = address(page);
+      await prepare();
+      await edgeDrag(page, SWIPE.backEdge - 12, page.viewportSize()!.width * 0.5);
+      await expect.poll(() => address(page)).not.toBe(starting);
+      const swiped = address(page);
+      await testInfo.attach("same-return", { body: JSON.stringify({ route, label, pressed, swiped }), contentType: "application/json" });
+      expect(swiped, `${route}: ${label}`).toBe(pressed);
+      expect((await slides(page)).map(mark => mark.side), "one fallback slide").toEqual(["back"]);
+      await expect.poll(() => main(page).evaluate(element => element.style.transform + (element.dataset.swipeState ?? ""))).toBe("");
+    });
+  }
+});
+
+test.describe("JITM-NAV-04-F1 guarded fallback", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+  test.beforeEach(async ({ page }) => { await installed(page); });
+  test("a mismatched-history swipe asks once, keeps edits on cancel and slides once on leave", async ({ page }) => {
+    const asked: string[] = [];
+    let leave = false;
+    page.on("dialog", dialog => { asked.push(dialog.message()); void (leave ? dialog.accept() : dialog.dismiss()); });
+    await open(page, "/jumps");
+    await open(page, "/account/preferences");
+    await expect(markedControl(page)).toBeVisible();
+    await mismatchedPreviousEntry(page);
+    const name = page.getByLabel("Display name");
+    await name.fill("Back fixture edited");
+    await edgeDrag(page, SWIPE.backEdge - 12, page.viewportSize()!.width * 0.5);
+    await expect.poll(() => asked.length).toBe(1);
+    await expect(page).toHaveURL(/\/account\/preferences$/);
+    await expect(name).toHaveValue("Back fixture edited");
+    await expect.poll(() => main(page).evaluate(element => element.style.transform + (element.dataset.swipeState ?? ""))).toBe("");
+    asked.length = 0;
+    await markedControl(page).click();
+    expect(asked).toEqual(["Leave without saving your changes?"]);
+    await expect(name).toHaveValue("Back fixture edited");
+    asked.length = 0;
+    const before = (await slides(page)).length;
+    leave = true;
+    await edgeDrag(page, SWIPE.backEdge - 12, page.viewportSize()!.width * 0.5);
+    await expect(page).toHaveURL(/\/account$/);
+    expect(asked).toEqual(["Leave without saving your changes?"]);
+    expect((await slides(page)).slice(before).map(mark => mark.side)).toEqual(["back"]);
+  });
+});

@@ -151,20 +151,23 @@ export function arrived() {
 export const wait = (ms: number) => new Promise<void>(done => window.setTimeout(done, ms));
 
 let slideRunning: ViewTransition | null = null;
+let updatingSlide = false;
 
 /**
  * Runs `update`, the page change, in a View Transition that slides the new page in from `side`, with the motion tokens
  * (`src/styles/popups.css`). The navigation and the header stay put. Without slides the change is just made.
  */
 export function slide(side: Slide, update: () => void) {
-  if (!slides()) return update();
+  // A control activated by the edge swipe may request its own slide; its update belongs to the outer slide.
+  if (updatingSlide || !slides()) return update();
   const root = document.documentElement;
   root.dataset.slide = side;
   let transition: ViewTransition;
   try {
     transition = document.startViewTransition(async () => {
       const page = nextArrival();
-      update();
+      updatingSlide = true;
+      try { update(); } finally { updatingSlide = false; }
       await Promise.race([page, wait(ARRIVAL_WAIT_MS)]);
     });
   } catch {
