@@ -2,11 +2,21 @@
 
 import { useEffect, useRef, type RefObject } from "react";
 import { DOCKED_REVIEW_MEDIA } from "@/lib/sheet-layout";
-import { SwipeTracker, arbitrate, motionMs, scrolledBelowTop, startOn, type Axis, type Direction, type Start, type SwipeNode, type SwipeRelease } from "@/lib/gestures/swipe";
+import { SwipeTracker, arbitrate, motionMs, scrolledBelowTop, startOn, type Axis, type Direction, type Start, type SwipeNode, type SwipeRelease, type Way } from "@/lib/gestures/swipe";
 
 export type SwipeOptions = {
   axis: Axis;
-  direction: Direction;
+  /** One direction, or `0` for either way along the axis (section swipe). */
+  direction: Way;
+  /** For a two-way gesture: whether anything lies `direction`'s way. Where nothing does, the surface resists and springs back. */
+  leads?: (direction: Direction) => boolean;
+  /** Runs whenever the surface is placed: each drag frame, a settle's or spring-back's target, and rest (0). */
+  follows?: (distance: number, direction: Direction) => void;
+  /**
+   * The commit carries the motion on itself (a View Transition that continues the slide): the surface stays where the
+   * finger left it and `onCommit` runs at once, instead of settling the full length first.
+   */
+  continues?: boolean;
   /** Whether the surface takes gestures in its current layout. The engine also runs for coarse pointers only. */
   active: (surface: HTMLElement) => boolean;
   /** The installed iOS app's back swipe: a touch starts it only within `SWIPE.backEdge` of the left edge. */
@@ -22,8 +32,8 @@ export type SwipeOptions = {
   scrollsFirst?: (target: Element, surface: HTMLElement) => boolean;
   /** The length a commit is measured against and travels: the sheet's height, or the viewport's width. */
   size: (surface: HTMLElement) => number;
-  /** Runs once a commit has settled. Returning or resolving `false` keeps the surface: it springs back. */
-  onCommit: () => unknown;
+  /** Runs once a commit has settled, with the direction it went. Returning or resolving `false` keeps the surface: it springs back. */
+  onCommit: (direction: Direction) => unknown;
 };
 
 /**
@@ -52,7 +62,7 @@ const noStart = (): Start => "blocked";
 /** Binds the engine to `surface` and returns the unbind. Exported for the unit tests that drive its event paths. */
 export function bindSwipe(surface: HTMLElement, options: RefObject<SwipeOptions>): () => void {
   const { axis, direction } = options.current;
-  const tracker = new SwipeTracker(axis, direction);
+  const tracker = new SwipeTracker(axis, direction, way => options.current.leads?.(way) ?? true);
   const page = surface.ownerDocument;
   const coarse = window.matchMedia("(pointer: coarse)");
   const reduced = window.matchMedia("(prefers-reduced-motion: reduce)");
@@ -65,8 +75,9 @@ export function bindSwipe(surface: HTMLElement, options: RefObject<SwipeOptions>
   const mover = () => options.current.moves?.(surface) ?? surface;
 
   const place = (distance: number) => {
-    const offset = `${direction * distance}px`;
+    const offset = `${tracker.direction * distance}px`;
     mover().style.transform = axis === "x" ? `translate3d(${offset}, 0, 0)` : `translate3d(0, ${offset}, 0)`;
+    options.current.follows?.(distance, tracker.direction);
   };
   const paint = () => { frame = 0; place(tracker.distance); };
   const clear = () => {
@@ -77,12 +88,13 @@ export function bindSwipe(surface: HTMLElement, options: RefObject<SwipeOptions>
     pinned = new Map();
     mover().style.transform = "";
     delete mover().dataset.swipeState;
+    options.current.follows?.(0, tracker.direction);
   };
   // Where the surface is now, part way through a settle.
   const current = () => {
     const transform = getComputedStyle(mover()).transform;
     const matrix = new DOMMatrixReadOnly(transform === "none" ? undefined : transform);
-    return direction * (axis === "x" ? matrix.m41 : matrix.m42);
+    return tracker.direction * (axis === "x" ? matrix.m41 : matrix.m42);
   };
   const animate = (state: "settle" | "cancel", distance: number, done: () => void) => {
     window.cancelAnimationFrame(frame);
@@ -101,13 +113,19 @@ export function bindSwipe(surface: HTMLElement, options: RefObject<SwipeOptions>
     held = holding();
     if (!release) return;
     if (release === "cancel") return springBack();
-    animate("settle", options.current.size(surface), async () => {
+    const commit = async () => {
       settling = null;
       // A guard can keep the surface, as it does for the visible control.
-      if (await options.current.onCommit() === false) return springBack();
+      if (await options.current.onCommit(tracker.direction) === false) return springBack();
       clear();
       tracker.settled();
-    });
+    };
+    if (!options.current.continues) return animate("settle", options.current.size(surface), commit);
+    // The commit continues the motion from where the finger left the surface.
+    window.cancelAnimationFrame(frame);
+    frame = 0;
+    place(tracker.distance);
+    void commit();
   };
   const startDrag = (pointer: number) => {
     mover().dataset.swipeState = "dragging";

@@ -65,10 +65,36 @@ html[data-slide="back"]::view-transition-old(root) { animation-name: slide-out-r
 html[data-slide="back"]::view-transition-new(root) { animation-name: slide-in-left; }
 html[data-slide="forward"]::view-transition-old(root) { animation-name: slide-out-left; }
 html[data-slide="forward"]::view-transition-new(root) { animation-name: slide-in-right; }
-@keyframes slide-in-left { from { transform: translateX(-100%); } }
-@keyframes slide-out-right { to { transform: translateX(100%); } }
-@keyframes slide-in-right { from { transform: translateX(100%); } }
-@keyframes slide-out-left { to { transform: translateX(-100%); } }
+/* --slide-offset: how far a section swipe already carried the slide, so the slide continues from there (§3 A). */
+@keyframes slide-in-left { from { transform: translateX(calc(-100% + var(--slide-offset, 0px))); } }
+@keyframes slide-out-right { to { transform: translateX(calc(100% - var(--slide-offset, 0px))); } }
+@keyframes slide-in-right { from { transform: translateX(calc(100% - var(--slide-offset, 0px))); } }
+@keyframes slide-out-left { to { transform: translateX(calc(-100% + var(--slide-offset, 0px))); } }
+
+/* Section swipe (NATIVE-NAVIGATION.md §3 A): on a ring stop the page owns sideways touches. While it follows the finger,
+   the neighbour's title and loading state ride beside it in view, and the navigation highlight passes along in step. */
+@media (pointer: coarse) {
+  html[data-section-swipe] .app-shell { touch-action: pan-y pinch-zoom; }
+}
+.section-peek { display: none; }
+.app-main[data-section-peek="next"] > .section-peek[data-side="next"],
+.app-main[data-section-peek="previous"] > .section-peek[data-side="previous"] {
+  position: absolute; top: var(--section-peek-top); display: grid; align-content: start; gap: var(--space-4); box-sizing: border-box;
+  width: 100%; height: var(--section-peek-height); padding: inherit; overflow: hidden; background: var(--page);
+}
+.section-peek[data-side="next"] { left: 100%; }
+.section-peek[data-side="previous"] { right: 100%; }
+.section-peek-title { display: flex; align-items: center; gap: var(--space-2); margin: 0; color: var(--text); font-size: var(--font-size-lg); font-weight: 600; }
+.section-peek-title::after { content: attr(data-label); }
+.section-peek-title svg { width: 1.2em; height: 1.2em; color: var(--violet-mark); }
+.section-peek > span { height: calc(var(--space-7) + var(--space-2)); border: 1px solid var(--line); border-radius: var(--radius); background: var(--raised); }
+.app-nav .nav-link[data-swipe-from], .app-nav .nav-link[data-swipe-to] { transition: none; }
+.mobile-nav .nav-link[data-swipe-from] { color: color-mix(in srgb, var(--violet-text) calc(100% - var(--section-swipe-progress) * 100%), var(--text-2)); }
+.mobile-nav .nav-link[data-swipe-to] { color: color-mix(in srgb, var(--violet-text) calc(var(--section-swipe-progress) * 100%), var(--text-2)); }
+.mobile-nav .nav-link[data-swipe-from] svg { background: color-mix(in srgb, var(--violet-wash) calc(100% - var(--section-swipe-progress) * 100%), transparent); }
+.mobile-nav .nav-link[data-swipe-to] svg { background: color-mix(in srgb, var(--violet-wash) calc(var(--section-swipe-progress) * 100%), transparent); }
+.sidebar .nav-link[data-swipe-from] { background: color-mix(in srgb, var(--raised) calc(100% - var(--section-swipe-progress) * 100%), transparent); box-shadow: none; }
+.sidebar .nav-link[data-swipe-to] { background: color-mix(in srgb, var(--raised) calc(var(--section-swipe-progress) * 100%), transparent); }
 
 /* Fixed panels use the shared surface, line, radius and overlay shadow, and stay above the
    bottom navigation wherever it is shown (up to 900px). */

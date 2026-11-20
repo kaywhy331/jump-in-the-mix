@@ -105,6 +105,58 @@ describe("commit by distance or velocity", () => {
   });
 });
 
+describe("two ways along one axis (section swipe)", () => {
+  const WIDTH = 390;
+  /** A horizontal drag by `dx` (negative: the finger moves left), slow or as a fling, on a two-way gesture. */
+  const swipe = (dx: number, { leads = (_: number): boolean => true, fling = false } = {}) => {
+    const tracker = new SwipeTracker("x", 0, leads);
+    const steps = fling ? 5 : 10, stepMs = fling ? 20 : 40;
+    tracker.down(1, 200, 300, 0);
+    for (let step = 1; step <= steps; step++) tracker.move(1, 200 + (dx * step) / steps, 300, step * stepMs);
+    return { tracker, release: tracker.up(1, 200 + dx, 300, steps * stepMs + (fling ? 0 : 150), WIDTH) };
+  };
+
+  it("takes the direction the touch heads when the axis locks, and leaves a vertical touch to scrolling", () => {
+    for (const direction of [-1, 1] as const) {
+      const tracker = new SwipeTracker("x", 0);
+      tracker.down(1, 200, 300, 0);
+      expect(tracker.move(1, 200 + direction * (SWIPE.axisLock - 1), 300, 10)).toBe("pending");
+      expect(tracker.leaning()).toBe(true);
+      expect(tracker.move(1, 200 + direction * 40, 302, 20)).toBe("dragging");
+      expect(tracker.direction).toBe(direction);
+      expect(tracker.distance).toBe(40);
+      // Back past the start, it never moves the surface the other way: that would be the other neighbour.
+      tracker.move(1, 200 - direction * 30, 300, 30);
+      expect(tracker.distance).toBe(0);
+    }
+    const vertical = new SwipeTracker("x", 0);
+    vertical.down(1, 200, 300, 0);
+    expect(vertical.move(1, 204, 312, 10)).toBe("idle");
+  });
+
+  it("commits past 35% of the width or at 0.5 px/ms, either way, and springs back short of both", () => {
+    for (const way of [-1, 1]) {
+      expect(swipe(way * WIDTH * SWIPE.commit.x).release).toBe("commit");
+      expect(swipe(way * (WIDTH * SWIPE.commit.x - 1)).release).toBe("cancel");
+      // 60 px in 100 ms is 0.6 px/ms; 40 px is 0.4 px/ms.
+      expect(swipe(way * 60, { fling: true }).release).toBe("commit");
+      expect(swipe(way * 40, { fling: true }).release).toBe("cancel");
+    }
+  });
+
+  it("past a ring end moves a third of the finger's travel and always springs back, however far or fast", () => {
+    const end = (direction: number) => direction !== 1;
+    const far = swipe(WIDTH * 0.9, { leads: end });
+    expect(far.tracker.free).toBe(false);
+    expect(far.tracker.distance).toBeCloseTo(WIDTH * 0.9 * SWIPE.resistance);
+    expect(far.release).toBe("cancel");
+    expect(swipe(120, { leads: end, fling: true }).release).toBe("cancel");
+    // The other way still leads somewhere, at full travel.
+    expect(swipe(-WIDTH * 0.5, { leads: end }).release).toBe("commit");
+    expect(SWIPE.resistance).toBeCloseTo(1 / 3);
+  });
+});
+
 describe("cancel and spring-back", () => {
   it("springs back on a short release, then rests", () => {
     const tracker = sheet();

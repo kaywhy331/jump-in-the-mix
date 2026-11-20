@@ -5,15 +5,7 @@ import { usePathname } from "next/navigation";
 import { AppIcon, type AppIconName } from "@/components/AppIcon";
 import { QuickAddButton } from "@/components/QuickAdd";
 import { Sheet } from "@/components/Sheet";
-
-const links = [
-  { href: "/jumps", label: "Today", icon: "home", kind: "primary" },
-  { href: "/contacts", label: "Contacts", icon: "contacts", kind: "primary" },
-  { href: "/mixes", label: "Mixes", icon: "mixes", kind: "primary" },
-  { href: "/journey", label: "Journey", icon: "journey", kind: "desktop" },
-  { href: "/calendar", label: "Calendar", icon: "calendar", kind: "desktop" },
-  { href: "/more", label: "More", icon: "more", kind: "primary" }
-] as const;
+import { NAV_LINKS } from "@/lib/app-navigation";
 
 const accountLinks = [
   { href: "/settings", label: "Settings", icon: "settings" },
@@ -47,7 +39,7 @@ export function Nav({ quickAdd = true }: { quickAdd?: boolean }) {
   const pathname = usePathname();
   return (
     <nav className="app-nav" aria-label="Primary navigation">
-      {links.map(({ href, label, icon, kind }, index) => {
+      {NAV_LINKS.map(({ href, label, icon, kind }, index) => {
         const active = pathname === href || pathname.startsWith(`${href}/`) || (href === "/mixes" && pathname.startsWith("/templates")) || (href === "/more" && ["/settings", "/account", "/help", "/admin", "/calendar", "/journey"].some(root => pathname === root || pathname.startsWith(`${root}/`)));
         return <span className={kind === "desktop" ? "nav-desktop-item" : index === 2 ? "nav-with-quick-add" : undefined} key={href}>{index === 2 && quickAdd && <QuickAddButton mobile />}<Link href={href} aria-current={active ? "page" : undefined} className={`nav-link nav-${kind}${href === "/more" ? " nav-more" : ""}${active ? " active" : ""}`}><AppIcon name={icon as AppIconName}/><span>{label}</span></Link></span>;
       })}

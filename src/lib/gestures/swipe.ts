@@ -20,12 +20,16 @@ export const SWIPE = {
   /** …measured over the last 100 ms before release. */
   flingWindow: 100,
   /** A release past this share of the viewport width (x) or of the sheet's height (y) commits. */
-  commit: { x: 0.35, y: 0.3 }
+  commit: { x: 0.35, y: 0.3 },
+  /** Past a ring end the surface moves this share of the finger's travel, then springs back (§3 A). */
+  resistance: 1 / 3
 } as const;
 
 export type Axis = "x" | "y";
 /** 1: toward the right or down. -1: toward the left or up. */
 export type Direction = 1 | -1;
+/** A gesture's way: one direction, or `0` for either way along the axis, taken when the axis locks (section swipe). */
+export type Way = Direction | 0;
 export type SwipePhase = "idle" | "pending" | "dragging" | "settling";
 export type SwipeRelease = "commit" | "cancel";
 
@@ -33,6 +37,8 @@ export type SwipeRelease = "commit" | "cancel";
  * Idle → Pending on a touch → Dragging once 10 px of travel locks this gesture's axis and direction →
  * Settling on release (commit or cancel) → Idle. Any other first movement leaves the touch to native
  * scrolling. A second pointer or a cancelled pointer springs back, and a new touch catches a settling surface.
+ * A two-way gesture takes the direction the touch heads when its axis locks; where nothing lies that way (`leads`),
+ * the surface resists and always springs back.
  *
  * A touch on content that scrolls first (`scroll`) stays Pending while native scrolling takes its travel, and
  * the same touch hands off to Dragging once that content reaches its end with the finger still heading the
@@ -44,13 +50,21 @@ export class SwipeTracker {
   distance = 0;
   /** Whether the held touch began on content that scrolls first (see `scroll`). */
   scrolling = false;
+  /** The way the surface moves now. A two-way gesture sets it when the axis locks. */
+  direction: Direction;
+  /** Whether anything lies the way the drag heads. Without, the surface resists and the release springs back. */
+  free = true;
+  private readonly either: boolean;
   private pointer: number | null = null;
   private origin = { x: 0, y: 0 };
   private delta = { x: 0, y: 0 };
   private base = 0;
   private samples: Array<{ t: number; distance: number }> = [];
 
-  constructor(readonly axis: Axis, readonly direction: Direction) {}
+  constructor(readonly axis: Axis, way: Way, private readonly leads: (direction: Direction) => boolean = () => true) {
+    this.either = way === 0;
+    this.direction = way || 1;
+  }
 
   /** A pointer went down. `at` is where a settling surface is now, when this touch catches it. */
   down(pointer: number, x: number, y: number, t: number, at = this.distance): SwipePhase {
@@ -94,12 +108,14 @@ export class SwipeTracker {
       const axis: Axis = Math.abs(this.delta.x) > Math.abs(this.delta.y) ? "x" : "y";
       // Another axis, or this axis the other way, is native scrolling for the rest of the touch. A touch that
       // scrolls first keeps waiting for its content's end instead.
+      if (axis === this.axis && this.either) this.direction = Math.sign(this.delta[axis]) as Direction;
       if (axis !== this.axis || Math.sign(this.delta[axis]) !== this.direction) return this.scrolling ? this.rebase(x, y, t) : this.reset();
+      this.free = this.leads(this.direction);
       this.phase = "dragging";
     }
     if (this.phase !== "dragging") return this.phase;
-    // Follow the finger 1:1, never past the resting position.
-    this.distance = Math.max(0, this.base + this.direction * this.delta[this.axis]);
+    // Follow the finger 1:1 (with resistance where nothing lies ahead), never past the resting position.
+    this.distance = Math.max(0, this.base + this.direction * this.delta[this.axis] * (this.free ? 1 : SWIPE.resistance));
     this.samples.push({ t, distance: this.distance });
     this.samples = this.samples.filter(sample => t - sample.t <= SWIPE.flingWindow);
     return this.phase;
@@ -107,7 +123,7 @@ export class SwipeTracker {
 
   /** While Pending, whether the touch so far leans this gesture's way. Used to keep the browser from claiming it. */
   leaning(): boolean {
-    const along = this.direction * this.delta[this.axis];
+    const along = this.either && this.phase === "pending" ? Math.abs(this.delta[this.axis]) : this.direction * this.delta[this.axis];
     return this.phase === "dragging" || (this.phase === "pending" && along > 0 && along >= Math.abs(this.delta[this.axis === "x" ? "y" : "x"]));
   }
 
@@ -124,7 +140,7 @@ export class SwipeTracker {
     if (this.phase !== "dragging") { this.reset(); return null; }
     const speed = this.velocity();
     // Nothing commits before release, and dragging or flinging back cancels (WCAG 2.5.2).
-    const commit = speed >= SWIPE.fling || (this.distance >= size * SWIPE.commit[this.axis] && speed > -SWIPE.fling);
+    const commit = this.free && (speed >= SWIPE.fling || (this.distance >= size * SWIPE.commit[this.axis] && speed > -SWIPE.fling));
     this.pointer = null;
     this.scrolling = false;
     this.phase = "settling";
@@ -162,6 +178,7 @@ export class SwipeTracker {
     this.pointer = null;
     this.samples = [];
     this.scrolling = false;
+    this.free = true;
     this.phase = "idle";
     return this.phase;
   }
