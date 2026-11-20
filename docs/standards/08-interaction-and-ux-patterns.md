@@ -2,12 +2,13 @@
 id: JITM-08
 title: Interaction and UX patterns
 status: active
-version: 3.1.0
+version: 3.2.0
 owner: Kevin
-last_reviewed: 2026-11-11
+last_reviewed: 2026-11-20
 applies_to: [ui, interaction, forms, dialogs, app, public-pages, staff]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
+  - docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md
   - docs/design/NATIVE-NAVIGATION.md
   - docs/design/UX_AUDIT_2026-11-08.md
   - docs/design/DESIGN_GUIDELINES.md
@@ -56,7 +57,7 @@ Neighboring topics have their own homes:
 
 **2.4** After an outcome, a status confirmation says what happened and when the next follow-up is due, and offers Undo for 10 seconds before it leaves. On Today it stays on screen while the next review opens (§2.36). It is placed per JITM-07 §2.9 and never covers the last row. Which outcomes a card offers, and Reopen from Done, are JITM-09 §2. [SHIPPED 9439fd6 src/components/JumpWorkflow.tsx:214,240-256] [SHIPPED 9439fd6 src/styles/design-workspaces.css:256-259] An Undo or a Reopen that finds the follow-up already reopened elsewhere counts as reopened, and the confirmation leaves. [SHIPPED 4d5c307 src/components/JumpWorkflow.tsx:192-208,248-249] Reopen then says "Already reopened." [OWNER 2026-10-13 D115] [SHIPPED 4d5c307 src/components/JumpWorkflow.tsx:121-123]
 
-**2.5** Reversible actions act at once and offer Undo in their success notice, such as archiving a contact. Destructive or irreversible actions ask first (§2.7). [SOURCE docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:38] [SHIPPED 9439fd6 src/styles/phone-icons.css:30-32]
+**2.5** Reversible actions act at once and offer Undo in their success notice, such as archiving a contact. Destructive or irreversible actions ask first (§2.7). [SOURCE docs/UI_UX_WORKFLOW_AND_ICON_IMPLEMENTATION_2026-09-22.md:38] [SHIPPED 9439fd6 src/styles/phone-icons.css:30-32] A contact import and a Journey Start are reversible actions: their success notice offers Undo for 10 seconds, as §2.4's does. The import's Undo archives only the contacts that import created; contacts it updated are not reverted, and the notice says so. A Start's Undo runs the existing "Stop this work". [PROPOSED] [SOURCE docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md:15]
 
 **2.36** After an outcome on Today, the next due follow-up's review opens by itself, on phones and desktop, so working through the list takes the handoff and one outcome per person. The confirmation with its Undo (§2.4) stays on screen while the next review opens, and the list's counts and Done update at once; Undo puts the counts back. Opening the next review never sends, records or skips anything. [OWNER 2026-10-08 D70] The next review opens after an outcome recorded in a review or in the return tray. It doesn't open after a quick action from the list; while another review, sheet or dialog is open or focus is in a field; while the return tray still asks about another follow-up or shows a notice, or Today says updates wait for message edits; after an outcome in Upcoming or Done; after an outcome that finished a Mix, where Today asks what's next for the person; after an "Already marked done" retry; or when the next due follow-up is past the loaded page. [OWNER 2026-10-09 D111] [SHIPPED 4e78545 src/components/TodayMomentum.tsx:121] Confirmations and their Undo sit outside the list, so a refresh never takes them away and an Undo never holds the refresh. A refresh never closes an open review: a card whose review is open keeps its place, also when a refresh brings another of the person's follow-ups onto the page. [OWNER 2026-10-12 D99] For LIV-01's case, a person contacted today stays under Today, so recording their later follow-up first leaves a review open on the earlier one in place (JITM-09 §2.82). [OWNER 2026-10-13 D112] [SHIPPED 4d5c307 src/lib/today-view.ts:83-89] A notice that appears in a review scrolls into view, clear of the stuck action bar. [OWNER 2026-10-12 D100]
 
@@ -187,6 +188,8 @@ Words follow JITM-04; the complete states verification pass is JITM-12 §2.26. [
 
 **2.45** Controls MUST carry out the intent they name, with one add action per intent in a task region and the same behavior on sibling surfaces. A generic create entry MUST offer an unselected starting choice rather than silently select someone else's template. Multi-view pages SHOULD open on their clearest task view or the last view the owner used. Explicit route/default-view decisions remain exceptions until amended: the creation route in JITM-09 §2.36 and Journey's default in JITM-07 §2.20 (§6). Labels follow JITM-04 §2.3; visual priority follows JITM-06 §2.37. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:61] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:69] [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:59]
 
+**2.50** A contact's first name, last name and company each hold at most 120 characters. The cap is one named constant that the contact form, the server and import all use, so they never disagree; a longer entry gets the inline field error of §2.37. Names saved before the cap stay readable and editable, and a long name wraps rather than push Today, Calendar or any other page sideways (JITM-10 §2.4). [PROPOSED] [SOURCE docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md:20]
+
 ### Touch gestures
 
 Kevin, 2026-11-08: "I also would like to incorporate swipe to slide functionality to the next page for easy phone/tablet navigation." Then: "Approve the swipe spec, go with section swipe". The detail (thresholds, state machine, arbitration, tests) is in the [native navigation spec](../design/NATIVE-NAVIGATION.md).
@@ -271,6 +274,7 @@ Open or partially resolved finding IDs and owners (details and landed evidence: 
 - **§2.18** is a proposal. The export's bubble kit says confirmations use the anchored pop-up (`screens/BubbleKit.html:21`), but the product uses modal dialogs for focus and Cancel-first behavior.
 - **Swipe actions (decided, D130):** the export's phone rows that swipe to Snooze and Done (`screens/Main.html:21`) are not built. Kevin chose section swipe, and Today's rows get a long-press menu (§2.46). No slice builds the long-press yet; it belongs with the Today row work (JITM-UXA-02 job_0b1956750ccb) or a new task.
 - **Gestures are decided, not built (D130):** at b9bfd1d6 the product has no gesture code; the sheet handle is drawn by `src/styles/popups.css:25` and does nothing (P-06). JITM-NAV-01 to JITM-NAV-06 build §2.46–§2.49; until each lands, its part of those rules is a known deviation.
+- **Decided by default, not built (UXD-02, 2026-11-20):** the Undo for an import or a Journey Start (§2.5, Q1) is UXS-21 (job_3e760bd7c8be), and the 120-character name cap (§2.50, Q6) is UXS-18 (job_314157a7fa44). Until each lands, its part is a known deviation. Kevin has not confirmed either default; the [decision record](../UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md) lists them, and JITM-10 §6 lists every open UXD finding with its owner.
 - **Confirmation look:** the completion confirmation does not use the export's dark toast bubble (JITM-06 §6).
 - An older record says filters apply without an Apply button (`docs/UX_WORKFLOW_OPTIMIZATION.md:13`); D9 supersedes it for the Mixes, Ready-made and Marketplace sheets.
 - `FormGuard`'s second native prompt (`src/components/FormGuard.tsx:45`) guards another form's submit, not navigation. It stays native because the decision is synchronous.
@@ -296,3 +300,4 @@ Open or partially resolved finding IDs and owners (details and landed evidence: 
 
 - 3.0.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.37–§2.45; refine states, disclosures, filters and control intent. Major because §2.23 scopes saves and §2.27 replaces the blanket required-fields convention with the actual form constraint. §2.44 records the offline owner decision without claiming second-opinion concurrence. Preserve Quick Add focus, library Apply and named route/default-view exceptions.
 - 3.1.0 — 2026-11-11 — Base b9bfd1d64674f4a70a017b058fe7ceb1ba42ba39. New §2.46–§2.49: the touch gesture map, exclusions, feel and the section-swipe setting, from Kevin's 2026-11-08 request and approval ("Approve the swipe spec, go with section swipe", D130), with the detail in `docs/design/NATIVE-NAVIGATION.md`. §6: the export's row-swipe question is answered (no row swipes; long-press menu), and the gesture rules are recorded as decided, not built.
+- 3.2.0 — 2026-11-20 — Base a7b8316. §2.5: a contact import and a Journey Start offer Undo for 10 seconds, and what each Undo does (Q1). New §2.50: contact name fields hold at most 120 characters, from one shared constant, and long names wrap (Q6). §6 records both as decided by default and not built. Agent defaults under JITM-15 §2.12, recorded in `docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md`.

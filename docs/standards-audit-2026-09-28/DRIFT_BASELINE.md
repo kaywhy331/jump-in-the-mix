@@ -542,3 +542,60 @@ VERIFIED-DOC against the [81-finding record](../design/UX_AUDIT_2026-11-08.md); 
 | V-09 | 1,100-1,199 px (includes the 1,194 tablet design): list rows about 1,000-1,100 px and the search box about 990 px; Journey rows 1,089; `/contacts` | UXC-02 (job_1412bc339852) | Open; not a canonical reference. |
 
 Remaining validation belongs to UXD-01–UXD-04 and UXR-01 (job_471c4c2d6330). Closing a code finding requires its landed SHA and a scope-matched recheck; unknown or untested evidence remains explicit. Before a new task copies a listed page, consult its row and the home standard's §6.
+
+### Design checks UXD-01 to UXD-04 (2026-11-09)
+
+VERIFIED-DOC against the checks' Hub FINDINGS notes: UXD-01 staff pages (job_6e19f0701510), UXD-02 server replies and write flows (job_5d4647713488), UXD-03 modes and states (job_66e7dd7bdd54) and UXD-04 throttled cold-cache speed (job_d3ed25c1a517, measured at 2890556). Owners come from PLAN-JITM-UXD (job_c37e6ef21167, notes 3/9 and 4/9) as revised by job_d3b3ab87f32e, with the Hub ids current after the 2026-11-11 re-filing. A status is VERIFIED-CODE: the fix's commit is on `origin/main` a7b8316; it is not a runtime recheck, which stays with UXR-01 (job_471c4c2d6330). The standards' readings of the plan's answers are agent defaults (JITM-15 §2.12), recorded in the [decision record](../UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md). Do not copy an open pattern.
+
+| Finding | Pattern | Owning fix task | Status at a7b8316 |
+|---|---|---|---|
+| S-01 | no skip link on staff pages | UXS-03 (job_0815f6b617fa) | Resolved in code: d8efa56, tests 365688e. |
+| S-02 | the tab title differs from the H1 on 11 staff routes; staff titles start "Admin · " | UXS-04 (job_78676c8fd98d) | Open. Q5 default: drop the prefix (JITM-10 §2.22). |
+| S-03 | a missing staff record falls to the owner not-found page | UXS-03 (job_0815f6b617fa) | Resolved in code: d8efa56. |
+| S-04 | no staff loading or error state | UXS-03 (job_0815f6b617fa) | Resolved in code: d8efa56. |
+| S-05 | blank, focusable empty "Results" regions | UXS-05 (job_ee7eb81cb76d) | Open; not a canonical reference. |
+| S-06 | staff text at 120–184 characters per line | UXS-06 (job_009e3d04c0f5) | Open; not a canonical reference. |
+| S-07 | sticky readiness and save bars trap fields at 480px high or less | UXS-07 (job_b0f758ee7c62) | Open; not a canonical reference. |
+| S-08 | the sticky sidebar sits below the fold on short screens | UXS-07 (job_b0f758ee7c62) | Open; not a canonical reference. |
+| S-09 | staff targets below the floor | UXS-06 (job_009e3d04c0f5) | Open; not a canonical reference. |
+| S-10 | staff links that look like body text | UXS-06 (job_009e3d04c0f5) | Open; not a canonical reference. |
+| S-11 | "Customers" and "Users", "Library" and "Ready-made" for the same things | UXS-04 (job_78676c8fd98d) | Open. "Customers" per JITM-09 §2.66; Q4 "Library". |
+| S-12 | tab strips that scroll can't be reached by keyboard | UXS-05 (job_ee7eb81cb76d) | Open; not a canonical reference. |
+| S-13 | the reports table squeezed into a side column | UXS-06 (job_009e3d04c0f5) | Open; not a canonical reference. |
+| S-14 | tiny staff header text | UXS-06 (job_009e3d04c0f5) | Open; against JITM-10 §2.2, which covers staff screens since 3.0.0. |
+| S-15 | a heading skip from H2 to H4 | UXS-07 (job_b0f758ee7c62) | Open; not a canonical reference. |
+| UXD-01 slice 7 | no populated or non-OWNER staff lists to check | UXS-08 (job_c6ee1eac1302), then UXR-01 (job_471c4c2d6330) | Fixture landed: c037e97, repair 720c210. The populated and role-variant re-check is open. |
+| F-01 | a calendar connect or import error reloads the page and clears the entries; `/calendar` | UXS-01 (job_cf5fa4323d4e) | Resolved in code: 6b93a29. |
+| F-02 | an unreachable feed still saves a broken connection; `/calendar` | UXS-02 (job_91e847fd8640) | Resolved in code: 137a317, with repairs dc74842, 068e845 and 9496709. |
+| F-03 | Mix Start lands far above its form, and Start is disabled with no reason; `/journey` | UXS-19 (job_6f68e442c4b2) | Open; not a canonical reference. |
+| F-04 | Add contact's server errors sit off-screen at 390px; `/contacts/new` | UXS-17 (job_41374ba72308) | Open; not a canonical reference. |
+| F-05 | a duplicate-contact reply points to a page that can't help; `/contacts/new` | UXS-18 (job_314157a7fa44) | Open; not a canonical reference. |
+| F-06 | contact import accepts binary and PNG files | UXS-10 (job_304c2f7d28fb) | Open; not a canonical reference. |
+| F-07 | a failed test email spends the hourly limit; `/settings/notifications` | UXS-09 (job_199560689b3d) | Resolved in code: 7281bd5. |
+| F-08 | no name length cap; a long name pushes Calendar and Today sideways | UXS-18 (job_314157a7fa44) | Open. Rule: JITM-08 §2.50 (Q6, 120 characters). |
+| F-09 | forms outside UXA-16's list use browser tooltips | UXS-17 (job_41374ba72308) | Open; not a canonical reference. |
+| F-10 | focus falls to the body after a save redirect | UXB-03 (job_a2a12aba8e5a); the Start case UXS-19 | Open. Rule: JITM-10 §2.23 (Q2). |
+| F-11 | contact import's steps drop focus | UXS-10 (job_304c2f7d28fb) | Open; not a canonical reference. |
+| F-12 | contact import's limit messages | UXS-10 (job_304c2f7d28fb) | Open; not a canonical reference. |
+| F-13 | no Undo after a contact import or a Journey Start | UXS-21 (job_3e760bd7c8be) | Open. Rule: JITM-08 §2.5 (Q1). |
+| F-14 | "Calendar updated." doesn't say what happened; `/calendar` | UXS-01 (job_cf5fa4323d4e) | Resolved in code: 6b93a29. |
+| D-01 | a save after a session expiry redirects to sign-in and loses the draft | UXS-16 (job_655fc9ad7a97) | Open; not a canonical reference. |
+| D-02 | the account shield drops focus to the body | UXS-16 (job_655fc9ad7a97) | Open; not a canonical reference. |
+| D-03 | forced colours hide selected states | UXS-11 (job_5405d704c9a1) | Open; not a canonical reference. |
+| D-04 | the shield's wording and tab title | UXS-16 (job_655fc9ad7a97) | Open; not a canonical reference. |
+| D-05 | phone and tablet targets under 44px | UXS-20 (job_8fae8e321ef3) | Open; not a canonical reference. |
+| D-06 | touch screens wider than 900px keep compact controls; "Choose a person" is 102×20 on `/journey` | UXS-20 (job_8fae8e321ef3); "Choose a person" UXS-19 (job_6f68e442c4b2) | Open. Rule: JITM-10 §2.1 (Q3). |
+| D-07 | forced colours hide the theme switch's knob | UXS-11 (job_5405d704c9a1) | Open; not a canonical reference. |
+| D-08a | in the installed app, FormGuard intercepts the shield's own sign-in link | UXS-16 (job_655fc9ad7a97) | Open; not a canonical reference. |
+| D-08b | a typed draft is lost across a same-account sign-in after an expiry | none | Kevin's question Q7. Until he answers, JITM-08 §2.30 stands and nothing is built. |
+| D-09 | a tapped control keeps its hover look on touch | UXB-03 (job_a2a12aba8e5a) | Open; not a canonical reference. |
+| D-10 | scripted smooth scrolling ignores reduced motion | UXS-11 (job_5405d704c9a1) | Open; not a canonical reference. |
+| D-11 | field edges under 3:1 | UXS-20 (job_8fae8e321ef3) | Open; not a canonical reference. |
+| UXD-04 cause 1 | the account gate hides app content until hydration and a check: reveal at 4.77–5.55 s on a throttled phone | UXB-08 (job_e0ae7b318010) | Open; waiting for Kevin (option A, UXB-08B). Against JITM-10 §2.25. |
+| UXD-04 cause 1, second check | every load sends the account check twice | UXS-16 (job_655fc9ad7a97) | Open; not a canonical reference. |
+| UXD-04 cause 2 | render-blocking global stylesheets and preloaded TTF fonts | UXS-13 (job_c7e4f0079f3d), UXS-14 (job_8b9b1229c817) | Open; not a canonical reference. |
+| UXD-04 cause 3 | the Mixes list ships the Mix editor's script | UXS-15 (job_887ec252042c) | Open. The shared framework chunk's long task is framework-owned and only measured. |
+| UXD-04 S5 | nothing times the app content reveal | UXS-12 (job_f1fb39e27ed1) | Resolved in code, report-only: da89b1e (`npm run test:app-reveal`, JITM-12 §2.27). |
+| UXD-04 gaps | no rule for app LCP behind a gate card; Total Blocking Time misses blocking before first paint | UXS-22 (job_89d89a7de724) | Resolved in the standards: JITM-10 §2.25, JITM-12 §2.27. |
+
+Not findings: UXD-04's prefetches during the account check are INFERRED and unmeasured, for a re-measure after UXB-08. The checks' NOT RUN items (real devices and assistive technology, production app traces, INP, and providers that need credentials) stay open; real devices belong to JITM-06's device task (job_86de6e1746d9).

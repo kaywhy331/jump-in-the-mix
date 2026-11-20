@@ -2,12 +2,13 @@
 id: JITM-12
 title: Testing and verification
 status: active
-version: 3.1.0
+version: 3.2.0
 owner: Kevin
-last_reviewed: 2026-11-09
+last_reviewed: 2026-11-20
 applies_to: [tests, e2e, checks, ci, screenshots, reports]
 supersedes: []
 sources:
+  - docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md
   - docs/design/UX_AUDIT_2026-11-08.md
   - CONTRIBUTING.md
   - docs/LOCAL_TESTING.md
@@ -90,6 +91,8 @@ PASS and FAIL describe a check's result; the label describes the evidence behind
 **2.12** Hosted CI is the merge gate: a pull request merges with its GitHub Actions checks green, which are CI's `validate` job, the Security workflow and the Docker build. Local runs cover what CI doesn't, such as phone screenshots (§2.18) and a release's smoke, and stand in for CI when Actions is down. [OWNER 2026-10-14 D122] A release's tier 3 stays local (§2.11, D5). A local stand-in runs with the environment of the `validate` job in `.github/workflows/ci.yml`: Vitest, `validate:static`, the typecheck, the build, the dependency audit, gitleaks, and the Playwright desktop and phone groups on a freshly seeded database. A record MUST then name every CI job that was not run, with NOT RUN and the reason; the usual gaps are the migration and restore rehearsals, load qualification, the packaged-server suites, Lighthouse and the image builds. [OWNER 2026-09-28 D8] [SOURCE docs/APPEARANCE_INVITATIONS_RELEASE_2026-09-27.md:31-38] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:30-38]
 
 **2.13** A run limited to the affected suites is acceptable when the record says what was left out and why, for example "phone project not rerun: no layout change". [SOURCE docs/AUDIT_RELEASE_B11_2026-09-25.md:61] [SOURCE docs/INVITE_PAGE_RELEASE_2026-09-27.md:38]
+
+**2.27** A change to how signed-in app routes load (the account gate, the app layout, stylesheets, fonts or scripts) is measured as JITM-10 §2.25 defines app speed, not by lab LCP alone. `npm run test:app-reveal` runs the five app routes on `.lighthouserc.cjs`'s cold-cache phone profile against a production build and a seeded `jitm_design_*` database (§2.21). For each route it reports the median content reveal (the first frame in which the route's own content is visible, which is its LCP when a gate card paints first) and the median blocking time from navigation start to that reveal (the sum of each long task's time past 50 ms). It runs report-only, and `-- --enforce` fails a route whose reveal is over the LCP budget in `.lighthouserc.cjs` (JITM-10 §2.18); it is not part of CI. A record gives the reveal and blocking time beside any Lighthouse numbers and labels them per §2.1. [PROPOSED] [SOURCE docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md:30,35] [SHIPPED da89b1e scripts/measure-app-reveal.mjs:15-22,97-100,120-123]
 
 ### Baseline comparison
 
@@ -184,7 +187,7 @@ Record route, interactions, assertions and screenshot evidence for each applicab
 
 ### Design audit 2026-11-08
 
-The size/state/touch evidence gap is not closed by this amendment. UXR-01 job_471c4c2d6330 owns the final recheck; UXD-01 job_7709278cf3c9 (staff), UXD-02 job_ad3eb30414a9 (server replies/writes), UXD-03 job_e9b188680cbc (modes/session/touch) and UXD-04 job_8674dd2eb3f5 (throttled phone) own missing coverage. Automation candidates are proposals in the dated record; none is claimed built.
+The size/state/touch evidence gap is not closed by this amendment. UXR-01 job_471c4c2d6330 owns the final recheck. The checks UXD-01 (staff), UXD-02 (server replies and writes), UXD-03 (modes, session and touch) and UXD-04 (throttled phone) ran in November 2026, as job_6e19f0701510, job_5d4647713488, job_66e7dd7bdd54 and job_d3ed25c1a517; each open finding and its owner is in JITM-10 §6 and the [drift baseline](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-checks-uxd-01-to-uxd-04-2026-11-09). Their NOT RUN items stay open: real devices and assistive technology (JITM-10 §2.19), production app traces, INP, and providers that need credentials. Automation candidates are proposals in the dated record; none is claimed built.
 
 Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
 
@@ -222,3 +225,4 @@ Open or partially resolved finding IDs and owners (details and landed evidence: 
 - 3.0.0 — 2026-10-14 — Base 6630e49. §2.12 changes meaning: hosted CI is the merge gate again, and local runs cover what CI doesn't or stand in when Actions is down (D122). §2.14 changes meaning: a failure seen only in batch is run in its batch several more times on each build, five as proposed, and counts as new when it fails more often on the candidate (D123). §2.12 keeps a release's tier 3 local (D5). §2.6 adds hosted CI as an evidence class, and §2.14's step 5 points to the batch rule; the batch comparison counts only the reruns (D124). §6: Actions runs again, the batch question is answered, and three details of D122 are questions for Kevin.
 
 - 3.1.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.26 states/touch/orientation evidence; §2.18 points to the full JITM-07 §5 matrix instead of an export-only shortcut.
+- 3.2.0 — 2026-11-20 — Base a7b8316. New §2.27: app-route speed is measured as the content reveal and blocking time from navigation start, with `npm run test:app-reveal` (UXD-04's gaps). §6: the UXD checks are done and their open findings have owners. Recorded in `docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md`.

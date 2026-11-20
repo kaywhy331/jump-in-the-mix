@@ -2,12 +2,13 @@
 id: JITM-10
 title: Accessibility and quality bar
 status: active
-version: 2.3.0
+version: 3.0.0
 owner: Kevin
-last_reviewed: 2026-11-11
+last_reviewed: 2026-11-20
 applies_to: [ui, accessibility, performance, app, public-pages, staff, release-qualification]
 supersedes: [docs/design/DESIGN_GUIDELINES.md]
 sources:
+  - docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md
   - docs/design/NATIVE-NAVIGATION.md
   - docs/design/UX_AUDIT_2026-11-08.md
   - docs/CANONICAL_PRODUCT_DECISIONS.md
@@ -48,9 +49,9 @@ Neighboring topics have their own homes:
 
 ### Targets and text
 
-**2.1** Touch targets MUST be at least 44×44 CSS px. At 900px and below, every control on every owner screen, Calendar and Journey included, meets this, with at least 8px between neighbors. Default buttons are 44px tall at every width. Compact 32–36px controls are allowed only on desktop, for secondary actions in dense lists and on staff screens. Staff screens follow JITM-07 §2.14: compact on desktop, 44px rows at 760px and below. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:117] [SHIPPED 9439fd6 src/styles/phone-icons.css:55-75] [SHIPPED 9439fd6 src/styles/design-system.css:12] [OWNER 2026-09-28 D9]
+**2.1** Touch targets MUST be at least 44×44 CSS px. At 900px and below, every control on every owner screen, Calendar and Journey included, meets this, with at least 8px between neighbors. Default buttons are 44px tall at every width. Compact 32–36px controls are allowed only on desktop, for secondary actions in dense lists and on staff screens. Staff screens follow JITM-07 §2.14: compact on desktop, 44px rows at 760px and below. [SOURCE docs/CANONICAL_PRODUCT_DECISIONS.md:117] [SHIPPED 9439fd6 src/styles/phone-icons.css:55-75] [SHIPPED 9439fd6 src/styles/design-system.css:12] [OWNER 2026-09-28 D9] "Desktop" means a fine pointer (`(pointer: fine)`) wider than 900px, not a width alone: under a coarse pointer (`(pointer: coarse)`), every control on every owner screen is 44px at every width, so a touch screen wider than 900px keeps phone-sized controls. [PROPOSED] [SOURCE docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md:17]
 
-**2.2** Meaningful text MUST be at least 13px on every owner screen, Calendar and Journey included, also inside canvases and maps. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:59] Only four kinds of text may be smaller:
+**2.2** Meaningful text MUST be at least 13px on every owner and staff screen, Calendar and Journey included, also inside canvases and maps. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:59] [SOURCE docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md:29] Only four kinds of text may be smaller:
 - phone bottom-navigation tab labels, at least 11px (shipped at 12px);
 - labels inside compact buttons and compact-rail labels, at least 12px;
 - labels under icons in a phone action bar, such as the Contacts bulk bar's "Mix", "Export" and "Archive", at least 12px, like the bottom navigation's (D92);
@@ -137,11 +138,11 @@ Keyboard and screen-reader paths stay as they are. A gesture commits only on rel
 
 **2.22** Every route MUST set a document title in the form "<Page> | Jump in the Mix", with the page part matching its current H1, including loading, offline, not-found and error/recovery states. A bare product name or another route's title is insufficient. Distinct sibling pages need distinct page names; keep product naming under JITM-05. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:22]
 
-**2.23** After a full page-route navigation, focus MUST move to the new H1, using a programmatic focus target without adding a tab stop. Preserve deliberate focus for an in-page pane/filter update or a dialog transaction; announcing a route alone is not a replacement for moving focus to the new page. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:73]
+**2.23** After a full page-route navigation, focus MUST move to the new H1, using a programmatic focus target without adding a tab stop. Preserve deliberate focus for an in-page pane/filter update or a dialog transaction; announcing a route alone is not a replacement for moving focus to the new page. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:73] A save that lands on another route, server-action redirects included, follows this rule. A save that returns to the same page with only a query or hash change, such as `/calendar?saved=1` or `/settings/notifications?testAccepted=1`, is not a new page: focus moves to the confirmation notice it shows, as a programmatic target (`tabIndex -1`), not to the H1. [PROPOSED] [SOURCE docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md:16,37]
 
 **2.24** Editable inputs, selects and textareas on phones MUST render at least 16 CSS px at normal text size, including search and demo controls. Never suppress browser zoom to conceal smaller text. Other text still follows §2.2. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:91] [SHIPPED 9f37e00 src/styles/design-system.css]
 
-**2.25** Signed-in app routes MUST meet the same 2.5s largest-contentful-paint ceiling as public routes (§2.18), measured with a cold cache and a throttled phone as well as a warm diagnostic run. Account checks SHOULD run server-side or alongside loading so they do not serially hold back authorized first content; they MUST NOT reveal private content before authorization. UXB-08 owns the account-reveal design decision. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:72]
+**2.25** Signed-in app routes MUST meet the same 2.5s largest-contentful-paint ceiling as public routes (§2.18), measured with a cold cache and a throttled phone as well as a warm diagnostic run. Account checks SHOULD run server-side or alongside loading so they do not serially hold back authorized first content; they MUST NOT reveal private content before authorization. UXB-08 owns the account-reveal design decision. [PROPOSED] [SOURCE docs/design/UX_AUDIT_2026-11-08.md:72] When a gate card, such as "Checking your account…", paints first, the route's largest contentful paint is the content reveal, the first frame in which its own content is visible, not the card; lab LCP alone reports the card and reads early. Blocking time counts from navigation start to that reveal, because Total Blocking Time starts at first contentful paint and misses the work before it. JITM-12 §2.27 says how both are measured. [PROPOSED] [SOURCE docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md:30,35] [SHIPPED da89b1e scripts/measure-app-reveal.mjs:97-100]
 
 ## 3. Canonical implementations
 
@@ -198,6 +199,33 @@ Open or partially resolved finding IDs and owners (details and landed evidence: 
 - **Focus not obscured:** from 768 to 900px the sticky app header has no matching top scroll padding (`src/styles/auth.css:68`), and the contact import action bar sits above the phone scroll padding (`src/styles/contact-import.css:17`).
 - **Lighthouse** covers 6 of the 15 indexed public pages and no signed-in page; production's largest contentful paint measured 2.43–2.64 s against the 2.5 s budget on 2026-09-26 (`docs/BETA_READINESS_AUDIT_2026-09-26.md:320-323`).
 
+### Design checks UXD-01 to UXD-04 (2026-11-09)
+
+The checks of the staff pages (UXD-01, job_6e19f0701510), server replies and write flows (UXD-02, job_5d4647713488), modes and states (UXD-03, job_66e7dd7bdd54) and throttled cold-cache speed (UXD-04, job_d3ed25c1a517) are done. PLAN-JITM-UXD (job_c37e6ef21167) gave every finding an owner. §2.1, §2.2, §2.23 and §2.25 now say what its slices build, from agent defaults Kevin has not yet confirmed ([decision record](../UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md)). Resolved in code at a7b8316: S-01, S-03 and S-04 (UXS-03), F-01 and F-14 (UXS-01), F-02 (UXS-02), F-07 (UXS-09) and the report-only reveal measurement S5 (UXS-12). Open findings and owners (statuses and commits: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-checks-uxd-01-to-uxd-04-2026-11-09)):
+
+- S-02, S-11 — UXS-04 (job_78676c8fd98d).
+- S-05, S-12 — UXS-05 (job_ee7eb81cb76d).
+- S-06, S-09, S-10, S-13, S-14 — UXS-06 (job_009e3d04c0f5); S-14 is against §2.2 since 3.0.0.
+- S-07, S-08, S-15 — UXS-07 (job_b0f758ee7c62).
+- UXD-01's populated and role-variant re-check — UXR-01 (job_471c4c2d6330), on UXS-08's staff fixture.
+- F-03 and D-06's "Choose a person" — UXS-19 (job_6f68e442c4b2).
+- F-04, F-09 — UXS-17 (job_41374ba72308).
+- F-05, F-08 — UXS-18 (job_314157a7fa44); the cap is JITM-08 §2.50.
+- F-06, F-11, F-12 — UXS-10 (job_304c2f7d28fb).
+- F-10 — UXB-03 (job_a2a12aba8e5a) for route saves (§2.23); the Start case is UXS-19.
+- F-13 — UXS-21 (job_3e760bd7c8be); the rule is JITM-08 §2.5.
+- D-01, D-02, D-04, D-08a and UXD-04's second account check on every load — UXS-16 (job_655fc9ad7a97).
+- D-03, D-07, D-10 — UXS-11 (job_5405d704c9a1).
+- D-05, D-06, D-11 — UXS-20 (job_8fae8e321ef3); D-06 is against §2.1 since 3.0.0.
+- D-09 — UXB-03 (job_a2a12aba8e5a).
+- D-08b, a draft kept across a sign-in — no slice: it is Kevin's question (Q7), and JITM-08 §2.30 stands until he answers.
+- UXD-04 cause 1, the account gate — UXB-08 (job_e0ae7b318010), waiting for Kevin. UXD-04 measured the content reveal of all five app routes at 4.77–5.55 s, over §2.25's ceiling, at 2890556.
+- UXD-04 cause 2, render-blocking styles and fonts — UXS-13 (job_c7e4f0079f3d) and UXS-14 (job_8b9b1229c817).
+- UXD-04 cause 3, script weight — UXS-15 (job_887ec252042c), for the Mixes list.
+
+- **Staff targets under a coarse pointer:** D9 says staff screens use 44px rows "on touch", and JITM-07 §2.14 measures touch as 760px and below. §2.1's fine-pointer reading covers owner screens; whether a staff screen under a coarse pointer wider than 760px uses 44px rows is open.
+- **Skill wording:** `jitm-review` and `jitm-ui-change` still describe the 13px floor as owner-only. §2.2 wins; updating the skills is a follow-up that needs Kevin's word (agent instructions).
+
 ## 7. Changelog
 
 - 1.0.0 — 2026-09-28 — Initial version.
@@ -207,3 +235,4 @@ Open or partially resolved finding IDs and owners (details and landed evidence: 
 
 - 2.2.0 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. Add §2.22–§2.25 for titles, route focus, phone input floor and app LCP; clarify existing link/skip/canvas rules and record landed link/input evidence.
 - 2.3.0 — 2026-11-11 — Base b9bfd1d64674f4a70a017b058fe7ceb1ba42ba39. New §2.26: every touch gesture has a visible equivalent, commits on release, keeps route focus and works under reduced motion, from Kevin's 2026-11-08 approval of the native navigation spec ("Approve the swipe spec, go with section swipe", D130). §6 points the motion-token note to JITM-06 §2.39.
+- 3.0.0 — 2026-11-20 — Base a7b8316. §2.1 changes meaning: "desktop" is a fine pointer wider than 900px, so owner controls are 44px at every width under a coarse pointer (Q3). §2.2 changes meaning: the 13px floor covers staff screens (UXD-01 S-14). §2.23: a save that stays on its page focuses its confirmation notice (Q2). §2.25: app LCP is the content reveal when a gate card paints first, and blocking time counts from navigation start (UXD-04). §6 lists each open UXD finding with its owner. Agent defaults under JITM-15 §2.12, recorded in `docs/UXD_FOLLOWUP_STANDARDS_DECISION_2026-11-20.md`.
