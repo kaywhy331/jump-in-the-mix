@@ -34,6 +34,17 @@ The CI order is schema/static validation → migration rehearsal → database de
 
 External checks remain explicit: real Android Contact Picker permission, iPhone/Android native SMS/email/call handoffs, Apple and Google provider consent, email inbox placement, push permission and delivery, and Twilio carrier behavior require controlled staging or physical devices. Record physical results in [Manual device qualification](MANUAL_DEVICE_QUALIFICATION.md).
 
+## Candidate branches
+
+The `validate` job in `.github/workflows/ci.yml` also runs on pushes to the candidate branches that its push trigger names, `candidate/<slice>`. The other workflows keep their own triggers.
+
+1. Rebase the candidate on current `main` and push it to `candidate/<slice>`.
+2. That branch's `validate` run is the whole-suite evidence for the landing.
+3. Fast-forward `main` to the same commit only after the run succeeded, and only while `main` has not moved. If `main` moved, rebase and push the new commit to a new candidate branch.
+4. For pushes, the concurrency group is keyed by commit with cancel-in-progress. Pushing `main` at a commit whose branch run is still in progress cancels that branch run, so land after it completed.
+
+Agents never delete or force-push candidate branches; that is Kevin's.
+
 ## Staff and closed-access fixtures
 
 The new staff/waitlist database browser suites require `STAFF_E2E=1` and `WAITLIST_E2E=1`, a loopback database named `jitm_design_*`, and a separate local web process with `AUTH_REQUIRE_ADMIN_MFA=false`. This bypass is only for their synthetic staff fixtures. The main browser suite and staff request integration tests enforce MFA separately. Include `e2e/user-administration.spec.ts` for suspension/restoration and session controls, and `e2e/email-operations.spec.ts` with a synthetic `RESEND_WEBHOOK_SECRET` (CI provides one) to test signed delivery events and Admin Email. Set test sender configuration but leave workers and activity-triggered worker dispatch disabled; these cases queue and cancel mail without sending to external recipients.
