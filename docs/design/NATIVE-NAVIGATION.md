@@ -276,9 +276,14 @@ JITM-NAV-03 (Hub job_4223ce9963e3) added these while building A:
 17. **The peek** is the neighbour's navigation label and icon over three loading blocks, beside the page and in view below the header. More gets a loading state like the other ring stops, so a swipe to it commits at once and its page can be prefetched.
 18. **The commit continues the slide.** The page stays where the finger left it, and the slide-back's View Transition starts from there (`--slide-offset`), with `--motion-settle`. The engine takes either direction along one axis, decided at axis lock, and the ring ends resist at one third of the travel.
 
+JITM-NAV-03-R1 (Hub job_de6866c6789b) added this after the independent check:
+
+19. **The real page loads on commit, not ahead.** The idle prefetch of §3 A brings only the neighbour's loading state, so its real page shows after the same round trip as a tap on the navigation, not within 300 ms. Loading the whole neighbour page as soon as a drag's direction is known (the router's full prefetch) shows the real page 64–203 ms after release on the test fixture, but it is not used: the router keeps a full prefetch for minutes (5 by default, never under 30 s) and also fills one from a visit made in that time. A cancelled drag, and any later swipe or tap to that section within those minutes, then showed an old page, which for Today means old due follow-ups (Hub note_ed2b018a78621542). The 300 ms for the real page is recorded as not met; by owner default the measure is the real page no later than after a tap on the navigation, with the loading state within 300 ms.
+
 ## 14. Changelog
 
 - 2026-11-11 — Initial version (JITM-NAV-00, base b9bfd1d6). Kevin's approval of 2026-11-08 is D130.
 - 2026-11-20 — JITM-NAV-04: browser support for C recorded (§3 C); readings 11–15.
 - 2026-11-20 — JITM-NAV-04-R1: the installed iOS app's edge swipe needs the page's visible Back control (§3 C).
 - 2026-11-20 — JITM-NAV-03: status of B (§12); readings 16–18.
+- 2026-11-20 — JITM-NAV-03-R1: reading 19, the real page's arrival after a section swipe; behaviour unchanged.

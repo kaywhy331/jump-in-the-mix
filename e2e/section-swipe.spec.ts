@@ -12,6 +12,8 @@ test.use({ screenshot: "off", video: "off", trace: "off", actionTimeout: 15_000 
 test.setTimeout(180_000);
 
 let workspaceId: string, userId: string, contactId: string, mixId: string;
+/** How long a committed swipe or a tap may take to show the neighbour's real page before the test gives up: a safety net. */
+const REAL_PAGE_WAIT_MS = 5_000;
 const token = randomUUID();
 const label = (href: string) => NAV_LINKS.find(link => link.href === href)!.label;
 
@@ -188,20 +190,25 @@ test.describe("on a touch phone", () => {
     await expect(page).toHaveURL(/\/contacts$/);
     expect(await historyIndex(page)).toBe(index);
     expect(await slides(page)).toEqual([]);
-    /** From the last release or tap: when the neighbour's first H1 (its loading state or its page) and its real H1 showed. */
+    /**
+     * From the last release or tap: when the neighbour's first H1 (its loading state or its page) and its real H1 showed.
+     * The wait is a safety net for slow runners, not the measure (JITM-NAV-03-R1).
+     */
     const arrival = async (text: string) => (await (await page.waitForFunction(text => {
       const marks = window as unknown as { lifted: number; first?: number };
       const shown = [...document.querySelectorAll("#workspace-main h1")].filter(h1 => h1.getClientRects().length > 0 && (h1.textContent === text || h1.closest("[role='status']")));
       if (shown.length && marks.first === undefined) marks.first = performance.now() - marks.lifted;
       const real = shown.find(h1 => h1.textContent === text && !h1.closest("[role='status']"));
       return real ? { first: marks.first!, real: performance.now() - marks.lifted } : null;
-    }, text, { polling: "raf" })).jsonValue())!;
+    }, text, { polling: "raf", timeout: REAL_PAGE_WAIT_MS })).jsonValue())!;
     // Prefetched on idle: the neighbours' loading states are warm before the swipe.
     await page.waitForTimeout(1_000);
     await page.evaluate(() => { delete (window as unknown as { first?: number }).first; });
     await drag(page, Math.round(w * 0.6), -60, { fling: true });
     await expect(page).toHaveURL(/\/mixes$/);
     const swiped = await arrival("Mixes");
+    // The real page, not only its loading state: its own heading, then the fixture's Mix in its list.
+    await expect(main(page).getByText("Estimate plan").first()).toBeVisible();
     // The same arrival after a tap on the navigation, for comparison on this fixture.
     await open(page, "/contacts");
     await ready(page);
@@ -212,6 +219,12 @@ test.describe("on a touch phone", () => {
     writeFileSync(".artifacts/nav03/arrival-ms.json", JSON.stringify({ swiped, tapped }));
     // Never a blank or frozen screen: the neighbour's own loading state (or its page) shows within 300 ms.
     expect(swiped.first).toBeLessThan(300);
+    // The real page follows, as it does after a tap on the navigation; nothing loads it before the finger lifts, since a
+    // page loaded ahead would be kept for minutes (NATIVE-NAVIGATION.md §13 reading 19). The bound is a safety net only:
+    // the swipe's and the tap's arrivals are recorded in arrival-ms.json and compared in the task's measurements.
+    expect(swiped.real).toBeGreaterThanOrEqual(swiped.first);
+    expect(swiped.real).toBeLessThan(REAL_PAGE_WAIT_MS);
+    expect(tapped.real).toBeLessThan(REAL_PAGE_WAIT_MS);
     // Below a short page the touch still swipes.
     await ready(page);
     const below = await page.evaluate(() => { for (let y = innerHeight - 120; y > innerHeight / 2; y -= 8) if (document.elementFromPoint(innerWidth / 2, y)?.matches(".app-shell")) return y; return null; });
