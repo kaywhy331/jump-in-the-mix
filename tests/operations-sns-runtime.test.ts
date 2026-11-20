@@ -9,6 +9,7 @@ describe("SNS command execution and private-file cleanup", () => {
   beforeEach(async () => {
     directory = await mkdtemp(join(tmpdir(), "jitm-sns-test-"));
     const bin = join(directory, "bin"); await mkdir(bin);
+    await writeFile(join(directory, "package.json"), JSON.stringify({ type: "commonjs" }));
     await writeFile(join(bin, "aws"), `#!/usr/bin/env node
 const fs=require('node:fs');const args=process.argv.slice(2);const file=args[args.indexOf('--cli-input-json')+1].slice(7);
 fs.writeFileSync(process.env.SNS_TEST_RECORD,JSON.stringify({args,file,mode:fs.statSync(file).mode&511,payload:JSON.parse(fs.readFileSync(file))}));
