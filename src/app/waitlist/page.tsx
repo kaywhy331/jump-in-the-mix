@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "@/components/Logo";
+import { AuthCard } from "@/components/AuthCard";
 import { Notice } from "@/components/Notice";
 import { WaitlistForm } from "@/components/WaitlistForm";
 import { getAdmissionPolicy } from "@/lib/admission";
@@ -13,8 +13,7 @@ export default async function WaitlistPage({ searchParams }: { searchParams: Pro
   const params = await searchParams;
   const { collectionPaused } = await getAdmissionPolicy();
   const error = verifiedErrorMessage(params);
-  return <main className="auth-shell"><section className="auth-card">
-    <Logo />
+  return <AuthCard>
     <div><h1>{params.confirmed ? "You’re on the waitlist" : params.submitted ? "Check your inbox" : "Join the waitlist"}</h1>
     <p>Request access with your email. Accounts are free, with no card to enter.</p></div>
     <ol><li>Join with your email.</li><li>Open the confirmation link in your inbox.</li><li>We email invitations in small groups as space opens. We can’t promise a date.</li></ol>
@@ -25,5 +24,5 @@ export default async function WaitlistPage({ searchParams }: { searchParams: Pro
     <p><Link className="text-link" href="/waitlist/leave">Leave the waitlist or stop invitation emails</Link>.</p>
     <Link className="text-link" href="/">Back to home</Link>
     <PublicTrustLinks />
-  </section></main>;
+  </AuthCard>;
 }

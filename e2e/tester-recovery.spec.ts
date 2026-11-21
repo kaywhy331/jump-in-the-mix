@@ -11,7 +11,8 @@ test("unavailable recovery email and incomplete reset links offer a usable publi
   await expect(page.getByRole("link", { name: "My account → Data & privacy" })).toHaveAttribute("href", "/account?section=privacy");
   await expect(page.getByRole("link", { name: "Help in the application" })).toHaveAttribute("href", "/help#contact-support");
   await page.goto("/reset-password");
-  await expect(page.getByText("This reset link is incomplete. Request a new one.")).toBeVisible();
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("This reset link is incomplete");
+  await expect(page.getByText("Open the full link from your reset email, or request a new one.")).toBeVisible();
   await expect(page.getByRole("button", { name: "Reset password" })).toHaveCount(0);
   await expect(page.getByRole("link", { name: "Request a new reset link" })).toHaveAttribute("href", "/forgot-password");
   expect((await axeInPage(page).analyze()).violations).toEqual([]);

@@ -4,7 +4,7 @@ import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { PasswordInput } from "@/components/PasswordInput";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "@/components/Logo";
+import { AuthCard } from "@/components/AuthCard";
 import { Notice } from "@/components/Notice";
 import { resetPasswordFormAction } from "@/lib/auth-actions";
 import type { FieldMessages } from "@/lib/field-validation";
@@ -23,14 +23,13 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
   const token = params.token?.trim() ?? "";
   const error = verifiedErrorMessage(params);
   return (
-    <main className="auth-shell">
-      <section className="auth-card">
-        <Logo />
-        <h1>Choose a new password</h1>
-        <p>The reset link can be used once. Completing it signs out every existing session for the account.</p>
+    <AuthCard>
+        {/* Without a token the heading names that state and the one action is a new link (JITM-08 §2.39). */}
+        <h1>{token ? "Choose a new password" : "This reset link is incomplete"}</h1>
+        <p>{token ? "The reset link can be used once. Completing it signs out every existing session for the account." : "Open the full link from your reset email, or request a new one."}</p>
         {error && <Notice type="error">{error}</Notice>}
         {!token ? (
-          <Notice type="error">This reset link is incomplete. Request a new one.</Notice>
+          <Link className="button primary" href="/forgot-password">Request a new reset link</Link>
         ) : (
           <ActionForm action={resetPasswordFormAction} className="form-stack">
             <input type="hidden" name="token" value={token} />
@@ -40,8 +39,7 @@ export default async function ResetPasswordPage({ searchParams }: { searchParams
           </ActionForm>
         )}
         <p><Link href="/contact">Contact support</Link> if you cannot recover your account.</p>
-        <div className="auth-footer"><Link href="/forgot-password"><strong>Request a new reset link</strong></Link></div>
-      </section>
-    </main>
+        {token && <div className="auth-footer"><Link href="/forgot-password"><strong>Request a new reset link</strong></Link></div>}
+    </AuthCard>
   );
 }

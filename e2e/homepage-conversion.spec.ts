@@ -30,7 +30,8 @@ test("homepage keeps signup prominent, navigation spaced, and the three-Beat dem
     expect(geometry.headerHeight, `${width}px header height`).toBeLessThan(95);
     if ([390, 1024, 1280, 1440].includes(width)) expect(geometry.signupBottom).toBeLessThan(height);
     if (width === 390) {
-      expect(geometry.sampleHeight).toBeLessThan(850);
+      // The email Beat shows its whole draft and signature (M-12); the overlapping Beat panels reserve it.
+      expect(geometry.sampleHeight).toBeLessThan(900);
       expect(geometry.sampleActionTop).toBeLessThan(1650);
     }
     await expect(page.locator('.hero-actions a[href="/waitlist"]')).toHaveAttribute("href", "/waitlist");
@@ -56,10 +57,12 @@ test("sample link, signup paths, FAQ, and public accessibility work in both them
     await expect(page.locator(".public-faq details[open] p")).toHaveText("You review your follow-ups and send them through your own messaging app. Automatic sending is off during the beta. Personal invitations appear in Today for you to review and send through your own text or email app.");
     await page.getByRole("link", { name: "Your data", exact: true }).click();
     await expect(page).toHaveURL(/\/faq#your-data$/);
-    await page.getByText("How can I control my data?", { exact: true }).click();
-    await expect(page.locator("#your-data")).toContainText("Data & privacy");
+    // The linked question opens on arrival (M-07).
+    await expect(page.locator("#your-data")).toHaveAttribute("open", "");
+    await expect(page.locator("#your-data p")).toContainText("Data & privacy");
     expect((await axeInPage(page).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
-    await page.getByRole("link", { name: "Back to home", exact: true }).click();
+    // The FAQ has no separate "Back to home" link; the header logo goes home (M-07).
+    await page.locator(".public-header").getByRole("link", { name: "Jump in the Mix home" }).click();
     await expect(page).toHaveURL(/\/$/);
     await page.locator('.hero-actions a[href="/waitlist"]').click();
     await expect(page).toHaveURL(/\/waitlist$/);

@@ -5,17 +5,15 @@ import { PublicTrustLinks } from "@/components/PublicTrustLinks";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { redirect } from "next/navigation";
-import { Logo } from "@/components/Logo";
+import { AuthCard } from "@/components/AuthCard";
 import { Notice } from "@/components/Notice";
 import { SocialSignInOptions } from "@/components/SocialSignInOptions";
-import { accountHome } from "@/lib/account-home";
-import { getCurrentSession } from "@/lib/auth";
 import { demoLoginAction, loginFormAction, requestMagicLinkFormAction } from "@/lib/auth-actions";
-import { customerReturnPath } from "@/lib/customer-return-path";
 import { AUTH_EMAILS_PER_RECIPIENT_PER_DAY } from "@/lib/email-budget";
 import { env } from "@/lib/env";
 import { verifiedErrorMessage } from "@/lib/form-errors";
 import { pilotRegistrationOpen } from "@/lib/pilot-registration";
+import { signedInHome } from "@/lib/signed-in-home";
 import { appleSignInConfigured, googleSignInConfigured } from "@/lib/social-auth";
 import { transactionalEmailConfigured } from "@/lib/transactional-email";
 
@@ -35,24 +33,6 @@ type SearchParams = {
   devToken?: string;
 };
 
-/**
- * Where a browser that is already signed in belongs instead of a second sign-in form: only a session that
- * requireWorkspace() accepts as it stands (verified when verification is required, with a workspace, not a
- * support view), so the destination can never send the person back here. Everyone else sees the form.
- */
-async function signedInHome(next: string | undefined): Promise<string | null> {
-  try {
-    const session = await getCurrentSession();
-    if (!session || session.impersonation) return null;
-    if ((env.requireEmailVerification || !env.pilotMode) && !session.user.emailVerifiedAt) return null;
-    const membership = session.user.memberships[0];
-    if (!membership) return null;
-    return await accountHome(session.user.id, membership.workspace.profile?.onboardingDone ? customerReturnPath(next) ?? "/jumps" : "/onboarding");
-  } catch {
-    return null;
-  }
-}
-
 export default async function LoginPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, registrationOpen] = await Promise.all([searchParams, pilotRegistrationOpen()]);
   // An explicit re-authentication (?reauth=…, as account deletion uses) always shows the form, so a browser
@@ -61,9 +41,7 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
   if (home) redirect(home);
   const error = verifiedErrorMessage(params);
   return (
-    <main className="auth-shell">
-      <section className="auth-card">
-        <Logo />
+    <AuthCard>
         <h1>Welcome back</h1>
         <p>{params.reauth === "deletion" ? "Sign in with your usual method to confirm your identity, then return to Data & privacy to complete deletion." : "Sign in and see who needs your attention today."}</p>
         {params.firstRun && registrationOpen && <Notice type="success">Installation complete. Create the private owner account to begin.</Notice>}
@@ -104,7 +82,6 @@ export default async function LoginPage({ searchParams }: { searchParams: Promis
         </>}
         <div className="auth-footer">{registrationOpen ? <>New here? <Link href="/waitlist"><strong>Join the waitlist</strong></Link></> : <>Owner setup is complete.</>}</div>
         <PublicTrustLinks />
-      </section>
-    </main>
+    </AuthCard>
   );
 }
