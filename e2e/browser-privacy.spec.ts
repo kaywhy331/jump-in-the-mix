@@ -691,4 +691,236 @@ test.describe("sign-in shield", () => {
     expect(log.actions).toBe(1);
     expect((await prisma.mix.findFirstOrThrow({ where: { workspaceId: owners[0].workspaceId, name: mix.name } })).status).toBe("ACTIVE");
   });
+
+  // JITM-UXS-16-R2: every way a held save can end without being sent leaves the owner told on the form's status line,
+  // with every entry kept; a shield, while one shows, says why. A save cancelled because the tab went to the background
+  // is never sent by itself: the owner presses Save again, and that save is checked once and sent once.
+  // Account checks and Server Action posts, with the checks counted so far at each post.
+  function saveLog(page: Page) {
+    const log = { checks: 0, actions: 0, checksAtActions: [] as number[] };
+    page.on("request", request => {
+      if (isAccountCheck(request.url())) log.checks++;
+      else if (request.method() === "POST" && request.headers()["next-action"]) { log.actions++; log.checksAtActions.push(log.checks); }
+    });
+    return log;
+  }
+  // The next account check waits until the test answers it.
+  async function holdCheck(page: Page) {
+    let held: import("@playwright/test").Route | undefined;
+    await page.route(ACCOUNT, route => { held = route; });
+    return { asked: () => expect.poll(() => Boolean(held)).toBe(true) };
+  }
+  // The tab goes to the background or comes back, as the browser reports it. `announce: false` changes it before the
+  // browser has said so.
+  const setHidden = (page: Page, hidden: boolean, announce = true) => page.evaluate(({ hidden, announce }) => {
+    Object.defineProperty(document, "hidden", { configurable: true, value: hidden });
+    Object.defineProperty(document, "visibilityState", { configurable: true, value: hidden ? "hidden" : "visible" });
+    if (announce) document.dispatchEvent(new Event("visibilitychange"));
+  }, { hidden, announce });
+  // While a save's account check is held, the tab goes to the background, which cancels the check, and comes back,
+  // which checks the account once more, no longer held.
+  async function backgroundAndBack(page: Page) {
+    await setHidden(page, true);
+    await page.unroute(ACCOUNT);
+    await setHidden(page, false);
+    await ready(page); await settled(page);
+    await expect(shield(page)).not.toBeVisible();
+  }
+  const transition = (page: Page, type: "pagehide" | "pageshow") => page.evaluate(type => window.dispatchEvent(new PageTransitionEvent(type, { persisted: true })), type);
+  async function profileForm(page: Page, context: BrowserContext) {
+    await useOwner(context, page, owners[0]);
+    await page.goto("/account/preferences"); await ready(page);
+    const save = page.getByRole("button", { name: "Save profile", exact: true });
+    const form = page.locator("form", { has: save });
+    return { save, name: form.getByLabel("Display name", { exact: true }), status: form.locator(".form-guard-status") };
+  }
+  const savedName = async () => (await prisma.user.findUniqueOrThrow({ where: { id: owners[0].id }, select: { name: true } })).name;
+  const profileSaved = /\/account\/preferences\?(?:.*&)?personalSaved=1/;
+  const contactSave = (page: Page) => page.getByRole("button", { name: "Save contact", exact: true });
+  type HeldDraft = Awaited<ReturnType<typeof heldDraft>>;
+  async function expectDraftKept(page: Page, draft: HeldDraft) {
+    await expect(draft.status).toHaveText(NOT_SENT);
+    await expect(page.getByLabel("First name", { exact: true })).toHaveValue(draft.firstName);
+    await expect(page.locator("#lastName")).toHaveValue("As pressed");
+    expect(await savedContacts(draft.firstName)).toEqual([]);
+  }
+  // Save again: one account check right before it, one Server Action post, the entries as they stand.
+  async function saveDraftAgain(page: Page, draft: HeldDraft, log: ReturnType<typeof saveLog>) {
+    const checks = log.checks;
+    await Promise.all([page.waitForURL(created), contactSave(page).click()]);
+    expect(log.actions).toBe(1); expect(log.checksAtActions).toEqual([checks + 1]);
+    expect(draft.sent).toHaveLength(1);
+    expect(draft.sent[0]).toEqual(expect.arrayContaining([`firstName=${draft.firstName}`, "lastName=As pressed"]));
+    expect(await savedContacts(draft.firstName)).toEqual([{ lastName: "As pressed" }]);
+  }
+
+  test("Save profile with unchanged values, held while the tab goes to the background, says it wasn't saved on return and saves once when pressed again", async ({ page, context }) => {
+    const profile = await profileForm(page, context);
+    const unchanged = await profile.name.inputValue();
+    await expect(profile.status).toHaveText("");
+    const log = saveLog(page), check = await holdCheck(page);
+    await profile.save.click(); await check.asked();
+    await expect(profile.status).toHaveText("Saving…");
+    expect(log.checks).toBe(1);
+    await backgroundAndBack(page);
+    expect(log.checks).toBe(2); expect(log.actions).toBe(0);
+    await expect(profile.status).toHaveText(NOT_SENT);
+    await expect(profile.name).toHaveValue(unchanged);
+    await Promise.all([page.waitForURL(profileSaved), profile.save.click()]);
+    expect(log.actions).toBe(1); expect(log.checksAtActions).toEqual([3]);
+  });
+
+  test("a changed Profile value, held while the tab goes to the background, stays as typed, says it wasn't saved and is saved when pressed again", async ({ page, context }) => {
+    const before = await savedName();
+    try {
+      const profile = await profileForm(page, context);
+      const typed = `${before} ${randomUUID().slice(0, 8)}`;
+      await profile.name.fill(typed);
+      const log = saveLog(page), check = await holdCheck(page);
+      await profile.save.click(); await check.asked();
+      await expect(profile.status).toHaveText("Saving…");
+      await backgroundAndBack(page);
+      expect(log.checks).toBe(2); expect(log.actions).toBe(0);
+      await expect(profile.status).toHaveText(NOT_SENT);
+      await expect(profile.name).toHaveValue(typed);
+      expect(await savedName()).toBe(before);
+      await Promise.all([page.waitForURL(profileSaved), profile.save.click()]);
+      expect(log.actions).toBe(1); expect(log.checksAtActions).toEqual([3]);
+      expect(await savedName()).toBe(typed);
+    } finally {
+      await prisma.user.update({ where: { id: owners[0].id }, data: { name: before } });
+    }
+  });
+
+  test("Save on Add contact, held while the tab goes to the background, keeps every entry, says it wasn't saved and saves once when pressed again", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    const log = saveLog(page);
+    await contactSave(page).click(); await draft.waitHeld();
+    await expect(draft.status).toHaveText("Saving…");
+    await backgroundAndBack(page);
+    expect(log.checks).toBe(2); expect(log.actions).toBe(0);
+    await expectDraftKept(page, draft);
+    await saveDraftAgain(page, draft, log);
+  });
+
+  test("Start the Mix from its review, held while the tab goes to the background, says it wasn't saved and starts once when started again", async ({ page, context }) => {
+    const mix = await reviewMixStart(page, context);
+    const status = page.locator("form", { has: page.getByLabel("Mix name") }).locator(".form-guard-status");
+    const log = saveLog(page), check = await holdCheck(page);
+    await mix.start.click(); await check.asked();
+    await expect(mix.review).not.toBeVisible();
+    await expect(status).toHaveText("Saving…");
+    await backgroundAndBack(page);
+    expect(log.checks).toBe(2); expect(log.actions).toBe(0);
+    await expect(status).toHaveText(NOT_SENT);
+    await expect(page.getByLabel("Mix name")).toHaveValue(mix.name);
+    expect(await prisma.mix.count({ where: { workspaceId: owners[0].workspaceId, name: mix.name } })).toBe(0);
+    // Review and start is a save too, which the editor turns into its review: it and Start the Mix are checked once each.
+    await page.getByRole("button", { name: "Review and start", exact: true }).click();
+    await Promise.all([page.waitForURL(/created=manual/), mix.start.click()]);
+    expect(log.actions).toBe(1); expect(log.checksAtActions).toEqual([4]);
+    expect((await prisma.mix.findFirstOrThrow({ where: { workspaceId: owners[0].workspaceId, name: mix.name } })).status).toBe("ACTIVE");
+  });
+
+  test("a held Save when the page is put away and restored says it wasn't saved and keeps every entry", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    const log = saveLog(page);
+    await contactSave(page).click(); await draft.waitHeld();
+    await transition(page, "pagehide");
+    await page.unroute(ACCOUNT);
+    await transition(page, "pageshow");
+    await ready(page); await settled(page);
+    await expect(shield(page)).not.toBeVisible();
+    expect(log.checks).toBe(2); expect(log.actions).toBe(0);
+    await expectDraftKept(page, draft);
+    await saveDraftAgain(page, draft, log);
+  });
+
+  test("a held Save whose account check answers while the tab is in the background says it wasn't saved on return", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    const log = saveLog(page);
+    await contactSave(page).click(); await draft.waitHeld();
+    await setHidden(page, true, false);
+    await draft.answer();
+    await expect(page.locator("[data-browser-scope]")).toHaveAttribute("inert", "");
+    await expect(shield(page)).not.toBeVisible();
+    await setHidden(page, false);
+    await ready(page); await settled(page);
+    expect(log.checks).toBe(2); expect(log.actions).toBe(0);
+    await expectDraftKept(page, draft);
+    await saveDraftAgain(page, draft, log);
+  });
+
+  test("a save asked for while the tab is masked is not sent and says so once the tab is back", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    await page.unroute(ACCOUNT);
+    const log = saveLog(page);
+    // The masked page is hidden from roles, so the form is found by its field.
+    const form = page.locator("form", { has: page.locator("#lastName") });
+    await transition(page, "pagehide");
+    await form.evaluate(form => (form as HTMLFormElement).requestSubmit());
+    await settled(page);
+    expect(log.checks).toBe(0); expect(log.actions).toBe(0);
+    await transition(page, "pageshow");
+    await ready(page); await settled(page);
+    expect(log.checks).toBe(1); expect(log.actions).toBe(0);
+    await expectDraftKept(page, draft);
+    await saveDraftAgain(page, draft, log);
+  });
+
+  test("a held Save the browser refuses to send again says it wasn't saved and keeps every entry", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    const log = saveLog(page);
+    await draft.form.evaluate(form => form.append(Object.assign(document.createElement("button"), { type: "submit", id: "held-refused", textContent: "Save as pressed" })));
+    await page.locator("#held-refused").click(); await draft.waitHeld();
+    // The pressed button stays in the form but no longer submits it, so the browser refuses to send from it.
+    await page.locator("#held-refused").evaluate(button => { (button as HTMLButtonElement).type = "button"; });
+    await draft.answer(); await settled(page);
+    expect(log.checks).toBe(1); expect(log.actions).toBe(0);
+    await expectDraftKept(page, draft);
+    await saveDraftAgain(page, draft, log);
+  });
+
+  test("a held Save refused because the session ended shows the shield, and after signing in again its form says it wasn't saved", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    await revoke(owners[0]);
+    const log = saveLog(page);
+    await contactSave(page).click(); await draft.answer();
+    await expect(shieldHeading(page)).toHaveText("Sign in to continue");
+    await settled(page);
+    expect(log.checks).toBe(1); expect(log.actions).toBe(0);
+    await returnAfterSignIn(page, context, owners[0]);
+    await settled(page);
+    expect(log.actions).toBe(0);
+    await expectDraftKept(page, draft);
+    await saveDraftAgain(page, draft, log);
+  });
+
+  test("a held Save refused because the tab went offline shows the shield, and back online its form says it wasn't saved", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    const log = saveLog(page);
+    await contactSave(page).click(); await draft.waitHeld();
+    await context.setOffline(true);
+    await expect(shieldHeading(page)).toHaveText("Reconnect to continue");
+    await page.unroute(ACCOUNT);
+    await context.setOffline(false);
+    await ready(page); await settled(page);
+    expect(log.checks).toBe(2); expect(log.actions).toBe(0);
+    await expectDraftKept(page, draft);
+    await saveDraftAgain(page, draft, log);
+  });
+
+  test("a held Save whose account check never answers ends in the reconnect shield, and its form then says it wasn't saved", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    const log = saveLog(page);
+    await contactSave(page).click(); await draft.waitHeld();
+    // The boundary stops waiting for an unanswered check, so the save ends unsent with the shield saying why.
+    await expect(shieldHeading(page)).toHaveText("Reconnect to continue", { timeout: test.info().timeout });
+    await page.unroute(ACCOUNT);
+    await shield(page).getByRole("button", { name: "Check again", exact: true }).click();
+    await ready(page); await settled(page);
+    expect(log.checks).toBe(2); expect(log.actions).toBe(0);
+    await expectDraftKept(page, draft);
+    await saveDraftAgain(page, draft, log);
+  });
 });

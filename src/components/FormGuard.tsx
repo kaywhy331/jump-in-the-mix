@@ -124,8 +124,8 @@ export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery,
     const submit = (event: Event) => { if (nativeSubmit && !event.defaultPrevented) submitting.current = true; };
     // Right before a save is sent, the account boundary confirms the account with one check, shown as this form's saving
     // state. An expired session opens the sign-in shield instead, and every entry stays (JITM-08 §2.24). The held submit
-    // never reaches the page's own handlers; once confirmed it is sent exactly as it was pressed, and a save that can't be
-    // sent that way says so. A second press meanwhile is the same save.
+    // never reaches the page's own handlers; once confirmed it is sent exactly as it was pressed. A second press meanwhile
+    // is the same save.
     let holding = false;
     const save = (event: SubmitEvent) => {
       const confirm = confirmRef.current;
@@ -134,11 +134,14 @@ export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery,
       if (holding) return;
       holding = true; setConfirming(true); setNotSent(false);
       const pressed = pressedSave(form, event.submitter);
-      void confirm().then(confirmed => {
+      // A held save that ends unsent always says so here, and every entry stays (JITM-UXS-16-R2). A shield may say why
+      // as well, but none shows when the tab went to the background meanwhile, and that save is never sent by itself:
+      // the owner presses Save again. A form that has left the page has nowhere to say it.
+      const settle = (confirmed: boolean) => {
         holding = false; setConfirming(false);
-        // A false answer has opened the shield, which says why.
-        if (confirmed && form.isConnected && !sendPressed(form, pressed)) setNotSent(true);
-      });
+        if (form.isConnected && !(confirmed && sendPressed(form, pressed))) setNotSent(true);
+      };
+      void confirm().then(settle, () => settle(false));
     };
     form.addEventListener("submit", save);
     form.addEventListener("submit", submit);
