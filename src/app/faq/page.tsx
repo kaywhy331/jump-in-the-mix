@@ -17,10 +17,10 @@ export const metadata: Metadata = publicPageMetadata({
 export default function FaqPage() {
   return <div className="public-page">
     <a className="public-skip-link" href="#main-content">Skip to content</a>
-    <PublicHeader links={[{ href: "/#sample", label: "Try the demo" }, { href: "/follow-up-templates", label: "Templates" }]} />
+    <PublicHeader current="/faq" />
     <main id="main-content" tabIndex={-1}>
       <section className="section public-questions standalone" id="questions" aria-labelledby="questions-title">
-        <div className="section-heading"><h1 id="questions-title">A little clarity before you start.</h1><p>How Mixes, sending, replies, your data, cost and invitations work. You stay in control of the conversation.</p><p><Link href="/">Back to home</Link></p></div>
+        <div className="section-heading"><h1 id="questions-title" className="public-title">A little clarity before you start.</h1><p>How Mixes, sending, replies, your data, cost and invitations work. You stay in control of the conversation.</p><p><Link href="/">Back to home</Link></p></div>
         <div className="public-faq">
           <section id="demo" aria-labelledby="demo-title"><h2 id="demo-title">What happens when I try the demo?</h2><p>Practice with a fictional contact. The demo sends nothing itself. If you choose to open the draft in your own text, email or phone app, the recipient is a non-working example and you decide whether to send or call. Free accounts, no card; access is by invitation from a member, or from the waitlist as space opens.</p></section>
           <details id="what-is-a-mix"><summary>What is a Mix?</summary><p>A Mix is a reusable follow-up plan for one kind of conversation, such as an estimate that’s out for a decision. Each Beat inside it is one scheduled message or call step. You choose the Mix, set the timing, and make each message your own.</p></details>

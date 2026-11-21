@@ -8,7 +8,19 @@
 .public-page .hero-copy { grid-area: copy; }
 .public-page .hero > .product-demo { grid-area: demo; }
 .public-page .hero > .mixes-for { grid-area: situations; margin-top: 0; }
-.public-page .hero h1 { font-weight: 700; font-size: clamp(calc(var(--font-size-lg) + var(--font-size-md)), 4.2vw, calc(var(--font-size-lg) * 3)); line-height: 1.02; letter-spacing: -.06em; margin-block: var(--space-3) var(--space-5); }
+/* One public H1 scale (JITM-06 §2.28, §2.35). The landing hero is the display step, tracked as the export
+   draws it (Landing.html, LandingTablet.html and LandingPhone.html: -0.045em) with a line-height of at
+   least 1.05. Every other public page (article, policy, FAQ, pricing) uses the page step, .public-title,
+   which has no export screen and takes §2.35's default tracking. */
+.public-page .hero h1 { font-weight: 700; font-size: clamp(calc(var(--font-size-lg) + var(--font-size-md)), 4.2vw, calc(var(--font-size-lg) * 3)); line-height: 1.05; letter-spacing: -.045em; margin-block: var(--space-3) var(--space-5); }
+.public-page .public-title { font-size: clamp(2.125rem, 3.8vw, 3rem); line-height: 1.1; letter-spacing: -.03em; max-width: 22ch; overflow-wrap: break-word; }
+/* A hyphenated heading word ("follow-up") moves to the next line whole; see KeepHyphens. */
+.keep-hyphens { display: inline-block; max-width: 100%; text-decoration: inherit; }
+/* Reading measure (JITM-06 §2.34): public prose, answers, lists, boxes and message examples stop near 65
+   characters inside the wider page. CSS's ch is the width of "0", which in Instrument Sans is wider than an
+   average character: 46ch (the hero intro's measure) renders 64-71 characters a line, where 65ch renders
+   about 100. The demo keeps its own layout. Zero specificity, so a deliberately narrower measure still applies. */
+:where(.public-page main :is(p, li, dd, .template-example, .public-contents, .public-capabilities):not(.product-demo *)) { max-width: 46ch; }
 .public-page .hero h1 em { display: inline; font-style: normal; color: var(--text-3); }
 .public-page .hero-copy > p { font-size: var(--font-size-md); line-height: var(--line-height-body); }
 .public-page .hero-copy > .hero-vocabulary { font-size: var(--font-size-sm); }

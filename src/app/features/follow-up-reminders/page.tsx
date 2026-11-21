@@ -2,6 +2,7 @@ import { DemoNote } from "@/components/DemoNote";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { PublicArticle } from "@/components/PublicArticle";
+import { KeepHyphens } from "@/components/KeepHyphens";
 import { publicPageMetadata } from "@/lib/public-seo";
 
 export const metadata: Metadata = publicPageMetadata({
@@ -41,7 +42,7 @@ export default function FollowUpRemindersPage() {
       </ul>
     </section>
     <section className="public-article-cta" aria-labelledby="cta-title">
-      <h2 id="cta-title">Try a follow-up reminder</h2>
+      <h2 id="cta-title"><KeepHyphens>Try a follow-up reminder</KeepHyphens></h2>
       <p>The demo shows one fictional contact with three Beats: a text today, an email tomorrow and a call next week. Edit a draft, preview it, and record what happened. In the product, each Beat lands on your Today list on its date.</p>
       <Link className="button primary" href="/#sample">Try a follow-up reminder</Link>
       <DemoNote />

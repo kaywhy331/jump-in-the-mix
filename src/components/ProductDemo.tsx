@@ -6,6 +6,7 @@ import { AppIcon } from "@/components/AppIcon";
 import { DEMO_BEATS, demoContact, demoDrafts, demoSituations } from "@/lib/demo-workspace";
 import { MARKETING_SCENARIOS } from "@/lib/marketing-scenarios";
 import { DemoPhoneQr } from "@/components/DemoPhoneQr";
+import { KeepHyphens } from "@/components/KeepHyphens";
 import { demoActionUrl, demoHandoff, demoQrPayload, isAppleMobile } from "@/lib/product-demo";
 import styles from "./ProductDemo.module.css";
 
@@ -75,12 +76,12 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
   const undo = () => { focusStep.current = true; update({ view: "edit", done: practice.done.filter(index => index !== practice.beat) }); };
 
   return <section className={`product-demo ${styles.demo}`} id="sample" aria-label={heading} data-marketing-scenario={selection} aria-busy={!ready}>
-    <header className={styles.header}><h2>{heading}</h2><p>Fictional contact. This page sends nothing and schedules nothing. Edits stay in this tab and clear on refresh.</p></header>
+    <header className={styles.header}><h2><KeepHyphens>{heading}</KeepHyphens></h2><p>Fictional contact. This page sends nothing and schedules nothing. Edits stay in this tab and clear on refresh.</p></header>
     <label className={`field ${styles.situation}`}><span>Situation</span><select value={example.id} disabled={!ready} onChange={event => { focusStep.current = true; setSelected(event.target.value); }}>{choices.map(item => <option key={item.id} value={item.id}>{item.label}</option>)}</select></label>
     <div className={styles.workspace}>
       <div className={styles.today}><span><AppIcon name="today" />Today</span><span>{practice.done.includes(0) ? "Today’s Beat done" : "1 Beat due"}</span></div>
       <div className={styles.person}><span className={styles.avatar} aria-hidden="true">{contact.initials}</span><div><strong>{example.person}</strong><p>{example.context}</p></div></div>
-      <div className={styles.mix}><AppIcon name="mixes" /><span>3 Beats · a reusable follow-up plan</span></div>
+      <div className={styles.mix}><AppIcon name="mixes" /><span>3 Beats in one reusable follow-up plan</span></div>
       <ol className={styles.rhythm} aria-label="Mix schedule">
         {DEMO_BEATS.map((item, index) => <li key={item.channel}><button type="button" disabled={!ready} aria-current={practice.beat === index ? "step" : undefined} onClick={() => go(practice.done.includes(index) ? "recorded" : "edit", index)} data-demo-beat={item.channel} data-due-day={item.day}>
           <span className={styles.node}><AppIcon name={practice.done.includes(index) ? "check" : item.icon} /></span><strong>{item.label}</strong><span>{item.due}</span>{practice.done.includes(index) && <small>Done in demo</small>}

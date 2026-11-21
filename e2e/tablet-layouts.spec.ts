@@ -101,7 +101,7 @@ test("the tablet Explore menu opens from the keyboard, lists the section links a
       await summary.focus();
       await page.keyboard.press("Enter");
       const menu = header.getByRole("navigation", { name: "Explore the app" });
-      await expect(menu.getByRole("link", { name: "Try the demo", exact: true })).toBeInViewport();
+      await expect(menu.getByRole("link", { name: "Questions", exact: true })).toBeInViewport();
       await expect(menu.getByRole("link", { name: "Templates", exact: true })).toBeVisible();
       for (const link of await menu.getByRole("link").all()) expect((await link.boundingBox())!.height, `${scheme} ${width}px menu target`).toBeGreaterThanOrEqual(44);
       expect((await axeInPage(page).include(".public-header").withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations, `${scheme} ${width}px`).toEqual([]);

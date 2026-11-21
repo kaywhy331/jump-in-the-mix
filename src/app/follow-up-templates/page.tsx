@@ -3,6 +3,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { AppIcon } from "@/components/AppIcon";
 import { PublicArticle } from "@/components/PublicArticle";
+import { KeepHyphens } from "@/components/KeepHyphens";
 import { PERSONAS } from "@/lib/persona-mixes";
 import { publicPageMetadata } from "@/lib/public-seo";
 
@@ -28,22 +29,22 @@ const ROUTE_LINES: Record<string, string> = {
 };
 
 export default function TemplatesPage() {
-  return <PublicArticle title="Client follow-up templates for your next conversation." deck="Find your follow-up Mix.">
+  return <PublicArticle current="/follow-up-templates" title="Client follow-up templates for your next conversation." deck="Find your follow-up Mix.">
     <p>Useful wording for the conversations independent professionals actually need to continue: an estimate that’s out, a proposal under review, a client who said “not yet”. Every example here is original and illustrative, not a customer quote. Make the wording yours, then try the matching follow-up plan in the demo.</p>
     <section className="template-hub" aria-labelledby="template-pages-title">
       <h2 id="template-pages-title">Templates by situation</h2>
       <div className="relationship-use-cases">
-        {TEMPLATE_PAGES.map(item => <article key={item.href}><span className="relationship-icon"><AppIcon name={item.icon} /></span><h3><Link className="text-link" href={item.href}>{item.title}</Link></h3><p>{item.summary}</p><p className="relationship-example">{item.audience}</p></article>)}
+        {TEMPLATE_PAGES.map(item => <article key={item.href}><span className="relationship-icon"><AppIcon name={item.icon} /></span><h3><Link className="text-link" href={item.href}><KeepHyphens>{item.title}</KeepHyphens></Link></h3><p>{item.summary}</p><p className="relationship-example">{item.audience}</p></article>)}
       </div>
       <p className="public-article-note">More situations are added as their examples are reviewed. Nothing is published as a placeholder.</p>
     </section>
     <section aria-labelledby="routes-title">
-      <h2 id="routes-title">Follow-up plans by profession</h2>
+      <h2 id="routes-title"><KeepHyphens>Follow-up plans by profession</KeepHyphens></h2>
       <p>Each page opens the demo with that profession’s own situations, so you can see the follow-up before you read the template.</p>
       <ul>{PERSONAS.map(item => <li key={item.id}><Link className="text-link" href={`/for/${item.slug}`}>{item.navLabel}</Link>: {ROUTE_LINES[item.id]}</li>)}</ul>
     </section>
     <section className="public-article-cta" aria-labelledby="hub-cta-title">
-      <h2 id="hub-cta-title">Ready to put one follow-up in the mix?</h2>
+      <h2 id="hub-cta-title"><KeepHyphens>Ready to put one follow-up in the mix?</KeepHyphens></h2>
       <p>Start with a sample conversation. See how a Mix turns “I’ll check back” into a planned next step.</p>
       <Link className="button primary" href="/#sample">Try the demo</Link>
       <DemoNote />

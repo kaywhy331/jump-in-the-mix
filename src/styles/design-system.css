@@ -5,6 +5,10 @@ button, input, select, textarea { font-family: var(--font-ui); }
 textarea { font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.5; }
 h1, h2, h3, h4, .button, .logo { font-weight: 600; }
 h1, h2, h3 { text-wrap: balance; }
+/* Reading measure (JITM-06 §2.34) for the Help answers and the Calendar helper text, inside their
+   wide workspaces: 46ch renders about 65 characters in Instrument Sans (see design-public.css). Zero
+   specificity, so a deliberately narrower measure still applies. */
+:where(.help-page :is(p, li), .calendar-page :is(.muted-copy, .calendar-connections-panel p)) { max-width: 46ch; }
 button, a, input, select, textarea { -webkit-tap-highlight-color: transparent; }
 input, select, textarea { background: var(--surface); border-color: var(--field-border); border-radius: var(--radius-control); color: var(--text); }
 input::placeholder, textarea::placeholder { color: var(--text-3); opacity: 1; }

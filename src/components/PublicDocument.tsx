@@ -12,10 +12,10 @@ export function PublicDocument({ title, effectiveDate = PUBLIC_POLICY_DATE, chil
   if (!details) notFound();
   return <div className="public-page">
     <a className="public-skip-link" href="#main-content">Skip to content</a>
-    <PublicHeader links={[{ href: "/#how-it-works", label: "How it works" }, { href: "/faq", label: "Questions" }]} />
+    <PublicHeader />
     <main id="main-content" tabIndex={-1} className="public-document">
       <Link href="/">Back to home</Link>
-      <h1>{title}</h1>
+      <h1 className="public-title">{title}</h1>
       <p className="public-document-date">Effective <time dateTime={effectiveDate}>{effectiveDate}</time></p>
       <PublicContents />
       {children(details)}

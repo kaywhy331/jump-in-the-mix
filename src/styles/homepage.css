@@ -26,7 +26,7 @@
 .public-page .section { padding-block: 64px; }
 .public-page .section-heading .eyebrow { margin-bottom: 18px; }
 .public-page .section-heading h2 { font-size: clamp(1.875rem, 3.3vw, 2.625rem); line-height: 1.12; max-width: 23ch; }
-.public-page .section-heading > p { max-width: 55ch; line-height: 1.65; }
+.public-page .section-heading > p { line-height: 1.65; }
 
 /* The first message is immediate; editors and the full plan are disclosures. */
 .public-page .product-demo { --demo-shadow-offset: 6px; padding: 22px 24px; border-radius: 22px; width: 100%; max-width: 760px; scroll-margin-top: 20px; transition: box-shadow 240ms ease; }
@@ -124,7 +124,7 @@
 .public-definition h2 { margin: 0 0 12px; font-size: 1.375rem; line-height: 1.25; letter-spacing: -.03em; }
 .public-definition p { margin: 0 0 14px; color: var(--muted); line-height: 1.65; }
 .public-definition-links { display: flex; flex-wrap: wrap; gap: 8px 22px; margin: 0; }
-.public-definition-links a, .public-related-links a { color: var(--brand-dark); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
+.public-definition-links a, .public-related-links a, .public-contents a { color: var(--brand-dark); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 /* Profession marks with a page of their own are links; the tile stays the same size and shape. */
 .profession-grid li > a { display: flex; align-items: center; gap: inherit; width: 100%; color: inherit; text-decoration: none; }
 .profession-grid li:has(> a):hover { border-color: var(--brand); }
@@ -137,24 +137,25 @@
 /* Template and feature pages: one readable article with copyable examples. */
 .public-page .public-article { max-width: 880px; }
 .public-article .section-heading { max-width: none; margin-bottom: 28px; }
-.public-article .section-heading h1 { margin: 0 0 12px; font-size: clamp(2.125rem, 3.8vw, 3rem); line-height: 1.1; letter-spacing: -.045em; max-width: 22ch; }
+.public-article .section-heading h1 { margin: 0 0 12px; }
 .public-article-deck { color: var(--brand-dark); font-weight: 650; font-size: 1.125rem; }
 .public-article h2 { margin: 40px 0 12px; font-size: 1.5rem; line-height: 1.25; letter-spacing: -.03em; }
 .public-article h3 { margin: 28px 0 8px; font-size: 1.125rem; line-height: 1.3; }
 .public-article p, .public-article li { line-height: 1.7; }
-.public-article > p, .public-article section > p { margin: 0 0 14px; max-width: 68ch; }
+.public-article > p, .public-article section > p { margin: 0 0 14px; }
 .public-article ul, .public-article ol { margin: 0 0 14px; padding-left: 22px; }
 .public-article li + li { margin-top: 6px; }
 .template-example { margin: 14px 0 22px; padding: 16px 18px; border: 1px solid var(--line); border-radius: 14px; background: var(--raised); }
-.template-example blockquote { margin: 0; }
+/* The example message is the owner's own wording, in the voice the demo uses (JITM-06 §2.13). */
+.template-example blockquote { margin: 0; font-family: var(--font-voice); font-size: var(--font-size-lg); line-height: var(--line-height-body); }
 .template-example p { margin: 0; white-space: pre-wrap; overflow-wrap: anywhere; }
 .template-example .template-subject { margin: 0 0 10px; padding-bottom: 10px; border-bottom: 1px solid var(--line); font-weight: 650; font-size: .9375rem; }
 .template-example-actions { display: flex; flex-wrap: wrap; align-items: center; gap: 10px 14px; margin-top: 12px; }
 .template-example-actions .button { min-height: 40px; font-size: .875rem; }
-.template-example-actions [role="status"] { color: var(--muted); font-size: .8125rem; }
+.template-example-actions [role="status"] { color: var(--muted); font-size: var(--font-size-sm); }
 .public-article-cta { margin-top: 40px; padding: 26px 28px; border-radius: 20px; background: var(--brand-soft); }
 .public-article-cta h2 { margin: 0 0 10px; }
-.public-article-cta p { margin: 0 0 16px; max-width: 60ch; }
+.public-article-cta p { margin: 0 0 16px; }
 .public-article-cta small { display: block; margin-top: 10px; color: var(--muted); font-size: .8125rem; }
 .public-article-related { margin-top: 36px; }
 .public-article-related h2 { font-size: 1.125rem; margin-bottom: 10px; }
@@ -250,7 +251,6 @@
 .mixes-for a { display: inline-flex; align-items: center; min-height: 44px; white-space: nowrap; padding: 0 12px; border: 1px solid var(--line); border-radius: 999px; background: var(--raised); color: var(--ink); font-weight: 650; text-decoration: none; }
 .mixes-for a:hover { border-color: var(--brand); color: var(--brand-dark); }
 .mixes-for a[aria-current="page"] { color: var(--brand-dark); border-color: var(--brand); background: var(--brand-soft); }
-.profession-marks .section-heading p { max-width: 52ch; }
 /* Two rows of six on desktop; "Coaches & trainers" ends the first row and "And more" the second. */
 .profession-grid { display: grid; grid-template-columns: repeat(6, minmax(0, 1fr)); gap: 10px; margin: 28px 0 0; padding: 0; list-style: none; }
 .profession-grid li { display: flex; align-items: center; gap: 10px; min-height: 56px; padding: 10px 12px; border: 1px solid var(--line); border-radius: 14px; background: var(--raised); font-weight: 650; font-size: .875rem; }
@@ -272,6 +272,8 @@
 @media (max-width: 760px) { .public-page .public-site-nav .appearance-control { display: none; } }
 .public-header-actions { display: flex; align-items: center; gap: 12px; margin-left: auto; }
 .public-contents, .public-capabilities { margin-block: 24px; padding: 18px; border: 1px solid var(--border); border-radius: 12px; }
+/* The table of contents is a disclosure; its 44px summary carries the box's vertical spacing. */
+.public-contents { padding-block: var(--space-1); }
 .public-contents ul { display: flex; flex-wrap: wrap; gap: 10px 24px; padding-inline-start: 20px; }
 /* Inline lists keep one baseline: the article's space between stacked items does not apply. */
 :is(.public-contents ul, .public-related-links) > li + li { margin-top: 0; }

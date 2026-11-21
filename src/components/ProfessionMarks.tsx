@@ -1,5 +1,6 @@
 import type { ReactNode } from "react";
 import Link from "next/link";
+import { KeepHyphens } from "@/components/KeepHyphens";
 
 const stroke = { fill: "none", stroke: "currentColor", strokeWidth: 1.8, strokeLinecap: "round", strokeLinejoin: "round" } as const;
 const icon = (paths: ReactNode) => <svg viewBox="0 0 24 24" aria-hidden="true" {...stroke}>{paths}</svg>;
@@ -27,7 +28,7 @@ export const PROFESSION_MARKS: { label: string; icon: ReactNode; href?: string }
 
 export function ProfessionMarks() {
   return <section className="section profession-marks" aria-labelledby="professions-title">
-    <div className="section-heading"><h2 id="professions-title">Find a follow-up Mix for your work.</h2><p>An estimate. A proposal. A client who’s not ready yet. Start with the conversation you already need to continue.</p></div>
+    <div className="section-heading"><h2 id="professions-title"><KeepHyphens>Find a follow-up Mix for your work.</KeepHyphens></h2><p>An estimate. A proposal. A client who’s not ready yet. Start with the conversation you already need to continue.</p></div>
     <ul className="profession-grid">{PROFESSION_MARKS.map(mark => <li key={mark.label}>{mark.href
       ? <Link href={mark.href}><span className="profession-icon">{mark.icon}</span><span>{mark.label}</span></Link>
       : <><span className="profession-icon">{mark.icon}</span><span>{mark.label}</span></>}</li>)}</ul>

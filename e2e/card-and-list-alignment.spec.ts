@@ -224,6 +224,13 @@ for (const route of ["/waitlist", "/register", "/forgot-password", "/login"]) {
 test("inline lists keep every item on one baseline", async ({ page }, testInfo) => {
   await page.goto("/follow-up-templates/proposal-follow-up");
   const contents = page.locator(".public-contents ul");
+  // The table of contents starts collapsed on phones (JITM-UXB-01); open it to measure its list.
+  const openContents = async () => {
+    await expect(page.getByRole("navigation", { name: "On this page" })).toBeVisible();
+    const disclosure = page.locator(".public-contents details");
+    if (!await disclosure.evaluate(element => (element as HTMLDetailsElement).open)) await disclosure.locator("summary").click();
+  };
+  await openContents();
   await expect(contents).toBeVisible();
   const related = page.locator(".public-related-links");
   for (const [list, name] of [[".public-contents ul", "On this page"], [".public-related-links", "Related"]] as const) {
@@ -234,6 +241,7 @@ test("inline lists keep every item on one baseline", async ({ page }, testInfo) 
     // At 390 px and 200% text the article's H1 is wider than the screen (a separate follow-up), so that check covers the list only.
     await atEveryWidth(page, `inline-list-${name.replace(/\W+/g, "-").toLowerCase()}`, label => expectOneBaseline(page, list, label).then(() => undefined), { pageAt200: false });
     await page.reload();
+    await openContents();
     await expect(contents).toBeVisible();
     await expect(related).toBeVisible();
   }

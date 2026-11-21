@@ -20,7 +20,7 @@ describe("security page", () => {
     const html = renderToStaticMarkup(SecurityPage());
     expect(metadata.title).toBe("Security");
     expect(html).toContain('<main id="main-content" tabindex="-1" class="public-document">');
-    expect(html).toContain("<h1>Security</h1>");
+    expect(html).toContain("<h1 class=\"public-title\">Security</h1>");
     expect(html).toContain("Example Operator LLC operates Jump in the Mix.");
     for (const heading of ["Report a problem", "What happens next", "Research in good faith", "What this covers", "Your own account"]) expect(html).toContain(`<h2>${heading}</h2>`);
     expect(html).toContain('href="mailto:security%40jumpinthemix.com">security@jumpinthemix.com</a>');
