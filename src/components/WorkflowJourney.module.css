@@ -79,8 +79,6 @@
 /* Journey shares the Contacts/Mixes directory, map and context composition. */
 :global(.app-main):has(> .page){padding:0}
 :global(.app-main)>.page{width:100%;max-width:none;margin:0;padding:0}
-/* The page has no inset of its own, so its Back control (JITM-BACK-02) takes the panes' inset (20px, less the control's own 8px). */
-.page>:global(.page-back-link){margin:var(--space-2) 0 0 var(--space-3)}
 .directory{min-width:0;padding:20px}
 .directoryHeader{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:24px;min-height:44px}
 .directoryHeader h1{margin:0;font-size:30px;line-height:1.2;letter-spacing:-.04em}
@@ -112,7 +110,8 @@
 .personSelect:focus-visible,.personContact:focus-visible{outline:2px solid var(--violet-mark);outline-offset:-2px}
 .paneNav{display:flex;gap:4px;padding:8px 20px;border-bottom:1px solid var(--line)}
 .paneNav button{display:flex;align-items:center;justify-content:center;gap:6px;flex:1;min-height:44px;padding:8px;border:0;border-radius:10px;background:transparent;color:var(--text-3);font:inherit;font-size:13px;cursor:pointer}
-.paneNav svg{width:16px;height:16px}
+.paneNav button svg{width:16px;height:16px}
+.paneNav>:global(.page-back-link){margin:0}
 .paneNav [aria-pressed=true]{background:var(--violet-wash);color:var(--violet-text);font-weight:600}
 .main{min-width:0;align-self:start}
 .mapHeader{display:flex;justify-content:space-between;align-items:center;flex-wrap:wrap;gap:12px;padding:24px 20px 16px}
@@ -261,7 +260,7 @@
 .personAction:focus-visible{outline:3px solid var(--focus);outline-offset:-3px}
 /* Journey's segmented controls meet the 44px floor and keep 8px between segments on touch widths (TGT-01). */
 .tabs button{min-width:44px}
-@media(max-width:900px){.tabs{gap:8px}}
+@media(max-width:900px){.tabs{gap:8px}.paneNav{gap:var(--space-2);flex-wrap:wrap}}
 /* A list row's selection, and its people and attention as on the map's card (LST-01). */
 .listHeading[aria-pressed=true]{color:var(--violet-text)}
 .listPeople{display:flex;flex-wrap:wrap;align-items:center;gap:4px 12px;margin:8px 0 6px;font-size:13px}
