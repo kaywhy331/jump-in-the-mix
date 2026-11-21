@@ -6,8 +6,11 @@ import { notFound } from "next/navigation";
 import { PublicTrustLinks } from "@/components/PublicTrustLinks";
 import { PUBLIC_POLICY_DATE, publicTrust, type PublicTrust } from "@/lib/public-trust";
 
-/** A public policy page. `effectiveDate` (YYYY-MM-DD) is for a page first published after the shared policy date. */
-export function PublicDocument({ title, effectiveDate = PUBLIC_POLICY_DATE, children }: { title: string; effectiveDate?: string; children: (details: PublicTrust) => ReactNode }) {
+/**
+ * A public policy page. `effectiveDate` (YYYY-MM-DD) is for a page first published after the shared policy date;
+ * `null` is for a page that is not a policy, such as Contact, and shows no date.
+ */
+export function PublicDocument({ title, effectiveDate = PUBLIC_POLICY_DATE, children }: { title: string; effectiveDate?: string | null; children: (details: PublicTrust) => ReactNode }) {
   const details = publicTrust();
   if (!details) notFound();
   return <div className="public-page">
@@ -16,7 +19,7 @@ export function PublicDocument({ title, effectiveDate = PUBLIC_POLICY_DATE, chil
     <main id="main-content" tabIndex={-1} className="public-document">
       <Link href="/">Back to home</Link>
       <h1 className="public-title">{title}</h1>
-      <p className="public-document-date">Effective <time dateTime={effectiveDate}>{effectiveDate}</time></p>
+      {effectiveDate && <p className="public-document-date">Effective <time dateTime={effectiveDate}>{effectiveDate}</time></p>}
       <PublicContents />
       {children(details)}
     </main>

@@ -3,7 +3,8 @@ import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { PasswordInput } from "@/components/PasswordInput";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "@/components/Logo";
+import { redirect } from "next/navigation";
+import { AuthCard } from "@/components/AuthCard";
 import { Notice } from "@/components/Notice";
 import { registerFormAction } from "@/lib/auth-actions";
 import { hashAuthToken } from "@/lib/auth-tokens";
@@ -12,6 +13,7 @@ import { verifiedErrorMessage } from "@/lib/form-errors";
 import { pilotRegistrationOpen } from "@/lib/pilot-registration";
 import { prisma } from "@/lib/prisma";
 import { validAccessToken } from "@/lib/referral-access";
+import { signedInHome } from "@/lib/signed-in-home";
 import { getAdmissionPolicy } from "@/lib/admission";
 import { PublicTrustLinks } from "@/components/PublicTrustLinks";
 import { SocialSignInOptions } from "@/components/SocialSignInOptions";
@@ -23,6 +25,9 @@ export const dynamic = "force-dynamic";
 
 export default async function RegisterPage({ searchParams }: { searchParams: Promise<{ error?: string; sig?: string; invite?: string }> }) {
   const params = await searchParams;
+  // A member who is already signed in goes to Today, not to a sign-up form or an invitation (JITM-08 §2.39).
+  const home = await signedInHome();
+  if (home) redirect(home);
   const error = verifiedErrorMessage(params);
   const token = params.invite ?? "";
   const pilotOpen = env.pilotMode && await pilotRegistrationOpen();
@@ -34,10 +39,9 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
   // An email invitation is tied to one address; a text invitation lets the person choose and confirm one.
   const invitedEmail = invite?.recipientEmail ?? null;
   const textInvitation = Boolean(invite && !invitedEmail && invite.recipientPhone);
-  return <main className="auth-shell"><section className="auth-card">
-    <Logo />
+  return <AuthCard>
     {!pilotOpen && !invite ? <>
-      <div><h1>{token ? "This invitation is unavailable" : "An invitation from someone you know"}</h1>
+      <div><h1>{token ? "This invitation isn’t available" : "An invitation from someone you know"}</h1>
       <p>{token ? "This link is invalid, revoked, or already used. If you already created your account, sign in below." : "Accounts are by invitation. Each member has three invitations to share with contacts by text or email, so someone in your network can invite you. You can also join the waitlist: we send invitations from it in small groups as space opens, so we can’t promise a date."}</p></div>
       <Link className="button primary" href="/waitlist">Join the waitlist</Link>
       <p>Have a unique invitation link? Open it to create your free account.</p><Link className="button" href="/login">Sign in</Link>
@@ -60,5 +64,5 @@ export default async function RegisterPage({ searchParams }: { searchParams: Pro
     </>}
     <p><Link className="text-link" href="/contact">Get help with an invitation or account</Link>.</p>
     <PublicTrustLinks />
-  </section></main>;
+  </AuthCard>;
 }

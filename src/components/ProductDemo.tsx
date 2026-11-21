@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useId, useRef, useState } from "react";
+import { useEffect, useId, useLayoutEffect, useRef, useState } from "react";
 import Link from "next/link";
 import { AppIcon } from "@/components/AppIcon";
 import { DEMO_BEATS, demoContact, demoDrafts, demoSituations } from "@/lib/demo-workspace";
@@ -35,6 +35,7 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
   const field = useRef<HTMLTextAreaElement>(null);
   const stepHeading = useRef<HTMLHeadingElement>(null);
   const focusStep = useRef(false);
+  const reviews = useRef<HTMLDivElement>(null);
   const uid = useId();
   const selection = MARKETING_SCENARIOS.some(item => item.id === scenarioId) ? key : undefined;
   const nextBeat = DEMO_BEATS.findIndex((_, index) => !practice.done.includes(index));
@@ -68,6 +69,20 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
     return () => document.removeEventListener("click", trigger, true);
   }, [key]);
   useEffect(() => () => window.clearTimeout(returnTimer.current), []);
+  // Each draft grows with its text, so a long email and its signature never scroll inside a fixed box (M-12).
+  // Browsers with field-sizing: content do this in CSS; elsewhere the boxes are fitted here, again on resize.
+  useLayoutEffect(() => {
+    const panels = reviews.current;
+    if (!panels || CSS.supports("field-sizing", "content")) return;
+    const fit = () => panels.querySelectorAll("textarea").forEach(area => {
+      area.style.height = "auto";
+      area.style.height = `${area.scrollHeight + area.offsetHeight - area.clientHeight}px`;
+    });
+    fit();
+    const observer = new ResizeObserver(fit);
+    observer.observe(panels);
+    return () => observer.disconnect();
+  }, [practice.drafts, key]);
   const go = (view: Practice["view"], index = practice.beat) => { window.clearTimeout(returnTimer.current); focusStep.current = true; update({ view, beat: index }); };
   // The anchor's default action hands off to the device; the outcome question follows, as in the app.
   const handOff = () => { window.clearTimeout(returnTimer.current); returnTimer.current = window.setTimeout(() => go("returned"), 900); };
@@ -88,7 +103,7 @@ export function ProductDemo({ scenarioId, heading = "Try a 3-step Mix" }: { scen
         </button></li>)}
       </ol>
       {/* Overlapping panels reserve the tallest channel at any width or text size. */}
-      <div className={styles.reviews}>{DEMO_BEATS.map((beat, index) => {
+      <div ref={reviews} className={styles.reviews}>{DEMO_BEATS.map((beat, index) => {
         const active = practice.view === "edit" && practice.beat === index;
         const recorded = practice.done.includes(index);
         const draft = practice.drafts[index];

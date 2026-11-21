@@ -4,12 +4,14 @@ import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { PasswordInput } from "@/components/PasswordInput";
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "@/components/Logo";
+import { redirect } from "next/navigation";
+import { AuthCard } from "@/components/AuthCard";
 import { Notice } from "@/components/Notice";
 import { changeUnverifiedEmailFormAction, resendVerificationFormAction } from "@/lib/auth-actions";
 import { AUTH_EMAILS_PER_RECIPIENT_PER_DAY } from "@/lib/email-budget";
 import { EMAIL_FIELD_MESSAGES, EMAIL_TYPE_MESSAGE } from "@/lib/field-validation";
 import { verifiedErrorMessage } from "@/lib/form-errors";
+import { signedInHome } from "@/lib/signed-in-home";
 
 export const metadata: Metadata = { title: "Verify email" };
 
@@ -25,15 +27,16 @@ type SearchParams = {
 
 export default async function VerifyEmailPendingPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const params = await searchParams;
+  // A verified member who is signed in has nothing to verify here: Today is the next step (JITM-08 §2.39).
+  const home = await signedInHome();
+  if (home) redirect(home);
   const email = params.email?.trim().toLowerCase() ?? "";
   // Unsigned errors here nearly always come from an opened verification link, so the fixed sentence says so.
   const error = verifiedErrorMessage(params, "That verification link could not be used. Send another link below.");
   const developmentVerificationUrl = params.devToken ? `/api/auth/verify-email?token=${encodeURIComponent(params.devToken)}` : null;
 
   return (
-    <main className="auth-shell">
-      <section className="auth-card">
-        <Logo />
+    <AuthCard>
         <h1>Verify your email</h1>
         <p>Open the one-time verification link sent to {email || "your email address"}. Verification protects account recovery and personal data controls.</p>
         {params.registered && params.delivery !== "failed" && <Notice type="success">We sent a verification link to {email || "your email address"}. Check your inbox and spam folder.</Notice>}
@@ -58,7 +61,6 @@ export default async function VerifyEmailPendingPage({ searchParams }: { searchP
         </details>
         <p><Link href="/contact">Contact support</Link> if you cannot recover your account.</p>
         <div className="auth-footer"><Link href="/login"><strong>Back to sign in</strong></Link></div>
-      </section>
-    </main>
+    </AuthCard>
   );
 }

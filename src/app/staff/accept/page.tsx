@@ -1,6 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
-import { Logo } from "@/components/Logo";
+import { AuthCard } from "@/components/AuthCard";
 import { Notice } from "@/components/Notice";
 import { verifiedErrorMessage } from "@/lib/form-errors";
 import { peekStaffInvitation } from "@/lib/staff-invitations";
@@ -15,10 +15,11 @@ export default async function AcceptStaffPage({ searchParams }: { searchParams: 
   const error = verifiedErrorMessage(params);
   const token = params.token ?? "";
   const invitation = await peekStaffInvitation(token);
-  return <main className="auth-shell"><section className="auth-card"><Logo />
-    <h1>Set up your staff access</h1>
+  // The heading names the state (JITM-08 §2.39): a missing token, an invitation that can't be used, or the setup itself.
+  return <AuthCard>
+    <h1>{!token ? "This invitation link is incomplete" : !invitation ? "This invitation isn’t available" : "Set up your staff access"}</h1>
     {error && <Notice type="error">{error}</Notice>}
-    {!invitation ? <><p>This invitation is unavailable. Ask a Jump in the Mix Owner for a new invitation or access to your existing account.</p><Link className="text-link" href="/login">Sign in to an existing account</Link></> : <>
+    {!invitation ? <><p>{!token ? "Open the full link from your invitation email, or ask a Jump in the Mix Owner for a new invitation." : "Ask a Jump in the Mix Owner for a new invitation or access to your existing account."}</p><Link className="text-link" href="/login">Sign in to an existing account</Link></> : <>
       <p>You’ve been invited as {invitation.role.toLowerCase()}. Create your staff account, then set up an authenticator to open the admin tools.</p>
       <details><summary>Review the access offered</summary><ul>{effectiveAdminPermissions({ ...invitation, status: "ACTIVE" }).map(permission => <li key={permission}>{ADMIN_PERMISSIONS[permission]}</li>)}</ul></details>
       <p>Invitation expires {invitation.expiresAt.toISOString().slice(0, 16).replace("T", " ")} UTC.</p>
@@ -33,5 +34,5 @@ export default async function AcceptStaffPage({ searchParams }: { searchParams: 
       <p>Already have an account? Ask an Owner to add staff access to that verified account.</p>
       <Link className="text-link" href="/waitlist/leave">Stop invitation emails</Link>
     </>}
-  </section></main>;
+  </AuthCard>;
 }

@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { CheckedForm, FieldError } from "@/components/FieldError";
-import { Logo } from "@/components/Logo";
+import { AuthCard } from "@/components/AuthCard";
 import { Notice } from "@/components/Notice";
 import { EMAIL_FIELD_MESSAGES } from "@/lib/field-validation";
 import { verifiedErrorMessage } from "@/lib/form-errors";
@@ -13,7 +13,7 @@ export default async function LeaveWaitlistPage({ searchParams }: { searchParams
   const params = await searchParams;
   const error = verifiedErrorMessage(params);
   const token = params.token && /^[A-Za-z0-9_-]{43}$/.test(params.token) ? params.token : null;
-  return <main className="auth-shell"><section className="auth-card"><Logo />
+  return <AuthCard>
     <h1>{params.stopped ? "Invitation emails stopped" : "Leave the waitlist"}</h1>
     {error && <Notice type="error">{error}</Notice>}
     {params.submitted && <Notice>If this email has a waitlist request or an unused invitation, we’ve sent a link to confirm your choice. Already stopped? You don’t need to do anything else.</Notice>}
@@ -32,5 +32,5 @@ export default async function LeaveWaitlistPage({ searchParams }: { searchParams
       </CheckedForm>
     </>}
     <div className="auth-footer"><Link className="button" href="/">Back to home</Link></div>
-  </section></main>;
+  </AuthCard>;
 }

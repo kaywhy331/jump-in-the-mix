@@ -36,7 +36,7 @@
 .recipient { margin: 0 0 var(--space-1); color: var(--text-2); font-size: .8125rem; overflow-wrap: anywhere; }
 .draft { position: relative; display: block; background: var(--violet-wash); border-radius: 20px 20px 6px 20px; margin-bottom: var(--space-4); }
 .draft::after { content: ""; position: absolute; right: 14px; bottom: -10px; width: 16px; height: 12px; background: var(--violet-wash); clip-path: polygon(0 0, 100% 0, 100% 100%); }
-.demo .draft textarea { display: block; min-height: 128px; width: 100%; resize: vertical; border: 0; border-radius: inherit; background: transparent; color: var(--text); font-family: var(--font-voice); font-size: var(--font-size-md); line-height: var(--line-height-body); padding: var(--space-3); }
+.demo .draft textarea { display: block; min-height: 128px; width: 100%; field-sizing: content; resize: none; border: 0; border-radius: inherit; background: transparent; color: var(--text); font-family: var(--font-voice); font-size: var(--font-size-md); line-height: var(--line-height-body); padding: var(--space-3); }
 .review :global(.field) { display: flex; align-items: center; gap: var(--space-2); margin-bottom: var(--space-2); font-size: var(--font-size-sm); }
 .review :global(.field) input { flex: 1; min-width: 0; width: 0; }
 .review :global(.button) { min-height: 44px; white-space: normal; font-size: .875rem; padding: 10px 12px; }

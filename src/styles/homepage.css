@@ -107,7 +107,7 @@
 .public-page .public-questions.standalone { border-top: 0; }
 .public-page .public-questions .section-heading a { color: var(--brand-dark); font-weight: 650; text-decoration: underline; text-underline-offset: 3px; }
 .public-page .public-faq details { padding: 0; }
-.public-page .public-faq summary { min-height: 56px; padding: 16px 4px; line-height: 1.5; }
+.public-page .public-faq summary { min-height: 56px; padding: 16px 4px; font-size: var(--font-size-md); line-height: 1.5; }
 .public-page .public-faq p { margin: 0; padding: 0 4px 20px; color: var(--muted); line-height: 1.65; }
 .public-page .public-faq details:target { border-left: 3px solid var(--brand); padding-left: 12px; }
 .public-page .public-control { margin-block: 24px; border: 0; border-radius: 24px; background: var(--brand-soft); padding-inline: 40px; width: calc(100% - 48px); max-width: 1132px; }

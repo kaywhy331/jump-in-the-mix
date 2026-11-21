@@ -47,7 +47,8 @@ test("the pricing page and the FAQ state the plans without offering checkout", a
   expect(await page.evaluate(() => document.documentElement.scrollWidth > innerWidth + 1)).toBe(false);
   await page.goto("/faq#cost");
   const cost = page.locator("#cost");
-  await cost.locator("summary").click();
+  // The linked question opens on arrival (M-07).
+  await expect(cost).toHaveAttribute("open", "");
   await expect(cost.locator("p")).toHaveText("Not during the beta. Joining the waitlist and creating your account are free, and no card is required. Paid plans haven’t started yet. When they do, the plans are Free ($0), Plus ($15 a month) and Pro ($29 a month), and you’re charged only if you choose a paid plan. See the plans.");
   await Promise.all([page.waitForURL(/\/pricing$/), cost.getByRole("link", { name: "See the plans" }).click()]);
   await expect(page.locator(".public-footer a[href='/pricing']")).toHaveText("Pricing");

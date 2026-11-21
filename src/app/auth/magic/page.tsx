@@ -2,7 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { cookies } from "next/headers";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
-import { Logo } from "@/components/Logo";
+import { AuthCard } from "@/components/AuthCard";
 import { consumeMagicLinkAction } from "@/lib/auth-actions";
 import { customerReturnPath } from "@/lib/customer-return-path";
 import { magicLinkCookieName } from "@/lib/magic-link";
@@ -18,7 +18,7 @@ export default async function MagicLinkPage({ searchParams }: { searchParams: Pr
   const [params, store] = await Promise.all([searchParams, cookies()]);
   const ready = Boolean(store.get(magicLinkCookieName())?.value);
   const next = customerReturnPath(params.next);
-  return <main className="auth-shell"><section className="auth-card"><Logo />
+  return <AuthCard>
     {ready ? <>
       <h1>Continue signing in</h1>
       <p>Your sign-in link is ready. Continue to sign in to Jump in the Mix on this device.</p>
@@ -31,5 +31,5 @@ export default async function MagicLinkPage({ searchParams }: { searchParams: Pr
       <p>This sign-in link has expired or was opened in a different browser. Open the link from your latest email on this device, or request a new one.</p>
       <Link className="button primary" href="/login">Back to sign in</Link>
     </>}
-  </section></main>;
+  </AuthCard>;
 }

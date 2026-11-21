@@ -24,7 +24,7 @@ test("invalid invitation URLs do not open signup or expose a recipient", async (
   expect(response.headers()["referrer-policy"]).toBe("no-referrer");
   expect(response.headers()["cache-control"]).toContain("no-store");
   await page.goto("/register?invite=invalid");
-  await expect(page.getByRole("heading", { level: 1 })).toHaveText("This invitation is unavailable");
+  await expect(page.getByRole("heading", { level: 1 })).toHaveText("This invitation isn’t available");
   await expect(page.locator("form")).toHaveCount(0);
 });
 
