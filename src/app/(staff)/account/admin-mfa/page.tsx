@@ -16,8 +16,10 @@ import { env } from "@/lib/env";
 import { formatDateTime } from "@/lib/format";
 
 type SearchParams = { returnTo?: string; setup?: string; verify?: string };
+/** The one heading the password and setup states share: written once so both stay in step. */
+const SECURE_ACCESS_NAME = "Secure administrator access";
 /** Each state's one name: its H1 and its document title (JITM-10 §2.22). */
-const PAGE_NAMES = { verified: "Administrator MFA", verify: "Administrator verification", password: "Secure administrator access", setup: "Secure administrator access" } as const;
+const PAGE_NAMES = { verified: "Administrator MFA", verify: "Administrator verification", password: SECURE_ACCESS_NAME, setup: SECURE_ACCESS_NAME } as const;
 
 /** The staff member's MFA state, read once per request: the title and the page share it. */
 const readMfaState = cache(async (verifyRequested: boolean) => {
