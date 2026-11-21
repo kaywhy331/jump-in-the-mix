@@ -2,8 +2,12 @@
 
 import { useEffect, useRef, useState } from "react";
 import { useFormStatus } from "react-dom";
+import { ACCOUNT_SHIELD_CLASS, useAccountConfirmation } from "@/components/BrowserAccountBoundary";
 import { BEFORE_FORM_NAVIGATION } from "@/lib/form-navigation";
 import { isOwnBack } from "@/lib/back-navigation";
+
+// A save whose account its guard has just confirmed, sent again. No guard holds it or asks about it a second time.
+const confirmedSaves = new WeakSet<HTMLFormElement>();
 
 /** Keep private drafts in memory and warn before leaving; never persist form contents. */
 export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery, nativeSubmit = false }: { forceDirty?: boolean; guardOtherForms?: boolean; preservedQuery?: Record<string, string>; nativeSubmit?: boolean }) {
@@ -15,6 +19,9 @@ export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery,
   const { pending } = useFormStatus();
   const submitting = useRef(pending);
   submitting.current = pending;
+  const confirmAccount = useAccountConfirmation();
+  const confirmRef = useRef(confirmAccount); confirmRef.current = confirmAccount;
+  const [confirming, setConfirming] = useState(false);
   useEffect(() => {
     const form = marker.current?.closest("form");
     if (!form) return;
@@ -45,18 +52,22 @@ export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery,
       const href = (event as CustomEvent<{ href: string }>).detail.href;
       if (!event.defaultPrevented && !keepsDraft(href) && !allow()) event.preventDefault();
     };
-    const unload = (event: BeforeUnloadEvent) => { if ((forced.current ?? dirty.current) && !submitting.current) { event.preventDefault(); event.returnValue = ""; } };
+    // The sign-in shield has already said what happens to unsaved work, so following its own link doesn't ask again.
+    let leaving = false;
+    const unload = (event: BeforeUnloadEvent) => { if ((forced.current ?? dirty.current) && !submitting.current && !leaving) { event.preventDefault(); event.returnValue = ""; } };
+    const restored = (event: PageTransitionEvent) => { if (event.persisted) leaving = false; };
     const click = (event: MouseEvent) => {
       if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
       const anchor = event.target instanceof Element ? event.target.closest("a[href]") : null;
       if (!(anchor instanceof HTMLAnchorElement) || anchor.target === "_blank" || anchor.hasAttribute("download")) return;
+      if (anchor.closest(`.${ACCOUNT_SHIELD_CLASS}`)) { leaving = true; return; }
       const destination = new URL(anchor.href, location.href);
       if (destination.pathname === location.pathname && destination.search === location.search && destination.hash) return;
       if (keepsDraft(anchor.href)) return;
       if (!allow()) { event.preventDefault(); event.stopImmediatePropagation(); }
     };
     const otherSubmit = (event: SubmitEvent) => {
-      if (!guardOtherForms || event.defaultPrevented || event.target === form || !(forced.current ?? dirty.current) || submitting.current) return;
+      if (!guardOtherForms || event.defaultPrevented || event.target === form || (event.target instanceof HTMLFormElement && confirmedSaves.has(event.target)) || !(forced.current ?? dirty.current) || submitting.current) return;
       if (!window.confirm("This action can reload the page. Continue without saving the other form’s changes?")) { event.preventDefault(); event.stopImmediatePropagation(); }
     };
     // The Navigation API also covers same-document Back/Forward where supported. The app's own back (a back control,
@@ -66,13 +77,32 @@ export function FormGuard({ forceDirty, guardOtherForms = false, preservedQuery,
     const associated = (event: Event) => { const target = event.target as HTMLInputElement | null; if (target?.form === form) update(); };
     // Native GET review forms have no React pending state; other guards run in capture first.
     const submit = (event: Event) => { if (nativeSubmit && !event.defaultPrevented) submitting.current = true; };
+    // Right before a save is sent, the account boundary confirms the account with one check, shown as this form's saving
+    // state. An expired session opens the sign-in shield instead, and every entry stays (JITM-08 §2.24). The held submit
+    // never reaches the page's own handlers; once confirmed it is sent again from the same button.
+    let holding = false;
+    const save = (event: SubmitEvent) => {
+      const confirm = confirmRef.current;
+      if (nativeSubmit || !confirm || event.defaultPrevented || confirmedSaves.has(form)) return;
+      event.preventDefault(); event.stopImmediatePropagation();
+      if (holding) return;
+      holding = true; setConfirming(true);
+      const submitter = event.submitter;
+      void confirm().then(confirmed => {
+        holding = false; setConfirming(false);
+        if (!confirmed || !form.isConnected || (submitter && !submitter.isConnected)) return;
+        confirmedSaves.add(form);
+        try { form.requestSubmit(submitter); } catch { /* The button left the form; the owner presses Save again. */ } finally { confirmedSaves.delete(form); }
+      });
+    };
+    form.addEventListener("submit", save);
     form.addEventListener("submit", submit);
     document.addEventListener("input", associated); document.addEventListener("change", associated); form.addEventListener("reset", reset);
     const observer = new MutationObserver(update); observer.observe(form, { childList: true, subtree: true, attributes: true, attributeFilter: ["value", "checked"] });
     document.addEventListener("submit", otherSubmit, true);
     document.addEventListener("click", click, true); window.addEventListener("beforeunload", unload); navigation?.addEventListener("navigate", navigate);
-    window.addEventListener(BEFORE_FORM_NAVIGATION, programmatic);
-    return () => { form.removeEventListener("submit", submit); for (const type of actions) document.removeEventListener(type, act, true); observer.disconnect(); document.removeEventListener("submit", otherSubmit, true); document.removeEventListener("input", associated); document.removeEventListener("change", associated); form.removeEventListener("reset", reset); document.removeEventListener("click", click, true); window.removeEventListener("beforeunload", unload); navigation?.removeEventListener("navigate", navigate); window.removeEventListener(BEFORE_FORM_NAVIGATION, programmatic); };
+    window.addEventListener(BEFORE_FORM_NAVIGATION, programmatic); window.addEventListener("pageshow", restored);
+    return () => { holding = false; form.removeEventListener("submit", save); form.removeEventListener("submit", submit); window.removeEventListener("pageshow", restored); for (const type of actions) document.removeEventListener(type, act, true); observer.disconnect(); document.removeEventListener("submit", otherSubmit, true); document.removeEventListener("input", associated); document.removeEventListener("change", associated); form.removeEventListener("reset", reset); document.removeEventListener("click", click, true); window.removeEventListener("beforeunload", unload); navigation?.removeEventListener("navigate", navigate); window.removeEventListener(BEFORE_FORM_NAVIGATION, programmatic); };
   }, [guardOtherForms, nativeSubmit]);
-  return <span ref={marker} className="form-guard-status muted-copy" role="status">{pending ? "Saving…" : (forceDirty ?? changed) ? "Unsaved changes. Save before leaving this page." : ""}</span>;
+  return <span ref={marker} className="form-guard-status muted-copy" role="status">{pending || confirming ? "Saving…" : (forceDirty ?? changed) ? "Unsaved changes. Save before leaving this page." : ""}</span>;
 }
