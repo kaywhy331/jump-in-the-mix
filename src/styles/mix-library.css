@@ -85,6 +85,11 @@
 .mix-phone-panes button { display: flex; align-items: center; justify-content: center; gap: 6px; flex: 1; min-height: 44px; border: 0; border-radius: 10px; background: transparent; color: var(--text-3); font: inherit; font-size: .8125rem; cursor: pointer; }
 .mix-phone-panes svg { width: 16px; height: 16px; }
 .mix-phone-panes [aria-pressed=true] { background: var(--violet-wash); color: var(--violet-text); font-weight: 600; }
+/* A page's Back control (JITM-BACK-03) shows at the top of its directory, and in this row only in the panes that hide
+   the directory, so exactly one copy is shown. On the narrowest phones the row wraps below it rather than overflow. */
+.mix-phone-panes:has(> .page-back-link) { flex-wrap: wrap; }
+.mix-phone-panes > .page-back-link { flex: none; margin: 0 var(--space-1) 0 0; }
+.mix-library-shell[data-mobile-pane=library] > .mix-phone-panes > .page-back-link { display: none; }
 .mix-favorite-control { display: inline-flex; align-items: center; }
 .mix-favorite { width: 44px; height: 44px; color: var(--text-3); }
 .mix-library-row .mix-favorite { border: 0; background: transparent; }

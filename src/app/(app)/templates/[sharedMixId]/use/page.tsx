@@ -2,11 +2,13 @@ import { randomUUID } from "node:crypto";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
+import { BackLink } from "@/components/BackLink";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { SharedMixPreview } from "@/components/SharedMixPreview";
 import { PlanApproachGuide } from "@/components/PlanApproachGuide";
 import { TemplateUseForm } from "@/components/TemplateUseForm";
 import { requireWorkspace } from "@/lib/auth";
+import { READY_MADE_MIXES } from "@/lib/app-navigation";
 import { mergeGroupActivity } from "@/lib/group-activity";
 import { prisma } from "@/lib/prisma";
 import { lockLibrary } from "@/lib/library-store";
@@ -38,11 +40,15 @@ export default async function UseMixTemplatePage({ params, searchParams }: { par
   const salesPlan = salesPlanById(shared.id);
   const groups = mergeGroupActivity(rawGroups, groupStates).filter((group) => group.isActive);
   const durationDays = Math.max(...steps.map((step) => step.dayOffset)) - Math.min(...steps.map((step) => step.dayOffset));
+  // The selected ready-made Mix, where Cancel goes. Its address carries the selection, so Back goes back only to that
+  // exact address and otherwise opens it (address mode, JITM-BACK-03), named as the ready-made library names itself.
+  const library = `/templates?mix=${shared.id}`;
 
   return (
     <div className="page template-use-page">
+      <BackLink href={library} label={READY_MADE_MIXES} returns="address" />
       <UrlErrorNotice params={query} viewer={session} />
-      <header className="page-header"><div><h1>Set up your Mix</h1><p>{shared.title}</p></div><Link className="button" href={`/templates?mix=${shared.id}`}>Mix library</Link></header>
+      <header className="page-header"><div><h1>Set up your Mix</h1><p>{shared.title}</p></div><Link className="button" href={library}>Mix library</Link></header>
       <div className="template-use-grid">
         <TemplateUseForm reviewBeforeActivation={preference?.reviewMixActivation ?? true} expectedVersion={metadata?.version ?? 1} sharedMixId={shared.id} requestId={`use-${randomUUID()}`} title={shared.title} description={shared.description} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} stepCount={steps.length} durationDays={durationDays} groups={groups.map((group) => ({ id: group.id, name: group.name, color: group.color, contactCount: group._count.memberships }))} activeContactCount={activeContactCount} workspaceTimezone={workspaceTimezone} />
         <details className="card template-use-reference"><summary>Mix details & messages</summary><p className="library-goal">Your starting point</p><h2>{shared.title}</h2><p>{shared.description}</p><p className="library-plan-facts"><span>{steps.length} {steps.length === 1 ? "Beat" : "Beats"}</span><span>{durationDays} days</span></p><details className="plan-message-reference"><summary>Preview the rhythm</summary><SharedMixPreview title={shared.title} triggerMode={metadata?.triggerMode ?? "MANUAL_START"} dateTypeName={metadata?.dateTypeName ?? null} durationDays={durationDays} steps={steps} expanded /></details>{salesPlan && <PlanApproachGuide plan={salesPlan}/>}<p className="muted-copy">When someone replies, pause their Mix and continue the conversation. Replies are not detected automatically.</p></details>

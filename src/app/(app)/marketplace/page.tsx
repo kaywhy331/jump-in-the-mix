@@ -1,6 +1,7 @@
 import type { Metadata } from "next";
 import Link from "next/link";
 import { MixLibraryShell } from "@/components/MixLibraryShell";
+import { BackLink } from "@/components/BackLink";
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
@@ -12,6 +13,7 @@ import { AddFromMarketplaceForm, ListingFavoriteButton, ReportSheet, ReviewReque
 import { ActionForm } from "@/components/ActionForm";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { requireWorkspace } from "@/lib/auth";
+import { MIXES_FAMILY_BACK } from "@/lib/app-navigation";
 import { getPlatformStringList } from "@/lib/platform-settings";
 import { formatDateTime } from "@/lib/format";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
@@ -63,14 +65,18 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
   const ownPane = item?.type === "listing" && item.own;
   // A hidden share is still under review while a report is open or a request waits; otherwise staff kept it hidden.
   const reviewing = item?.type === "listing" && item.own && (item.openReports > 0 || item.reviewBlock === "pending");
+  // Reached from several places: Back returns to the page the owner came from, or opens Mixes (JITM-BACK-03). One
+  // control, shown in the directory or the phone pane row, whichever the pane shows.
+  const back = <BackLink {...MIXES_FAMILY_BACK} />;
 
   return <div className="page mix-workspace-page marketplace-page">
     {params.shared && <Notice type="success">Shared. People see your latest saved version, and your edits appear as soon as you save them.</Notice>}
     {params.unshared && <Notice type="success">Sharing stopped. Copies people already added stay theirs.</Notice>}
     {params.reported && <Notice type="success">{params.reported === "hidden" ? "Thanks. The share is hidden while our team reviews it." : "Thanks. Our team will review this share."}</Notice>}
     {params.review === "requested" && <Notice type="success">Sent. Our team will look at your changes and let you know. The share stays hidden until then.</Notice>}
-    <MixLibraryShell selectedMixId={item ? selectedKey : undefined} explicitSelection={Boolean(params.item)}>
+    <MixLibraryShell selectedMixId={item ? selectedKey : undefined} explicitSelection={Boolean(params.item)} back={back}>
       <aside className="mix-library-directory" aria-label="Marketplace">
+        {back}
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions"><BrandTermsHelp /></div></header>
         <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My Mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace" aria-current="page"><AppIcon name="store" />Marketplace</Link></nav>
         <nav className="marketplace-sections" aria-label="Marketplace section">

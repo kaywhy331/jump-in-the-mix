@@ -23,6 +23,17 @@ export function navigationLabel(path: string): string | null {
   return NAV_LINKS.find(link => link.href === pathname)?.label ?? null;
 }
 
+const MIXES = "/mixes";
+/**
+ * The Back control of the pages of the Mixes family that are reached from several places (Ready-made Mixes, Marketplace,
+ * Mega-Mixes, Create a Mix): back to the page of the app shell the owner came from, otherwise Mixes, named by the
+ * navigation (`BackLink`'s origin mode; JITM-BACK-03).
+ */
+export const MIXES_FAMILY_BACK = { href: MIXES, label: navigationLabel(MIXES)!, returns: "origin" } as const;
+
+/** The ready-made Mix library's name (`/templates`), which the navigation has no link to: its page title, and the label of a Back control to it. */
+export const READY_MADE_MIXES = "Ready-made Mixes";
+
 const SECTION_SWIPE_KEY = "jitm-section-swipe";
 export const SECTION_SWIPE_EVENT = "jitm:section-swipe";
 // This visit's choice when the browser blocks storage, so the switch still applies until the tab closes.
