@@ -1,4 +1,4 @@
-import { safeAdminReturnTo } from "@/lib/admin-navigation";
+import { adminAreaName, safeAdminReturnTo } from "@/lib/admin-navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/auth";
@@ -9,7 +9,8 @@ import { EMPTY_LIBRARY_CONTENT } from "@/lib/library-content";
 import { prisma } from "@/lib/prisma";
 import { snapshotWorkspaceMix } from "@/lib/shared-mix-service";
 
-export const metadata: Metadata = { title: "Admin · New library draft" };
+const PAGE_NAME = "Create a library draft";
+export const metadata: Metadata = { title: PAGE_NAME };
 export default async function NewLibraryDraftPage({ searchParams }: { searchParams: Promise<{ error?: string; at?: string; sig?: string; sourceMixId?: string; returnTo?: string }> }) {
   const { user, session } = await requirePlatformAdmin("mixes.edit"); const query = await searchParams;
   const returnTo = safeAdminReturnTo(query.returnTo, "/admin/templates");
@@ -24,7 +25,7 @@ export default async function NewLibraryDraftPage({ searchParams }: { searchPara
     } catch { sourceIssue = true; }
   }
   return <div className="page admin-template-editor-page">
-    <header className="page-header"><div><h1>Create a library draft</h1></div><Link className="button" href={returnTo}>Back to Mixes</Link></header>
+    <header className="page-header"><div><h1>{PAGE_NAME}</h1></div><Link className="button" href={returnTo}>Back to {adminAreaName("/admin/templates")}</Link></header>
     <UrlErrorNotice params={query} viewer={session} fallback="The library change could not be saved. Please try again later." />
     {query.sourceMixId && (!source || sourceIssue) && <Notice type="error">This source Mix cannot be copied. Choose an available Mix from your own account, or start a new draft below.</Notice>}
     <LibraryDraftForm revision={0} content={content} sourceKey={source ? source.id : "new"} returnTo={returnTo} />

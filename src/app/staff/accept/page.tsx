@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { AuthCard } from "@/components/AuthCard";
 import { Notice } from "@/components/Notice";
 import { verifiedErrorMessage } from "@/lib/form-errors";
@@ -8,16 +9,23 @@ import { acceptStaffInvitationAction } from "@/lib/staff-invitation-actions";
 import { ADMIN_PERMISSIONS, effectiveAdminPermissions } from "@/lib/admin-permissions";
 
 export const dynamic = "force-dynamic";
-export const metadata: Metadata = { title: "Set up staff access", robots: { index: false, follow: false }, referrer: "no-referrer" };
+/** The invitation behind a token, read once per request: the title and the page share it. */
+const readInvitation = cache(peekStaffInvitation);
+/** The heading names the state (JITM-08 §2.39): a missing token, an invitation that can't be used, or the setup itself. It is also the document title (JITM-10 §2.22). */
+async function pageName(token: string) {
+  return !token ? "This invitation link is incomplete" : !(await readInvitation(token)) ? "This invitation isn’t available" : "Set up your staff access";
+}
+export async function generateMetadata({ searchParams }: { searchParams: Promise<{ token?: string }> }): Promise<Metadata> {
+  return { title: await pageName((await searchParams).token ?? ""), robots: { index: false, follow: false }, referrer: "no-referrer" };
+}
 
 export default async function AcceptStaffPage({ searchParams }: { searchParams: Promise<{ token?: string; error?: string; sig?: string }> }) {
   const params = await searchParams;
   const error = verifiedErrorMessage(params);
   const token = params.token ?? "";
-  const invitation = await peekStaffInvitation(token);
-  // The heading names the state (JITM-08 §2.39): a missing token, an invitation that can't be used, or the setup itself.
+  const [invitation, heading] = await Promise.all([readInvitation(token), pageName(token)]);
   return <AuthCard>
-    <h1>{!token ? "This invitation link is incomplete" : !invitation ? "This invitation isn’t available" : "Set up your staff access"}</h1>
+    <h1>{heading}</h1>
     {error && <Notice type="error">{error}</Notice>}
     {!invitation ? <><p>{!token ? "Open the full link from your invitation email, or ask a Jump in the Mix Owner for a new invitation." : "Ask a Jump in the Mix Owner for a new invitation or access to your existing account."}</p><Link className="text-link" href="/login">Sign in to an existing account</Link></> : <>
       <p>You’ve been invited as {invitation.role.toLowerCase()}. Create your staff account, then set up an authenticator to open the admin tools.</p>

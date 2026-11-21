@@ -13,8 +13,10 @@ import { releaseSystemMixAction, saveSystemMixDraftAction } from "@/lib/system-m
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import Link from "next/link";
+import { adminAreaName } from "@/lib/admin-navigation";
 
-export const metadata: Metadata = { title: "Admin · Invitation wording" };
+const PAGE_NAME = adminAreaName("/admin/system-mix");
+export const metadata: Metadata = { title: PAGE_NAME };
 export default async function SystemMixAdminPage({ searchParams }: { searchParams: Promise<{ saved?: string; released?: string; error?: string; at?: string; sig?: string; historyPage?: string }> }) {
   const { user, session, permissions } = await requirePlatformAdmin("mixes.edit");
   const query = await searchParams, { config, published, draft } = await getSystemMixState();
@@ -38,7 +40,7 @@ export default async function SystemMixAdminPage({ searchParams }: { searchParam
     <FormSubmitButton label={operation === "publish" ? `Publish version ${version}` : `Roll back to version ${version}`} pendingLabel="Saving publication…" />
   </AdminDraftForm></details>;
   return <div className="page">
-    <header className="page-header"><div><h1>Invitation wording</h1><p>Version {config.publishedVersion} is published. Latest draft: version {config.draftVersion}.</p></div></header>
+    <header className="page-header"><div><h1>{PAGE_NAME}</h1><p>Version {config.publishedVersion} is published. Latest draft: version {config.draftVersion}.</p></div></header>
     {query.saved && <Notice type="success">Draft version {query.saved} saved for review.</Notice>}{query.released && <Notice type="success">Invitation wording published.</Notice>}<UrlErrorNotice params={query} viewer={session} fallback="System Mix could not be updated. Please try again later." />
     <AdminEditorNavigation prefix="wording" />
     <details id="wording-draft" className="card admin-editor-section admin-editor-disclosure" open={!query.saved && !query.released}><summary><h2>Edit the next draft</h2></summary>    <AdminDraftForm draftKey="system-wording" fields={["subject", "body", "reason"]} revision={config.controlRevision} saved={query.saved} action={saveSystemMixDraftAction} className="form-stack admin-wording-form">

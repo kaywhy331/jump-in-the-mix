@@ -1,5 +1,5 @@
 import { AdminPagination } from "@/components/AdminPagination";
-import { adminPage, adminQuery } from "@/lib/admin-navigation";
+import { adminAreaName, adminPage, adminQuery } from "@/lib/admin-navigation";
 import { AdminRefresh } from "@/components/AdminRefresh";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -10,7 +10,8 @@ import { readEmailBudget } from "@/lib/email-budget";
 import { formatDateTime } from "@/lib/format";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 
-export const metadata: Metadata = { title: "Admin · Email" };
+const PAGE_NAME = adminAreaName("/admin/email");
+export const metadata: Metadata = { title: PAGE_NAME };
 
 export default async function AdminEmailPage({ searchParams }: { searchParams: Promise<{ q?: string; page?: string }> }) {
   const { user, permissions } = await requirePlatformAdmin("operations.read");
@@ -30,7 +31,7 @@ export default async function AdminEmailPage({ searchParams }: { searchParams: P
     permissions.includes("support.manage") ? prisma.supportTicketMessage.count({ where: { authorType: "ADMIN", emailStatus: "FAILED" } }) : null
   ]);
   return <div className="page">
-    <header className="page-header"><div><h1>Email</h1></div></header>
+    <header className="page-header"><div><h1>{PAGE_NAME}</h1></div></header>
     <AdminRefresh observedAt={now.toISOString()} />
     <div className="admin-two-columns"><section className="card form-stack"><h2>Sending allowance</h2>
       {windows.map(window => <div key={window.name}><h3>{window.name === "day" ? "Last 24 hours" : "Last 31 days"}</h3>

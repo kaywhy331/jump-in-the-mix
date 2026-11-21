@@ -2,15 +2,25 @@ import { ADMIN_AREAS, type AdminPermission } from "@/lib/admin-permissions";
 // Types only: client components (AdminNav, AdminSecurityLink) import this module, so it must not load the signing code.
 import type { SIGNED_ERROR_PARAMS } from "@/lib/form-errors";
 
+/** A staff area's one name (ADMIN_AREAS): its navigation label, its H1 and its document title (JITM-10 §2.22). */
+export function adminAreaName(href: string) {
+  const area = ADMIN_AREAS.find(item => item.href === href);
+  if (!area) throw new Error(`No staff area is at ${href}.`);
+  return area.label;
+}
+
+/** A group with one page takes that page's name, so the sidebar link and the page it opens agree. */
+const single = (href: string) => ({ label: adminAreaName(href), paths: [href] });
+
 const GROUPS = [
-  { label: "Overview", paths: ["/admin"] },
-  { label: "Customers", paths: ["/admin/users"] },
+  single("/admin"),
+  single("/admin/users"),
   { label: "Access", paths: ["/admin/waitlist", "/admin/access", "/admin/admission"] },
-  { label: "Support", paths: ["/admin/support"] },
+  single("/admin/support"),
   { label: "Content", paths: ["/admin/templates", "/admin/marketplace", "/admin/system-mix", "/admin/settings"] },
   { label: "Reports", paths: ["/admin/reports", "/admin/reports/history", "/admin/reports/exports"] },
   { label: "Operations", paths: ["/admin/operations", "/admin/operations/alerts", "/admin/email", "/admin/email/recovery", "/admin/email/suppressions", "/admin/audit"] },
-  { label: "Settings", paths: ["/admin/team"] }
+  single("/admin/team")
 ];
 
 export function adminNavigation(permissions: readonly AdminPermission[]) {

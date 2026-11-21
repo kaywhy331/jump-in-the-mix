@@ -8,12 +8,13 @@ import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { ADMIN_PERMISSIONS, effectiveAdminPermissions } from "@/lib/admin-permissions";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
-import { adminPage, adminQuery } from "@/lib/admin-navigation";
+import { adminAreaName, adminPage, adminQuery } from "@/lib/admin-navigation";
 import { changeStaffInvitationAction } from "@/lib/staff-invitation-actions";
 import { EMAIL_RETRY_WINDOW_MS } from "@/lib/email-budget";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
-export const metadata = { title: "Admin · Team" };
+const PAGE_NAME = adminAreaName("/admin/team");
+export const metadata = { title: PAGE_NAME };
 type Search = { error?: string; at?: string; sig?: string; saved?: string; invitation?: string; invitePage?: string; page?: string; view?: string; q?: string; email?: string; edit?: string; changed?: string };
 export default async function TeamPage({ searchParams }: { searchParams: Promise<Search> }) {
   const { user, session, permissions } = await requirePlatformAdmin("staff.manage"), params = await searchParams;
@@ -33,7 +34,7 @@ export default async function TeamPage({ searchParams }: { searchParams: Promise
   const targetMfa = target ? await prisma.adminMfaCredential.findUnique({ where: { userId: target.id }, select: { enabledAt: true } }) : null;
   const href = (page:number) => adminQuery("/admin/team", { view, q, page });
   const date = (value:Date) => formatDateTime(value,display);
-  return <div className="page"><header className="page-header"><div><h1>Team</h1></div>{view !== "add" && <Link className="button primary" href="/admin/team?view=add">Add a person</Link>}</header>
+  return <div className="page"><header className="page-header"><div><h1>{PAGE_NAME}</h1></div>{view !== "add" && <Link className="button primary" href="/admin/team?view=add">Add a person</Link>}</header>
     <UrlErrorNotice params={params} viewer={session} />{params.saved && <Notice>Staff access updated. The person must sign in again.</Notice>}{params.invitation === "queued" && <Notice>Staff invitation queued. The recipient must accept and set up MFA.</Notice>}{params.invitation === "updated" && <Notice>Staff invitation updated.</Notice>}
     <nav className="admin-content-tabs" aria-label="Team views">{[["roster", "Staff"], ["invitations", "Invitations"], ["add", "Add a person"]].map(([key,label]) => <Link key={key} href={adminQuery("/admin/team", { view:key })} aria-current={view===key ? "page" : undefined}>{label}</Link>)}<Link href="/account/admin-mfa">Your security</Link></nav>
     {view !== "add" && <form method="get" className="admin-library-search live-search-form"><input name="view" type="hidden" value={view} /><label className="field"><span>{view === "roster" ? "Search staff name or email" : "Search invitation email"}</span><input name="q" type="search" defaultValue={q} maxLength={254} /></label><button className="button" type="submit">Search</button></form>}

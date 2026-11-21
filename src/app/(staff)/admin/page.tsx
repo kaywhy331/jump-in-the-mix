@@ -7,8 +7,10 @@ import { prisma } from "@/lib/prisma";
 import { operationsPolicy } from "@/lib/operations-policy";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
+import { adminAreaName } from "@/lib/admin-navigation";
 
-export const metadata = { title: "Admin · Overview" };
+const PAGE_NAME = adminAreaName("/admin");
+export const metadata = { title: PAGE_NAME };
 
 type AttentionItem = { title: string; detail: string; href: string; count?: number };
 
@@ -73,7 +75,7 @@ export default async function AdminPage() {
   ].filter(action => permissions.some(permission => permission === action.permission));
 
   return <div className="page admin-overview-page">
-    <header className="page-header"><div><h1>Overview</h1></div><span className="admin-updated">Page loaded {formatDateTime(now, display)}</span></header>
+    <header className="page-header"><div><h1>{PAGE_NAME}</h1></div><span className="admin-updated">Page loaded {formatDateTime(now, display)}</span></header>
     <AdminRefresh observedAt={now.toISOString()} /><p>Counts are a live read of retained records at page load. Operational health uses the separate monitoring observation below.</p>
     <section className="admin-pulse" aria-label="Aggregate activity">
       {[{ label: "All accounts, including staff", value: users, note: "Operational total · not customer capacity", href: permissions.includes("users.read") ? "/admin/users" : null }, { label: "Follow-ups completed", value: completed, note: "Last 7 days · retained records", href: permissions.includes("reports.read") ? "/admin/reports?days=7&view=engagement" : null }, { label: "Confirmed waiting", value: waiting, note: "Confirmed email · eligibility checked on invite", href: canWaitlist ? "/admin/waitlist?status=WAITING&confirmed=confirmed" : null }].map(metric => <div className="admin-pulse-item" key={metric.label}><span>{metric.href ? <Link prefetch={false} href={metric.href}>{metric.label}</Link> : metric.label}</span><strong>{metric.value.toLocaleString("en-US")}</strong><small>{metric.note}</small></div>)}
@@ -87,7 +89,7 @@ export default async function AdminPage() {
       {actions.length > 0 && <section className="admin-panel" aria-labelledby="admin-actions-title"><header className="admin-panel-heading"><h2 id="admin-actions-title">Quick actions</h2></header><ul className="admin-action-list">{actions.map(action => <li key={action.href}><Link prefetch={false} href={action.href}><span className="admin-action-icon"><AppIcon name={action.icon} /></span><span className="admin-action-copy"><strong>{action.label}</strong></span><span aria-hidden="true">→</span></Link></li>)}</ul></section>}
     </div>
     {(canEdit || canWaitlist) && <section className="admin-next-work" aria-label="Continue your work">
-      {canEdit && <Link prefetch={false} href="/admin/templates" className="admin-panel admin-work-link"><AppIcon name="mixes" /><span><strong>Content library</strong><small>{hiddenMixes > 0 ? `${hiddenMixes} drafts or hidden mixes` : "Manage ready-made Mixes"}</small></span><span aria-hidden="true">→</span></Link>}
+      {canEdit && <Link prefetch={false} href="/admin/templates" className="admin-panel admin-work-link"><AppIcon name="mixes" /><span><strong>{adminAreaName("/admin/templates")}</strong><small>{hiddenMixes > 0 ? `${hiddenMixes} drafts or hidden mixes` : "Manage the library"}</small></span><span aria-hidden="true">→</span></Link>}
       {canWaitlist && <Link prefetch={false} href="/admin/waitlist" className="admin-panel admin-work-link"><AppIcon name="people" /><span><strong>Customer invitations</strong><small>{schedule ? schedule.paused ? "Weekly waves paused" : `Next wave: ${formatDateTime(schedule.nextRunAt, display)}` : "Weekly waves not scheduled"}</small></span><span aria-hidden="true">→</span></Link>}
     </section>}
   </div>;

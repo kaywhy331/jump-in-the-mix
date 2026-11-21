@@ -1,9 +1,10 @@
 import { AdminEditorNavigation } from "@/components/AdminEditorNavigation";
 import { AdminContentDiff } from "@/components/AdminContentDiff";
 import { AdminDraftForm } from "@/components/AdminDraftForm";
-import { safeAdminReturnTo, adminQuery } from "@/lib/admin-navigation";
+import { adminAreaName, safeAdminReturnTo, adminQuery } from "@/lib/admin-navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
@@ -19,7 +20,19 @@ import { releaseSharedMixAction } from "@/lib/shared-mix-admin-actions";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Admin · Library review" };
+/** The page's one name: its H1 and its document title (JITM-10 §2.22). */
+const pageName = (title: string) => `Review ${title}`;
+/** The library entry, read once per request behind the page's permission: the title and the page share it. Null when it no longer exists. */
+const readEntry = cache(async (sharedMixId: string) => {
+  const staff = await requirePlatformAdmin("mixes.edit");
+  try { return { staff, state: await getLibraryState(sharedMixId) }; } catch (error) { if (error instanceof LibraryError) return { staff, state: null }; throw error; }
+});
+/** A missing entry opens the staff not-found, and takes its title (JITM-10 §2.22). */
+export async function generateMetadata({ params }: { params: Promise<{ sharedMixId: string }> }): Promise<Metadata> {
+  const { state } = await readEntry((await params).sharedMixId);
+  if (!state) notFound();
+  return { title: pageName(state.draft.title) };
+}
 function Preview({ content }: { content: LibraryContent }) {
   try {
     const steps = normalizeSharedMixSteps(content.steps);
@@ -29,10 +42,9 @@ function Preview({ content }: { content: LibraryContent }) {
 export default async function AdminEditTemplatePage({ params, searchParams }: {
   params: Promise<{ sharedMixId: string }>; searchParams: Promise<{ saved?: string; released?: string; error?: string; at?: string; sig?: string; historyPage?: string; returnTo?: string }>;
 }) {
-  const { user, session, permissions } = await requirePlatformAdmin("mixes.edit");
   const { sharedMixId } = await params, query = await searchParams;
-  let state;
-  try { state = await getLibraryState(sharedMixId); } catch (error) { if (error instanceof LibraryError) notFound(); throw error; }
+  const { staff: { user, session, permissions }, state } = await readEntry(sharedMixId);
+  if (!state) notFound();
   const { shared, version, draftVersion, controlRevision } = state;
   const display = await displayPreferencesForUser(user.id);
   const historyPage = Math.max(1, Math.floor(Math.min(100_000, Number(query.historyPage) || 1)));
@@ -57,13 +69,13 @@ export default async function AdminEditTemplatePage({ params, searchParams }: {
     <FormSubmitButton label={label} pendingLabel="Saving publication…" />
   </AdminDraftForm></details>;
   return <div className="page admin-template-editor-page">
-    <header className="page-header"><div><h1>Review {draft.title}</h1><p>{shared.status === "APPROVED" ? `Version ${version} is published.` : "Hidden from the customer library."} Latest draft: version {draftVersion}.</p></div><Link className="button" href={returnTo}>Back to Mixes</Link></header>
+    <header className="page-header"><div><h1>{pageName(draft.title)}</h1><p>{shared.status === "APPROVED" ? `Version ${version} is published.` : "Hidden from the customer library."} Latest draft: version {draftVersion}.</p></div><Link className="button" href={returnTo}>Back to {adminAreaName("/admin/templates")}</Link></header>
     {query.saved && <Notice type="success">Draft version {query.saved} saved. Publication is a separate step.</Notice>}
     {query.released && <Notice type="success">Library publication updated.</Notice>}
     <UrlErrorNotice params={query} viewer={session} fallback="The library change could not be saved. Please try again later." />
     <AdminEditorNavigation prefix="library" />
     <details id="library-draft" className="card admin-editor-section admin-editor-disclosure" open={!query.saved && !query.released}><summary><h2>Edit the next draft</h2></summary><LibraryDraftForm id={sharedMixId} revision={controlRevision} content={draft} returnTo={returnTo} /></details>
-    <details id="library-review" className="card admin-editor-section admin-editor-disclosure" open={Boolean(query.saved || query.released)}><summary><h2>Preview & publish · draft {draftVersion}</h2></summary>
+    <details id="library-review" className="card admin-editor-section admin-editor-disclosure" open={Boolean(query.saved || query.released)}><summary><h2>Preview and publish · draft {draftVersion}</h2></summary>
       <section className="form-stack"><h2>Saved draft preview · version {draftVersion}</h2><p>{state.draft.description}</p><Preview content={state.draft} /><AdminContentDiff before={state.published} after={state.draft} />
         <div className="admin-editor-impact"><p>Publishing changes future library copies. The {imports} existing copies across {importedWorkspaces[0]?.count ?? 0} customer workspaces keep their content.</p><p>Only the saved version below is published. Confirm with your password and a reason; MFA must have been verified in the last ten minutes.</p></div>
         {canPublish ? releaseForm("publish", draftVersion, `Publish version ${draftVersion}`) : <Notice type="info">Your role can save drafts. A publisher must review and release them.</Notice>}

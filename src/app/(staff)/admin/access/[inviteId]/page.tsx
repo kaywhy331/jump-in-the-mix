@@ -1,5 +1,7 @@
 import { getAdmissionPolicy } from "@/lib/admission";
+import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -14,10 +16,21 @@ import { AdminDraftForm } from "@/components/AdminDraftForm";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
-export const metadata = { title: "Admin · Invitation review" };
-export default async function InvitationReview({ params, searchParams }: { params: Promise<{ inviteId: string }>; searchParams: Promise<{ returnTo?: string; error?: string; at?: string; sig?: string; done?: string }> }) {
-  const [{ inviteId }, query, { user, session, permissions }] = await Promise.all([params, searchParams, requirePlatformAdmin("access.read")]);
+const PAGE_NAME = "Invitation review";
+/** The invitation, read once per request behind the page's permission: the title and the page share it. */
+const readInvite = cache(async (inviteId: string) => {
+  const staff = await requirePlatformAdmin("access.read");
   const invite = await prisma.referralAccessInvite.findUnique({ where: { id: inviteId }, select: { id: true, recipientEmail: true, recipientPhone: true, manualDelivery: true, source: true, systemMixVersion: true, createdAt: true, acceptedAt: true, revokedAt: true, lastSentAt: true, delivery: { select: { id: true, status: true, attempts: true, firstAttemptAt: true, providerId: true, lastError: true, emailMessage: { select: { acceptedAt: true, deliveredAt: true, delayedAt: true, bouncedAt: true, complainedAt: true, suppressedAt: true, failedAt: true } } } } } });
+  return { staff, invite };
+});
+/** A missing invitation opens the staff not-found, and takes its title (JITM-10 §2.22). */
+export async function generateMetadata({ params }: { params: Promise<{ inviteId: string }> }): Promise<Metadata> {
+  if (!(await readInvite((await params).inviteId)).invite) notFound();
+  return { title: PAGE_NAME };
+}
+export default async function InvitationReview({ params, searchParams }: { params: Promise<{ inviteId: string }>; searchParams: Promise<{ returnTo?: string; error?: string; at?: string; sig?: string; done?: string }> }) {
+  const [{ inviteId }, query] = await Promise.all([params, searchParams]);
+  const { staff: { user, session, permissions }, invite } = await readInvite(inviteId);
   if (!invite) notFound();
   const [display, blocks, recipient, events] = await Promise.all([displayPreferencesForUser(user.id), invite.recipientEmail ? prisma.emailSuppression.count({ where: { email: invite.recipientEmail, clearedAt: null } }) : 0, invite.recipientEmail && permissions.includes("users.read") ? prisma.user.findUnique({ where: { email: invite.recipientEmail }, select: { id: true } }) : null, prisma.platformAuditEvent.findMany({ where: { entityType: "ReferralAccessInvite", entityId: invite.id }, orderBy: { createdAt: "desc" }, take: 20, select: { id: true, action: true, reason: true, createdAt: true } })]);
   const returnTo = safeAdminReturnTo(query.returnTo, "/admin/access"), detailPath = adminQuery(`/admin/access/${invite.id}`, { returnTo });
@@ -25,7 +38,7 @@ export default async function InvitationReview({ params, searchParams }: { param
   const active = !invite.acceptedAt && !invite.revokedAt;
   const retry = active && !blocks && permissions.includes("jobs.retry") && invite.delivery?.status === "REVIEW" && invite.delivery.firstAttemptAt && Date.now() - invite.delivery.firstAttemptAt.getTime() < WAITLIST_RETRY_WINDOW_MS;
   const date = (value: Date | null) => value ? formatDateTime(value, display) : "Not recorded";
-  return <div className="page"><header className="page-header"><div><h1>Invitation review</h1><p>{invite.recipientEmail ?? invite.recipientPhone} · {ACCESS_SOURCES[invite.source]}</p></div><Link className="button" href={returnTo}>Back to invitations</Link></header><UrlErrorNotice params={query} viewer={session} />{query.done && <Notice>{query.done === "revoke" ? "Invitation revoked. Email already handed to the provider may still arrive with an unusable link." : "The same invitation email is queued for another attempt."}</Notice>}
+  return <div className="page"><header className="page-header"><div><h1>{PAGE_NAME}</h1><p>{invite.recipientEmail ?? invite.recipientPhone} · {ACCESS_SOURCES[invite.source]}</p></div><Link className="button" href={returnTo}>Back to invitations</Link></header><UrlErrorNotice params={query} viewer={session} />{query.done && <Notice>{query.done === "revoke" ? "Invitation revoked. Email already handed to the provider may still arrive with an unusable link." : "The same invitation email is queued for another attempt."}</Notice>}
     <div className="admin-detail-columns"><section className="card form-stack"><h2>Current state</h2><p><strong>Account creation:</strong> {invite.acceptedAt ? "Already accepted" : invite.revokedAt ? "This link is revoked" : policy.redemptionPaused ? "Paused by admission policy, even for an issued invitation" : "An unused, valid invitation may be accepted"}. {permissions.includes("settings.manage") && <Link href="/admin/admission">Review admission policy</Link>}</p><p><strong>Grant: {accessGrantLabel(invite)}</strong> · {invite.manualDelivery ? "Personal invitation prepared for the member to share." : active ? "One customer place remains reserved." : "No unused reservation remains."}</p><p><strong>Email: {invite.manualDelivery ? "Member sends from their own app" : invite.delivery?.status.toLowerCase() ?? "legacy record"}</strong>{invite.delivery?.emailMessage ? ` · ${emailDeliveryLabel(invite.delivery.emailMessage)}` : ""}</p>{Boolean(blocks) && <Notice type="info">The recipient has an active email block. Review suppression before another send.</Notice>}
       <dl className="support-definition-list"><div><dt>Created</dt><dd>{date(invite.createdAt)}</dd></div><div><dt>First delivery attempt</dt><dd>{date(invite.delivery?.firstAttemptAt ?? null)}</dd></div><div><dt>Provider accepted</dt><dd>{date(invite.lastSentAt)}</dd></div><div><dt>Joined</dt><dd>{date(invite.acceptedAt)}</dd></div><div><dt>Revoked</dt><dd>{date(invite.revokedAt)}</dd></div></dl>
       <nav className="page-actions" aria-label="Related invitation records">{invite.recipientEmail && permissions.includes("waitlist.read") && <Link href={adminQuery("/admin/waitlist", { q: invite.recipientEmail, view: "history" })}>Recipient eligibility and request history</Link>}{permissions.includes("email.manage") && invite.delivery && <Link className="button" href={adminQuery(`/admin/email/recovery/${invite.delivery.id}`, { returnTo: detailPath })}>Review delivery evidence</Link>}{invite.recipientEmail && permissions.includes("email.manage") && <Link className="button" href={adminQuery("/admin/email/suppressions", { q: invite.recipientEmail })}>Recipient blocks</Link>}{recipient && <Link className="button" href={adminQuery(`/admin/users/${recipient.id}`, { returnTo: detailPath })}>Customer account</Link>}{permissions.includes("audit.read") && <Link href={adminQuery("/admin/audit", { q: invite.id })}>Audit history</Link>}</nav>

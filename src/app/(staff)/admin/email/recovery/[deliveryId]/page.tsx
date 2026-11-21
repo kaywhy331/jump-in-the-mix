@@ -1,4 +1,6 @@
+import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
@@ -12,13 +14,23 @@ import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { recoverInvitationReceiptAction, repeatInvitationDeliveryAction } from "@/lib/email-suppression-actions";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
-export const metadata = { title: "Admin · Delivery review" };
-export default async function DeliveryReview({ params, searchParams }: { params: Promise<{ deliveryId: string }>; searchParams: Promise<{ returnTo?: string; error?: string; at?: string; sig?: string; recovered?: string; queued?: string; case?: string }> }) {
-  const [{ deliveryId }, query, { user, session, permissions }] = await Promise.all([params, searchParams, requirePlatformAdmin("email.manage")]);
+const PAGE_NAME = "Delivery review";
+/** The delivery and its recipient, read once per request behind the page's permission: the title and the page share it. Null when it is missing or this staff member can't review it. */
+const readDelivery = cache(async (deliveryId: string) => {
+  const staff = await requirePlatformAdmin("email.manage");
   const row = await prisma.waitlistDelivery.findUnique({ where: { id: deliveryId }, select: { id: true, status: true, generation: true, generationStartedAt: true, updatedAt: true, firstAttemptAt: true, providerId: true, attempts: true, payloadPurgedAt: true, leaseId: true, lockedAt: true, inviteId: true, staffInvitationId: true, lastError: true, emailMessage: { select: { firstAttemptAt: true, bouncedAt: true, complainedAt: true, suppressedAt: true, failedAt: true, acceptedAt: true, deliveredAt: true } }, invite: { select: { id: true, recipientEmail: true, acceptedAt: true, revokedAt: true } }, staffInvitation: { select: { id: true, email: true, expiresAt: true, acceptedAt: true, revokedAt: true } }, history: { orderBy: { generation: "desc" }, take: 5, select: { generation: true, emailMessageId: true, status: true, attempts: true, firstAttemptAt: true, providerId: true } } } });
-  if (!row || !(row.staffInvitationId ? permissions.includes("staff.manage") : permissions.includes("access.read"))) notFound();
-  const email = row.invite?.recipientEmail ?? row.staffInvitation?.email;
-  if (!email) notFound();
+  const email = row && (row.staffInvitationId ? staff.permissions.includes("staff.manage") : staff.permissions.includes("access.read")) ? row.invite?.recipientEmail ?? row.staffInvitation?.email : undefined;
+  return { staff, row: email ? row : null, email };
+});
+/** A missing delivery opens the staff not-found, and takes its title (JITM-10 §2.22). */
+export async function generateMetadata({ params }: { params: Promise<{ deliveryId: string }> }): Promise<Metadata> {
+  if (!(await readDelivery((await params).deliveryId)).row) notFound();
+  return { title: PAGE_NAME };
+}
+export default async function DeliveryReview({ params, searchParams }: { params: Promise<{ deliveryId: string }>; searchParams: Promise<{ returnTo?: string; error?: string; at?: string; sig?: string; recovered?: string; queued?: string; case?: string }> }) {
+  const [{ deliveryId }, query] = await Promise.all([params, searchParams]);
+  const { staff: { user, session, permissions }, row, email } = await readDelivery(deliveryId);
+  if (!row || !email) notFound();
   const returnTo = safeAdminReturnTo(query.returnTo, "/admin/email/recovery"), detailPath = adminQuery(`/admin/email/recovery/${row.id}`, { returnTo, case: query.case?.slice(0,200) });
   const preferences = await displayPreferencesForUser(user.id);
   const eligibility = await prisma.$transaction(tx => invitationRepeatEligibility(tx, row, row.emailMessage, email));
@@ -28,7 +40,7 @@ export default async function DeliveryReview({ params, searchParams }: { params:
   const historicalReceipts = await prisma.emailMessage.findMany({ where: { id: { in: row.history.map(item => item.emailMessageId) } }, select: { id: true, providerId: true, acceptedAt: true } });
   const receipts = new Map(historicalReceipts.map(item => [item.id, item]));
   const grant = row.invite ?? row.staffInvitation;
-  return <div className="page"><header className="page-header"><div><h1>Delivery review</h1><p>{email} · {row.staffInvitation ? "Staff invitation" : "Customer invitation"}</p></div><Link className="button" href={returnTo}>Back to related record</Link></header>
+  return <div className="page"><header className="page-header"><div><h1>{PAGE_NAME}</h1><p>{email} · {row.staffInvitation ? "Staff invitation" : "Customer invitation"}</p></div><Link className="button" href={returnTo}>Back to related record</Link></header>
     <UrlErrorNotice params={query} viewer={session} />{query.recovered && <Notice>Provider acceptance recovered. No email was sent.</Notice>}{query.queued && <Notice>The same invitation is queued again. Its access grant is unchanged.</Notice>}
     <div className="admin-detail-columns"><section className="card form-stack"><h2>Recipient impact</h2><p>{grant?.acceptedAt ? "This invitation was already accepted. No replacement email is needed." : grant?.revokedAt ? "This invitation no longer grants access. A resend cannot restore it." : row.emailMessage?.deliveredAt ? "The recipient’s mail server accepted this email. Ask the recipient to check for the existing invitation before considering another copy." : row.status === "REVIEW" ? "Email delivery is unconfirmed. Recover the provider receipt first; another email could duplicate the first." : row.status === "SENT" ? "The provider accepted the email. The existing invitation may already be available; acceptance does not establish inbox delivery." : "The invitation has not completed delivery. Review its current queue state before taking another action."}</p><h3>Delivery status</h3><p>Grant: {grant?.acceptedAt ? "Accepted" : grant?.revokedAt ? "Revoked" : row.staffInvitation && row.staffInvitation.expiresAt <= new Date() ? "Expired" : "Unused"} · Email: {row.status.toLowerCase()} · Delivery generation {row.generation}</p><p>First attempt: {row.firstAttemptAt ? formatDateTime(row.firstAttemptAt, preferences) : "Not recorded"}. {row.attempts} worker attempts.</p>{row.lastError && <p>{row.lastError}</p>}
       <p role="status">{!available ? "This delivery is locked or its private content has expired. Actions are unavailable." : eligibility.available ? "Eligible for resend review. Rechecked on save." : eligibility.reason}</p><p>Earliest resend review: {formatDateTime(eligibility.availableAt, preferences)}.</p>{!waitlistSendingReady() && <p>Sending configuration is unavailable in this environment.</p>}{query.case && <p>Case reference: {query.case.slice(0,200)}</p>}

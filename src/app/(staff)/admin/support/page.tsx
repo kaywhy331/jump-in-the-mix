@@ -1,5 +1,5 @@
 import { AdminPagination } from "@/components/AdminPagination";
-import { adminPage, adminQuery } from "@/lib/admin-navigation";
+import { adminAreaName, adminPage, adminQuery } from "@/lib/admin-navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
@@ -23,7 +23,8 @@ import {
   type SupportStatusValue
 } from "@/lib/support-content";
 
-export const metadata: Metadata = { title: "Admin · Support" };
+const PAGE_NAME = adminAreaName("/admin/support");
+export const metadata: Metadata = { title: PAGE_NAME };
 
 type SearchParams = {
   page?: string;
@@ -117,7 +118,7 @@ export default async function AdminSupportPage({ searchParams }: { searchParams:
     <div className="page admin-support-page">
       <header className="page-header">
         <div>
-          <h1>Support</h1>
+          <h1>{PAGE_NAME}</h1>
 
         </div>
         <div className="page-actions">

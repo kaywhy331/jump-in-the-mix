@@ -50,7 +50,7 @@ test("overview highlights missing monitoring, respects roles, and offers a usabl
     await applyRenderedTheme(page, colorScheme, { width, height: 1000 });
     if (width === 320) {
       await page.getByRole("button", { name: "Menu", exact: true }).click();
-      await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Settings", exact: true })).toBeVisible();
+      await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Team", exact: true })).toBeVisible();
     }
     expect(await page.evaluate(() => document.documentElement.scrollWidth)).toBeLessThanOrEqual(width);
     expect((await new AxeBuilder({ page }).withTags(["wcag2a", "wcag2aa", "wcag21aa", "wcag22aa"]).analyze()).violations).toEqual([]);
@@ -69,7 +69,7 @@ test("overview highlights missing monitoring, respects roles, and offers a usabl
   await expect(page.getByRole("link", { name: /Create a library draft/ })).toHaveCount(0);
   await expect(page.getByRole("link", { name: /Explore reports/ })).toBeVisible();
   await page.getByRole("button", { name: "Menu", exact: true }).click();
-  await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Settings", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Team", exact: true })).toHaveCount(0);
 });
 
 test("content search, visibility, ordering and pagination work together without losing filters", async ({ page, context }, info) => {
@@ -81,13 +81,13 @@ test("content search, visibility, ordering and pagination work together without 
     mixIds.push(row.id);
   }
   await page.goto("/admin/templates");
-  await page.getByRole("searchbox", { name: "Search ready-made Mixes" }).fill(prefix);
+  await page.getByRole("searchbox", { name: "Search the library" }).fill(prefix);
   await page.getByLabel("Sort Mixes").selectOption("title");
   await expect(page.locator(".admin-library-row")).toHaveCount(25);
   await expect(page.locator(".admin-library-row").first()).toContainText(`${prefix} 00`);
   await page.getByRole("link", { name: "Next", exact: true }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(2);
-  await expect(page.getByRole("searchbox", { name: "Search ready-made Mixes" })).toHaveValue(prefix);
+  await expect(page.getByRole("searchbox", { name: "Search the library" })).toHaveValue(prefix);
   await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /Unpublished/ }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(1);
   await expect(page.locator(".admin-library-row")).toContainText(`${prefix} 26`);
@@ -100,7 +100,7 @@ test("content search, visibility, ordering and pagination work together without 
   await page.getByRole("navigation", { name: "Library visibility" }).getByRole("link", { name: /All Mixes/ }).click();
   await page.getByLabel("Sort Mixes").selectOption("popular");
   await expect(page.locator(".admin-library-row").first()).toContainText(`${prefix} 26`);
-  await page.getByRole("searchbox", { name: "Search ready-made Mixes" }).fill(`${prefix} missing`);
+  await page.getByRole("searchbox", { name: "Search the library" }).fill(`${prefix} missing`);
   await expect(page.getByRole("heading", { name: "No Mixes match these filters" })).toBeVisible();
   await page.getByRole("link", { name: "Show all Mixes", exact: true }).click();
   await expect(page.locator(".admin-library-row")).toHaveCount(25);

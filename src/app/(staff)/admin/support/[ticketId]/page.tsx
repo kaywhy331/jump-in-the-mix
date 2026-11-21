@@ -5,6 +5,7 @@ import { randomUUID } from "node:crypto";
 import { SupportEmailRecovery } from "@/components/SupportEmailRecovery";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { headers } from "next/headers";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { env } from "@/lib/env";
@@ -33,7 +34,18 @@ import {
   adminSupportStatusLabel
 } from "@/lib/support-content";
 
-export const metadata: Metadata = { title: "Admin · Support ticket" };
+/** The case, read once per request behind the page's permission and recorded as one support read: the title and the page share it. */
+const readTicket = cache(async (ticketId: string) => {
+  const staff = await requirePlatformAdmin("support.manage");
+  const ticket = await readSupportCase({ actorUserId: staff.user.id, actorSessionId: staff.session.id, ticketId, read: supportReadContext(await headers()) });
+  return { staff, ticket };
+});
+/** The page's one name, its H1 and its document title, is the case title; a missing case opens the staff not-found and takes its title (JITM-10 §2.22). */
+export async function generateMetadata({ params }: { params: Promise<{ ticketId: string }> }): Promise<Metadata> {
+  const { ticket } = await readTicket((await params).ticketId);
+  if (!ticket) notFound();
+  return { title: ticket.title };
+}
 
 type SearchParams = {
   returnTo?: string;
@@ -55,9 +67,9 @@ export default async function AdminSupportTicketPage({
   params: Promise<{ ticketId: string }>;
   searchParams: Promise<SearchParams>;
 }) {
-  const [{ ticketId }, query, { user, session, permissions }] = await Promise.all([params, searchParams, requirePlatformAdmin("support.manage")]);
+  const [{ ticketId }, query] = await Promise.all([params, searchParams]);
+  const { staff: { user, session, permissions }, ticket } = await readTicket(ticketId);
   const displayPreferences = await displayPreferencesForUser(user.id);
-  const ticket = await readSupportCase({ actorUserId: user.id, actorSessionId: session.id, ticketId, read: supportReadContext(await headers()) });
   if (!ticket) notFound();
 
   const staff = await prisma.user.findMany({ where: { suspendedAt: null, emailVerifiedAt: { not: null }, staffMembership: { status: "ACTIVE" } }, select: { id: true, name: true, staffMembership: true }, orderBy: { name: "asc" } });

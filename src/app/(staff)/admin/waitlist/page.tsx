@@ -1,7 +1,7 @@
 import { WaitlistSelectionForm } from "@/components/WaitlistSelectionForm";
 import { AdminPagination } from "@/components/AdminPagination";
 import { AdminDraftForm } from "@/components/AdminDraftForm";
-import { adminQuery } from "@/lib/admin-navigation";
+import { adminAreaName, adminQuery } from "@/lib/admin-navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { Notice } from "@/components/Notice";
@@ -13,7 +13,8 @@ import { retryWaitlistDeliveryAction, setWaitlistScheduleAction } from "@/lib/wa
 import { WAITLIST_RETRY_WINDOW_MS } from "@/lib/waitlist-delivery";
 import { waitlistSendingReady } from "@/lib/waitlist";
 
-export const metadata: Metadata = { title: "Admin · Waitlist" };
+const PAGE_NAME = adminAreaName("/admin/waitlist");
+export const metadata: Metadata = { title: PAGE_NAME };
 const date = (value: Date | null) => value ? `${value.toISOString().slice(0, 16).replace("T", " ")} UTC` : "—";
 
 export default async function AdminWaitlistPage({ searchParams }: { searchParams: Promise<{ q?: string; view?: string; page?: string; error?: string; at?: string; sig?: string; queued?: string; skipped?: string; retry?: string; confirmed?: string; scheduleSaved?: string }> }) {
@@ -56,7 +57,7 @@ export default async function AdminWaitlistPage({ searchParams }: { searchParams
   const names = new Map(actors.map(person => [person.id, person.name]));
   const href = (nextPage: number) => adminQuery("/admin/waitlist", { q: query, view, confirmed, page: nextPage });
   return <div className="page admin-waitlist-page">
-    <header className="page-header"><div><h1>Waitlist</h1></div></header>
+    <header className="page-header"><div><h1>{PAGE_NAME}</h1></div></header>
     <UrlErrorNotice params={params} viewer={session} />
     {params.queued !== undefined && <Notice>{Number(params.queued) || 0} invitations queued. {Number(params.skipped) || 0} skipped because they were no longer eligible. The worker sends queued email.</Notice>}
     {params.retry && <Notice>Delivery queued for another attempt.</Notice>}

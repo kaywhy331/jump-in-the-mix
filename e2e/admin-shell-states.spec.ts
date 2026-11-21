@@ -158,7 +158,7 @@ test("a staff page that fails offers Try again and a staff next step inside the 
       await expect(page.getByRole("heading", { name: "We couldn’t open this page." })).toHaveCount(0);
       await expect(page.getByRole("navigation", { name: "Administration" })).toBeVisible();
       await expect(main.getByRole("button", { name: "Try again" })).toBeVisible();
-      await expect(main.getByRole("link", { name: "Back to Report history" })).toHaveAttribute("href", "/admin/reports/history");
+      await expect(main.getByRole("link", { name: "Back to Saved daily reports" })).toHaveAttribute("href", "/admin/reports/history");
       await expect(main.locator("code")).not.toBeEmpty();
       await expectNoSidewaysScroll(page, `error at ${width}px`);
     }
@@ -166,7 +166,7 @@ test("a staff page that fails offers Try again and a staff next step inside the 
     await prisma.reportDailySnapshot.delete({ where: { id: broken.id } });
     await page.locator(".admin-workspace-main").getByRole("button", { name: "Try again" }).click();
     await expect(page.locator(".admin-workspace-main h1")).toHaveText("This record isn’t available");
-    await expect(page.locator(".admin-workspace-main").getByRole("link", { name: "Back to Report history" })).toBeVisible();
+    await expect(page.locator(".admin-workspace-main").getByRole("link", { name: "Back to Saved daily reports" })).toBeVisible();
   } finally {
     await prisma.reportDailySnapshot.deleteMany({ where: { id: broken.id } });
     await cleanup();

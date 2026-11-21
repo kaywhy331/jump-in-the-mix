@@ -9,8 +9,10 @@ import { formatDate } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 
 import type { Prisma } from "@/generated/prisma/client";
+import { adminAreaName } from "@/lib/admin-navigation";
 
-export const metadata: Metadata = { title: "Admin · Users" };
+const PAGE_NAME = adminAreaName("/admin/users");
+export const metadata: Metadata = { title: PAGE_NAME };
 
 type SearchParams = {
   q?: string;
@@ -71,7 +73,7 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
     <div className="page admin-users-page">
       <header className="page-header">
         <div>
-          <h1>Users</h1>
+          <h1>{PAGE_NAME}</h1>
 
         </div>
         <div className="page-actions">

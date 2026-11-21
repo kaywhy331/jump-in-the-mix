@@ -124,6 +124,7 @@ test("saved daily history shows recorded values, observation times and gated det
   }
   await page.getByRole("link", { name: "2020-01-03", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Saved daily report · 2020-01-03" })).toBeVisible();
+  await expect(page, "the tab reads the saved report's H1 (JITM-10 §2.22)").toHaveTitle("Saved daily report · 2020-01-03 | Jump in the Mix");
   await page.getByText("Definitions and limits for these numbers", { exact: true }).click();
   await expect(page.getByText("These are saved aggregates", { exact: false })).toBeVisible();
   await expect(page.locator("main")).not.toContainText(fixture.secret);
@@ -138,7 +139,7 @@ test("analyst sees aggregate cohorts, switches trends and dates, and loses acces
   const identity = await session(fixture.staff.id);
   await context.addCookies([{ name: "jitm_session", value: identity.token, url: info.project.use.baseURL!, httpOnly: true, sameSite: "Strict" }]);
   const response = await page.goto("/admin/reports?from=2020-01-01&through=2020-01-31");
-  await expect(page.getByRole("heading", { name: "Live reports", exact: true })).toBeVisible();
+  await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
   expect(response?.headers()["cache-control"]).toContain("no-store");
   const html = await response!.text();
   expect(html).not.toContain(fixture.secret);
@@ -172,7 +173,7 @@ test("analyst sees aggregate cohorts, switches trends and dates, and loses acces
   await prisma.staffMembership.update({ where: { userId: fixture.staff.id }, data: { denies: ["reports.read"] } });
   await page.goto("/admin/reports?from=2020-01-01&through=2020-01-31");
   await expect(page).toHaveURL(/\/admin\/access-denied\?/);
-  await expect(page.getByRole("navigation", { name: "Administration", exact: true }).getByRole("link", { name: "Live reports", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Administration", exact: true }).getByRole("link", { name: "Reports", exact: true })).toHaveCount(0);
   expect(await prisma.platformAuditEvent.count({ where: { actorUserId: fixture.staff.id, action: "permission.denied", entityId: "reports.read" } })).toBeGreaterThan(0);
 });
 

@@ -9,8 +9,10 @@ import { PortableOutline } from "@/components/PortableOutline";
 import { reasonLabel } from "@/lib/marketplace";
 import { reviewListingAction } from "@/lib/marketplace-actions";
 import { readModerationQueue, type ModerationView } from "@/lib/marketplace-service";
+import { adminAreaName } from "@/lib/admin-navigation";
 
-export const metadata: Metadata = { title: "Admin · Community reports" };
+const PAGE_NAME = adminAreaName("/admin/marketplace");
+export const metadata: Metadata = { title: PAGE_NAME };
 const TABS = [{ value: "", label: "Needs review" }, { value: "hidden", label: "Hidden" }, { value: "reviewed", label: "Reviewed" }] as const;
 /**
  * What each decision does depends on where the share stands; a share the author stopped is never re-shared by
@@ -30,7 +32,7 @@ export default async function AdminMarketplacePage({ searchParams }: { searchPar
   // Open reports and requests for another review, each with its live wording (null when it has nothing to show).
   const { rows: listings, counts } = await readModerationQueue(view);
   return <div className="page admin-library-page admin-marketplace-page">
-    <header className="page-header"><div><h1>Community reports</h1><p>A private-information report from a verified account hides a share at once; every other report keeps it visible until you decide. Authors see the reason and your note, never who reported. After you keep a share hidden, its author can change it and ask for another review.</p></div></header>
+    <header className="page-header"><div><h1>{PAGE_NAME}</h1><p>A private-information report from a verified account hides a share at once; every other report keeps it visible until you decide. Authors see the reason and your note, never who reported. After you keep a share hidden, its author can change it and ask for another review.</p></div></header>
     {query.reviewed && <Notice type="success">Decision saved. The author can see it on their share.</Notice>}
     <nav className="admin-content-tabs" aria-label="Report status">{TABS.map(tab => <Link key={tab.value} href={tab.value ? `/admin/marketplace?view=${tab.value}` : "/admin/marketplace"} aria-current={view === tab.value ? "page" : undefined}>{tab.label}{tab.value === "" ? ` (${counts.needsReview})` : tab.value === "hidden" ? ` (${counts.hidden})` : ""}</Link>)}</nav>
     <section className="admin-panel" aria-label="Reported shares">
