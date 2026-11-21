@@ -14,6 +14,15 @@ export const NAV_LINKS = [
 /** The section ring (JITM-07 §2.33): the bottom navigation's destinations, in its order. Quick Add is an action, not a stop. */
 export const SECTION_RING: readonly string[] = NAV_LINKS.filter(link => link.kind === "primary").map(link => link.href);
 
+/**
+ * The navigation's name for the page at `path`, a path with or without its query, or null where the navigation has no
+ * link to it. A Back control whose destination varies is named with it, so it names the page it goes to (JITM-BACK-02).
+ */
+export function navigationLabel(path: string): string | null {
+  const { pathname } = new URL(path, "https://navigation.invalid");
+  return NAV_LINKS.find(link => link.href === pathname)?.label ?? null;
+}
+
 const SECTION_SWIPE_KEY = "jitm-section-swipe";
 export const SECTION_SWIPE_EVENT = "jitm:section-swipe";
 // This visit's choice when the browser blocks storage, so the switch still applies until the tab closes.

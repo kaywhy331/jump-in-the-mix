@@ -110,8 +110,10 @@ export function backReturnsTo(href: string): boolean {
 /**
  * The return a Back control makes. `parent`, the default: its own page. `origin`, for a page reached from several
  * places: the page the owner came from, when `returnsToOrigin` allows it, and otherwise its own page as the fallback.
+ * `address`, for a control whose page is one exact address, such as Calendar's validated return address: that address,
+ * back through history only when `returnsToAddress` allows it.
  */
-export type BackReturn = "parent" | "origin";
+export type BackReturn = "parent" | "origin" | "address";
 
 /**
  * Whether an origin Back goes back to `previous`, the entry before `here` (JITM-BACK-01). It does only when that entry is
@@ -127,12 +129,27 @@ export function returnsToOrigin(previous: { url: string | null; sameDocument?: b
 }
 
 /**
+ * Whether an address Back goes back to `previous` (JITM-BACK-02): only when that entry is exactly `href`, the control's
+ * address, with the same path and query on this origin. The same page at another address is not enough: Journey at
+ * another Mix is not the work Calendar returns to. In every other case, and with no entry, the control opens `href`.
+ */
+export function returnsToAddress(previous: { url: string | null } | null, href: string): boolean {
+  if (!previous?.url) return false;
+  const back = new URL(previous.url), target = new URL(href, location.href);
+  return back.origin === target.origin && back.pathname === target.pathname && back.search === target.search;
+}
+
+/**
  * Whether the Back control `control`, whose page is `href`, goes back through history. Its click and the edge swipe
  * both ask, so they make the same return. A control marked `data-back-return="origin"` (`BackLink`'s `returns`) asks
- * `returnsToOrigin`; every other control goes back only to its own page (`backReturnsTo`).
+ * `returnsToOrigin`, one marked `"address"` asks `returnsToAddress`; every other control goes back only to its own
+ * page (`backReturnsTo`).
  */
 export function goesBack(control: { dataset: DOMStringMap }, href: string): boolean {
-  return control.dataset.backReturn === ("origin" satisfies BackReturn) ? returnsToOrigin(previousEntry(), new URL(location.href)) : backReturnsTo(href);
+  const mode = control.dataset.backReturn;
+  if (mode === ("origin" satisfies BackReturn)) return returnsToOrigin(previousEntry(), new URL(location.href));
+  if (mode === ("address" satisfies BackReturn)) return returnsToAddress(previousEntry(), href);
+  return backReturnsTo(href);
 }
 
 type Relay = Window & { __jitmBeforePopState?: ((event: PopStateEvent) => void) | null; __jitmPopStateRelay?: true };

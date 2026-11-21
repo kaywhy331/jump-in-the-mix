@@ -398,15 +398,16 @@ test.describe("the edge swipe needs the page's visible Back control", () => {
     expect(await historyIndex(page), how).toBe(index);
   }
 
-  test("Journey opened from a selected Mix shows no Back control, so the edge moves nothing and does not go back", async ({ page }) => {
+  test("Journey opened from a selected Mix shows one Back control, so the edge swipe goes back to the Mix", async ({ page }) => {
     for (const colorScheme of ["light", "dark"] as const) {
       await page.emulateMedia({ colorScheme });
       await open(page, `/mixes?mix=${mixId}`);
       await page.locator(".mix-phone-panes").getByRole("button", { name: "Details" }).click();
       await page.getByRole("link", { name: "Open Journey" }).click();
       await expect(page).toHaveURL(new RegExp(`/journey\\?mix=${mixId}`));
-      await expect(visibleBackControls(page), colorScheme).toHaveCount(0);
-      await inertEdge(page, `Journey from a selected Mix, ${colorScheme}`);
+      await expect(visibleBackControls(page), colorScheme).toHaveCount(1);
+      await edgeDrag(page, SWIPE.backEdge - 12, page.viewportSize()!.width * 0.5);
+      await expect(page, `Journey from a selected Mix, ${colorScheme}`).toHaveURL(new RegExp(`/mixes\\?mix=${mixId}`));
     }
   });
 
@@ -453,13 +454,14 @@ test.describe("the edge swipe needs the page's visible Back control", () => {
       await expect(page.locator("#workspace-main [data-back-link]")).toHaveCount(1);
       await inertEdge(page, `Settings from More, wide, ${colorScheme}`);
       await page.setViewportSize({ width: 390, height: 844 });
-      // Journey opened from a selected Mix shows no Back control.
+      // Journey opened from a selected Mix shows its Back control; the edge swipe returns to the Mix (JITM-BACK-02).
       await open(page, `/mixes?mix=${mixId}`);
       await page.locator(".mix-phone-panes").getByRole("button", { name: "Details" }).click();
       await page.getByRole("link", { name: "Open Journey" }).click();
       await expect(page).toHaveURL(new RegExp(`/journey\\?mix=${mixId}`));
-      await expect(visibleBackControls(page)).toHaveCount(0);
-      await inertEdge(page, `Journey from a selected Mix, ${colorScheme}`);
+      await expect(visibleBackControls(page)).toHaveCount(1);
+      await edgeDrag(page, SWIPE.backEdge - 12, page.viewportSize()!.width * 0.5);
+      await expect(page, `Journey from a selected Mix, ${colorScheme}`).toHaveURL(new RegExp(`/mixes\\?mix=${mixId}`));
       // Two ring stops, each reached so history could go back: the edge is not a back swipe there.
       await open(page, "/contacts");
       await page.locator(".mobile-nav").getByRole("link", { name: "Mixes" }).click();
@@ -706,5 +708,205 @@ test.describe("JITM-BACK-01 origin Back on Invite people", () => {
         await shown(`${section} at ${width}`).toHaveCount(0);
       }
     }
+  });
+});
+
+// JITM-BACK-02: origin Back on Journey and Calendar. Both are reached from several places, so their Back control returns
+// to the page the owner came from when that was a page of the app shell, and otherwise opens its fallback parent, More;
+// on phones only (JITM-07 §2.8). On Calendar a valid return address wins: the outer Back, by tap and by edge swipe,
+// goes exactly where its Return to this work link goes (PLAN-JITM-NAV-05 amendment A1).
+import { NAV_LINKS } from "../src/lib/app-navigation";
+
+test.describe("JITM-BACK-02 origin Back on Journey and Calendar", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+  test.beforeEach(async ({ page }) => { await installed(page); });
+  test.afterAll(async () => {
+    if (workspaceId) await prisma.calendarEntry.deleteMany({ where: { workspaceId } });
+  });
+
+  const hows = ["control", "swipe"] as const;
+  const settled = (page: Page) => expect.poll(() => main(page).evaluate(element => element.style.transform + (element.dataset.swipeState ?? ""))).toBe("");
+  /** Back by the shown control, or by the installed iOS app's edge swipe, which makes the control's return. */
+  const back = async (page: Page, how: "control" | "swipe") => {
+    if (how === "control") await markedControl(page).click();
+    else await edgeDrag(page, SWIPE.backEdge - 12, page.viewportSize()!.width * 0.5);
+  };
+  /** Waits for the page at `at` and for its own shown Back control, the one whose address is `href`. */
+  const arrived = async (page: Page, at: RegExp, href: string, name: string) => {
+    await expect(page, name).toHaveURL(at);
+    await expect(markedControl(page), name).toBeVisible();
+    await expect(markedControl(page), name).toHaveAttribute("href", href);
+  };
+  /** A new tab, whose first entry is the page: no earlier page at all. */
+  const newTab = async (page: Page) => { const tab = await page.context().newPage(); await installed(tab); return tab; };
+  /** Back to an earlier page of this document goes back through history: no entry is added, and one slide runs. */
+  const backThroughHistory = async (page: Page, how: "control" | "swipe", at: number, name: string) => {
+    await back(page, how);
+    await expect.poll(() => historyIndex(page), `${name}: back through history, no new entry`).toBe(at);
+    expect((await slides(page)).map(mark => mark.side), name).toEqual(["back"]);
+    await settled(page);
+  };
+  /** Without an earlier page of the app the control opens More, as a new entry. */
+  const opensMore = async (page: Page, how: "control" | "swipe", at: number, name: string) => {
+    await expect(markedControl(page), name).toHaveText("More");
+    await back(page, how);
+    await expect(page, name).toHaveURL(/\/more$/);
+    expect(await historyIndex(page), `${name}: the fallback is a new entry`).toBe(at + 1);
+    if (how === "swipe") expect((await slides(page)).map(mark => mark.side), name).toEqual(["back"]);
+    await settled(page);
+  };
+
+  test("(a, d) Journey opened from a selected Mix: Back returns to that Mix, still selected, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      await open(page, `/mixes?mix=${mixId}`);
+      await page.locator(".mix-phone-panes").getByRole("button", { name: "Details" }).click();
+      const mix = address(page), at = await historyIndex(page);
+      await page.getByRole("link", { name: "Open Journey" }).click();
+      await arrived(page, /\/journey\?/, "/more", `Journey from a Mix, ${how}`);
+      await backThroughHistory(page, how, at, `Journey from a Mix, ${how}`);
+      expect(address(page), how).toBe(mix);
+      await expect(page.locator(`a.mix-library-item[href*="mix=${mixId}"]`).first(), `${how}: the Mix is still selected`).toHaveAttribute("aria-current", "page");
+    }
+  });
+
+  test("(b) Journey opened from More: Back returns to More through history, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      await open(page, "/more");
+      const at = await historyIndex(page);
+      await page.locator('#workspace-main a.settings-hub-card[href="/journey"]').click();
+      await arrived(page, /\/journey$/, "/more", `Journey from More, ${how}`);
+      await backThroughHistory(page, how, at, `Journey from More, ${how}`);
+      await expect(page).toHaveURL(/\/more$/);
+    }
+  });
+
+  test("(c, d) Journey loaded directly, or after a page another document showed: Back opens More, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      for (const earlier of [null, "/jumps"]) {
+        const tab = earlier ? page : await newTab(page), name = `Journey after ${earlier ?? "nothing"}, ${how}`;
+        if (earlier) await open(tab, earlier);
+        await open(tab, "/journey");
+        const at = await historyIndex(tab);
+        if (!earlier) expect(at, name).toBe(0);
+        await arrived(tab, /\/journey$/, "/more", name);
+        await opensMore(tab, how, at, name);
+        if (tab !== page) await tab.close();
+      }
+    }
+  });
+
+  test("(e) Calendar opened from a contact: Back returns to that contact, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      await open(page, `/contacts/${contactId}`);
+      await markedControl(page).waitFor({ state: "visible" });
+      const contact = address(page), at = await historyIndex(page);
+      await page.getByRole("button", { name: "More options for Person 40", exact: true }).click();
+      await page.getByRole("link", { name: "Schedule a meeting", exact: true }).click();
+      await arrived(page, /\/calendar\?contact=/, "/more", `Calendar from a contact, ${how}`);
+      await backThroughHistory(page, how, at, `Calendar from a contact, ${how}`);
+      expect(address(page), how).toBe(contact);
+    }
+  });
+
+  test("(f) Calendar loaded directly, or after a page another document showed: Back opens More, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      for (const earlier of [null, "/jumps"]) {
+        const tab = earlier ? page : await newTab(page), name = `Calendar after ${earlier ?? "nothing"}, ${how}`;
+        if (earlier) await open(tab, earlier);
+        await open(tab, "/calendar");
+        const at = await historyIndex(tab);
+        if (!earlier) expect(at, name).toBe(0);
+        await arrived(tab, /\/calendar$/, "/more", name);
+        await opensMore(tab, how, at, name);
+        if (tab !== page) await tab.close();
+      }
+    }
+  });
+
+  // Opened as Journey's Open Calendar opens it: a new event for the person, with the work to return to.
+  const returnTo = () => `/journey?${new URLSearchParams({ contactId })}`;
+  const calendarWithReturn = () => `/calendar?${new URLSearchParams({ new: "1", contact: contactId, returnTo: returnTo() })}`;
+  /**
+   * With a valid return address the outer Back, by the control or the edge swipe, goes exactly where Return to this work
+   * goes, and names that page. The two destinations are compared, not a written address.
+   */
+  const backGoesWhereReturnGoes = async (page: Page, how: "control" | "swipe", name: string) => {
+    const link = page.getByRole("link", { name: /^Return to this work/ });
+    await expect(link, name).toBeVisible();
+    const href = (await link.getAttribute("href"))!, destination = new URL(href, page.url());
+    await arrived(page, /\/calendar\?/, href, name);
+    await expect(markedControl(page), `${name}: names the page it goes to`).toHaveText(NAV_LINKS.find(item => item.href === destination.pathname)!.label);
+    const starting = address(page);
+    await back(page, how);
+    await expect.poll(() => address(page), name).not.toBe(starting);
+    expect(address(page), name).toBe(destination.pathname + destination.search);
+    await settled(page);
+  };
+
+  test("(g) Calendar loaded directly with a return address: Back goes where Return to this work goes, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      const tab = await newTab(page), name = `direct load with returnTo, ${how}`;
+      await open(tab, calendarWithReturn());
+      expect(await historyIndex(tab), name).toBe(0);
+      await backGoesWhereReturnGoes(tab, how, name);
+      await tab.close();
+    }
+  });
+
+  test("(h) Calendar with a return address after an unrelated page of the app, Today or Journey at another address: Back goes where Return to this work goes, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      for (const earlier of ["/jumps", `/journey?${new URLSearchParams({ mix: mixId })}`]) {
+        await open(page, earlier);
+        await open(page, calendarWithReturn());
+        await backGoesWhereReturnGoes(page, how, `after ${earlier} with returnTo, ${how}`);
+      }
+    }
+  });
+
+  test("(h) Calendar with a return address after Journey at that address: Back goes back through history to it, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      await open(page, returnTo());
+      await open(page, calendarWithReturn());
+      const at = await historyIndex(page);
+      await backGoesWhereReturnGoes(page, how, `after the return address, ${how}`);
+      expect(await historyIndex(page), `${how}: back through history, no new entry`).toBe(at - 1);
+    }
+  });
+
+  test("(i) Calendar with a return address after an event was saved: Back goes where Return to this work goes, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      // Each pass saves the same time, which an earlier pass's event would overlap.
+      await prisma.calendarEntry.deleteMany({ where: { workspaceId } });
+      await open(page, "/jumps");
+      await open(page, calendarWithReturn());
+      await page.locator(".calendar-entry-form").getByRole("group", { name: "Starts", exact: true }).getByRole("button", { name: /Starts, date:/ }).click();
+      await page.getByRole("dialog", { name: "Starts", exact: true }).getByRole("button", { name: "Tomorrow", exact: true }).click();
+      if (await page.getByRole("button", { name: "Close Starts", exact: true }).isVisible()) await page.getByRole("button", { name: "Close Starts", exact: true }).click();
+      await page.getByRole("textbox", { name: "Title", exact: true }).fill(`Back fixture visit, ${how}`);
+      await page.getByRole("button", { name: "Save event", exact: true }).click();
+      await expect(page).toHaveURL(/saved=1.*returnTo=|returnTo=.*saved=1/);
+      await expect(page.getByRole("link", { name: "Return to this work and link the saved appointment", exact: true })).toBeVisible();
+      await backGoesWhereReturnGoes(page, how, `after a save with returnTo, ${how}`);
+    }
+  });
+
+  test("(j) on phones only: above 900 px Journey and Calendar show no Back control, and no section screen shows one", async ({ page }) => {
+    const shown = (name: string) => expect(page.locator(`#workspace-main ${BACK_CONTROL}`).locator("visible=true"), name);
+    for (const [width, height] of [[390, 844], [900, 1200], [901, 1200], [1280, 800]] as const) {
+      await page.setViewportSize({ width, height });
+      for (const path of ["/journey", "/calendar", calendarWithReturn()]) {
+        await open(page, path);
+        await expect(page.locator(`#workspace-main ${BACK_CONTROL}`), `${path} at ${width}`).toHaveCount(1);
+        await shown(`${path} at ${width}`).toHaveCount(width > 900 ? 0 : 1);
+      }
+      for (const section of SECTION_RING) {
+        await open(page, section);
+        await shown(`${section} at ${width}`).toHaveCount(0);
+      }
+    }
+  });
+
+  test("(k) the marker-driven same-return case finds Journey and Calendar through the marker, without a per-page list", () => {
+    expect(markedBackPages()).toEqual(expect.arrayContaining(["/journey", "/calendar"]));
   });
 });

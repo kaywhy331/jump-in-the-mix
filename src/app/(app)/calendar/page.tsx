@@ -1,5 +1,7 @@
 import Link from "next/link";
 import { workflowContinuation } from "@/lib/workflow-continuation";
+import { navigationLabel } from "@/lib/app-navigation";
+import { BackLink } from "@/components/BackLink";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDate, formatDateTime, formatTime } from "@/lib/format";
 import type { Prisma } from "@/generated/prisma/client";
@@ -29,6 +31,10 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
   const [{ session, workspace, user, impersonation }, query] = await Promise.all([requireWorkspace(), searchParams]);
   const viewOnly = Boolean(impersonation);
   const returnTo = workflowContinuation(query.returnTo);
+  // The outer Back (JITM-BACK-02): a valid return address wins, so Back goes exactly where Return to this work goes (the
+  // address mode) and is named for that page. Otherwise it returns to the page the owner came from, or opens More.
+  // Phones only (JITM-07 §2.8).
+  const returnLabel = returnTo ? navigationLabel(returnTo) : null;
   const preference = await prisma.userPreference.findUnique({ where: { userId: user.id } });
   const timezone = preference?.timezone || "UTC";
   const requestedDate = /^\d{4}-\d{2}-\d{2}$/.test(query.date ?? "") ? new Date(`${query.date}T12:00:00Z`) : null;
@@ -96,6 +102,7 @@ export default async function CalendarPage({ searchParams }: { searchParams: Pro
     prisma.jump.count({ where: followUpWhere })
   ]);
   return <div className="page calendar-page">
+    {returnTo && returnLabel ? <BackLink href={returnTo} label={returnLabel} phoneOnly returns="address" /> : <BackLink href="/more" label="More" phoneOnly returns="origin" />}
     {impersonation && <ViewOnlySupportNotice message="This support session is view-only. The calendar can be read but not changed." />}
     {returnTo && <Notice type="info"><Link href={returnTo}>{query.saved ? "Return to this work and link the saved appointment" : "Return to this work"}</Link></Notice>}
     {query.saved && <Notice>{savedEntry ? `${query.person ? "Person added. " : ""}${savedEntry.title} saved for ${format(savedEntry.startsAt)}.` : query.person ? "Person added and calendar updated." : "Calendar updated."}{planNotice ? ` ${planNotice}` : ""}{query.kept ? " This person already had that plan running on its own; both continue." : ""}{query.savedEvent && <> No invitation was sent. <a className="inline-action" href={`/api/calendar/export?id=${encodeURIComponent(query.savedEvent)}`}>Download the saved event</a> and share it through your calendar provider.</>}</Notice>}{doneNotice && <Notice>{doneNotice}</Notice>}<UrlErrorNotice params={query} viewer={session} />

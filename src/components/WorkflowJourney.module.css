@@ -79,6 +79,8 @@
 /* Journey shares the Contacts/Mixes directory, map and context composition. */
 :global(.app-main):has(> .page){padding:0}
 :global(.app-main)>.page{width:100%;max-width:none;margin:0;padding:0}
+/* The page has no inset of its own, so its Back control (JITM-BACK-02) takes the panes' inset (20px, less the control's own 8px). */
+.page>:global(.page-back-link){margin:var(--space-2) 0 0 var(--space-3)}
 .directory{min-width:0;padding:20px}
 .directoryHeader{display:flex;justify-content:space-between;align-items:center;gap:12px;margin-bottom:24px;min-height:44px}
 .directoryHeader h1{margin:0;font-size:30px;line-height:1.2;letter-spacing:-.04em}

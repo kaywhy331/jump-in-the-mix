@@ -135,5 +135,40 @@ describe("origin back", () => {
       browse(null, "/mixes/system");
       expect(goesBack(origin, "/more")).toBe(false);
     });
+
+    it("in address mode (JITM-BACK-02), back only to exactly the control's address, path and query, else it opens the address", () => {
+      const address = { dataset: { backReturn: "address" } }, href = "/journey?contactId=c1&work=w1";
+      // The previous entry is that address, path and query: back through history.
+      browse(href, "/calendar");
+      expect(goesBack(address, href)).toBe(true);
+      // The same path at another query, another path, or no previous entry: it opens the address.
+      for (const previous of ["/journey?mix=m1", "/journey", "/jumps"]) { browse(previous, "/calendar"); expect(goesBack(address, href), previous).toBe(false); }
+      browse(null, "/calendar");
+      expect(goesBack(address, href)).toBe(false);
+      // The default would go back to any Journey address, which is why the return address has its own mode.
+      browse("/journey?mix=m1", "/calendar");
+      expect(goesBack(parent, href)).toBe(true);
+    });
+  });
+});
+
+// JITM-BACK-02: Journey's and Calendar's Back control. With a valid return address Calendar's goes there, named for
+// that page by the navigation.
+import { navigationLabel } from "@/lib/app-navigation";
+import { workflowContinuation } from "@/lib/workflow-continuation";
+
+describe("a Back control's name for a destination that varies", () => {
+  it("is the navigation's name for the page, with or without its query, and none for a page the navigation has no link to", () => {
+    for (const link of NAV_LINKS) expect([navigationLabel(link.href), navigationLabel(`${link.href}?q=1#top`)], link.href).toEqual([link.label, link.label]);
+    for (const path of ["/mixes/system", "/settings", "/journey/elsewhere"]) expect(navigationLabel(path), path).toBeNull();
+  });
+
+  it("names every return address Calendar accepts, so a valid return address always gets its Back control", () => {
+    for (const value of ["/journey", "/journey?contactId=c1&work=w1", "/journey?mix=m1&start=1#map"]) {
+      const address = workflowContinuation(value);
+      expect(address, value).not.toBeNull();
+      expect(navigationLabel(address!), value).toBe(NAV_LINKS.find(link => link.href === new URL(address!, "https://app.test").pathname)?.label);
+      expect(navigationLabel(address!), value).not.toBeNull();
+    }
   });
 });
