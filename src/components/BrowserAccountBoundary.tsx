@@ -6,8 +6,9 @@ import { revealObscuredFocus } from "@/lib/focus-visibility";
 
 const AccountScope = createContext<string | null>(null);
 export function useBrowserScope() { return useContext(AccountScope); }
-// Confirms this tab's account with the server right before a save. False means the shield now shows why, so the caller
-// keeps every entry and sends nothing (JITM-08 §2.24).
+// Confirms this tab's account with the server right before a save. False means send nothing: the caller keeps every
+// entry and says it wasn't saved (JITM-08 §2.24). The shield also says why, except when the tab went to the background
+// meanwhile or is masked, which cancels the save without a shield.
 const AccountConfirmation = createContext<(() => Promise<boolean>) | null>(null);
 export function useAccountConfirmation() { return useContext(AccountConfirmation); }
 /** The shield's class. Its own links leave on purpose: the shield has already said what happens to unsaved work. */
