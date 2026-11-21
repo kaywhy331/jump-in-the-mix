@@ -531,4 +531,164 @@ test.describe("sign-in shield", () => {
     await ready(page);
     await expect(shield(page)).not.toBeVisible();
   });
+
+  // JITM-UXS-16-R1: once the account is confirmed, a held save is sent exactly as it was pressed: the same action, the
+  // same button name and value and the same entries, whether or not its button is still on the page. A save that truly
+  // can't be sent says so, and every entry stays.
+  const NOT_SENT = "Not saved yet. Your entries are still here; save again.";
+  // The fields each Server Action post carries, as name=value (React prefixes each name with its argument's id, as _1_).
+  function sentFields(page: Page) {
+    const sent: string[][] = [];
+    page.on("request", request => {
+      if (request.method() !== "POST" || !request.headers()["next-action"]) return;
+      sent.push([...(request.postData() ?? "").matchAll(/name="(?:_?\d+_)?([^"]+)"\r\n\r\n([^\r]*)\r\n/g)].map(([, name, value]) => `${name}=${value}`));
+    });
+    return sent;
+  }
+  // Add contact with a draft. Its next account check is held until the test answers it.
+  async function heldDraft(page: Page, context: BrowserContext) {
+    await useOwner(context, page, owners[0]);
+    await page.goto("/contacts/new"); await ready(page);
+    const firstName = `Held ${randomUUID().slice(0, 8)}`;
+    await page.getByLabel("First name", { exact: true }).fill(firstName);
+    await page.locator("#lastName").fill("As pressed");
+    const form = page.locator("form", { has: page.getByRole("button", { name: "Save contact", exact: true }) });
+    const log = requestLog(page), sent = sentFields(page);
+    let held: import("@playwright/test").Route | undefined;
+    await page.route(ACCOUNT, route => { held = route; });
+    const waitHeld = () => expect.poll(() => Boolean(held)).toBe(true);
+    const answer = async () => { await waitHeld(); await held!.continue(); await page.unroute(ACCOUNT); };
+    return { firstName, form, status: form.locator(".form-guard-status"), log, sent, waitHeld, answer };
+  }
+  const savedContacts = (firstName: string) => prisma.contact.findMany({ where: { workspaceId: owners[0].workspaceId, firstName }, select: { lastName: true } });
+  const created = /\/contacts\/[^/?]+\?created=1/;
+  async function reviewMixStart(page: Page, context: BrowserContext) {
+    await useOwner(context, page, owners[0]);
+    const name = `Held start ${randomUUID().slice(0, 8)}`;
+    await page.goto("/mixes/new?custom=1"); await ready(page);
+    await page.getByLabel("Mix name").fill(name);
+    await page.getByLabel("When should it start?").selectOption("MANUAL_START");
+    await page.getByLabel("After saving").selectOption("ACTIVE");
+    await page.getByRole("group", { name: "Beat 1" }).getByLabel("Message").fill("Hi {{First Name}}, checking in.");
+    await page.getByRole("button", { name: "Review and start", exact: true }).click();
+    const review = page.getByRole("dialog", { name: "Start this Mix?" });
+    await expect(review).toBeVisible();
+    return { name, review, start: review.getByRole("button", { name: "Start the Mix", exact: true }) };
+  }
+
+  test("a held Save is sent once from its own button, also when it is pressed again during the account check", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    const save = page.getByRole("button", { name: "Save contact", exact: true });
+    await save.click(); await draft.waitHeld();
+    await expect(draft.status).toHaveText("Saving…");
+    await save.click(); await settled(page);
+    expect(draft.log.checks).toBe(1);
+    await Promise.all([page.waitForURL(created), draft.answer()]);
+    expect(draft.log.actions).toBe(1);
+    expect(draft.sent[0]).toEqual(expect.arrayContaining([`firstName=${draft.firstName}`, "lastName=As pressed"]));
+    expect(await savedContacts(draft.firstName)).toEqual([{ lastName: "As pressed" }]);
+  });
+
+  test("a held Save whose button leaves the page meanwhile is still sent once, with that button's name and value", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    // A Save button with a name and value, taken off the page while the account is checked, as a dialog that closes does.
+    await draft.form.evaluate(form => form.insertAdjacentHTML("beforeend", '<button type="submit" id="held-save" name="heldSave" value="pressed">Save as pressed</button>'));
+    await page.locator("#held-save").click(); await draft.waitHeld();
+    await page.locator("#held-save").evaluate(button => button.remove());
+    expect(draft.log.checks).toBe(1);
+    await Promise.all([page.waitForURL(created), draft.answer()]);
+    expect(draft.log.actions).toBe(1);
+    expect(draft.sent[0]).toEqual(expect.arrayContaining(["heldSave=pressed", `firstName=${draft.firstName}`, "lastName=As pressed"]));
+    expect(await savedContacts(draft.firstName)).toEqual([{ lastName: "As pressed" }]);
+  });
+
+  test("a held Save from a button outside the form, tied to it by its form attribute, is sent as pressed", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    await draft.form.evaluate(form => {
+      form.id ||= "held-form";
+      document.body.insertAdjacentHTML("beforeend", `<button type="submit" form="${form.id}" id="held-save" name="heldSave" value="outside" style="position:fixed;top:0;left:0;z-index:2147483647">Save from outside</button>`);
+    });
+    await page.locator("#held-save").click(); await draft.waitHeld();
+    expect(draft.log.checks).toBe(1);
+    await Promise.all([page.waitForURL(created), draft.answer()]);
+    expect(draft.log.actions).toBe(1);
+    expect(draft.sent[0]).toEqual(expect.arrayContaining(["heldSave=outside", `firstName=${draft.firstName}`, "lastName=As pressed"]));
+    expect(await savedContacts(draft.firstName)).toEqual([{ lastName: "As pressed" }]);
+  });
+
+  // A button with its own address sends there, into a frame so the draft page stays.
+  const OWN_ACTION = '<iframe name="held-frame" hidden></iframe><button type="submit" id="held-save" name="heldSave" value="own" formaction="/api/held-own-action" formmethod="get" formtarget="held-frame" formnovalidate>Send elsewhere</button>';
+  test("a held Save from a button with its own formaction is sent to that address with its name and value", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    await draft.form.evaluate((form, html) => form.insertAdjacentHTML("beforeend", html), OWN_ACTION);
+    await page.locator("#held-save").click(); await draft.waitHeld();
+    const own = page.waitForRequest(request => new URL(request.url()).pathname === "/api/held-own-action");
+    await draft.answer();
+    const sent = new URL((await own).url()).searchParams;
+    expect([sent.get("heldSave"), sent.get("firstName"), sent.get("lastName")]).toEqual(["own", draft.firstName, "As pressed"]);
+    expect(draft.log.checks).toBe(1); expect(draft.log.actions).toBe(0);
+  });
+
+  test("a held Save whose own-action button has left the page says it wasn't saved and keeps every entry", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    const own: string[] = [];
+    page.on("request", request => { if (new URL(request.url()).pathname === "/api/held-own-action") own.push(request.url()); });
+    await draft.form.evaluate((form, html) => form.insertAdjacentHTML("beforeend", html), OWN_ACTION);
+    await page.locator("#held-save").click(); await draft.waitHeld();
+    await page.locator("#held-save").evaluate(button => button.remove());
+    await draft.answer();
+    await expect(draft.status).toHaveText(NOT_SENT);
+    await settled(page);
+    expect(own).toEqual([]); expect(draft.log.checks).toBe(1); expect(draft.log.actions).toBe(0);
+    await expect(page.getByLabel("First name", { exact: true })).toHaveValue(draft.firstName);
+    await expect(page.locator("#lastName")).toHaveValue("As pressed");
+    expect(await savedContacts(draft.firstName)).toEqual([]);
+  });
+
+  test("a held requestSubmit() with no button sends the entries as they were when it was asked for", async ({ page, context }) => {
+    const draft = await heldDraft(page, context);
+    await draft.form.evaluate(form => (form as HTMLFormElement).requestSubmit());
+    await draft.waitHeld();
+    // The page changes an entry while the account is checked; the save still carries the one it was asked for with.
+    await page.locator("#lastName").evaluate(field => { (field as HTMLInputElement).value = "Changed meanwhile"; });
+    expect(draft.log.checks).toBe(1);
+    await Promise.all([page.waitForURL(created), draft.answer()]);
+    expect(draft.log.actions).toBe(1);
+    expect(draft.sent[0]).toEqual(expect.arrayContaining([`firstName=${draft.firstName}`, "lastName=As pressed"]));
+    expect(await savedContacts(draft.firstName)).toEqual([{ lastName: "As pressed" }]);
+  });
+
+  test("Start the Mix from its review is sent with the review's confirmation, though the editor re-renders during the check", async ({ page, context }) => {
+    const mix = await reviewMixStart(page, context);
+    const log = requestLog(page), sent = sentFields(page);
+    let held: import("@playwright/test").Route | undefined;
+    await page.route(ACCOUNT, route => { held = route; });
+    await mix.start.click();
+    await expect.poll(() => Boolean(held)).toBe(true);
+    // The review has closed: the editor re-rendered while the save waited for the account check.
+    await expect(mix.review).not.toBeVisible();
+    expect(log.checks).toBe(1);
+    await Promise.all([page.waitForURL(/created=manual/), held!.continue()]);
+    await page.unroute(ACCOUNT);
+    expect(log.actions).toBe(1);
+    expect(sent[0]).toEqual(expect.arrayContaining(["activationConfirmed=1", `name=${mix.name}`]));
+    expect((await prisma.mix.findFirstOrThrow({ where: { workspaceId: owners[0].workspaceId, name: mix.name } })).status).toBe("ACTIVE");
+  });
+
+  test("Start the Mix from its review after the session ends sends nothing, keeps the Mix and starts it after signing in again", async ({ page, context }) => {
+    const mix = await reviewMixStart(page, context);
+    await revoke(owners[0]);
+    const log = requestLog(page);
+    await mix.start.click();
+    await expect(shieldHeading(page)).toHaveText("Sign in to continue");
+    await settled(page);
+    expect(log.checks).toBe(1); expect(log.actions).toBe(0);
+    expect(await prisma.mix.count({ where: { workspaceId: owners[0].workspaceId, name: mix.name } })).toBe(0);
+    await returnAfterSignIn(page, context, owners[0]);
+    await expect(page.getByLabel("Mix name")).toHaveValue(mix.name);
+    await page.getByRole("button", { name: "Review and start", exact: true }).click();
+    await Promise.all([page.waitForURL(/created=manual/), mix.start.click()]);
+    expect(log.actions).toBe(1);
+    expect((await prisma.mix.findFirstOrThrow({ where: { workspaceId: owners[0].workspaceId, name: mix.name } })).status).toBe("ACTIVE");
+  });
 });
