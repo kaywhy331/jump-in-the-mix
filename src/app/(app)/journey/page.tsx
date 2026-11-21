@@ -1,4 +1,5 @@
 import type { Metadata } from "next";
+import { BackLink } from "@/components/BackLink";
 import { requireWorkspace } from "@/lib/auth";
 import { readWorkflowGraph } from "@/lib/mix-workflow-view";
 import { WorkflowJourney } from "@/components/WorkflowJourney";
@@ -17,6 +18,8 @@ export default async function JourneyPage({ searchParams }: { searchParams: Prom
     readQuietDays({ workspaceId: workspace.id, timezone: display.timeZone, query: query.q })
   ]);
   return <div className={`page ${styles.page}`}>
+    {/* Journey is reached from several places: Back returns to the page the owner came from, or opens More (JITM-BACK-02). */}
+    <BackLink href="/more" label="More" phoneOnly returns="origin" />
     <WorkflowJourney initialInstanceId={query.work?.slice(0, 160)} initialWorkLabel={query.label?.slice(0, 160)} initial={graph} displayPreferences={display} initialMixId={query.mix} initialMegaMixId={query.megaMix?.slice(0, 160)} initialStartOpen={query.start === "1" && !impersonation} initialContactId={query.contactId} showCheckIns={query.touchpoint === "quiet-days"}>
       <details className={styles.quietDays} open={query.touchpoint === "quiet-days"}><summary>Just saying hello{quietDays.enabled ? ` · ${quietDays.total} people due` : " · quiet-day check-ins"}</summary><QuietDaySuggestions locale={display.locale} initial={quietDays} canResolve={!impersonation} initialQuery={query.q ?? ""} /></details>
     </WorkflowJourney>
