@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MixLibraryShell } from "@/components/MixLibraryShell";
+import { BackLink } from "@/components/BackLink";
 import { ReadyMadeMixWorkspace } from "@/components/ReadyMadeMixWorkspace";
 import { AppIcon } from "@/components/AppIcon";
 import { MixFavoriteButton } from "@/components/MixFavoriteButton";
@@ -17,8 +18,9 @@ import { prisma } from "@/lib/prisma";
 import { normalizeSharedMixSteps, sharedMixContentIssue } from "@/lib/shared-mix";
 import { salesPlanSearchIds } from "@/lib/sales-plan-library";
 import { approachLabel } from "@/lib/sales-approaches";
+import { MIXES_FAMILY_BACK, READY_MADE_MIXES } from "@/lib/app-navigation";
 
-export const metadata: Metadata = { title: "Ready-made Mixes" };
+export const metadata: Metadata = { title: READY_MADE_MIXES };
 const PAGE_SIZE = 20;
 
 type SearchParams = { setup?: string; mix?: string; favorites?: string; q?: string; category?: string; industry?: string; framework?: string; page?: string; error?: string; at?: string; sig?: string };
@@ -75,12 +77,16 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
     return `/templates${search.size ? `?${search}` : ""}`;
   };
   const filterCount = [category, industry, framework].filter(Boolean).length;
+  // Reached from several places: Back returns to the page the owner came from, or opens Mixes (JITM-BACK-03). One
+  // control, shown in the directory or the phone pane row, whichever the pane shows.
+  const back = <BackLink {...MIXES_FAMILY_BACK} />;
 
   return <div className="page mix-workspace-page ready-made-workspace">
     {params.setup === "individual" && <Notice type="success">Your preferences are saved. Choose a Mix below, preview its follow-ups, then add it to your account. Return here to add more, or open Journey to connect them.</Notice>}
     <UrlErrorNotice params={params} viewer={session} />
-    <MixLibraryShell selectedMixId={selected?.id} explicitSelection={Boolean(params.mix)}>
+    <MixLibraryShell selectedMixId={selected?.id} explicitSelection={Boolean(params.mix)} back={back}>
       <aside className="mix-library-directory" aria-label="Ready-made Mix library">
+        {back}
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions">
           <Link className="icon-button" href="/mixes/new?custom=1" aria-label="Create your own" title="Create your own"><AppIcon name="plus" /></Link>
           <Sheet trigger={<button className="icon-button" type="button" aria-label="More ready-made Mix tools" title="More ready-made Mix tools"><AppIcon name="more" /></button>} title="Ready-made Mix tools">

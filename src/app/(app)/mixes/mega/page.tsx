@@ -2,6 +2,7 @@ import type { Metadata } from "next";
 import Link from "next/link";
 import { notFound } from "next/navigation";
 import { MixLibraryShell } from "@/components/MixLibraryShell";
+import { BackLink } from "@/components/BackLink";
 import { AppIcon } from "@/components/AppIcon";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
@@ -10,6 +11,7 @@ import { BrandTermsHelp } from "@/components/BrandTermsHelp";
 import { PortableOutline } from "@/components/PortableOutline";
 import { DuplicateMegaMixForm, ImportFileForm, MegaMixForm, RemoveMegaMixButton } from "@/components/MegaMixForms";
 import { requireWorkspace } from "@/lib/auth";
+import { MIXES_FAMILY_BACK } from "@/lib/app-navigation";
 import { prisma } from "@/lib/prisma";
 import { exportMegaMixPipeline, megaMixShareState } from "@/lib/mega-mix-pipeline-service";
 import { portableSummary } from "@/lib/mix-portable";
@@ -48,6 +50,10 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
   const choices = mixes.map(mix => ({ id: mix.id, name: mix.name, status: mix.status, beats: mix._count.steps, pipeline: mix.megaMixMembership?.pipeline ?? null }));
   const beats = (item: NonNullable<typeof selected>) => item.members.reduce((sum, member) => sum + member.mix._count.steps, 0);
   const summary = exported ? portableSummary(exported.package) : null;
+  // Reached from several places: Back returns to the page the owner came from, or opens Mixes (JITM-BACK-03). One
+  // control, shown in the directory or the phone pane row, whichever the pane shows. The edit mode's own Preview control
+  // is its Back, so it gets no second one.
+  const back = editing ? null : <BackLink {...MIXES_FAMILY_BACK} />;
 
   return <div className="page mix-workspace-page mega-mix-page">
     {params.saved && <Notice type="success">Mega-Mix saved.</Notice>}
@@ -55,8 +61,9 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
     {params.imported && <Notice type="success">Imported. No one was started; start people from Journey when you’re ready.</Notice>}
     {params.removed && <Notice type="success">Mega-Mix removed. Its Mixes are still in My Mixes.</Notice>}
     <MarketplaceNotices workspaceId={workspace.id} pipelineId={selected?.id} />
-    <MixLibraryShell selectedMixId={selected?.id ?? (creating ? "new" : undefined)} explicitSelection={Boolean(params.megaMix || creating)}>
+    <MixLibraryShell selectedMixId={selected?.id ?? (creating ? "new" : undefined)} explicitSelection={Boolean(params.megaMix || creating)} back={back}>
       <aside className="mix-library-directory" aria-label="Mega-Mix library">
+        {back}
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions">
           <BrandTermsHelp />
           {!impersonation && <Link className="icon-button" href="/mixes/mega?new=1" aria-label="Create a Mega-Mix" title="Create a Mega-Mix"><AppIcon name="plus" /></Link>}

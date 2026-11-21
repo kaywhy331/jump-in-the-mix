@@ -1,9 +1,11 @@
 import type { Metadata } from "next";
 import { redirect } from "next/navigation";
 import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
+import { BackLink } from "@/components/BackLink";
 import { MixEditor } from "@/components/MixEditor";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { requireWorkspace } from "@/lib/auth";
+import { MIXES_FAMILY_BACK } from "@/lib/app-navigation";
 import { mergeGroupActivity } from "@/lib/group-activity";
 import { getPlatformStringList } from "@/lib/platform-settings";
 import { prisma } from "@/lib/prisma";
@@ -34,6 +36,8 @@ export default async function NewMixPage({ searchParams }: { searchParams: Promi
 
   return (
     <div className="page">
+      {/* Reached from several places: Back returns to the page the owner came from, or opens Mixes (JITM-BACK-03). */}
+      <BackLink {...MIXES_FAMILY_BACK} />
       <header className="page-header"><div><h1>Create a Mix</h1><p>Every relationship starts with a first Beat. Add messages and reminders, then set their timing.</p></div></header>
       <UrlErrorNotice params={query} viewer={session} />
       <MixEditor customFields={customFields.map(field => ({ token: customFieldPlaceholder(field.key), label: field.name }))} reviewBeforeActivation={activationPreference?.reviewMixActivation ?? true}

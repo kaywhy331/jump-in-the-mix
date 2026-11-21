@@ -529,13 +529,15 @@ async function filteredContactRoundTrip(page: Page) {
 test.describe("JITM-NAV-04-F1 same return in the installed iOS app", () => {
   test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
   test.beforeEach(async ({ page }) => { await installed(page); });
-  let megaMixId: string, ticketId: string;
+  let megaMixId: string, ticketId: string, sharedMixId: string;
   test.beforeAll(async () => {
     megaMixId = (await prisma.megaMixPipeline.create({ data: { workspaceId, name: "Back return fixture", members: { create: { mixId, position: 1 } } } })).id;
     ticketId = (await prisma.supportTicket.create({ data: { workspaceId, requesterUserId: userId, reference: `back-${randomUUID()}`, title: "Back return fixture", category: "GENERAL" } })).id;
+    sharedMixId = (await prisma.sharedMix.create({ data: { title: "Back return fixture", description: "A ready-made Mix for the Back return fixture.", category: "Relationships", durationDays: 0, steps: [{ name: "Say hello", channel: "PHONE_CALL", script: "Opening conversation.", dayOffset: 0, sendTimeMinutes: 600 }] } })).id;
   });
   test.afterAll(async () => {
     if (ticketId) await prisma.supportTicket.deleteMany({ where: { id: ticketId, workspaceId } });
+    if (sharedMixId) await prisma.sharedMix.deleteMany({ where: { id: sharedMixId } });
   });
 
   test("NAVQC-01: list filter survives contact, editor, Back to Contact, then the edge swipe", async ({ page }) => {
@@ -550,9 +552,9 @@ test.describe("JITM-NAV-04-F1 same return in the installed iOS app", () => {
 
   for (const route of markedBackPages()) {
     test(`marked Back page ${route}: a mismatched previous entry returns to the control's address`, async ({ page }, testInfo) => {
-      const path = route.replace("[contactId]", contactId).replace("[ticketId]", ticketId).replace("[mixId]", mixId);
+      const path = route.replace("[contactId]", contactId).replace("[ticketId]", ticketId).replace("[mixId]", mixId).replace("[sharedMixId]", sharedMixId);
       expect(path, "new dynamic routes need an isolated fixture").not.toContain("[");
-      const query = route === "/mixes" ? `?mix=${mixId}&view=edit` : route === "/mixes/mega" ? `?megaMix=${megaMixId}&edit=1` : "";
+      const query = route === "/mixes" ? `?mix=${mixId}&view=edit` : route === "/mixes/mega" ? `?megaMix=${megaMixId}&edit=1` : route === "/mixes/new" ? "?custom=1" : "";
       const target = path + query;
       const prepare = async () => {
         if (route === "/contacts/[contactId]") return filteredContactRoundTrip(page);
@@ -908,5 +910,369 @@ test.describe("JITM-BACK-02 origin Back on Journey and Calendar", () => {
 
   test("(k) the marker-driven same-return case finds Journey and Calendar through the marker, without a per-page list", () => {
     expect(markedBackPages()).toEqual(expect.arrayContaining(["/journey", "/calendar"]));
+  });
+});
+
+// JITM-BACK-03: origin Back on the Mixes family. Ready-made Mixes, Marketplace, Mega-Mixes (its list, a preview and a
+// new Mega-Mix; the edit mode keeps its own Preview control) and Create a Mix are reached from several places, so their
+// Back control returns to the page the owner came from when that was a page of the app shell, and otherwise opens
+// Mixes, at every width (PLAN-JITM-NAV-05 D1, D2, D4). Set up your Mix returns to its selected ready-made Mix, exactly
+// where its Cancel goes.
+test.describe("JITM-BACK-03 origin Back on the Mixes family", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+  test.beforeEach(async ({ page }) => { await installed(page); });
+  let sharedMixId: string, megaMixId: string;
+  test.beforeAll(async () => {
+    sharedMixId = (await prisma.sharedMix.create({ data: { title: "Back family fixture", description: "A ready-made Mix for the Back fixture.", category: "Relationships", industry: "Any business", framework: "Ready-made", durationDays: 7,
+      steps: [{ name: "Say hello", channel: "PHONE_CALL", script: "Opening conversation.", dayOffset: 0, sendTimeMinutes: 600 }, { name: "Follow through", channel: "PHONE_CALL", script: "Follow-up conversation.", dayOffset: 7, sendTimeMinutes: 660 }] } })).id;
+    megaMixId = (await prisma.megaMixPipeline.create({ data: { workspaceId, name: "Back family fixture" } })).id;
+  });
+  test.afterAll(async () => {
+    if (sharedMixId) await prisma.sharedMix.deleteMany({ where: { id: sharedMixId } });
+    if (megaMixId) await prisma.megaMixPipeline.deleteMany({ where: { id: megaMixId, workspaceId } });
+  });
+
+  const hows = ["control", "swipe"] as const;
+  type How = (typeof hows)[number];
+  /** The fallback parent of the four pages, and its name, read from the navigation. */
+  const fallback = "/mixes", atFallback = /\/mixes$/;
+  const fallbackLabel = () => NAV_LINKS.find(item => item.href === fallback)!.label;
+  const settled = (page: Page) => expect.poll(() => main(page).evaluate(element => element.style.transform + (element.dataset.swipeState ?? ""))).toBe("");
+  /** Back by the shown control, or by the installed iOS app's edge swipe, which makes the control's return. */
+  const back = async (page: Page, how: How) => {
+    if (how === "control") await markedControl(page).click();
+    else await edgeDrag(page, SWIPE.backEdge - 12, page.viewportSize()!.width * 0.5);
+  };
+  /** Waits for the page at `at` and for its own shown Back control, the one whose address is `href`. */
+  const arrived = async (page: Page, at: RegExp, href: string, name: string) => {
+    await expect(page, name).toHaveURL(at);
+    await expect(markedControl(page), name).toBeVisible();
+    await expect(markedControl(page), name).toHaveAttribute("href", href);
+  };
+  /** A new tab, whose first entry is the page: no earlier page at all. */
+  const newTab = async (page: Page) => { const tab = await page.context().newPage(); await installed(tab); return tab; };
+  /** Back to an earlier page of this document goes back through history: no entry is added, and one slide runs. */
+  const backThroughHistory = async (page: Page, how: How, to: number, name: string) => {
+    await back(page, how);
+    await expect.poll(() => historyIndex(page), `${name}: back through history, no new entry`).toBe(to);
+    expect((await slides(page)).map(mark => mark.side), name).toEqual(["back"]);
+    await settled(page);
+  };
+  /** Without an earlier page of the app the control opens Mixes, as a new entry. */
+  const opensMixes = async (page: Page, how: How, name: string) => {
+    const at = await historyIndex(page);
+    await expect(markedControl(page), name).toHaveText(fallbackLabel());
+    await back(page, how);
+    await expect(page, name).toHaveURL(atFallback);
+    expect(await historyIndex(page), `${name}: the fallback is a new entry`).toBe(at + 1);
+    if (how === "swipe") expect((await slides(page)).map(mark => mark.side), name).toEqual(["back"]);
+    await settled(page);
+  };
+  /** The shell's own navigation, for an address no page of the app links to: what a link of the shell does. */
+  const push = (page: Page, href: string) => page.evaluate(to => (window as unknown as { next: { router: { push(href: string): void } } }).next.router.push(to), href);
+  /** The Mix collection tabs every Mix library page shows. */
+  const collectionTab = (page: Page, name: string) => page.getByRole("navigation", { name: "Mix collection", exact: true }).getByRole("link", { name, exact: true }).click();
+  const workspaceLink = (page: Page, name: string) => page.locator("#workspace-main").getByRole("link", { name, exact: true }).locator("visible=true").first().click();
+
+  const setup = () => `/templates/${sharedMixId}/use`;
+  const atSetup = () => new RegExp(`/templates/${sharedMixId}/use$`);
+  /** The selected ready-made Mix, the page the setup is opened from. */
+  const selected = () => `/templates?${new URLSearchParams({ mix: sharedMixId })}`;
+  const megaMix = () => `/mixes/mega?${new URLSearchParams({ megaMix: megaMixId })}`;
+
+  /**
+   * The pages reached from several places: how the owner opens each from Mixes (back through history, or, where Mixes
+   * opens another state of the same page first, the fallback), and from a second page of the app shell.
+   */
+  const FAMILY: Array<{ name: string; at: () => RegExp; direct: () => string; fromMixes: (page: Page) => Promise<unknown>; throughHistory: boolean; second: { from: () => string; enter: (page: Page) => Promise<unknown>; at: () => RegExp } }> = [
+    { name: "Ready-made Mixes", at: () => /\/templates$/, direct: () => "/templates", throughHistory: true,
+      fromMixes: async page => { await page.getByRole("button", { name: "More Mix tools", exact: true }).click(); await page.getByRole("dialog", { name: "Mix tools", exact: true }).getByRole("link", { name: "Ready-made Mixes", exact: true }).click(); },
+      // Set up your Mix links to its selected ready-made Mix, a page of Ready-made Mixes.
+      second: { from: setup, enter: page => workspaceLink(page, "Mix library"), at: () => new RegExp(`/templates\\?mix=${sharedMixId}$`) } },
+    { name: "Marketplace", at: () => /\/marketplace$/, direct: () => "/marketplace", throughHistory: true,
+      fromMixes: page => collectionTab(page, "Marketplace"),
+      second: { from: () => "/mixes/mega", enter: page => collectionTab(page, "Marketplace"), at: () => /\/marketplace$/ } },
+    { name: "the Mega-Mix list", at: () => /\/mixes\/mega$/, direct: () => "/mixes/mega", throughHistory: true,
+      fromMixes: page => collectionTab(page, "Mega-Mixes"),
+      second: { from: () => "/marketplace", enter: page => collectionTab(page, "Mega-Mixes"), at: () => /\/mixes\/mega$/ } },
+    // A preview and a new Mega-Mix are opened from the list, the same page: Back leaves the page, so it opens Mixes.
+    { name: "a Mega-Mix preview", at: () => new RegExp(`/mixes/mega\\?megaMix=${megaMixId}`), direct: megaMix, throughHistory: false,
+      fromMixes: async page => { await collectionTab(page, "Mega-Mixes"); await page.locator(`a.mix-library-item[href*="megaMix=${megaMixId}"]`).click(); },
+      second: { from: () => `/journey?${new URLSearchParams({ megaMix: megaMixId })}`, enter: page => workspaceLink(page, "Manage"), at: () => new RegExp(`/mixes/mega\\?megaMix=${megaMixId}$`) } },
+    { name: "a new Mega-Mix", at: () => /\/mixes\/mega\?new=1$/, direct: () => "/mixes/mega?new=1", throughHistory: false,
+      fromMixes: async page => { await collectionTab(page, "Mega-Mixes"); await workspaceLink(page, "Create a Mega-Mix"); },
+      // No page outside Mega-Mixes links to a new Mega-Mix.
+      second: { from: () => "/jumps", enter: page => push(page, "/mixes/mega?new=1"), at: () => /\/mixes\/mega\?new=1$/ } },
+    { name: "Create a Mix", at: () => /\/mixes\/new\?custom=1$/, direct: () => "/mixes/new?custom=1", throughHistory: true,
+      fromMixes: page => workspaceLink(page, "Create a Mix"),
+      second: { from: () => "/templates", enter: page => workspaceLink(page, "Create your own"), at: () => /\/mixes\/new\?custom=1$/ } }
+  ];
+
+  for (const family of FAMILY) {
+    test(`(a, d) ${family.name} opened from Mixes: Back returns to Mixes, by the control and by the edge swipe`, async ({ page }) => {
+      for (const how of hows) {
+        const name = `${family.name} from Mixes, ${how}`;
+        await open(page, fallback);
+        const mixes = await historyIndex(page);
+        await family.fromMixes(page);
+        await arrived(page, family.at(), fallback, name);
+        if (!family.throughHistory) { await opensMixes(page, how, name); continue; }
+        await backThroughHistory(page, how, mixes, name);
+        await expect(page, name).toHaveURL(atFallback);
+      }
+    });
+
+    test(`(b) ${family.name} opened from another page of the app: Back returns to that page through history, by the control and by the edge swipe`, async ({ page }) => {
+      for (const how of hows) {
+        const name = `${family.name} from ${family.second.from()}, ${how}`;
+        await open(page, family.second.from());
+        const origin = address(page), at = await historyIndex(page);
+        await family.second.enter(page);
+        await arrived(page, family.second.at(), fallback, name);
+        await backThroughHistory(page, how, at, name);
+        expect(address(page), name).toBe(origin);
+      }
+    });
+
+    test(`(c, d) ${family.name} loaded directly, or after a page another document showed: Back opens Mixes, by the control and by the edge swipe`, async ({ page }) => {
+      for (const how of hows) {
+        for (const earlier of [null, "/jumps"]) {
+          const tab = earlier ? page : await newTab(page), name = `${family.name} after ${earlier ?? "nothing"}, ${how}`;
+          if (earlier) await open(tab, earlier);
+          await open(tab, family.direct());
+          if (!earlier) expect(await historyIndex(tab), name).toBe(0);
+          await arrived(tab, family.at(), fallback, name);
+          await opensMixes(tab, how, name);
+          if (tab !== page) await tab.close();
+        }
+      }
+    });
+  }
+
+  test("(e) Ready-made Mixes reached through the bare /mixes/new address, which redirects there: Back never returns to that address and never loops, by the control and by the edge swipe", async ({ page }) => {
+    const bare = "/mixes/new", atReadyMade = /\/templates$/;
+    /** A beat later Back has not come round again: still on `to`, not back on the redirect or Ready-made Mixes. */
+    const stays = async (name: string) => {
+      await page.waitForTimeout(1_000);
+      await expect(page, `${name}: no loop`).toHaveURL(atFallback);
+    };
+    for (const how of hows) {
+      // A link of the shell to the bare address: the redirect leaves no entry that Back returns to.
+      let name = `through a link to ${bare}, ${how}`;
+      await open(page, fallback);
+      const mixes = await historyIndex(page);
+      await push(page, bare);
+      await arrived(page, atReadyMade, fallback, name);
+      await back(page, how);
+      await expect(page, name).toHaveURL(atFallback);
+      expect(await historyIndex(page), `${name}: back to the page before the redirect`).toBe(mixes);
+      await stays(name);
+      // A full load of the bare address after another page: no earlier page of this document, so Mixes.
+      name = `loading ${bare} after another page, ${how}`;
+      await open(page, "/jumps");
+      await open(page, bare);
+      await arrived(page, atReadyMade, fallback, name);
+      await opensMixes(page, how, name);
+      await stays(name);
+    }
+  });
+
+  /**
+   * Where the setup's Cancel goes, read from the page and never written here: the outer Back has the same destination
+   * and names that page as the page names itself. Returns the destination's path and query.
+   */
+  const cancelGoes = async (page: Page, name: string) => {
+    const cancel = page.locator("#workspace-main").getByRole("link", { name: "Cancel", exact: true });
+    await expect(cancel, name).toBeVisible();
+    const href = (await cancel.getAttribute("href"))!, destination = new URL(href, page.url());
+    await arrived(page, atSetup(), href, `${name}: the outer Back and Cancel share one destination`);
+    return { address: destination.pathname + destination.search, label: (await markedControl(page).textContent())!.trim() };
+  };
+  /** Back left the setup for Cancel's destination, whose own title the control's label is. */
+  const leftForCancel = async (page: Page, destination: { address: string; label: string }, name: string) => {
+    await expect.poll(() => address(page), name).toBe(destination.address);
+    await expect.poll(async () => (await page.title()).split(" | ")[0], `${name}: the control named the page it goes to`).toBe(destination.label);
+  };
+  /** Opens the setup from its selected ready-made Mix, as the owner does. Returns that Mix's history index. */
+  const intoSetup = async (page: Page, name: string) => {
+    await open(page, selected());
+    const at = await historyIndex(page);
+    await workspaceLink(page, "Use this Mix");
+    await expect(page, name).toHaveURL(atSetup());
+    return at;
+  };
+
+  test("(f) Set up your Mix opened from its selected ready-made Mix: at its first step the outer Back goes exactly where Cancel goes, back through history, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      const name = `setup from its Mix, ${how}`;
+      const at = await intoSetup(page, name);
+      const destination = await cancelGoes(page, name);
+      await backThroughHistory(page, how, at, name);
+      await leftForCancel(page, destination, name);
+    }
+  });
+
+  test("(g) Set up your Mix at a later step: its inner Back still goes one step back, and the outer Back still leaves for where Cancel goes, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      const name = `setup at a later step, ${how}`;
+      const at = await intoSetup(page, name);
+      const destination = await cancelGoes(page, name);
+      const step = page.locator(".workflow-step-label"), people = page.getByRole("heading", { name: "Choose people", exact: true });
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(people, name).toBeVisible();
+      await expect(step, name).toContainText("Step 2 of 3");
+      // The inner step Back keeps its behaviour: one step back, on the same page and history entry.
+      const index = await historyIndex(page);
+      await page.getByRole("button", { name: "Back", exact: true }).click();
+      await expect(page.getByRole("heading", { name: "Name your Mix", exact: true }), name).toBeVisible();
+      await expect(step, name).toContainText("Step 1 of 3");
+      await expect(page, name).toHaveURL(atSetup());
+      expect(await historyIndex(page), `${name}: the step Back adds and removes no entry`).toBe(index);
+      await page.getByRole("button", { name: "Continue", exact: true }).click();
+      await expect(people, name).toBeVisible();
+      // At the later step the outer Back still leaves the setup.
+      await expect(markedControl(page), name).toBeVisible();
+      await backThroughHistory(page, how, at, name);
+      await leftForCancel(page, destination, name);
+    }
+  });
+
+  test("(h) Set up your Mix loaded directly, or after a page another document showed: Back opens where Cancel goes, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of hows) {
+      for (const earlier of [null, "/jumps"]) {
+        const tab = earlier ? page : await newTab(page), name = `setup after ${earlier ?? "nothing"}, ${how}`;
+        if (earlier) await open(tab, earlier);
+        await open(tab, setup());
+        const at = await historyIndex(tab);
+        if (!earlier) expect(at, name).toBe(0);
+        const destination = await cancelGoes(tab, name);
+        await back(tab, how);
+        await leftForCancel(tab, destination, name);
+        expect(await historyIndex(tab), `${name}: Cancel's destination is a new entry`).toBe(at + 1);
+        if (how === "swipe") expect((await slides(tab)).map(mark => mark.side), name).toEqual(["back"]);
+        await settled(tab);
+        if (tab !== page) await tab.close();
+      }
+    }
+  });
+
+  /**
+   * JITM-08 §2.30 on Back: untouched, Back leaves without asking; with a changed field the control and the edge swipe
+   * ask once, declining keeps the page with the entry and confirming leaves. `enter` opens the page each way it is
+   * reached; `left` is where Back lands.
+   */
+  async function asksOnceBeforeLeaving(page: Page, guarded: { at: RegExp; href: () => string; enters: Array<[string, () => Promise<unknown>]>; left: (name: string) => Promise<unknown> }) {
+    const asked: string[] = [];
+    let leave = false;
+    page.on("dialog", dialog => { asked.push(dialog.message()); void (leave ? dialog.accept() : dialog.dismiss()); });
+    for (const [way, enter] of guarded.enters) {
+      for (const how of hows) {
+        const name = `${way}, ${how}`, field = page.getByLabel("Mix name", { exact: true });
+        /** Back has left: the address is the destination's, and the form has gone with its page. */
+        const gone = async (when: string) => { await guarded.left(`${name}, ${when}`); await expect(field, `${name}, ${when}: the page has gone`).toHaveCount(0); await settled(page); };
+        asked.length = 0;
+        leave = false;
+        await enter();
+        await arrived(page, guarded.at, guarded.href(), name);
+        await back(page, how);
+        await gone("untouched");
+        expect(asked, `${name}, untouched: nothing asks`).toEqual([]);
+        await enter();
+        await arrived(page, guarded.at, guarded.href(), name);
+        await field.fill("Back family draft");
+        await back(page, how);
+        await expect.poll(() => asked.length, `${name}, declined`).toBe(1);
+        expect(asked, `${name}, declined`).toEqual(["Leave without saving your changes?"]);
+        await expect(page, `${name}, declined`).toHaveURL(guarded.at);
+        await expect(field, `${name}, declined: the entry is intact`).toHaveValue("Back family draft");
+        await settled(page);
+        asked.length = 0;
+        leave = true;
+        await back(page, how);
+        await gone("confirmed");
+        expect(asked, `${name}, confirmed: asked once`).toEqual(["Leave without saving your changes?"]);
+      }
+    }
+  }
+
+  test("(i) Create a Mix: untouched, Back leaves without asking; with a changed field the control and the edge swipe ask once, declining keeps the entry and confirming leaves", async ({ page }) => {
+    test.setTimeout(300_000);
+    await asksOnceBeforeLeaving(page, {
+      at: /\/mixes\/new\?custom=1$/, href: () => fallback,
+      enters: [
+        ["Create a Mix from Mixes", async () => { await open(page, fallback); await workspaceLink(page, "Create a Mix"); }],
+        ["Create a Mix after another document", async () => { await open(page, "/jumps"); await open(page, "/mixes/new?custom=1"); }]
+      ],
+      left: name => expect(page, name).toHaveURL(atFallback)
+    });
+  });
+
+  test("(j) Set up your Mix: untouched, Back leaves without asking; with a changed field the control and the edge swipe ask once, declining keeps the entry and confirming leaves", async ({ page }) => {
+    test.setTimeout(300_000);
+    await asksOnceBeforeLeaving(page, {
+      at: atSetup(), href: selected,
+      enters: [
+        ["setup from its Mix", () => intoSetup(page, "setup from its Mix")],
+        ["setup after another document", async () => { await open(page, "/jumps"); await open(page, setup()); }]
+      ],
+      left: name => expect.poll(() => address(page), name).toBe(selected())
+    });
+  });
+
+  test("(k) at 390, 820 and 1280 px each page of the Mixes family shows exactly one visible Back control, in every pane; the Mega-Mix editor keeps only its Preview; no section screen shows one", async ({ page }) => {
+    test.setTimeout(600_000);
+    const marked = () => page.locator(`#workspace-main ${BACK_CONTROL}`);
+    const panes = page.getByRole("navigation", { name: "Mix workspace panels", exact: true });
+    /** One control is shown; any other copy is not rendered at all (display: none), and every copy makes the same return. */
+    const oneShown = async (name: string) => {
+      await expect(marked().locator("visible=true"), name).toHaveCount(1);
+      const copies = await marked().evaluateAll(links => links.map(link => ({ rendered: link.getClientRects().length > 0, makes: [link.getAttribute("href"), (link as HTMLElement).dataset.backReturn ?? "", link.textContent].join(" | ") })));
+      expect(copies.filter(copy => copy.rendered), `${name}: only the shown copy is rendered`).toHaveLength(1);
+      expect(new Set(copies.map(copy => copy.makes)).size, `${name}: every copy makes the same return`).toBe(1);
+    };
+    const pages = () => ["/templates", selected(), "/marketplace", "/mixes/mega", megaMix(), "/mixes/mega?new=1", "/mixes/new?custom=1", setup()];
+    for (const [width, height] of [[390, 844], [820, 1180], [1280, 800]] as const) {
+      await page.setViewportSize({ width, height });
+      for (const path of pages()) {
+        await open(page, path);
+        await oneShown(`${path} at ${width}`);
+        // Where the page switches panes, in each pane that can be chosen.
+        if (!(await panes.isVisible())) continue;
+        for (const pane of ["Mixes", "Beats", "Details"]) {
+          const button = panes.getByRole("button", { name: pane, exact: true });
+          if (await button.isDisabled()) continue;
+          // A tap before the pane row hydrates is undone by its first render: tap until the pane is chosen.
+          await expect(async () => { await button.click(); await expect(button).toHaveAttribute("aria-pressed", "true", { timeout: 1_000 }); }).toPass();
+          await oneShown(`${path} at ${width}, ${pane} pane`);
+        }
+      }
+      // The Mega-Mix editor keeps its own Preview control and gets no second one.
+      await open(page, `${megaMix()}&edit=1`);
+      await expect(marked().locator("visible=true"), `the Mega-Mix editor at ${width}`).toHaveCount(1);
+      await expect(markedControl(page), `the Mega-Mix editor at ${width}`).toHaveText("Preview");
+      for (const section of SECTION_RING) {
+        await open(page, section);
+        await expect(marked().locator("visible=true"), `${section} at ${width}`).toHaveCount(0);
+      }
+    }
+  });
+
+  test("(l) the marker-driven same-return case finds the five pages through the marker, without a per-page list", () => {
+    expect(markedBackPages()).toEqual(expect.arrayContaining(["/templates", "/marketplace", "/mixes/mega", "/mixes/new", "/templates/[sharedMixId]/use"]));
+  });
+
+  test("(m) the plan's acceptance (2): at 390 px each of the 8 page families shows exactly one visible Back control, and /jumps, /contacts, /mixes and /more show none", async ({ page }) => {
+    test.setTimeout(300_000);
+    const shown = () => page.locator(BACK_CONTROL).locator("visible=true");
+    const families = ["/journey", "/calendar", "/templates", "/marketplace", "/mixes/new?custom=1", INVITATIONS_PATH, "/mixes/mega", megaMix(), "/mixes/mega?new=1", setup()];
+    for (const path of families) {
+      await open(page, path);
+      await expect(shown(), path).toHaveCount(1);
+    }
+    expect(SECTION_RING, "the section screens the plan names").toEqual(["/jumps", "/contacts", "/mixes", "/more"]);
+    for (const section of SECTION_RING) {
+      await open(page, section);
+      await expect(shown(), section).toHaveCount(0);
+    }
   });
 });
