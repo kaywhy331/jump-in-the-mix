@@ -6,6 +6,7 @@
  */
 import type { MouseEvent } from "react";
 import { SECTION_RING } from "@/lib/app-navigation";
+import { inAppShell } from "@/lib/app-shell-routes";
 
 /** The section ring (JITM-07 §2.33), in the bottom navigation's order, read from the navigation itself. */
 export { SECTION_RING };
@@ -74,7 +75,7 @@ export function browserMayHaveAnimated(reported: boolean | undefined, ownBack: b
   return !ownBack && reported !== false;
 }
 
-type Entry = { key: string; url: string | null; index: number; getState(): unknown };
+type Entry = { key: string; url: string | null; index: number; sameDocument?: boolean; getState(): unknown };
 export type NavigationApi = EventTarget & {
   currentEntry: Entry | null;
   entries(): Entry[];
@@ -104,6 +105,34 @@ export function backReturnsTo(href: string): boolean {
   if (!url) return false;
   const back = new URL(url), target = new URL(href, location.href);
   return back.origin === target.origin && back.pathname === target.pathname;
+}
+
+/**
+ * The return a Back control makes. `parent`, the default: its own page. `origin`, for a page reached from several
+ * places: the page the owner came from, when `returnsToOrigin` allows it, and otherwise its own page as the fallback.
+ */
+export type BackReturn = "parent" | "origin";
+
+/**
+ * Whether an origin Back goes back to `previous`, the entry before `here` (JITM-BACK-01). It does only when that entry is
+ * a page of the app shell (`inAppShell`) that this document showed, on this origin, and another page than `here`.
+ * The same origin is not enough: onboarding and sign-in are outside the shell, an entry an earlier document showed may
+ * have been a redirect or a native form's post, and the same page again is a form that was submitted. In every other
+ * case the control opens its fallback.
+ */
+export function returnsToOrigin(previous: { url: string | null; sameDocument?: boolean } | null, here: URL): boolean {
+  if (!previous?.url || previous.sameDocument !== true) return false;
+  const back = new URL(previous.url);
+  return back.origin === here.origin && back.pathname !== here.pathname && inAppShell(back.pathname);
+}
+
+/**
+ * Whether the Back control `control`, whose page is `href`, goes back through history. Its click and the edge swipe
+ * both ask, so they make the same return. A control marked `data-back-return="origin"` (`BackLink`'s `returns`) asks
+ * `returnsToOrigin`; every other control goes back only to its own page (`backReturnsTo`).
+ */
+export function goesBack(control: { dataset: DOMStringMap }, href: string): boolean {
+  return control.dataset.backReturn === ("origin" satisfies BackReturn) ? returnsToOrigin(previousEntry(), new URL(location.href)) : backReturnsTo(href);
 }
 
 type Relay = Window & { __jitmBeforePopState?: ((event: PopStateEvent) => void) | null; __jitmPopStateRelay?: true };
@@ -193,13 +222,13 @@ export function slide(side: Slide, update: () => void, offset = 0) {
 }
 
 /**
- * A back control's click: back through history when Back returns to the control's page, which restores its scroll.
- * Otherwise `push` goes there with the slide-back, or, without one, the link navigates as links do. FormGuard has
- * already answered the click.
+ * A back control's click: back through history when the control goes back (`goesBack`), which restores the page's
+ * scroll. Otherwise `push` goes to the control's page with the slide-back, or, without one, the link navigates as links
+ * do. FormGuard has already answered the click.
  */
 export function followBack(event: MouseEvent<HTMLAnchorElement>, href: string, push?: () => void) {
   if (event.defaultPrevented || event.button !== 0 || event.metaKey || event.ctrlKey || event.shiftKey || event.altKey) return;
-  if (backReturnsTo(href)) { event.preventDefault(); goBack(); }
+  if (goesBack(event.currentTarget, href)) { event.preventDefault(); goBack(); }
   else if (push) { event.preventDefault(); slide("back", push); }
 }
 
