@@ -3,6 +3,7 @@ import { SUPPRESSION_LABELS as labels } from "@/lib/admin-suppression-presentati
 import { safeAdminReturnTo, adminQuery } from "@/lib/admin-navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
@@ -15,11 +16,21 @@ import { clearRecipientSuppressionAction } from "@/lib/email-suppression-actions
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 
-export const metadata: Metadata = { title: "Admin · Suppression review" };
-export default async function SuppressionReview({ params, searchParams }: { params: Promise<{ suppressionId: string }>; searchParams: Promise<{ error?: string; at?: string; sig?: string; cleared?: string; returnTo?: string; case?: string }> }) {
-  const { user, session, permissions } = await requirePlatformAdmin("email.manage");
-  const { suppressionId } = await params, query = await searchParams;
+const PAGE_NAME = "Suppression review";
+/** The suppression, read once per request behind the page's permission: the title and the page share it. */
+const readSuppression = cache(async (suppressionId: string) => {
+  const staff = await requirePlatformAdmin("email.manage");
   const selected = await prisma.emailSuppression.findUnique({ where: { id: suppressionId }, select: { email: true } });
+  return { staff, selected };
+});
+/** A missing suppression opens the staff not-found, and takes its title (JITM-10 §2.22). */
+export async function generateMetadata({ params }: { params: Promise<{ suppressionId: string }> }): Promise<Metadata> {
+  if (!(await readSuppression((await params).suppressionId)).selected) notFound();
+  return { title: PAGE_NAME };
+}
+export default async function SuppressionReview({ params, searchParams }: { params: Promise<{ suppressionId: string }>; searchParams: Promise<{ error?: string; at?: string; sig?: string; cleared?: string; returnTo?: string; case?: string }> }) {
+  const { suppressionId } = await params, query = await searchParams;
+  const { staff: { user, session, permissions }, selected } = await readSuppression(suppressionId);
   if (!selected) notFound();
   const [rows, history, preferences] = await Promise.all([
     prisma.emailSuppression.findMany({ where: { email: selected.email }, orderBy: { createdAt: "asc" } }),
@@ -32,7 +43,7 @@ export default async function SuppressionReview({ params, searchParams }: { para
   const active = rows.filter(row => !row.clearedAt && row.reason !== "INVITATION_OPTOUT");
   const optout = rows.some(row => row.reason === "INVITATION_OPTOUT" && !row.clearedAt);
   return <div className="page" style={{ overflowWrap: "anywhere" }}>
-    <header className="page-header"><div><h1>Suppression review</h1><p>{selected.email}</p></div><Link className="button" href={returnTo}>Recipient queue</Link></header>
+    <header className="page-header"><div><h1>{PAGE_NAME}</h1><p>{selected.email}</p></div><Link className="button" href={returnTo}>Recipient queue</Link></header>
     <UrlErrorNotice params={query} viewer={session} fallback="Suppression could not be cleared. Reload the review." />
     {query.cleared && <Notice type="success">Provider blocks were cleared locally. No invitations were restored or sent. A new waitlist request requires fresh email confirmation.</Notice>}
     <div className="admin-detail-columns"><section className="card form-stack"><h2>Recipient impact</h2><p>{optout ? "Invitation opt-out controls the next step. Clearing provider blocks cannot authorize another invitation; the recipient must make and confirm a fresh request." : active.length ? `${active.length} active provider block(s) prevent email. Investigate every active reason and record the recipient’s request before local clearance.` : "No active local provider block remains. Check provider state before assuming delivery can resume."}</p><h3>Recorded blocks</h3>

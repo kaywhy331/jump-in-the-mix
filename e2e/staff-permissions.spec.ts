@@ -34,7 +34,7 @@ test("growth staff need no customer workspace and cannot open user or team data"
   await page.goto("/admin");
   await expect(page.getByRole("heading", { name: "Overview" })).toBeVisible();
   await expect(page.getByRole("navigation", { name: "Administration" })).toHaveCount(1);
-  await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Users" })).toHaveCount(0);
+  await expect(page.getByRole("navigation", { name: "Administration" }).getByRole("link", { name: "Customers" })).toHaveCount(0);
   await page.goto("/admin/waitlist");
   await expect(page.getByRole("heading", { name: "Waitlist" })).toBeVisible();
   for (const path of ["/admin/users", "/admin/team", "/admin/audit", "/admin/settings", "/admin/operations", "/admin/email", "/admin/templates"]) {

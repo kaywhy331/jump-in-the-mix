@@ -1,6 +1,6 @@
 import { AdminRefresh } from "@/components/AdminRefresh";
 import { AdminPagination } from "@/components/AdminPagination";
-import { adminPage, adminQuery } from "@/lib/admin-navigation";
+import { adminAreaName, adminPage, adminQuery } from "@/lib/admin-navigation";
 import { adminJobPresentation, supportedAdminJob } from "@/lib/admin-job-presentation";
 import type { Metadata } from "next";
 import Link from "next/link";
@@ -15,7 +15,8 @@ import { FormSubmitButton } from "@/components/FormSubmitButton";
 import { RETENTION_COUNT_LABELS, RETENTION_STALE_MS } from "@/lib/data-retention-policy";
 import { authReserveUse, readEmailBudget } from "@/lib/email-budget";
 
-export const metadata: Metadata = { title: "Admin · Operations" };
+const PAGE_NAME = adminAreaName("/admin/operations");
+export const metadata: Metadata = { title: PAGE_NAME };
 
 type SearchParams = {
   view?: string;
@@ -93,7 +94,7 @@ export default async function AdminOperationsPage({ searchParams }: { searchPara
   return (
     <div className="page admin-control-page">
       <header className="page-header">
-        <div><h1>Operations</h1></div><Link className="button" href="/admin/operations/alerts">Operational alerts</Link>
+        <div><h1>{PAGE_NAME}</h1></div><Link className="button" href="/admin/operations/alerts">{adminAreaName("/admin/operations/alerts")}</Link>
       </header>
       <UrlErrorNotice params={params} viewer={session} fallback="The job could not be retried. Reload Operations." />{params.retried && <Notice>Job queued for another attempt.</Notice>}
       {authReserve && <Notice type="error">Account email (sign-in links, verification and password resets) sent {authReserve.used} {authReserve.used === 1 ? "email" : "emails"} {authReserve.name === "day" ? "in the last 24 hours" : "in the last 31 days"}, at least half of the {authReserve.reserve} reserved for it. Heavy use can mean someone is requesting links for many addresses. <Link href="/admin/email">Review email use</Link>.</Notice>}

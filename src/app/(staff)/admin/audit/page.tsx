@@ -6,10 +6,11 @@ import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import { zoneLabel } from "@/lib/display-labels";
 import { prisma } from "@/lib/prisma";
-import { adminPage, adminQuery } from "@/lib/admin-navigation";
+import { adminAreaName, adminPage, adminQuery } from "@/lib/admin-navigation";
 import { AdminPagination } from "@/components/AdminPagination";
 import { adminAuditEntityHref, auditChangeSummary } from "@/lib/admin-audit-presentation";
-export const metadata = { title: "Admin · Audit" };
+const PAGE_NAME = adminAreaName("/admin/audit");
+export const metadata = { title: PAGE_NAME };
 type SearchParams = { q?: string; actor?: string; source?: string; scope?: string; page?: string; from?: string; through?: string };
 function jsonText(value: unknown) { try { return JSON.stringify(redactedAuditData(value), null, 2); } catch { return "Unable to display structured data."; } }
 function date(value?: string) { if (!value || !/^\d{4}-\d{2}-\d{2}$/.test(value)) return undefined; const parsed = new Date(`${value}T00:00:00Z`); return Number.isFinite(+parsed) && parsed.toISOString().slice(0,10) === value ? parsed : undefined; }
@@ -36,7 +37,7 @@ export default async function AdminAuditPage({ searchParams }: { searchParams: P
   const names = new Map(actors.map(person => [person.id, `${person.name} · ${person.email}`]));
   const href = (page: number) => adminQuery("/admin/audit", { scope, q, actor: scope === "workspace" ? actor : undefined, source: scope === "workspace" ? source : undefined, from: params.from, through: params.through, page });
   const records = [...platform.map(row => ({ ...row, actor: row.actorUserId ? names.get(row.actorUserId) ?? "Former staff member" : "System", context: row.outcome, metadata: null })), ...workspace.map(row => ({ ...row, actor: row.actorUser ? `${row.actorUser.name} · ${row.actorUser.email}` : row.actorType.toLowerCase(), context: `${row.workspace.name} · ${row.source}`, reason: null }))];
-  return <div className="page admin-control-page"><header className="page-header"><div><h1>Audit</h1></div></header>
+  return <div className="page admin-control-page"><header className="page-header"><div><h1>{PAGE_NAME}</h1></div></header>
     <nav className="admin-content-tabs" aria-label="Audit scope">{["platform", "workspace"].map(value => <Link key={value} href={adminQuery("/admin/audit", { scope: value, q, from: params.from, through: params.through })} aria-current={scope === value ? "page" : undefined}>{value === "platform" ? "Platform events" : "Workspace events"}</Link>)}</nav>
     <form className="filter-bar admin-audit-filters" method="get"><input type="hidden" name="scope" value={scope} /><input name="q" defaultValue={q} placeholder={scope === "platform" ? "Action, entity, actor name or email" : "Action, workspace, actor, entity or source"} aria-label="Search audit log" />
       {scope === "workspace" && <><select name="actor" defaultValue={actor} aria-label="Workspace actor type"><option value="ALL">All actor types</option><option value="USER">User</option><option value="ADMIN">Admin</option><option value="SYSTEM">System</option></select><select name="source" defaultValue={source} aria-label="Workspace event source"><option value="">All sources</option>{sources.map(row => <option key={row.source}>{row.source}</option>)}</select></>}

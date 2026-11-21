@@ -1,5 +1,5 @@
 import { AdminRefresh } from "@/components/AdminRefresh";
-import { adminQuery } from "@/lib/admin-navigation";
+import { adminAreaName, adminQuery } from "@/lib/admin-navigation";
 import Link from "next/link";
 import { Prisma } from "@/generated/prisma/client";
 import { requirePlatformAdmin } from "@/lib/auth";
@@ -9,14 +9,15 @@ import { parseReportRange, ReportError } from "@/lib/admin-report-range";
 import { Notice } from "@/components/Notice";
 import styles from "@/components/AdminReports.module.css";
 
-export const metadata = { title: "Admin · Saved daily reports" };
+const PAGE_NAME = adminAreaName("/admin/reports/history");
+export const metadata = { title: PAGE_NAME };
 export default async function ReportHistoryPage({ searchParams }: { searchParams: Promise<{ from?: string; through?: string; days?: string; page?: string; view?: string }> }) {
   await requirePlatformAdmin("reports.read");
   const query = await searchParams;
   const view = query.view === "storage" ? "storage" : "activity";
   let range, definitionKey;
   try { range = parseReportRange(query); definitionKey = reportDefinitionKey(); }
-  catch (error) { return <div className="page"><h1>Saved daily reports</h1><Notice type="error">{error instanceof ReportError ? error.message : "Daily reports are unavailable."}</Notice><Link href="/admin/reports/history">Reset dates</Link></div>; }
+  catch (error) { return <div className="page"><h1>{PAGE_NAME}</h1><Notice type="error">{error instanceof ReportError ? error.message : "Daily reports are unavailable."}</Notice><Link href="/admin/reports/history">Reset dates</Link></div>; }
   const page = Math.max(1, Math.min(14, Number.isSafeInteger(Number(query.page)) ? Number(query.page) : 1));
   const [rows, storage] = await Promise.all([prisma.$queryRaw<Array<{ id: string; day: Date; observedAt: Date | null; status: string; accounts: number | null; active: number | null; completed: number | null; emailAttempts: number | null; databaseBytes: number | null }>>(Prisma.sql`
     SELECT id,day,"observedAt",status,(payload->'daily'->0->>'accounts')::int AS accounts,(payload->'daily'->0->>'active')::int AS active,
@@ -27,7 +28,7 @@ export default async function ReportHistoryPage({ searchParams }: { searchParams
     prisma.reportStorageObservation.findMany({ where: { day: { gte: range.from, lt: range.until } }, orderBy: { day: "desc" }, take: 31, skip: (page - 1) * 30 })]);
   const params = `from=${range.fromDay}&through=${range.throughDay}&view=${view}`;
   const returnTo = `/admin/reports/history?${params}&page=${page}`;
-  return <div className="page"><header className="page-header"><div><h1>Saved daily reports</h1></div></header>
+  return <div className="page"><header className="page-header"><div><h1>{PAGE_NAME}</h1></div></header>
     <nav className="page-actions" aria-label="Report navigation"><Link href={adminQuery("/admin/reports", { from: range.fromDay, through: range.throughDay })}>Live reports</Link><Link href="/admin/reports/exports">Your exports</Link></nav>
     <AdminRefresh observedAt={new Date().toISOString()} /><nav className="admin-content-tabs" aria-label="History series">{[["activity", "Activity reports"], ["storage", "Database storage"]].map(([key,label]) => <Link key={key} href={adminQuery("/admin/reports/history", { from: range.fromDay, through: range.throughDay, view: key })} aria-current={view === key ? "page" : undefined}>{label}</Link>)}</nav>
     <section className="admin-report-toolbar"><form data-live-filter="false" method="get" className={styles.filters}>

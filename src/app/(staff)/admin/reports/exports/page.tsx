@@ -1,12 +1,13 @@
 import { AdminRefresh } from "@/components/AdminRefresh";
-import { adminQuery } from "@/lib/admin-navigation";
+import { adminAreaName, adminQuery } from "@/lib/admin-navigation";
 import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/auth";
 import { prisma } from "@/lib/prisma";
 import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 
-export const metadata = { title: "Admin · Report exports" };
+const PAGE_NAME = adminAreaName("/admin/reports/exports");
+export const metadata = { title: PAGE_NAME };
 export default async function ReportExportsPage({ searchParams }: { searchParams: Promise<{ error?: string; at?: string; sig?: string; queued?: string; from?: string; through?: string }> }) {
   const { user, session, permissions } = await requirePlatformAdmin("reports.read");
   const query = await searchParams;
@@ -14,7 +15,7 @@ export default async function ReportExportsPage({ searchParams }: { searchParams
     select: { id: true, fromDay: true, throughDay: true, status: true, generatedAt: true, expiresAt: true, byteCount: true, job: { select: { id: true, failedAt: true } } }, orderBy: { createdAt: "desc" }, take: 20 });
   const pending = reports.some(row => ["QUEUED", "RUNNING"].includes(row.status) && !row.job?.failedAt);
   const returnTo = adminQuery("/admin/reports", { from: query.from, through: query.through });
-  return <div className="page"><header className="page-header"><div><h1>Report exports</h1><p>Downloads for this sign-in only. Expire after 24 hours.</p></div></header>
+  return <div className="page"><header className="page-header"><div><h1>{PAGE_NAME}</h1><p>Downloads for this sign-in only. Expire after 24 hours.</p></div></header>
     <nav className="page-actions" aria-label="Report navigation"><Link href={returnTo}>Back to report range</Link><Link href="/admin/reports/history">Saved daily reports</Link></nav>
     <AdminRefresh poll={pending} observedAt={new Date().toISOString()} />
     <UrlErrorNotice params={query} viewer={session} fallback="The export could not be requested. Please try again." />{query.queued && <Notice>The export is queued. This page checks progress while visible.</Notice>}

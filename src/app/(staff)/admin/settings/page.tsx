@@ -4,8 +4,10 @@ import { LibraryOptionsForm } from "@/components/LibraryOptionsForm";
 import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import { getPlatformSettingsSnapshot } from "@/lib/platform-settings";
+import { adminAreaName } from "@/lib/admin-navigation";
 
-export const metadata: Metadata = { title: "Admin · Library options" };
+const PAGE_NAME = adminAreaName("/admin/settings");
+export const metadata: Metadata = { title: PAGE_NAME };
 
 function listOptions(value: unknown): string[] { return Array.isArray(value) ? value.filter((item): item is string => typeof item === "string") : []; }
 
@@ -18,7 +20,7 @@ export default async function AdminSystemSettingsPage() {
   return (
     <div className="page admin-control-page">
       <header className="page-header">
-        <div><h1>Library options</h1><p>Options shown in customer filters and Mix editors.</p></div>
+        <div><h1>{PAGE_NAME}</h1><p>Options shown in customer filters and Mix editors.</p></div>
       </header>
 
 

@@ -12,8 +12,10 @@ import { getAdmissionSnapshot } from "@/lib/admission";
 import { changeAdmissionPolicyAction, discardAdmissionDraftAction } from "@/lib/admission-admin-actions";
 import { readAdmissionDraft } from "@/lib/admission-draft-cookie";
 import { prisma } from "@/lib/prisma";
+import { adminAreaName } from "@/lib/admin-navigation";
 
-export const metadata: Metadata = { title: "Admin · Admission" };
+const PAGE_NAME = adminAreaName("/admin/admission");
+export const metadata: Metadata = { title: PAGE_NAME };
 
 export default async function AdmissionPage({ searchParams }: { searchParams: Promise<{ error?: string; at?: string; sig?: string; saved?: string; draft?: string; operation?: string }> }) {
   const { session, user, permissions } = await requirePlatformAdmin("settings.manage");
@@ -30,7 +32,7 @@ export default async function AdmissionPage({ searchParams }: { searchParams: Pr
   const error = viewerErrorMessage(params, session);
   const schedule = await prisma.waitlistSchedule.findUnique({ where: { id: "default" }, select: { paused: true } });
   return <div className="page admin-control-page">
-    <header className="page-header"><div><h1>Admission</h1></div></header>
+    <header className="page-header"><div><h1>{PAGE_NAME}</h1></div></header>
     {error && !conflict && <Notice type="error">{error}</Notice>}
     {saved && <Notice type="success">Admission controls saved.</Notice>}
     {draft && <Notice type="info">Your admission changes have not been saved. Review the restored draft, re-enter your administrator password, then select Save admission controls. Authenticator verification alone does not save changes.</Notice>}

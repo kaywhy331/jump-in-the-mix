@@ -1,6 +1,6 @@
 import { AdminRefresh } from "@/components/AdminRefresh";
 import { AdminDraftForm } from "@/components/AdminDraftForm";
-import { activeAdminArea, adminQuery } from "@/lib/admin-navigation";
+import { adminAreaName, activeAdminArea, adminQuery } from "@/lib/admin-navigation";
 import type { Metadata } from "next";
 import Link from "next/link";
 import { requirePlatformAdmin } from "@/lib/auth";
@@ -13,7 +13,8 @@ import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
 
-export const metadata: Metadata = { title: "Admin · Operational alerts" };
+const PAGE_NAME = adminAreaName("/admin/operations/alerts");
+export const metadata: Metadata = { title: PAGE_NAME };
 export default async function OperationsAlertsPage({ searchParams }: { searchParams: Promise<{ error?: string; at?: string; sig?: string; acknowledged?: string; page?: string; view?: string }> }) {
   const { user, session, permissions } = await requirePlatformAdmin("operations.read");
   const params = await searchParams, preferences = await displayPreferencesForUser(user.id);
@@ -29,7 +30,7 @@ export default async function OperationsAlertsPage({ searchParams }: { searchPar
   const visible = checks.filter(row => Object.hasOwn(OPERATIONS_CHECKS, row.code) && (view === "all" || row.state !== "OK" && (view === "acknowledged" ? Boolean(row.acknowledgedAt) : true))).sort((a, b) => severityRank(b.state) - severityRank(a.state) || Number(Boolean(a.acknowledgedAt)) - Number(Boolean(b.acknowledgedAt)) || a.code.localeCompare(b.code));
   const stale = !monitor?.observedAt || Boolean(monitor.lastError) || Date.now() - monitor.observedAt.getTime() > operationsPolicy().monitorStaleSeconds * 1000;
   return <div className="page" style={{ overflowWrap: "anywhere" }}>
-    <header className="page-header"><div><h1>Operational alerts</h1></div><Link className="button" href="/admin/operations">Background operations</Link></header>
+    <header className="page-header"><div><h1>{PAGE_NAME}</h1></div><Link className="button" href="/admin/operations">{adminAreaName("/admin/operations")}</Link></header>
     <UrlErrorNotice params={params} viewer={session} fallback="The alert could not be acknowledged. Reload and review it again." />
     {params.acknowledged && <Notice>Alert acknowledged. It stays open until recovery is verified.</Notice>}
     {stale ? <Notice type="error">Monitoring is stale or incomplete. Check the monitor; saved results may be outdated.</Notice> : <Notice type="info">Independent checks last completed {formatDateTime(monitor!.observedAt!, preferences)}.</Notice>}

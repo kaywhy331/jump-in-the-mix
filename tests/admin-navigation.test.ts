@@ -1,6 +1,6 @@
 import { describe, expect, it } from "vitest";
 import { ADMIN_AREAS, effectiveAdminPermissions } from "../src/lib/admin-permissions";
-import { activeAdminArea, adminNavigation, firstAdminDestination, safeAdminReturnTo, adminPage, adminQuery } from "../src/lib/admin-navigation";
+import { activeAdminArea, adminAreaName, adminNavigation, firstAdminDestination, safeAdminReturnTo, adminPage, adminQuery } from "../src/lib/admin-navigation";
 
 const owner = effectiveAdminPermissions({ role: "OWNER", status: "ACTIVE", grants: [], denies: [] });
 describe("admin workspace navigation", () => {
@@ -11,9 +11,9 @@ describe("admin workspace navigation", () => {
   });
   it("selects the most specific area for nested routes", () => {
     expect(activeAdminArea("/admin/email/recovery", owner)?.label).toBe("Email recovery");
-    expect(activeAdminArea("/admin/email/suppressions/example", owner)?.label).toBe("Suppression");
-    expect(activeAdminArea("/admin/templates/example/edit", owner)?.label).toBe("Ready-made Mixes");
-    expect(activeAdminArea("/admin/reports/history", owner)?.label).toBe("Report history");
+    expect(activeAdminArea("/admin/email/suppressions/example", owner)?.label).toBe("Recipient suppression");
+    expect(activeAdminArea("/admin/templates/example/edit", owner)?.label).toBe("Library");
+    expect(activeAdminArea("/admin/reports/history", owner)?.label).toBe("Saved daily reports");
     expect(activeAdminArea("/admin/access-denied", owner)).toBeUndefined();
   });
   it("omits inaccessible destinations and empty groups", () => {
@@ -24,7 +24,15 @@ describe("admin workspace navigation", () => {
 });
 
 it("limits primary navigation to eight task destinations", () => {
-  expect(adminNavigation(owner).map(group => group.label)).toEqual(["Overview", "Customers", "Access", "Support", "Content", "Reports", "Operations", "Settings"]);
+  expect(adminNavigation(owner).map(group => group.label)).toEqual(["Overview", "Customers", "Access", "Support", "Content", "Reports", "Operations", "Team"]);
+});
+it("names each staff page once: a one-page group, its link and its page share the name (JITM-10 §2.22)", () => {
+  for (const group of adminNavigation(owner).filter(item => item.items.length === 1)) expect(group.label).toBe(group.items[0].label);
+  expect(adminNavigation(owner).find(group => group.items.some(item => item.href === "/admin/users"))?.label).toBe("Customers");
+  expect(adminAreaName("/admin/users")).toBe("Customers");
+  expect(adminAreaName("/admin/templates")).toBe("Library");
+  expect(new Set(ADMIN_AREAS.map(area => area.label)).size).toBe(ADMIN_AREAS.length);
+  expect(() => adminAreaName("/admin/missing")).toThrow();
 });
 it("returns restricted staff to a permitted destination", () => {
   expect(firstAdminDestination(["support.manage"])).toBe("/admin/support");

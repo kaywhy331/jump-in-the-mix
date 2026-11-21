@@ -18,7 +18,7 @@ function workerCard(page: import("@playwright/test").Page) { return page.locator
 async function layout(page: import("@playwright/test").Page) { for (const width of [320, 1440]) for (const theme of ["light", "dark"]) { await page.setViewportSize({ width, height: 900 }); await page.evaluate(value => document.documentElement.setAttribute("data-theme", value), theme); expect(await page.evaluate(() => document.documentElement.scrollWidth <= innerWidth + 1)).toBe(true); expect((await new AxeBuilder({ page }).analyze()).violations).toEqual([]); } }
 
 test("an administrator acknowledges the incident through its actual action without marking the problem healthy", async ({ page }) => {
-  await observations(); await page.goto("/admin/operations"); await page.getByRole("link", { name: "Operational alerts", exact: true }).click();
+  await observations(); await page.goto("/admin/operations"); await page.locator(".page-header").getByRole("link", { name: "Operational alerts", exact: true }).click();
   await expect(page.getByRole("heading", { name: "Operational alerts", exact: true })).toBeVisible(); await layout(page);
   const card = workerCard(page); await expect(card).toContainText("CRITICAL");
   await card.getByRole("textbox", { name: "Reason for acknowledgment", exact: true }).fill("I am investigating the worker supervisor and its last restart.");

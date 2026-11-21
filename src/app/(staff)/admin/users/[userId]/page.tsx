@@ -1,6 +1,8 @@
 import { AdminAccountOperation } from "@/components/AdminAccountOperation";
 import { describeUserAgent } from "@/lib/request-context";
+import type { Metadata } from "next";
 import Link from "next/link";
+import { cache } from "react";
 import { notFound } from "next/navigation";
 import { AdminDraftForm } from "@/components/AdminDraftForm";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
@@ -12,10 +14,21 @@ import { displayPreferencesForUser } from "@/lib/display-preferences";
 import { formatDateTime } from "@/lib/format";
 import { prisma } from "@/lib/prisma";
 import { manageUserAccessAction } from "@/lib/user-admin-actions";
-export const metadata = { title: "Admin · Customer account" };
-export default async function AdminUserDetail({ params, searchParams }: { params: Promise<{ userId: string }>; searchParams: Promise<{ returnTo?: string; updated?: string; error?: string; at?: string; sig?: string }> }) {
-  const [{ userId }, query, { user: operator, session: operatorSession, permissions }] = await Promise.all([params, searchParams, requirePlatformAdmin("users.read")]);
+/** The account, read once per request behind the page's permission: the title and the page share it. */
+const readAccount = cache(async (userId: string) => {
+  const staff = await requirePlatformAdmin("users.read");
   const user = await prisma.user.findUnique({ where: { id: userId }, include: { staffMembership: true, sessions: { where: { expiresAt: { gt: new Date() } }, select: { id: true, createdAt: true, expiresAt: true, userAgent: true, lastSeenAt: true }, orderBy: { createdAt: "desc" } }, memberships: { include: { workspace: { select: { id: true, name: true, _count: { select: { contacts: true, mixes: true, jumps: true } } } } } } } });
+  return { staff, user };
+});
+/** The page's one name, its H1 and its document title, is the person's name; a missing account opens the staff not-found and takes its title (JITM-10 §2.22). */
+export async function generateMetadata({ params }: { params: Promise<{ userId: string }> }): Promise<Metadata> {
+  const { user } = await readAccount((await params).userId);
+  if (!user) notFound();
+  return { title: user.name };
+}
+export default async function AdminUserDetail({ params, searchParams }: { params: Promise<{ userId: string }>; searchParams: Promise<{ returnTo?: string; updated?: string; error?: string; at?: string; sig?: string }> }) {
+  const [{ userId }, query] = await Promise.all([params, searchParams]);
+  const { staff: { user: operator, session: operatorSession, permissions }, user } = await readAccount(userId);
   if (!user) notFound();
   const display = await displayPreferencesForUser(operator.id);
   const returnTo = safeAdminReturnTo(query.returnTo, "/admin/users");

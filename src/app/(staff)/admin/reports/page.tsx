@@ -1,5 +1,5 @@
 import { AdminReportTabs, reportView } from "@/components/AdminReportTabs";
-import { adminQuery } from "@/lib/admin-navigation";
+import { adminAreaName, adminQuery } from "@/lib/admin-navigation";
 import Link from "next/link";
 import { randomUUID } from "node:crypto";
 import { FormSubmitButton } from "@/components/FormSubmitButton";
@@ -12,7 +12,8 @@ import { readAdminReport, reportEmailLimits, type ReportData } from "@/lib/admin
 import { parseReportRange, ReportError } from "@/lib/admin-report-range";
 import { consumeRateLimit } from "@/lib/rate-limit";
 
-export const metadata = { title: "Admin · Reports" };
+const PAGE_NAME = adminAreaName("/admin/reports");
+export const metadata = { title: PAGE_NAME };
 export default async function AdminReportsPage({ searchParams }: { searchParams: Promise<{ from?: string | string[]; through?: string | string[]; days?: string | string[]; view?: string }> }) {
   const { user } = await requirePlatformAdmin("reports.read");
   const query = await searchParams, now = new Date();
@@ -27,7 +28,7 @@ export default async function AdminReportsPage({ searchParams }: { searchParams:
     if (!(cause instanceof ReportError)) console.error("Aggregate administration report query failed.");
   }
   return <div className={`page ${styles.page}`}>
-    <header className="page-header"><h1>Live reports</h1><nav className="page-actions" aria-label="Report tools"><Link href={adminQuery("/admin/reports/history", { from: range.fromDay, through: range.throughDay })} prefetch={false}>Saved daily reports</Link><Link href={adminQuery("/admin/reports/exports", { from: range.fromDay, through: range.throughDay })} prefetch={false}>Your exports</Link></nav></header>
+    <header className="page-header"><h1>{PAGE_NAME}</h1><nav className="page-actions" aria-label="Report tools"><Link href={adminQuery("/admin/reports/history", { from: range.fromDay, through: range.throughDay })} prefetch={false}>{adminAreaName("/admin/reports/history")}</Link><Link href={adminQuery("/admin/reports/exports", { from: range.fromDay, through: range.throughDay })} prefetch={false}>{adminAreaName("/admin/reports/exports")}</Link></nav></header>
     <section className="admin-report-toolbar">
       <form data-live-filter="false" key={`${range.fromDay}:${range.throughDay}`} method="get" action="/admin/reports" className={styles.filters}>
         <input name="view" type="hidden" value={view} /><label className="field"><span>From (UTC)</span><input name="from" type="date" defaultValue={range.fromDay} max={now.toISOString().slice(0, 10)} required /></label>

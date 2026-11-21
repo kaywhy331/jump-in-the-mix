@@ -147,7 +147,7 @@ test("Recovery controls stay readable through theme changes in normal, hover and
   await page.goto("/admin/email/recovery");
   const controls = [
     page.getByRole("button", { name: "Sign out", exact: true }),
-    page.getByRole("link", { name: "Recipient suppression", exact: true }),
+    page.locator(".page-header").getByRole("link", { name: "Recipient suppression", exact: true }),
     page.getByRole("link", { name: "Review delivery", exact: true }).nth(0),
     page.getByRole("link", { name: "Review delivery", exact: true }).nth(1)
   ];

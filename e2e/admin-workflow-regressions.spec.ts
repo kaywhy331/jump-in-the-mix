@@ -127,7 +127,7 @@ test("an analyst without Overview gets a permitted denial return and fully expir
     await expect(page).toHaveURL(/\/admin\/access-denied\?capability=users.read/);
     await expect(page.getByRole("link", { name: "Return to your workspace", exact: true })).toHaveAttribute("href", "/admin/reports");
     await page.getByRole("link", { name: "Return to your workspace", exact: true }).click();
-    await expect(page.getByRole("heading", { name: "Live reports", exact: true })).toBeVisible();
+    await expect(page.getByRole("heading", { name: "Reports", exact: true })).toBeVisible();
     await prisma.adminMfaSession.update({ where: { sessionId: f.admin.session.id }, data: { expiresAt: new Date(0) } });
     await page.goto("/admin/reports?view=content");
     await expect(page).toHaveURL(/\/account\/admin-mfa/);

@@ -51,22 +51,23 @@ export function effectiveAdminPermissions(staff: StaffAccess | null | undefined)
   return (Object.keys(ADMIN_PERMISSIONS) as AdminPermission[]).filter(p => hasAdminPermission(staff, p));
 }
 
+/** Each staff area and its one name: the navigation label, the page's H1 and its document title (JITM-10 §2.22). */
 export const ADMIN_AREAS: ReadonlyArray<{ label: string; href: string; permission: AdminPermission }> = [
   { label: "Overview", href: "/admin", permission: "dashboard.read" },
-  { label: "Report history", href: "/admin/reports/history", permission: "reports.read" },
-  { label: "Exports", href: "/admin/reports/exports", permission: "reports.read" },
+  { label: "Saved daily reports", href: "/admin/reports/history", permission: "reports.read" },
+  { label: "Report exports", href: "/admin/reports/exports", permission: "reports.read" },
   { label: "Reports", href: "/admin/reports", permission: "reports.read" },
-  { label: "Users", href: "/admin/users", permission: "users.read" },
+  { label: "Customers", href: "/admin/users", permission: "users.read" },
   { label: "Waitlist", href: "/admin/waitlist", permission: "waitlist.read" },
   { label: "Invitations", href: "/admin/access", permission: "access.read" },
   { label: "Email recovery", href: "/admin/email/recovery", permission: "email.manage" },
   { label: "Support", href: "/admin/support", permission: "support.manage" },
-  { label: "Ready-made Mixes", href: "/admin/templates", permission: "mixes.edit" },
+  { label: "Library", href: "/admin/templates", permission: "mixes.edit" },
   { label: "Community reports", href: "/admin/marketplace", permission: "mixes.edit" },
   { label: "Invitation wording", href: "/admin/system-mix", permission: "mixes.edit" },
   { label: "Operations", href: "/admin/operations", permission: "operations.read" },
-  { label: "Alerts", href: "/admin/operations/alerts", permission: "operations.read" },
-  { label: "Suppression", href: "/admin/email/suppressions", permission: "email.manage" },
+  { label: "Operational alerts", href: "/admin/operations/alerts", permission: "operations.read" },
+  { label: "Recipient suppression", href: "/admin/email/suppressions", permission: "email.manage" },
   { label: "Email", href: "/admin/email", permission: "operations.read" },
   { label: "Audit", href: "/admin/audit", permission: "audit.read" },
   { label: "Admission", href: "/admin/admission", permission: "settings.manage" },
