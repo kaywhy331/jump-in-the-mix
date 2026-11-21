@@ -5,6 +5,7 @@ import type { WorkflowStartPreview } from "@/lib/workflow-start-preview";
 import { workflowStartPath } from "@/lib/workflow-continuation";
 import { useCallback, useEffect, useLayoutEffect, useMemo, useRef, useState, type ReactNode } from "react";
 import { AppIcon } from "@/components/AppIcon";
+import { BackLink } from "@/components/BackLink";
 import { WorkflowCountStrip, WorkflowPeople } from "@/components/WorkflowPeople";
 import { workflowCountScope, workflowMapScope } from "@/lib/workflow-count-scope";
 import { emptyWorkflowCounts } from "@/lib/workflow-analytics";
@@ -276,6 +277,8 @@ export function WorkflowJourney({ initial, displayPreferences, initialMixId = ""
   return <div className={styles.workspace} data-mobile-pane={pane}>
     {/* The middle pane shows the Mixes as a list or a map, so its tab names the Mixes, not one of its views (D95). */}
     <nav className={styles.paneNav} aria-label="Journey workspace panels">
+      {/* Keep origin Back in the existing row so the first Mix stays in view on phones (JITM-BACK-02, D75). */}
+      <BackLink href="/more" label="More" phoneOnly returns="origin" />
       {(["people", "map", "details"] as const).map(value => <button type="button" key={value} aria-pressed={pane === value} aria-controls={`journey-${value}-pane`} onClick={() => setPane(value)}><AppIcon name={value === "people" ? "people" : value === "map" ? "journey" : "more"} />{value === "people" ? "People" : value === "map" ? "Mixes" : "Details"}</button>)}
     </nav>
     <aside id="journey-people-pane" ref={directoryRef} className={styles.directory} aria-label="Journey directory">
