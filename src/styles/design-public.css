@@ -39,10 +39,12 @@
 .public-page .relationship-steps li { display: block; position: relative; padding: 0; border: 0; }
 .public-page .relationship-steps li:not(:last-child)::after { content: ""; position: absolute; top: 18px; left: 48px; right: -28px; height: 1px; background: var(--track); }
 .public-page .workflow-number { width: 36px; height: 36px; border-radius: 50%; background: var(--violet); color: var(--on-violet); border: 0; margin-bottom: 20px; display: grid; place-items: center; }
-.public-page .public-definition { max-width: none; border: 0; border-radius: 0; background: var(--surface); padding: 88px max(24px, calc((100% - 1280px) / 2)); display: grid; grid-template-columns: 1fr 1fr; gap: 12px 80px; }
+.public-page .public-definition { max-width: none; border: 0; border-radius: 0; background: var(--page); padding: 88px max(24px, calc((100% - 1280px) / 2)); display: grid; grid-template-columns: 1fr 1fr; gap: 12px 80px; }
 .public-page .public-definition h2 { grid-row: 1 / 4; font-family: var(--font-voice); font-weight: 400; font-size: clamp(2rem, 3.2vw, 3.25rem); line-height: 1.15; margin: 0; max-width: 16ch; }
 .public-definition p { color: var(--text-2); margin: 0; }
 .public-page .profession-marks { display: grid; grid-template-columns: .8fr 1.2fr; gap: 80px; align-items: start; }
+/* On the page colour, a hairline separates the profession directory from the own-voice section above it. */
+.homepage .profession-marks { border-top: 1px solid var(--line); }
 .public-page .profession-grid { display: grid; grid-auto-flow: column; grid-template-rows: repeat(6, auto); grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 0 40px; }
 .public-page .profession-grid li, .public-page .profession-grid li > a { display: flex; justify-content: space-between; align-items: center; min-height: 54px; padding: 0; border: 0; border-radius: 0; background: transparent; box-shadow: none; font-size: 1rem; text-align: left; }
 .public-page .profession-grid li { border-top: 1px solid var(--line); color: var(--text-2); }
@@ -53,7 +55,9 @@
 .public-page .public-footer > p { margin: 0; }
 .public-page .public-footer nav { display: flex; gap: 20px; align-items: center; }
 .public-page .public-trust-links { flex-basis: 100%; border-top: 1px solid var(--line); padding-top: 20px; }
-.homepage > .public-header, .homepage .hero { background: var(--surface); box-shadow: 0 0 0 100vmax var(--surface); clip-path: inset(0 -100vmax); }
+/* Three tiers instead of alternating bands: the introduction and the real product share the surface,
+   the own-voice and profession sections sit quietly on the page, and the waitlist band closes. */
+.homepage > .public-header, .homepage .hero, .homepage .public-workflow { background: var(--surface); box-shadow: 0 0 0 100vmax var(--surface); clip-path: inset(0 -100vmax); }
 .homepage #waitlist { max-width: none; background: var(--band); color: var(--band-text); padding-inline: max(24px, calc((100% - 1280px) / 2)); display: grid; grid-template-columns: 1fr 1fr; gap: 80px; align-items: center; }
 .homepage #waitlist .section-heading { margin: 0; }
 .homepage #waitlist p { color: var(--band-text-2); }
@@ -93,6 +97,34 @@
 }
 
 .homepage .section-heading h2, .homepage .profession-marks h2 { font-weight: 700; }
+
+/* How it works ends on real screens of the app (ProductShots, JITM-03 §2.19). From 768px, where the
+   app docks its review, the computer capture sits beside the phone review at one image height; below
+   768px the phone's Today and review sit side by side. Images are flat, with a hairline (JITM-06 §2.19). */
+/* Below 768px the two phone screens stop growing at about a phone's own width each. */
+.product-shots { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: var(--space-5) var(--space-4); align-items: start; max-width: 32rem; margin-top: var(--space-7); }
+.product-shot { margin: 0; min-width: 0; }
+/* The hairline is an outline so it adds nothing to the image box and the two heights stay equal. */
+.product-shot img { width: 100%; height: auto; outline: 1px solid var(--line); outline-offset: -1px; border-radius: var(--radius-md); background: var(--raised); }
+.product-shot figcaption { margin-top: var(--space-3); color: var(--text-2); font-size: var(--font-size-sm); line-height: var(--line-height-body); }
+.product-shots-note { grid-column: 1 / -1; margin: 0; color: var(--text-3); font-size: var(--font-size-sm); line-height: var(--line-height-body); }
+.product-shot--wide, .product-shot .product-shot-dark { display: none; }
+.product-shot .product-shot-light { display: block; }
+@media (width >= 768px) {
+  /* 3.045 is the computer capture's aspect ratio (1920/1364) over the phone's (600/1298), so both images share one height. */
+  .product-shots { grid-template-columns: minmax(0, 3.045fr) minmax(0, 1fr); column-gap: var(--space-5); max-width: none; }
+  .product-shot--wide { display: block; }
+  .product-shot--narrow { display: none; }
+}
+:root[data-theme="dark"] .product-shot .product-shot-light { display: none; }
+:root[data-theme="dark"] .product-shot .product-shot-dark { display: block; }
+@media (prefers-color-scheme: dark) {
+  :root:not([data-theme="light"]) .product-shot .product-shot-light { display: none; }
+  :root:not([data-theme="light"]) .product-shot .product-shot-dark { display: block; }
+}
+/* The page's one new bubble: the closing question, in Quick Add's violet with the shared tail on the left,
+   because the app is speaking to the owner (JITM-03 §2.13–§2.15). */
+.homepage #waitlist .speech-bubble--brand { width: fit-content; max-width: 100%; margin: 0 0 var(--space-6); padding: var(--space-4) var(--space-5); border-radius: var(--radius-bubble); text-wrap: balance; }
 
 /* Pricing: the three plans as cards, then what every plan includes and how the limits count. */
 .public-page .public-pricing .pricing-grid { list-style: none; margin: 0; padding: 0; grid-template-columns: repeat(3, minmax(0, 1fr)); }
