@@ -16,11 +16,10 @@
 .public-page .public-title { font-size: clamp(2.125rem, 3.8vw, 3rem); line-height: 1.1; letter-spacing: -.03em; max-width: 22ch; overflow-wrap: break-word; }
 /* A hyphenated heading word ("follow-up") moves to the next line whole; see KeepHyphens. */
 .keep-hyphens { display: inline-block; max-width: 100%; text-decoration: inherit; }
-/* Reading measure (JITM-06 §2.34): public prose, answers, lists, boxes and message examples stop near 65
-   characters inside the wider page. CSS's ch is the width of "0", which in Instrument Sans is wider than an
-   average character: 46ch (the hero intro's measure) renders 64-71 characters a line, where 65ch renders
-   about 100. The demo keeps its own layout. Zero specificity, so a deliberately narrower measure still applies. */
-:where(.public-page main :is(p, li, dd, .template-example, .public-contents, .public-capabilities):not(.product-demo *)) { max-width: 46ch; }
+/* Reading measure (JITM-06 §2.34, --reading-measure in design-tokens.css): public prose, answers, lists,
+   boxes and message examples stop near 65 characters inside the wider page. The demo keeps its own layout.
+   Zero specificity, so a deliberately narrower measure still applies. */
+:where(.public-page main :is(p, li, dd, .template-example, .public-contents, .public-capabilities):not(.product-demo *)) { max-width: var(--reading-measure); }
 .public-page .hero h1 em { display: inline; font-style: normal; color: var(--text-3); }
 .public-page .hero-copy > p { font-size: var(--font-size-md); line-height: var(--line-height-body); }
 .public-page .hero-copy > .hero-vocabulary { font-size: var(--font-size-sm); }

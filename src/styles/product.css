@@ -260,7 +260,7 @@
 .recovery-page { min-height: 65dvh; display: grid; place-items: center; padding: 48px 24px; }
 .recovery-card { width: min(100%, 560px); }
 .recovery-card h1 { font-size: clamp(2rem, 5vw, 3.2rem); line-height: 1.1; letter-spacing: -.04em; }
-.recovery-card > p:not(.eyebrow) { color: var(--muted); max-width: 46ch; margin-bottom: 28px; }
+.recovery-card > p:not(.eyebrow) { color: var(--muted); max-width: var(--reading-measure); margin-bottom: 28px; }
 .recovery-symbol { width: 56px; height: 56px; margin-bottom: 24px; border-radius: 18px; display: grid; place-items: center; color: var(--brand-dark); background: var(--brand-soft); }
 .recovery-symbol svg { width: 26px; height: 26px; }
 

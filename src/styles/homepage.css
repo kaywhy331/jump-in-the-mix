@@ -14,7 +14,7 @@
 .public-page .hero-copy { padding-top: 16px; min-width: 0; }
 .public-page .hero h1 { margin: 20px 0; font-size: clamp(2.5rem, 4.55vw, 3.75rem); line-height: 1.08; letter-spacing: -.055em; overflow-wrap: break-word; }
 .public-page .hero h1 em { display: block; }
-.public-page .hero-copy > p { max-width: 46ch; font-size: 1.0625rem; line-height: 1.65; }
+.public-page .hero-copy > p { max-width: var(--reading-measure); font-size: 1.0625rem; line-height: 1.65; }
 .public-page .hero-actions { margin-top: 26px; }
 .public-page .hero-actions svg { width: 18px; height: 18px; }
 .hero-audiences { display: flex; flex-wrap: wrap; gap: 12px 20px; list-style: none; padding: 0; margin: 26px 0 0; color: var(--muted); font-size: .875rem; }

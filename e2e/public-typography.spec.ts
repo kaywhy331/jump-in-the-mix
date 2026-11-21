@@ -1,6 +1,7 @@
-import { expect, test, type Page } from "@playwright/test";
+import { expect, test, type Locator, type Page } from "@playwright/test";
 import { axeInPage } from "./axe-in-page";
 import { applyRenderedTheme } from "./theme-fixture";
+import { COPIED_LABEL_MS } from "../src/components/CopyText";
 
 // JITM-UXB-01 (audit E-04, E-06, E-13, E-14, E-16, M-08): the public pages read as one system.
 // One H1 scale, one header and one table of contents; reading text near 65 characters a line;
@@ -75,6 +76,7 @@ test("public pages share one H1 scale, one header and one table of contents at 1
   for (const width of widths) {
     await page.setViewportSize({ width, height: 900 });
     const pageSteps = new Set<string>();
+    const heroSteps = new Map<string, string>();
     for (const route of [...landing, ...pages]) {
       await test.step(`${route} ${width}px`, async () => {
         await page.goto(route);
@@ -87,6 +89,7 @@ test("public pages share one H1 scale, one header and one table of contents at 1
           expect(type.tracking, `${route} ${width}px hero tracking`).toBeCloseTo(-0.045, 3);
           expect(type.leading, `${route} ${width}px hero line-height`).toBeGreaterThanOrEqual(1.0499);
           expect(type.leading).toBeLessThanOrEqual(1.1);
+          heroSteps.set(route, `${type.size}/${type.tracking.toFixed(3)}/${type.leading.toFixed(3)}`);
         } else {
           expect(type.tracking, `${route} ${width}px H1 tracking`).toBeGreaterThanOrEqual(-0.0301);
           expect(type.leading, `${route} ${width}px H1 line-height`).toBeGreaterThanOrEqual(1.0499);
@@ -103,6 +106,8 @@ test("public pages share one H1 scale, one header and one table of contents at 1
     }
     // Every non-hero public H1 is one step: one size, tracking and line-height per width.
     expect([...pageSteps], `${width}px page H1 styles`).toHaveLength(1);
+    // The hero belongs to the landing template (PublicLanding), which the home page and the profession pages share.
+    expect(heroSteps.get("/for/consultants"), `${width}px profession hero step`).toBe(heroSteps.get("/"));
   }
 });
 
@@ -167,8 +172,19 @@ test("reading text stays near 65 characters a line, and hyphenated headings stay
   }
 });
 
+/** Waits until React has attached to the element, so a first click or key press is not lost before hydration. */
+async function hydrated(locator: Locator) {
+  await expect.poll(() => locator.evaluate(element => Object.keys(element).some(key => key.startsWith("__reactProps")))).toBe(true);
+}
+
+/** Stops the page clock, so the button's timed label changes only when the test moves time on. */
+async function pauseClock(page: Page) {
+  await page.clock.pauseAt(await page.evaluate(() => Date.now() + 1_000));
+}
+
 test("template messages use the voice font, and copy confirms on its own button", async ({ page, context }) => {
   await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.clock.install();
   await page.goto("/follow-up-templates/estimate-follow-up");
   const message = page.locator(".template-example blockquote").first();
   // The voice font (--font-voice, Newsreader) that the homepage demo uses for the same wording (JITM-06 §2.13).
@@ -178,12 +194,64 @@ test("template messages use the voice font, and copy confirms on its own button"
   // The button's name changes, so hold its row rather than the name.
   const actions = page.locator(".template-example-actions").first();
   await expect(actions.getByRole("button")).toHaveText("Copy text");
+  await hydrated(actions.getByRole("button"));
+  await pauseClock(page);
   await actions.getByRole("button").click();
   await expect(actions.getByRole("button")).toHaveText("Copied");
   const status = actions.getByRole("status");
   await expect(status).toHaveText("Copied. Paste it into your own messaging app and make it yours.");
   await expect(status).toHaveAttribute("aria-live", "polite");
   expect(await status.evaluate(element => element.getBoundingClientRect().width), "success is announced, not repeated beside the button").toBeLessThanOrEqual(1);
+});
+
+test("the Copied label returns after a moment, a repeated copy confirms again, and each copy is announced once", async ({ page, context }) => {
+  await context.grantPermissions(["clipboard-read", "clipboard-write"]);
+  await page.clock.install();
+  await page.goto("/follow-up-templates/estimate-follow-up");
+  const actions = page.locator(".template-example-actions").first();
+  const button = actions.getByRole("button");
+  const status = actions.getByRole("status");
+  const announcement = "Copied. Paste it into your own messaging app and make it yours.";
+  await expect(button).toHaveText("Copy text");
+  await hydrated(button);
+  // Every change to the live region: text it adds is announced; the label's return must add nothing.
+  await status.evaluate(element => {
+    const log = { added: [] as string[], changes: 0 };
+    (window as unknown as { liveRegion: typeof log }).liveRegion = log;
+    new MutationObserver(records => {
+      log.changes += records.length;
+      for (const record of records) for (const node of record.addedNodes) if (node.textContent) log.added.push(node.textContent);
+    }).observe(element, { childList: true, subtree: true, characterData: true });
+  });
+  const liveRegion = () => page.evaluate(() => (window as unknown as { liveRegion: { added: string[]; changes: number } }).liveRegion);
+  await pauseClock(page);
+
+  // Mouse: the button confirms, and the status announces the copy.
+  await button.click();
+  await expect(button).toHaveText("Copied");
+  await expect.poll(async () => (await liveRegion()).added).toEqual([announcement]);
+  await page.clock.runFor(COPIED_LABEL_MS / 2);
+  await expect(button).toHaveText("Copied");
+
+  // A second copy before the label returns is announced again and restarts the interval.
+  await button.click();
+  await expect.poll(async () => (await liveRegion()).added).toEqual([announcement, announcement]);
+  await page.clock.runFor(COPIED_LABEL_MS - 1);
+  await expect(button, "the interval restarted with the second copy").toHaveText("Copied");
+  const beforeReturn = await liveRegion();
+  await page.clock.runFor(1);
+  await expect(button).toHaveText("Copy text");
+  expect(await liveRegion(), "the label's return announces nothing").toEqual(beforeReturn);
+  await expect(status).toHaveText(announcement);
+
+  // Keyboard: Enter copies again, and the confirmation shows again.
+  await button.focus();
+  await page.keyboard.press("Enter");
+  await expect(button).toHaveText("Copied");
+  await expect.poll(async () => (await liveRegion()).added).toEqual([announcement, announcement, announcement]);
+  await page.clock.runFor(COPIED_LABEL_MS);
+  await expect(button).toHaveText("Copy text");
+  await expect(button).toBeFocused();
 });
 
 test("a copy that fails keeps its button label and says so in readable text", async ({ page }) => {

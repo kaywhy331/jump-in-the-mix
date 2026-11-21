@@ -74,6 +74,11 @@
   --motion-settle: 220ms;
   --motion-cancel: 180ms;
   --ease-settle: cubic-bezier(0.32, 0.72, 0, 1);
+  /* Reading measure (JITM-06 §2.34): prose, answers, lists, helper text and message boxes stop near 65
+     characters a line. It has no theme. ch is the width of "0", which in Instrument Sans is wider than an
+     average character, so this value renders 64-71 characters a line, where 65ch renders about 100. It is
+     resolved with the font of the element that uses it. */
+  --reading-measure: 46ch;
 }
 
 @media (prefers-color-scheme: dark) {
