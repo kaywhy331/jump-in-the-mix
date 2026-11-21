@@ -1,5 +1,6 @@
 import type { Metadata } from "next";
 import Link from "next/link";
+import { BackLink } from "@/components/BackLink";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
@@ -40,6 +41,7 @@ export default async function SystemMixPage({ searchParams }: { searchParams: Pr
     catch (error) { if (!(error instanceof SystemMixError)) throw error; contentProblem = error.message; }
   }
   return <div className="page page--form invite-page">
+    <BackLink href="/more" label="More" phoneOnly returns="origin" />
     <header className="page-header"><div><h1>Invite people</h1><p>Give free access to people you know. Every member has three personal invitations.</p></div></header>
     {params.welcome && <Notice type="success">Your setup is ready. Invite someone you know, or go to <Link href="/jumps">Today</Link> for your follow-ups.</Notice>}
     {params.revoked && <Notice type="success">The invitation can no longer be used.</Notice>}

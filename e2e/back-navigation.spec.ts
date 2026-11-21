@@ -576,3 +576,94 @@ test.describe("JITM-NAV-04-F1 guarded fallback", () => {
     expect((await slides(page)).slice(before).map(mark => mark.side)).toEqual(["back"]);
   });
 });
+
+// JITM-BACK-01: origin Back. Invite people is reached from several places (Today, More, the Mix library), so its Back
+// control returns to the page the owner came from when that was a page of the app shell, and otherwise opens its
+// fallback parent, More. On phones only, like Settings, My account and Help (JITM-07 §2.8).
+import { SECTION_RING } from "../src/lib/back-navigation";
+import { INVITATIONS_PATH } from "../src/lib/invitation-labels";
+
+test.describe("JITM-BACK-01 origin Back on Invite people", () => {
+  test.use({ hasTouch: true, isMobile: true, viewport: { width: 390, height: 844 } });
+  test.beforeEach(async ({ page }) => { await installed(page); });
+  let outcomeId: string;
+  test.beforeAll(async () => {
+    // Today shows its invitation prompt once the owner has recorded an outcome (JITM-09 §2.9).
+    const step = await prisma.mixStep.findFirstOrThrow({ where: { mixId } });
+    const now = new Date();
+    outcomeId = (await prisma.jump.create({ data: { workspaceId, contactId, mixId, mixStepId: step.id, stepVersionId: step.stepVersionId, scheduledAt: now, baseScheduledAt: now, status: "DONE", completedAt: now, completionMethod: "outcome:completed", reason: "Back fixture outcome", uniquenessKey: `back-outcome-${randomUUID()}`, templateSnapshot: { subject: null, body: "Hi, your estimate is ready.", script: null, channel: "SMS", originalLocalDate: now.toISOString().slice(0, 10), timezone: "UTC" }, renderedSnapshot: { subject: null, body: "Hi, your estimate is ready.", script: null } } })).id;
+  });
+  test.afterAll(async () => {
+    if (outcomeId) await prisma.jump.deleteMany({ where: { id: outcomeId, workspaceId } });
+  });
+
+  const invitePeople = new RegExp(`${INVITATIONS_PATH}$`);
+  const settled = (page: Page) => expect.poll(() => main(page).evaluate(element => element.style.transform + (element.dataset.swipeState ?? ""))).toBe("");
+  /** Back by the shown control, or by the installed iOS app's edge swipe, which makes the control's return. */
+  const back = async (page: Page, how: "control" | "swipe") => {
+    if (how === "control") await markedControl(page).click();
+    else await edgeDrag(page, SWIPE.backEdge - 12, page.viewportSize()!.width * 0.5);
+  };
+  /** Opens Invite people by `from`'s own link to it, then goes back: through history to `from`, one slide. */
+  const returnsTo = async (page: Page, from: string, link: string, how: "control" | "swipe") => {
+    await open(page, from);
+    const at = await historyIndex(page);
+    await page.locator(`#workspace-main ${link}[href="${INVITATIONS_PATH}"]`).click();
+    await expect(page, `${from} ${how}`).toHaveURL(invitePeople);
+    await expect(markedControl(page), `${from} ${how}`).toBeVisible();
+    await back(page, how);
+    await expect(page, `${from} ${how}`).toHaveURL(new URL(from, process.env.APP_URL).href);
+    expect(await historyIndex(page), `${from} ${how}: back through history, no new entry`).toBe(at);
+    expect((await slides(page)).map(mark => mark.side), `${from} ${how}`).toEqual(["back"]);
+    await settled(page);
+  };
+
+  test("(a) opened from Today, Back returns to Today, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of ["control", "swipe"] as const) await returnsTo(page, "/jumps", ".invite-strip a", how);
+  });
+
+  test("(b) opened from More, Back returns to More through history, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of ["control", "swipe"] as const) await returnsTo(page, "/more", "a.invite-hub-card", how);
+  });
+
+  test("(c) loaded directly, or after a page another document showed, Back opens its fallback More, by the control and by the edge swipe", async ({ page }) => {
+    for (const how of ["control", "swipe"] as const) {
+      for (const earlier of [null, "/jumps"]) {
+        // A new tab has no previous entry; a full load after another page leaves one that an earlier document showed.
+        const tab = earlier ? page : await page.context().newPage();
+        if (!earlier) await installed(tab);
+        if (earlier) await open(tab, earlier);
+        await open(tab, INVITATIONS_PATH);
+        const at = await historyIndex(tab), name = `${earlier ?? "direct load"} ${how}`;
+        if (!earlier) expect(at, name).toBe(0);
+        await expect(markedControl(tab), name).toBeVisible();
+        await expect(markedControl(tab), name).toHaveAttribute("href", "/more");
+        await expect(markedControl(tab), name).toHaveText("More");
+        await back(tab, how);
+        await expect(tab, name).toHaveURL(/\/more$/);
+        expect(await historyIndex(tab), `${name}: the fallback is a new entry`).toBe(at + 1);
+        if (how === "swipe") expect((await slides(tab)).map(mark => mark.side), name).toEqual(["back"]);
+        await settled(tab);
+        if (tab !== page) await tab.close();
+      }
+    }
+  });
+
+  test("(e) the marker-driven same-return case finds Invite people through the marker, without a per-page list", () => {
+    expect(markedBackPages()).toContain(INVITATIONS_PATH);
+  });
+
+  test("(f) on phones only: above 900 px Invite people shows no Back control, and no section screen shows one", async ({ page }) => {
+    const shown = (name: string) => expect(page.locator(`#workspace-main ${BACK_CONTROL}`).locator("visible=true"), name);
+    for (const [width, height] of [[390, 844], [900, 1200], [901, 1200], [1280, 800]] as const) {
+      await page.setViewportSize({ width, height });
+      await open(page, INVITATIONS_PATH);
+      await expect(page.locator(`#workspace-main ${BACK_CONTROL}`), `${width}`).toHaveCount(1);
+      await shown(`Invite people at ${width}`).toHaveCount(width > 900 ? 0 : 1);
+      for (const section of SECTION_RING) {
+        await open(page, section);
+        await shown(`${section} at ${width}`).toHaveCount(0);
+      }
+    }
+  });
+});

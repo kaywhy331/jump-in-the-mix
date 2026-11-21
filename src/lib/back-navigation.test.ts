@@ -1,6 +1,11 @@
 import { readFileSync } from "node:fs";
 import { describe, expect, it } from "vitest";
 import { BACK_CONTROL, SECTION_RING, browserMayHaveAnimated, edgeBackActive, ringStop, shownBackControl, slideFor } from "@/lib/back-navigation";
+import { readdirSync } from "node:fs";
+import { afterEach, vi } from "vitest";
+import { goesBack, returnsToOrigin } from "@/lib/back-navigation";
+import { APP_SHELL_ROOTS, inAppShell } from "@/lib/app-shell-routes";
+import { customerReturnPath } from "@/lib/customer-return-path";
 
 // Back (JITM-08 §2.46, NATIVE-NAVIGATION.md §3 C).
 const url = (path: string) => new URL(path, "https://app.test");
@@ -53,5 +58,71 @@ describe("back", () => {
     expect(popups).toMatch(/html\[data-slide\]::view-transition-old\(root\), html\[data-slide\]::view-transition-new\(root\) \{ animation: var\(--motion-settle\) var\(--ease-settle\) both;/);
     for (const name of ["app-header", "app-nav", "app-rail"]) expect(popups).toMatch(new RegExp(`::view-transition-old\\(${name}\\)[^{]*\\{ display: none; \\}`));
     expect(base).toMatch(/@media \(prefers-reduced-motion: reduce\) \{[^@]*::view-transition-group\(\*\), ::view-transition-old\(\*\), ::view-transition-new\(\*\) \{ animation-duration: \.01ms !important; \}/);
+  });
+});
+
+// Origin Back (JITM-BACK-01): a page reached from several places returns to where the owner came from, when that was a
+// page of the app shell, and otherwise opens its fallback parent.
+describe("origin back", () => {
+  const here = url("/mixes/system");
+  const entry = (path: string | null, sameDocument = true) => ({ url: path === null ? null : url(path).href, sameDocument });
+
+  it("goes back only when the previous entry is a page of the app shell; in every other case it opens the fallback", () => {
+    // A previous entry inside the shell, shown by this document: back.
+    for (const path of ["/jumps", "/more", "/contacts/c1?tab=notes", "/mixes?mix=m1", "/marketplace", "/settings/business"]) expect(returnsToOrigin(entry(path), here), path).toBe(true);
+    // No previous entry: the fallback.
+    expect(returnsToOrigin(null, here)).toBe(false);
+    expect(returnsToOrigin(entry(null), here)).toBe(false);
+    // A previous entry on the same origin but outside the shell: the fallback.
+    for (const path of ["/onboarding", "/login", "/api/auth/logout", "/", "/jumpsuit", "/admin/templates"]) expect(returnsToOrigin(entry(path), here), path).toBe(false);
+    // Another origin: the fallback.
+    expect(returnsToOrigin({ url: "https://elsewhere.test/jumps", sameDocument: true }, here)).toBe(false);
+    // An entry an earlier document showed (a reload, a redirect, a native form's post), or none the browser can place: the fallback.
+    expect(returnsToOrigin(entry("/jumps", false), here)).toBe(false);
+    expect(returnsToOrigin({ url: url("/jumps").href }, here)).toBe(false);
+    // The same page again, as a submitted form leaves it: the fallback.
+    expect(returnsToOrigin(entry("/mixes/system"), url("/mixes/system?revoked=1"))).toBe(false);
+  });
+
+  it("decides the shell from one definition: the folders of the app shell, which sign-in returns use as well", () => {
+    const folders = readdirSync("src/app/(app)", { withFileTypes: true }).filter(item => item.isDirectory() && /^[a-z]/.test(item.name)).map(item => item.name);
+    expect([...APP_SHELL_ROOTS].sort()).toEqual(folders.sort());
+    for (const root of APP_SHELL_ROOTS) expect(inAppShell(`/${root}`) && inAppShell(`/${root}/sub?q=1`) && inAppShell(`/${root}#top`), root).toBe(true);
+    for (const path of ["/onboarding", "/login", "/jumpsuit", "/api/jumps", "/"]) expect(inAppShell(path), path).toBe(false);
+    // Sign-in returns accept the same pages, Marketplace included, and keep no route pattern of their own.
+    expect(customerReturnPath("/marketplace?listing=l1")).toBe("/marketplace?listing=l1");
+    expect(customerReturnPath("/onboarding")).toBeNull();
+    expect(readFileSync("src/lib/customer-return-path.ts", "utf8")).not.toMatch(/jumps\|contacts/);
+  });
+
+  describe("the control's return, which its click and the edge swipe both ask", () => {
+    afterEach(() => { vi.unstubAllGlobals(); });
+    /** A document at `current` whose previous entry is `previous`, as the Navigation API reports them. */
+    const browse = (previous: string | null, current: string, sameDocument = true) => {
+      const before = previous === null ? [] : [{ key: "previous", url: url(previous).href, index: 0, sameDocument, getState: () => undefined }];
+      const now = { key: "current", url: url(current).href, index: before.length, sameDocument: true, getState: () => undefined };
+      vi.stubGlobal("location", url(current));
+      vi.stubGlobal("window", { navigation: { currentEntry: now, entries: () => [...before, now] } });
+    };
+    const parent = { dataset: {} }, origin = { dataset: { backReturn: "origin" } };
+
+    it("keeps the default: back only when the previous entry is the control's own page", () => {
+      browse("/more", "/mixes/system");
+      expect(goesBack(parent, "/more")).toBe(true);
+      browse("/jumps", "/mixes/system");
+      expect(goesBack(parent, "/more")).toBe(false);
+      // The default does not ask which document showed the entry.
+      browse("/more", "/settings", false);
+      expect(goesBack(parent, "/more")).toBe(true);
+      browse(null, "/mixes/system");
+      expect(goesBack(parent, "/more")).toBe(false);
+    });
+
+    it("in origin mode, back to any page of the shell this document showed, else the fallback", () => {
+      for (const previous of ["/jumps", "/more", "/contacts/c1"]) { browse(previous, "/mixes/system"); expect(goesBack(origin, "/more"), previous).toBe(true); }
+      for (const [previous, sameDocument] of [["/onboarding", true], ["/jumps", false]] as const) { browse(previous, "/mixes/system", sameDocument); expect(goesBack(origin, "/more"), previous).toBe(false); }
+      browse(null, "/mixes/system");
+      expect(goesBack(origin, "/more")).toBe(false);
+    });
   });
 });

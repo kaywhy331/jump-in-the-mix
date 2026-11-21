@@ -5,7 +5,7 @@ import { usePathname, useSearchParams } from "next/navigation";
 import { allowFormNavigation } from "@/lib/form-navigation";
 import { useSwipe } from "@/lib/gestures/useSwipe";
 import {
-  BACK_CONTROL, arrived, backReturnsTo, beforePopState, browserMayHaveAnimated, edgeBackActive, goBack, installedIosApp,
+  BACK_CONTROL, arrived, beforePopState, browserMayHaveAnimated, edgeBackActive, goBack, goesBack, installedIosApp,
   navigationApi, nextArrival, previousEntry, restoreScroll, shownBackControl, slide, slideFor, slides, takeOwnBack, wait
 } from "@/lib/back-navigation";
 
@@ -127,8 +127,8 @@ export function BackNavigation() {
   }, []);
 
   // The installed iOS app's back swipe. Never on a ring stop's own screen, where a sideways swipe is section swipe,
-  // and only while the page shows its Back control, whose return the swipe makes: back through history when Back
-  // returns to the control's page, as the control does, otherwise by activating the control itself. History alone never enables it.
+  // and only while the page shows its Back control, whose return the swipe makes: back through history when the
+  // control goes back (`goesBack`), as its click does, otherwise by activating the control itself. History alone never enables it.
   // The touch may land anywhere down the edge, on a short page or beside the rail; the page alone follows the finger.
   useSwipe({ get current() { return document.querySelector<HTMLElement>(".app-shell"); } }, {
     axis: "x",
@@ -140,7 +140,7 @@ export function BackNavigation() {
     onCommit: async () => {
       const control = backControl(), before = location.href;
       if (!control) return false;
-      const back = backReturnsTo(control.href);
+      const back = goesBack(control, control.href);
       // History needs the programmatic guard; activating the control runs its own click guard exactly once.
       if (back && !allowFormNavigation(previousEntry()?.url ?? before)) return false;
       leaving.current = true;
