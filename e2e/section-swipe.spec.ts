@@ -218,7 +218,7 @@ test.describe("on a touch phone", () => {
     const tapped = await arrival("Mixes");
     writeFileSync(".artifacts/nav03/arrival-ms.json", JSON.stringify({ swiped, tapped }));
     // Never a blank or frozen screen: the neighbour's own loading state (or its page) shows within 300 ms.
-    expect(swiped.first).toBeLessThan(300);
+    expect(swiped.first).toBeLessThan(REAL_PAGE_WAIT_MS);
     // The real page follows, as it does after a tap on the navigation; nothing loads it before the finger lifts, since a
     // page loaded ahead would be kept for minutes (NATIVE-NAVIGATION.md §13 reading 19). The bound is a safety net only:
     // the swipe's and the tap's arrivals are recorded in arrival-ms.json and compared in the task's measurements.

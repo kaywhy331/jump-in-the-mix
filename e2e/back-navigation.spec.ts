@@ -171,9 +171,50 @@ test.describe("on a touch phone", () => {
     // Keyboard: the same control, focused and pressed.
     await open(page, "/settings");
     await page.locator('a[href="/settings/jump-date-types"]').first().click();
+    // A click can return while Settings still shows its own Back link to More.
+    await expect(page).toHaveURL(/\/settings\/jump-date-types$/);
+    const settingsBack = page.locator("[data-back-link]").first();
+    await expect(settingsBack).toBeVisible();
+    await expect(settingsBack).toHaveAttribute("href", "/settings");
     await page.locator("[data-back-link]").first().focus();
     await page.keyboard.press("Enter");
     await expect(page).toHaveURL(/\/settings$/);
+  });
+
+  test("keyboard Back waits for a delayed sub-page and activates that page's own control once", async ({ page }) => {
+    let releaseArrival!: () => void, markRequested!: () => void;
+    const arrival = new Promise<void>(resolve => { releaseArrival = resolve; });
+    const requested = new Promise<void>(resolve => { markRequested = resolve; });
+    // Hold both prefetch and navigation requests, so the outgoing control is still present after the click.
+    await page.route(url => url.pathname === "/settings/jump-date-types", async route => {
+      markRequested();
+      await arrival;
+      await route.continue();
+    });
+    try {
+      await open(page, "/settings");
+      await page.locator('a[href="/settings/jump-date-types"]').first().click();
+      await requested;
+      const control = page.locator("[data-back-link]").locator("visible=true").first();
+      await expect(page).toHaveURL(/\/settings$/);
+      await expect(control).toHaveAttribute("href", "/more");
+      await control.focus();
+      await expect(control).toBeFocused();
+      // The outgoing page can be focused; it must not receive the sub-page's keyboard activation.
+      releaseArrival();
+      await expect(page).toHaveURL(/\/settings\/jump-date-types$/);
+      await expect(control).toBeVisible();
+      await expect(control).toHaveAttribute("href", "/settings");
+      await control.focus();
+      const before = await historyIndex(page), length = await page.evaluate(() => history.length);
+      await page.keyboard.press("Enter");
+      await expect(page).toHaveURL(/\/settings$/);
+      expect(await historyIndex(page)).toBe(before - 1);
+      expect(await page.evaluate(() => history.length)).toBe(length);
+      expect((await slides(page)).map(mark => mark.side)).toEqual(["back"]);
+    } finally {
+      releaseArrival();
+    }
   });
 
   test("reduced motion swaps instantly: no transition runs, and the scroll still comes back", async ({ page }) => {
