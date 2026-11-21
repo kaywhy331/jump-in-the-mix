@@ -29,7 +29,7 @@ describe("public funnel wiring", () => {
     for (const source of [onboarding, boundary]) expect(source).toContain('window.matchMedia("(display-mode: standalone)").matches');
     expect(onboarding).toContain('href="/contacts/import?onboarding=1" target={standalone ? undefined : "_blank"}');
     expect(boundary).toContain("href={`/login?next=${encodeURIComponent(");
-    expect(boundary).toContain('target="_blank" rel="noopener noreferrer">Sign in in another tab</a>');
+    expect(boundary).toContain('target="_blank" rel="noopener noreferrer">Sign in (opens a new tab)</a>');
   });
 
   it("states the required fields at the top of the one-person setup form", () => {

@@ -44,14 +44,18 @@ export async function clearForeignNotifications(keepScope?: string | null): Prom
   } catch { /* Notification access is optional in unsupported browsers. */ }
 }
 
-export function signalBrowserChange(signedOut = false): void {
+/**
+ * Tell this browser's other tabs that its account may have changed. `via` is the caller's own open channel: a channel never
+ * receives its own messages, so a listener that sends through it isn't woken by its own signal.
+ */
+export function signalBrowserChange(signedOut = false, via?: BroadcastChannel | null): void {
   // Signals contain no identity and grant no authority. Receivers check current cookies.
   const id = globalThis.crypto?.randomUUID?.() ?? `${Date.now()}-${Math.random().toString(36).slice(2)}`;
   const message = { id, signedOut };
   try { window.localStorage.setItem(BROWSER_CHANGE_KEY, JSON.stringify(message)); } catch { /* Fall back to broadcast/focus. */ }
   try {
-    const channel = new BroadcastChannel(BROWSER_CHANGE_CHANNEL);
+    const channel = via ?? new BroadcastChannel(BROWSER_CHANGE_CHANNEL);
     channel.postMessage(message);
-    channel.close();
+    if (!via) channel.close();
   } catch { /* Focus and visibility checks also work without broadcast support. */ }
 }

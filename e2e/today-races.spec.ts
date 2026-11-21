@@ -133,7 +133,8 @@ test.describe("account gate wording per state", () => {
   const ACCOUNT = "**/api/auth/browser-context";
   const offline = "You’re offline. Your unsaved work stays in this tab.";
   const unconfirmed = "We couldn’t confirm your account. Reconnect, then try again. Your unsaved work stays in this tab.";
-  const cleared = "This tab’s previous account has been cleared.";
+  const changed = "A different account is signed in on this browser, so anything not yet saved in this tab was removed.";
+  const signedOut = "You signed out in another tab, so anything not yet saved in this tab was removed.";
   async function open(page: Page) {
     await page.route(ACCOUNT, route => route.fulfill({ json: { scope: "fixture-account" } }));
     await page.goto("/__today-races?kind=account-focus");
@@ -163,11 +164,11 @@ test.describe("account gate wording per state", () => {
     { name: "the server answers with an error", trigger: async page => { await answer(page, route => route.fulfill({ status: 503 })); await recheck(page); }, heading: "Reconnect to continue", body: unconfirmed, retry: true },
     { name: "the server's answer can't be read", trigger: async page => { await answer(page, route => route.fulfill({ contentType: "text/html", body: "<!doctype html><p>Sign in to the network</p>" })); await recheck(page); }, heading: "Reconnect to continue", body: unconfirmed, retry: true },
     { name: "the session has expired", trigger: async page => { await answer(page, route => route.fulfill({ json: { scope: null } })); await recheck(page); }, heading: "Sign in to continue", body: "Sign in to the same account in another tab, then return here to keep your draft.", retry: true },
-    { name: "another account signed in", trigger: async page => { await answer(page, route => route.fulfill({ json: { scope: "other-account" } })); await recheck(page); }, heading: "Your account changed", body: cleared, retry: false },
+    { name: "another account signed in", trigger: async page => { await answer(page, route => route.fulfill({ json: { scope: "other-account" } })); await recheck(page); }, heading: "Your account changed", body: changed, retry: false },
     { name: "another tab signed out", trigger: async page => {
       await answer(page, route => route.fulfill({ json: { scope: null } }));
       await page.evaluate(name => { const channel = new BroadcastChannel(name); channel.postMessage({ signedOut: true }); channel.close(); }, BROWSER_CHANGE_CHANNEL);
-    }, heading: "You’re signed out", body: cleared, retry: false }
+    }, heading: "You’re signed out", body: signedOut, retry: false }
   ];
   for (const { name, trigger, heading, body, retry } of cases) {
     test(`${name}: the gate says so and the tab stays masked`, async ({ page, context }) => {

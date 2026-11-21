@@ -313,3 +313,222 @@ test.describe("session validation failures", () => {
     expect(errors).toEqual([]);
   });
 });
+
+// JITM-UXS-16: the sign-in shield. A save confirms the account first, so an expired session never costs the draft; the
+// shield keeps the focus on its heading; and a fresh load checks the account once.
+test.describe("sign-in shield", () => {
+  test.use({ serviceWorkers: "block" });
+  const ACCOUNT = "**/api/auth/browser-context";
+  const isAccountCheck = (url: string) => new URL(url).pathname === "/api/auth/browser-context";
+  // Account checks and Server Action posts, counted from the page's own requests.
+  function requestLog(page: Page) {
+    const log = { checks: 0, actions: 0, cancelled: [] as string[] };
+    page.on("request", request => {
+      if (isAccountCheck(request.url())) log.checks++;
+      else if (request.method() === "POST" && request.headers()["next-action"]) log.actions++;
+    });
+    page.on("requestfailed", request => { if (isAccountCheck(request.url())) log.cancelled.push(request.failure()?.errorText ?? "failed"); });
+    return log;
+  }
+  // Long enough for a late duplicate check (UXD-04 saw the second one 70-200 ms after the first).
+  const settled = (page: Page) => page.evaluate(() => new Promise(resolve => setTimeout(resolve, 500)));
+  const revoke = (owner: Owner) => prisma.session.deleteMany({ where: { userId: owner.id } });
+  const shield = (page: Page) => page.locator(".browser-account-gate");
+  const shieldHeading = (page: Page) => shield(page).getByRole("heading", { level: 1 });
+  const focusInShield = (page: Page) => page.evaluate(() => document.activeElement !== document.body && Boolean(document.activeElement?.closest(".browser-account-gate")));
+  async function expectTabStaysInShield(page: Page) {
+    for (const key of ["Tab", "Tab", "Tab", "Tab", "Shift+Tab", "Shift+Tab", "Shift+Tab", "Shift+Tab"]) {
+      await page.keyboard.press(key);
+      expect(await focusInShield(page), key).toBe(true);
+    }
+  }
+  const refocus = (page: Page) => page.evaluate(() => window.dispatchEvent(new Event("focus")));
+  async function returnAfterSignIn(page: Page, context: BrowserContext, owner: Owner) {
+    const other = await context.newPage(); await signIn(other, owner); await other.close();
+    await page.bringToFront(); await refocus(page); await ready(page);
+  }
+
+  test("a fresh load checks the account once and cancels nothing", async ({ page, context }) => {
+    await useOwner(context, page, owners[0]);
+    const log = requestLog(page);
+    for (const path of ["/jumps", `/contacts/${owners[0].contactId}`, "/contacts/new", "/calendar?new=1"]) {
+      log.checks = 0;
+      await page.goto(path); await ready(page); await settled(page);
+      expect(log.checks, path).toBe(1);
+    }
+    log.checks = 0;
+    await page.reload(); await ready(page); await settled(page);
+    expect(log.checks, "reload").toBe(1);
+    expect(log.cancelled).toEqual([]);
+  });
+
+  for (const colorScheme of ["light", "dark"] as const) {
+    test(`Save on Add contact after the session ends keeps every entry and saves after signing in again (${colorScheme})`, async ({ page, context }) => {
+      await page.emulateMedia({ colorScheme });
+      const log = requestLog(page);
+      for (const width of [390, 768, 1440]) {
+        await page.setViewportSize({ width, height: 850 });
+        await useOwner(context, page, owners[0]);
+        await page.goto("/contacts/new"); await ready(page);
+        const firstName = `Shield ${colorScheme} ${width} ${randomUUID().slice(0, 8)}`;
+        const first = page.getByLabel("First name", { exact: true }), last = page.locator("#lastName");
+        await first.fill(firstName); await last.fill("Kept draft");
+        await revoke(owners[0]);
+        log.checks = 0; log.actions = 0;
+        // The owner presses Enter in the field they are in. The one account check shows as the form's saving state.
+        let held: import("@playwright/test").Route | undefined;
+        await page.route(ACCOUNT, route => { held = route; });
+        await last.press("Enter");
+        await expect.poll(() => Boolean(held)).toBe(true);
+        await expect(page.locator(".form-guard-status")).toHaveText("Saving…");
+        await expect(shield(page)).not.toBeVisible();
+        await held!.continue(); await page.unroute(ACCOUNT);
+        await expect(shieldHeading(page)).toHaveText("Sign in to continue");
+        await expect(shieldHeading(page)).toBeFocused();
+        await settled(page);
+        expect(log.checks).toBe(1); expect(log.actions).toBe(0);
+        await expect(first).toHaveValue(firstName); await expect(last).toHaveValue("Kept draft");
+        expect(await prisma.contact.count({ where: { workspaceId: owners[0].workspaceId, firstName } })).toBe(0);
+        await returnAfterSignIn(page, context, owners[0]);
+        await expect(last).toBeFocused();
+        await expect(first).toHaveValue(firstName); await expect(last).toHaveValue("Kept draft");
+        await Promise.all([page.waitForURL(/\/contacts\/[^/?]+\?created=1/), page.getByRole("button", { name: "Save contact", exact: true }).click()]);
+        expect(log.actions).toBe(1);
+        expect(await prisma.contact.count({ where: { workspaceId: owners[0].workspaceId, firstName } })).toBe(1);
+      }
+    });
+
+    test(`Save on the Calendar event form after the session ends keeps every entry and saves after signing in again (${colorScheme})`, async ({ page, context }) => {
+      await page.emulateMedia({ colorScheme });
+      const log = requestLog(page);
+      for (const width of [390, 768, 1440]) {
+        await page.setViewportSize({ width, height: 850 });
+        await useOwner(context, page, owners[0]);
+        // Each width saves its own event at the form's default time, so clear the last one to avoid an overlap warning.
+        await prisma.calendarEntry.deleteMany({ where: { workspaceId: owners[0].workspaceId } });
+        await page.goto("/calendar?new=1"); await ready(page);
+        const form = page.locator("form.calendar-entry-form");
+        const title = form.getByLabel("Title", { exact: true }), kind = form.getByLabel("Event type");
+        const eventTitle = `Shield ${colorScheme} ${width} ${randomUUID().slice(0, 8)}`;
+        await kind.selectOption("BLOCK"); await title.fill(eventTitle);
+        await revoke(owners[0]);
+        log.checks = 0; log.actions = 0;
+        await title.press("Enter");
+        await expect(shieldHeading(page)).toHaveText("Sign in to continue");
+        await expect(shieldHeading(page)).toBeFocused();
+        await settled(page);
+        expect(log.checks).toBe(1); expect(log.actions).toBe(0);
+        await expect(title).toHaveValue(eventTitle); await expect(kind).toHaveValue("BLOCK");
+        await returnAfterSignIn(page, context, owners[0]);
+        await expect(title).toBeFocused();
+        await expect(title).toHaveValue(eventTitle); await expect(kind).toHaveValue("BLOCK");
+        await Promise.all([page.waitForURL(/[?&]saved=1/), form.getByRole("button", { name: "Save event", exact: true }).click()]);
+        expect(log.actions).toBe(1);
+        expect(await prisma.calendarEntry.count({ where: { workspaceId: owners[0].workspaceId, title: eventTitle } })).toBe(1);
+      }
+    });
+  }
+
+  test("the shield keeps the focus inside on its heading, and the tab title follows the heading", async ({ page, context }) => {
+    await useOwner(context, page, owners[0]); await page.goto(`/contacts/${owners[0].contactId}`); await ready(page);
+    const scope = await page.locator("[data-browser-scope]").getAttribute("data-browser-scope");
+    const pageTitle = await page.title();
+    let answer: { scope: string | null } = { scope: null }, hold = false, held: import("@playwright/test").Route | undefined;
+    await page.route(ACCOUNT, route => { if (hold) held = route; else return route.fulfill({ json: answer }); });
+    await refocus(page);
+    await expect(shieldHeading(page)).toHaveText("Sign in to continue");
+    await expect(shieldHeading(page)).toBeFocused();
+    await expect(page).toHaveTitle(pageTitle.replace(/^.*(?= \| )/, "Sign in to continue"));
+    await expectTabStaysInShield(page);
+    // Check again while still expired: the actions stay mounted during the check, then the heading takes the focus.
+    hold = true;
+    const again = shield(page).getByRole("button", { name: "Check again", exact: true });
+    await again.click();
+    await expect.poll(() => Boolean(held)).toBe(true);
+    await expect(again).toBeFocused();
+    await expect(shield(page).getByRole("status")).toHaveText("Checking your account…");
+    await expect(shield(page).getByRole("link", { name: "Sign in (opens a new tab)", exact: true })).toBeVisible();
+    hold = false; await held!.fulfill({ json: answer }); held = undefined;
+    await expect(shieldHeading(page)).toBeFocused();
+    await expect(shield(page).getByRole("status")).toHaveText("Sign in to the same account in another tab, then return here to keep your draft.");
+    await expectTabStaysInShield(page);
+    // The window regains focus while the shield is open, with the focus on its sign-in link.
+    await shield(page).getByRole("link", { name: "Sign in (opens a new tab)", exact: true }).focus();
+    await refocus(page);
+    await expect(shieldHeading(page)).toBeFocused();
+    await expectTabStaysInShield(page);
+    // A confirmed account closes the shield and gives the page its own title back.
+    answer = { scope }; await again.click(); await ready(page);
+    await expect(page).toHaveTitle(pageTitle);
+    // Another account signs in: the changed state focuses its heading and keeps the focus inside.
+    answer = { scope: "a-different-account" }; await refocus(page);
+    await expect(shieldHeading(page)).toHaveText("Your account changed");
+    await expect(shieldHeading(page)).toBeFocused();
+    await expect(shield(page).getByRole("status")).toHaveText("A different account is signed in on this browser, so anything not yet saved in this tab was removed.");
+    await expect(page).toHaveTitle(pageTitle.replace(/^.*(?= \| )/, "Your account changed"));
+    await expectTabStaysInShield(page);
+  });
+
+  test("a sign-out in another tab focuses the signed-out heading and keeps the focus inside", async ({ page, context }) => {
+    await useOwner(context, page, owners[0]); await page.goto(`/contacts/${owners[0].contactId}`); await ready(page);
+    await page.route(ACCOUNT, route => route.fulfill({ json: { scope: null } }));
+    await page.evaluate(() => { const channel = new BroadcastChannel("jitm:browser-change"); channel.postMessage({ signedOut: true }); channel.close(); });
+    await expect(shieldHeading(page)).toHaveText("You’re signed out");
+    await expect(shieldHeading(page)).toBeFocused();
+    await expect(shield(page).getByRole("status")).toHaveText("You signed out in another tab, so anything not yet saved in this tab was removed.");
+    await expect(page).toHaveTitle("You’re signed out | Jump in the Mix");
+    await expectTabStaysInShield(page);
+  });
+
+  test("the installed app's own sign-in link leaves an unsaved form without a second warning", async ({ page, context }) => {
+    await page.addInitScript(() => Object.defineProperty(navigator, "standalone", { configurable: true, value: true }));
+    const dialogs: string[] = [];
+    page.on("dialog", dialog => { dialogs.push(`${dialog.type()}: ${dialog.message()}`); void dialog.dismiss(); });
+    await useOwner(context, page, owners[0]); await page.goto("/contacts/new"); await ready(page);
+    await page.getByLabel("First name", { exact: true }).fill("Unsaved in the installed app");
+    await expect(page.locator(".form-guard-status")).toHaveText("Unsaved changes. Save before leaving this page.");
+    await page.route(ACCOUNT, route => route.fulfill({ json: { scope: null } }));
+    await refocus(page);
+    await expect(shield(page).getByRole("status")).toHaveText("Sign in again to continue on this screen. Changes that haven’t been saved yet may be lost.");
+    await Promise.all([page.waitForRequest(request => request.isNavigationRequest() && /\/login\?next=%2Fcontacts%2Fnew$/.test(request.url())), shield(page).getByRole("link", { name: "Sign in", exact: true }).click()]);
+    await page.waitForLoadState();
+    expect(dialogs).toEqual([]);
+  });
+
+  test("pagehide and a back-forward restore still mask the tab without opening the shield early", async ({ page, context }) => {
+    await useOwner(context, page, owners[0]); await page.goto(`/contacts/${owners[0].contactId}`); await ready(page);
+    const content = page.locator("[data-browser-scope]");
+    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pagehide", { persisted: true })));
+    await expect(content).toHaveAttribute("inert", ""); await expect(content).toHaveCSS("visibility", "hidden");
+    await expect(page.locator("html")).toHaveAttribute("data-browser-locked", "true");
+    await expect(shield(page)).not.toBeVisible();
+    let held: import("@playwright/test").Route | undefined;
+    await page.route(ACCOUNT, route => { held = route; });
+    await page.evaluate(() => window.dispatchEvent(new PageTransitionEvent("pageshow", { persisted: true })));
+    await expect.poll(() => Boolean(held)).toBe(true);
+    await expect(shieldHeading(page)).toHaveText("Checking your account…");
+    await expect(content).toHaveAttribute("inert", "");
+    await held!.continue(); await ready(page);
+    await expect(shield(page)).not.toBeVisible();
+  });
+
+  test("a tab hidden at load stays masked until it is shown", async ({ page, context }) => {
+    await page.addInitScript(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, value: true });
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "hidden" });
+    });
+    await useOwner(context, page, owners[0]);
+    const answered = page.waitForResponse(response => isAccountCheck(response.url()));
+    await page.goto(`/contacts/${owners[0].contactId}`); await answered; await settled(page);
+    const content = page.locator("[data-browser-scope]");
+    await expect(content).toHaveAttribute("inert", ""); await expect(content).toHaveCSS("visibility", "hidden");
+    await expect(shield(page)).not.toBeVisible();
+    await page.evaluate(() => {
+      Object.defineProperty(document, "hidden", { configurable: true, value: false });
+      Object.defineProperty(document, "visibilityState", { configurable: true, value: "visible" });
+      document.dispatchEvent(new Event("visibilitychange"));
+    });
+    await ready(page);
+    await expect(shield(page)).not.toBeVisible();
+  });
+});
