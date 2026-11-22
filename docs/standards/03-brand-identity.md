@@ -2,9 +2,9 @@
 id: JITM-03
 title: Brand identity
 status: active
-version: 1.0.2
+version: 1.0.3
 owner: Kevin
-last_reviewed: 2026-11-09
+last_reviewed: 2026-11-21
 applies_to: [brand, logo, icons, public-pages, app-shell, email, imagery]
 supersedes: []
 sources:
@@ -140,7 +140,7 @@ Neighboring topics live elsewhere:
 
 ## 5. Verification
 
-- Check M-02/M-03 proposals against §6: palette/flat-card rules and existing illustrative-media permission are preserved; no new presentation is called owner-approved.
+- Check public-page presentation against §6: direction A (D131) is the owner-approved presentation for M-02/M-03; palette/flat-card rules and existing illustrative-media permission are preserved; no other new presentation is called owner-approved.
 
 - `git diff --stat assets/logo.png` is empty; derived files change only together with a run of `node scripts/generate-brand-assets.mjs` and a version bump.
 - `grep -rn "icon-source.svg" src` finds only the proxy allowlist entry.
@@ -151,11 +151,11 @@ Neighboring topics live elsewhere:
 
 ### Design audit 2026-11-08
 
-Recommend one speech-bubble signature composition and explicitly illustrative product captures (M-02/M-03), keeping the single violet, flat cards and existing imagery restrictions. These are presentation choices for Kevin through UXA-12, not a new brand rule. Product captures are already allowed by §2.19.
+M-02/M-03 are decided: direction A, as UXA-12 built it (bd844b3d) [OWNER 2026-11-21 D131]. Kevin's words, 2026-11-21, were a general go on the recorded recommendations, not a line-by-line review of the images: "I will Go based on your recommendations for any open issues". The recommendation they answer is "approve direction A". How it works ends on real captures of the fictional demo workspace (§2.19); section contrast uses three tiers instead of alternating bands; the waitlist question is the public page's one violet speech bubble, with its tail on the left because the app is speaking (§2.13–§2.16). The single violet, flat cards and existing imagery restrictions stay. This is a presentation choice, not a new brand rule. The captures show the fixture rail as it is ("Demo Owner", "3 invitations left") and a dated Beat rhythm that will age; regenerate them with `node scripts/capture-product-shots.mjs` when Today or the review changes.
 
 Open or partially resolved finding IDs and owners (details and landed evidence: [DRIFT_BASELINE](../standards-audit-2026-09-28/DRIFT_BASELINE.md#design-audit-2026-11-08)):
 
-- M-02, M-03 — UXA-12 (job_2719e5b51171).
+- M-02, M-03 — decided (D131); built by UXA-12 (job_2719e5b51171) and replayed onto `main`'s line by UXA-12-R (job_740d8bd1da6c); resolved when that lands.
 
 Open questions for Kevin:
 - Which sender identity should automatic customer email use when it returns (§2.23)?
@@ -175,3 +175,4 @@ Known deviations at 9439fd6:
 - 1.0.1 — 2026-09-28 — Base 61d4df4. §2.9: the JM monogram is retired (D22).
 
 - 1.0.2 — 2026-11-09 — Base ef7a02c7b86d29d9c3ed5cab4928758166e24740. §6 records M-02/M-03 as presentation decisions, preserving existing brand rules and permitted fictional-data captures.
+- 1.0.3 — 2026-11-21 — Base df6faf45277f83e9a73d2cc1524785fee66c78df. §5 and §6 record Kevin's decision on M-02/M-03: direction A (D131). No rule text changes.
