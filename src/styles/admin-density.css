@@ -15,7 +15,7 @@
 .staff-shell .page-header p { display: block; margin-top: 4px; font-size: .8125rem; line-height: 1.4; }
 .staff-shell .page-actions { gap: 8px 12px; }
 .staff-shell .button { min-height: 36px; padding: 7px 12px; font-size: .8125rem; border-radius: 6px; box-shadow: none; }
-.staff-shell .button:hover { transform: none; }
+@media (hover: hover) and (pointer: fine) { .staff-shell .button:hover { transform: none; } }
 .staff-shell .button.small { min-height: 32px; padding: 5px 10px; }
 .staff-shell input:not([type=checkbox]):not([type=radio]), .staff-shell select, .staff-shell textarea { min-height: 36px; padding: 7px 10px; border-radius: 6px; font-size: .875rem; }
 .staff-shell textarea { min-height: 64px; }

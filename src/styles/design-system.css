@@ -19,9 +19,9 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
   input, select { font-size: var(--font-size-md); }
 }
 .button { background: var(--raised); border-color: var(--border); border-radius: var(--radius-control); font-weight: 600; min-height: 44px; box-shadow: none; }
-.button:hover { transform: none; background: var(--surface); box-shadow: none; }
-.button.primary, .button.primary:hover { background: var(--violet); border-color: var(--violet); color: var(--on-violet); }
-.button.primary:hover { filter: brightness(.94); }
+@media (hover: hover) and (pointer: fine) { .button:hover { transform: none; background: var(--surface); box-shadow: none; } }
+.button.primary { background: var(--violet); border-color: var(--violet); color: var(--on-violet); }
+@media (hover: hover) and (pointer: fine) { .button.primary:hover { background: var(--violet); border-color: var(--violet); color: var(--on-violet); filter: brightness(.94); } }
 .button.soft { background: var(--violet-wash); color: var(--violet-ink); }
 /* Keep foreground and background in the same theme throughout a color change. */
 .button.danger { color: var(--late); border-color: var(--danger-border); transition-property: transform, box-shadow, border-color; }
@@ -102,7 +102,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 .theme-switch[aria-checked="true"] .theme-switch-sun, .theme-switch[aria-checked="false"] .theme-switch-moon { color: var(--text-2); opacity: .45; }
 .theme-switch[data-ready] .theme-switch-thumb { transition: transform .22s cubic-bezier(.2, .8, .2, 1); }
 .theme-switch[data-ready] .theme-switch-icon { transition: color .22s ease, opacity .22s ease; }
-.theme-switch:hover .theme-switch-track { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); }
+@media (hover: hover) and (pointer: fine) { .theme-switch:hover .theme-switch-track { border-color: color-mix(in srgb, var(--brand) 40%, var(--line)); } }
 .theme-switch:focus-visible { outline: none; }
 .theme-switch:focus-visible .theme-switch-track { outline: 2px solid var(--brand); outline-offset: 2px; }
 @media (prefers-reduced-motion: reduce) { .theme-switch[data-ready] .theme-switch-thumb, .theme-switch[data-ready] .theme-switch-icon { transition: none; } }
@@ -112,7 +112,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 .more-section-label { display: none; }
 .settings-hub-grid { grid-template-columns: 1fr; gap: 0; }
 .settings-hub-card { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; padding: 18px 0; background: var(--page); }
-.settings-hub-card:hover { background: var(--surface); transform: none; box-shadow: none; }
+@media (hover: hover) and (pointer: fine) { .settings-hub-card:hover { background: var(--surface); transform: none; box-shadow: none; } }
 .settings-hub-card small { display: block; }
 .settings-hub-icon { background: transparent; color: var(--text-2); }
 .settings-hub-group h2 { margin: 0; padding: 12px 0; border-bottom: 1px solid var(--line); font-size: 1rem; font-weight: 600; }
@@ -181,7 +181,7 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 /* Shared back control for sub-pages (chevron + parent name, 44px touch target). */
 .page-back-link { display: inline-flex; align-items: center; align-self: flex-start; justify-self: start; gap: 2px; min-height: 44px; margin: 0 0 -10px -8px; padding: 0 10px 0 2px; border-radius: 10px; color: var(--violet-text); font-size: .9375rem; font-weight: 600; text-decoration: none; }
 .page-back-link svg { width: 22px; height: 22px; flex: 0 0 auto; }
-.page-back-link:hover { background: var(--violet-wash); }
+@media (hover: hover) and (pointer: fine) { .page-back-link:hover { background: var(--violet-wash); } }
 .page-back-link--phone { display: none; }
 @media (max-width: 900px) { .page-back-link--phone { display: inline-flex; } }
 

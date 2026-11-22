@@ -15,13 +15,13 @@
 
 .jump-task-card { position: relative; grid-template-columns: 104px minmax(0, 1fr) minmax(132px, max-content); gap: 14px; padding: 13px; align-items: stretch; transition: border-color .16s ease, box-shadow .16s ease, transform .16s ease; }
 .jump-task-card::before { content: ""; position: absolute; inset: 10px auto 10px 0; width: 3px; border-radius: 0 999px 999px 0; background: linear-gradient(180deg, var(--brand), var(--violet-mark)); opacity: .78; }
-.jump-task-card:hover { border-color: var(--violet-mark); box-shadow: var(--shadow-sm); transform: translateY(-1px); }
+@media (hover: hover) and (pointer: fine) { .jump-task-card:hover { border-color: var(--violet-mark); box-shadow: var(--shadow-sm); transform: translateY(-1px); } }
 .jump-task-card:has(.jump-overflow[open]) { z-index: 35; }
 .jump-task-complete::before { background: var(--line); }
 .jump-task-complete .jump-card-heading h3 { color: var(--muted); font-weight: 650; }
 .jump-status-column { display: grid; }
 .jump-status-button { width: 100%; min-height: 72px; border: 0; border-radius: 12px; padding: 8px; background: var(--surface-soft); color: var(--muted); display: grid; place-content: center; gap: 2px; text-align: center; }
-.jump-status-button:hover { background: var(--brand-soft); color: var(--brand-dark); }
+@media (hover: hover) and (pointer: fine) { .jump-status-button:hover { background: var(--brand-soft); color: var(--brand-dark); } }
 .jump-status-button.done { background: var(--status-success-bg); color: var(--status-success-ink); }
 .jump-status-button strong { font-size: .78rem; }
 .jump-status-button time { font-size: .7rem; line-height: 1.25; }
@@ -83,7 +83,7 @@
 .quick-add-divider::before, .quick-add-divider::after { content: ""; height: 1px; flex: 1; background: var(--line); }
 .quick-add-grid { display: grid; grid-template-columns: repeat(2, minmax(0, 1fr)); gap: 9px; }
 .quick-add-grid a { min-width: 0; display: flex; align-items: center; gap: 11px; padding: 12px; border: 1px solid var(--line); border-radius: 13px; }
-.quick-add-grid a:hover { border-color: var(--violet-mark); background: var(--surface); }
+@media (hover: hover) and (pointer: fine) { .quick-add-grid a:hover { border-color: var(--violet-mark); background: var(--surface); } }
 .quick-add-grid a span { min-width: 0; display: grid; }
 .quick-add-grid small { color: var(--muted); }
 
@@ -145,14 +145,14 @@
 .contact-row-menu > summary::-webkit-details-marker, .mix-row-menu > summary::-webkit-details-marker, .mix-create-menu > summary::-webkit-details-marker { display: none; }
 .contact-row-menu-panel, .mix-row-menu-panel, .mix-create-menu-panel { position: absolute; z-index: 35; top: calc(100% + 7px); right: 0; width: 220px; display: grid; gap: 3px; padding: 9px; border: 1px solid var(--line); border-radius: 13px; background: var(--raised); box-shadow: var(--shadow); }
 .contact-row-menu-panel a, .contact-row-menu-panel button, .mix-row-menu-panel a, .mix-row-menu-panel button { width: 100%; min-height: 38px; display: flex; align-items: center; padding: 8px 9px; border-radius: 8px; text-align: left; color: var(--muted); font-weight: 700; }
-.contact-row-menu-panel a:hover, .mix-row-menu-panel a:hover { background: var(--surface-soft); color: var(--ink); }
+@media (hover: hover) and (pointer: fine) { .contact-row-menu-panel a:hover, .mix-row-menu-panel a:hover { background: var(--surface-soft); color: var(--ink); } }
 .contact-row:has(.contact-row-menu[open]), .mix-card:has(.mix-row-menu[open]) { position: relative; z-index: 34; }
 .contact-tools-links { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 7px; padding-bottom: 14px; border-bottom: 1px solid var(--line); }
 /* Rows only: buttons inside a row's confirmation keep their own look. */
 .contact-tools-links > a, .contact-tools-links > button { min-height: 42px; display: grid; place-items: center; padding: 8px; border: 1px solid var(--line); border-radius: 10px; text-align: center; font-weight: 700; }
 .mix-create-menu-panel { width: 270px; }
 .mix-create-menu-panel > a, .mix-create-menu-panel > form > button { width: 100%; display: grid; gap: 2px; padding: 10px; border-radius: 9px; text-align: left; }
-.mix-create-menu-panel > a:hover, .mix-create-menu-panel > form > button:hover { background: var(--surface-soft); }
+@media (hover: hover) and (pointer: fine) { .mix-create-menu-panel > a:hover, .mix-create-menu-panel > form > button:hover { background: var(--surface-soft); } }
 .mix-create-menu-panel small { color: var(--muted); font-weight: 500; }
 .mix-filter-bar select { min-width: 170px; }
 .group-chip { display: inline-flex; align-items: center; gap: 6px; padding: 5px 9px; border-radius: 999px; background: var(--surface-soft); color: var(--muted); font-size: .76rem; font-weight: 750; }
@@ -176,9 +176,10 @@
 .settings-hub-grid { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: var(--space-3); margin-bottom: var(--space-5); }
 .account-section-nav { position: sticky; top: var(--space-2); z-index: 8; display: flex; gap: var(--space-2); overflow-x: auto; scrollbar-width: thin; margin: -4px 0 var(--space-5); padding: var(--space-2); border: 1px solid var(--line); border-radius: 14px; background: color-mix(in srgb, var(--raised) 94%, transparent); box-shadow: var(--shadow-sm); backdrop-filter: blur(12px); }
 .account-section-nav a { flex: 0 0 auto; padding: 8px 12px; border-radius: 999px; color: var(--muted); font-size: .9rem; font-weight: 700; text-decoration: none; }
-.account-section-nav a:hover, .account-section-nav a:focus-visible { background: var(--brand-soft); color: var(--ink); }
+.account-section-nav a:focus-visible { background: var(--brand-soft); color: var(--ink); }
+@media (hover: hover) and (pointer: fine) { .account-section-nav a:hover { background: var(--brand-soft); color: var(--ink); } }
 .settings-hub-card { min-height: 100px; display: flex; align-items: center; gap: 13px; padding: 17px; border: 1px solid var(--line); border-radius: 16px; background: var(--raised); box-shadow: 0 7px 26px rgba(23, 32, 54, .035); }
-.settings-hub-card:hover { border-color: var(--brand); background: var(--surface-soft); }
+@media (hover: hover) and (pointer: fine) { .settings-hub-card:hover { border-color: var(--brand); background: var(--surface-soft); } }
 .settings-hub-card strong, .settings-hub-card small { display: block; }
 .settings-hub-card small { color: var(--muted); margin-top: 3px; }
 .settings-hub-icon { width: 42px; height: 42px; display: grid; place-items: center; border-radius: 13px; background: var(--brand-soft); color: var(--brand-dark); font-size: 1.2rem; flex: 0 0 auto; }
@@ -402,7 +403,7 @@ html[data-browser-locked="true"] .browser-account-gate * { visibility: visible !
 .jump-stamp { display: inline-flex; align-items: center; gap: 4px; padding: 1px 8px; border-radius: 999px; color: var(--status-success-ink); background: var(--status-success-bg); font-weight: 750; }
 .jump-stamp svg { width: 14px; height: 14px; }
 button.jump-stamp { border: 1px solid transparent; cursor: pointer; font: inherit; font-size: .8125rem; }
-button.jump-stamp:hover { border-color: currentColor; }
+@media (hover: hover) and (pointer: fine) { button.jump-stamp:hover { border-color: currentColor; } }
 .jump-stamp-editor { display: inline-flex; flex-wrap: wrap; align-items: center; gap: 6px; }
 .jump-stamp-editor input { min-height: 36px; padding: 2px 8px; font-size: .8125rem; }
 .jump-skip-action { display: inline-flex; align-items: center; gap: 6px; }

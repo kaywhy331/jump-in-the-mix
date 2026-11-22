@@ -17,7 +17,7 @@
 .invite-row-body { display: grid; gap: 8px; min-width: 0; }
 .invite-row input:not([type="hidden"]) { width: 100%; min-height: 48px; margin: 0; }
 .invite-row .icon-button { width: 44px; min-width: 44px; height: 44px; margin-top: 2px; border: 0; border-radius: var(--radius-control); background: transparent; }
-.invite-row .icon-button:hover { background: var(--surface); color: var(--text); }
+@media (hover: hover) and (pointer: fine) { .invite-row .icon-button:hover { background: var(--surface); color: var(--text); } }
 .invite-row .icon-button svg { width: 18px; height: 18px; }
 .invite-row-body .icon-button { margin: 0; }
 .invite-fields { display: grid; gap: 8px; }

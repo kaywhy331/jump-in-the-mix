@@ -110,8 +110,10 @@ form[data-live-pending="true"]::after {
   line-height: 1.2;
   white-space: nowrap;
 }
-.personalizable-card-toggle:hover,
-.personalizable-card-drag-handle:hover { color: var(--ink); text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) {
+  .personalizable-card-toggle:hover,
+  .personalizable-card-drag-handle:hover { color: var(--ink); text-decoration: underline; }
+}
 .personalizable-card-drag-handle { cursor: grab; user-select: none; touch-action: none; }
 .personalizable-card-drag-handle:active { cursor: grabbing; }
 .personalizable-card-content { padding: 0 16px 16px; border-top: 1px solid var(--line); }

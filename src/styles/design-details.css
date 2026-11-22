@@ -12,6 +12,8 @@
 .confirm-dialog-actions { justify-content: flex-end; align-items: center; padding-top: 20px; border-top: 1px solid var(--line); }
 .sheet-body .form-actions, .review-dialog .form-actions { justify-content: flex-end; }
 .global-quick-add kbd { margin-left: auto; padding: 2px 6px; border-radius: 5px; background: rgb(255 255 255 / 18%); font: 600 .75rem var(--font-ui); }
+/* Touch screens hide the N badge at every width; the shortcut still works from an attached keyboard (JITM-06 §2.36). */
+@media (hover: none), (pointer: coarse) { .global-quick-add kbd { display: none; } }
 .quick-add-proposal .card-actions { position: sticky; bottom: -22px; z-index: 1; display: flex; justify-content: flex-end; flex-wrap: wrap; padding: 16px 0; background: var(--raised); border-top: 1px solid var(--line); }
 .quick-add-original { padding: 18px 20px; margin-bottom: 20px; font-size: 1.25rem; }
 .quick-add-item { padding-block: 12px 16px; }
@@ -96,7 +98,8 @@
 .mix-beat-heading .field { margin: 0; min-width: 0; }
 .mix-beat-name { flex: 1 1 180px; }
 .mix-beat-name input { padding: 8px; min-height: 44px; border: 1px solid transparent; background: transparent; font-weight: 600; font-size: 1rem; }
-.mix-beat-name input:hover, .mix-beat-name input:focus { border-color: var(--border); }
+.mix-beat-name input:focus { border-color: var(--border); }
+@media (hover: hover) and (pointer: fine) { .mix-beat-name input:hover { border-color: var(--border); } }
 .mix-beat-day { display: flex; align-items: center; gap: 0; border-radius: 24px; background: var(--surface); padding-left: 12px; font-size: .8125rem; order: 1; }
 .mix-beat-day input { width: 60px; min-height: 44px; padding: 8px; border: 0; border-radius: 24px; background: transparent; }
 .mix-beat-channel { order: 2; max-width: 140px; }
@@ -107,7 +110,8 @@
 .mix-beat-options > summary { position: absolute; top: 20px; right: 0; display: grid; place-items: center; width: 44px; min-height: 44px; cursor: pointer; border-radius: 50%; color: var(--text-2); list-style: none; }
 .mix-beat-options > summary::-webkit-details-marker { display: none; }
 .mix-beat-options > summary svg { width: 20px; height: 20px; }
-.mix-beat-options[open] > summary, .mix-beat-options > summary:hover { background: var(--surface); }
+.mix-beat-options[open] > summary { background: var(--surface); }
+@media (hover: hover) and (pointer: fine) { .mix-beat-options > summary:hover { background: var(--surface); } }
 .mix-beat-options-body { margin: 16px 0 0 44px; padding: 16px 0; border-top: 1px solid var(--line); }
 .mix-beat-options-body summary { min-height: 44px; padding-block: 12px; cursor: pointer; }
 .mix-beat-options-body .step-advanced-settings { margin-top: 4px; }

@@ -56,7 +56,7 @@
 .jump-list { gap: 0; }
 .contacts-list, .contact-list, .mix-list { background: var(--page); border: 0; }
 .contact-row, .mix-row { border: 0; border-bottom: 1px solid var(--line); border-radius: 0; box-shadow: none; background: var(--page); }
-.contact-row:hover { background: var(--surface); }
+@media (hover: hover) and (pointer: fine) { .contact-row:hover { background: var(--surface); } }
 .contact-avatar, .avatar { border-radius: 50%; background: var(--surface); color: var(--text-2); font-weight: 500; }
 .mix-sequence-preview { border: 0; background: var(--surface); border-radius: 12px; }
 .calendar-day { border-bottom: 1px solid var(--line); }
@@ -68,7 +68,7 @@
 .mix-library-item { display: grid; gap: 8px; padding: 16px 12px; border-radius: 12px; font-size: .875rem; }
 .mix-library-item > span { font-size: .75rem; color: var(--text-2); }
 .mix-library-item[aria-current="page"] { background: var(--violet-wash); }
-.mix-library-item:hover { background: var(--surface); }
+@media (hover: hover) and (pointer: fine) { .mix-library-item:hover { background: var(--surface); } }
 .mix-editor-workspace { min-width: 0; }
 .mix-list .timeline-step { grid-template-columns: 64px 32px minmax(0, 1fr); }
 .mix-list .timeline-content { background: var(--surface); border-radius: 16px; padding: 20px; }
@@ -179,7 +179,8 @@
 .journey-touchpoints h2 { font-size: 1rem; }
 .journey-touchpoints > p { font-size: .8125rem; }
 .touchpoint-row { display: flex; align-items: center; gap: 12px; min-height: 64px; padding: 10px 8px; border-radius: 12px; }
-.touchpoint-row:hover, .touchpoint-row.active { background: var(--surface); }
+.touchpoint-row.active { background: var(--surface); }
+@media (hover: hover) and (pointer: fine) { .touchpoint-row:hover { background: var(--surface); } }
 .touchpoint-row > svg { width: 20px; height: 20px; color: var(--text-2); flex-shrink: 0; }
 .touchpoint-row > span:nth-child(2) { flex: 1; display: grid; }
 .touchpoint-row strong { font-size: .875rem; font-weight: 600; }
@@ -436,7 +437,7 @@
 
 /* Personal invitations, while any are left (JITM-09 §2.9, D72): the sidebar callout, the More row and one compact Today prompt. */
 .invite-callout { position: relative; display: grid; grid-template-columns: 22px minmax(0, 1fr); gap: 10px; align-items: center; min-height: 44px; padding: 12px; border: 1px solid color-mix(in srgb, var(--brand) 28%, transparent); border-radius: 14px; background: var(--brand-soft); color: var(--brand-dark); text-decoration: none; }
-.invite-callout:hover { border-color: var(--brand); }
+@media (hover: hover) and (pointer: fine) { .invite-callout:hover { border-color: var(--brand); } }
 .invite-callout:focus-visible { outline: 2px solid var(--brand); outline-offset: 2px; }
 .invite-callout > svg { width: 22px; height: 22px; }
 .invite-callout strong { display: block; font-size: .875rem; }
@@ -457,7 +458,7 @@
 .invite-strip > a > span { min-width: 0; overflow-wrap: break-word; }
 .invite-strip > a > span > span { display: inline-block; max-width: 100%; }
 .invite-strip > a strong { font-weight: 600; color: var(--violet-text); }
-.invite-strip > a:hover strong { text-decoration: underline; }
+@media (hover: hover) and (pointer: fine) { .invite-strip > a:hover strong { text-decoration: underline; } }
 .more-page .invite-hub-card { border-color: color-mix(in srgb, var(--brand) 35%, var(--line)); }
 /* Follow-up confirmations inside the open review, each with its Undo (D70). The review sits inside the card's
    .jump-primary-action, whose buttons fill the width, so the Undo keeps its own size beside its words. */
