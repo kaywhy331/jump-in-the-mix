@@ -1,3 +1,9 @@
+/**
+ * Marks the element the app shell focused after a page change (RouteHeadingFocus). A visually hidden H1 keeps its hidden
+ * layout while it holds that focus (base.css), so the move changes nothing the page shows.
+ */
+export const ROUTE_FOCUS_ATTRIBUTE = "data-route-focus";
+
 /** Keep keyboard focus clear of the app's persistent navigation and save bars. */
 export function revealObscuredFocus(control: EventTarget | null) {
   if (!(control instanceof HTMLElement) || !control.matches(":focus-visible")) return;

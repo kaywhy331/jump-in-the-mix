@@ -354,7 +354,9 @@ textarea { resize: vertical; min-height: 110px; }
 .onboarding-default span { display: grid; gap: 3px; }
 .onboarding-default small { color: var(--muted); font-weight: 500; }
 
-.sr-only:not(:focus):not(:active) { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; clip-path: inset(50%) !important; white-space: nowrap !important; border: 0 !important; }
+/* A hidden control shows when the keyboard reaches it. A hidden heading the app shell focuses after a page change
+   (RouteHeadingFocus's data-route-focus) stays hidden: showing it would move the page under the owner's next press. */
+.sr-only:not(:focus):not(:active), .sr-only[data-route-focus] { position: absolute !important; width: 1px !important; height: 1px !important; padding: 0 !important; margin: -1px !important; overflow: hidden !important; clip: rect(0,0,0,0) !important; clip-path: inset(50%) !important; white-space: nowrap !important; border: 0 !important; }
 button.sr-only:focus { min-height: 44px; padding: 9px 16px; color: var(--ink); background: var(--raised); border: 1px solid var(--line); border-radius: var(--radius-sm); }
 
 @media (max-width: 767px) {
