@@ -172,3 +172,134 @@ test("renamed staff pages and tabs fit every staff width, both themes, a short s
     await prisma.user.delete({ where: { id: owner.id } });
   }
 });
+
+/** The staff lists that show matching rows: each results region's own name and the heading of its empty block (JITM-UXS-05, S-05). */
+const RESULT_LISTS = [
+  { path: "/admin/access", region: "Matching invitations", empty: "No invitations match these filters" },
+  { path: "/admin/email/recovery", region: "Matching deliveries", empty: "No matching deliveries within your permissions" },
+  { path: "/admin/email/suppressions", region: "Matching blocked recipients", empty: "No active blocks match these filters" },
+  { path: "/admin/users", region: "Matching accounts", empty: "No users found" }
+] as const;
+
+/** Focusable elements in the page body that hold no text: an empty focusable region is one. */
+const emptyTabStops = (page: Page) => page.locator("main").evaluate(main => [...main.querySelectorAll<HTMLElement>('[tabindex]:not([tabindex="-1"])')].filter(element => !element.innerText.trim()).map(element => element.outerHTML.slice(0, 120)));
+
+test("an empty staff list says so with no empty focusable region, and each results region has its own name (JITM-UXS-05)", async ({ page }) => {
+  test.setTimeout(300_000);
+  const prefix = `ux-empty-${randomUUID()}`;
+  const owner = await staffMember(page, prefix);
+  const invite = await prisma.referralAccessInvite.create({ data: { recipientEmail: `${prefix}-invite@example.test`, source: "WAITLIST_MANUAL", tokenHash: prefix, tokenCiphertext: "test-only" } });
+  const delivery = await prisma.waitlistDelivery.create({ data: { inviteId: invite.id, status: "REVIEW", messageCiphertext: "test-only" } });
+  const suppression = await prisma.emailSuppression.create({ data: { email: `${prefix}-blocked@example.test`, reason: "HARD_BOUNCE" } });
+  try {
+    await page.setViewportSize({ width: 1440, height: 900 });
+    // With rows, each list is one focusable region under its own name.
+    const names: string[] = [];
+    for (const list of RESULT_LISTS) {
+      await openHeading(page, `${list.path}?q=${prefix}`);
+      const regions = page.locator("main [role=region]");
+      await expect(regions, `${list.path}: one results region`).toHaveCount(1);
+      await expect(regions, `${list.path}: its own name`).toHaveAccessibleName(list.region);
+      await expect(regions.locator(".admin-queue-row"), `${list.path}: the fixture row`).toHaveCount(1);
+      await expect(regions).toHaveAttribute("tabindex", "0");
+      names.push(list.region);
+    }
+    expect(new Set(names).size, "no two results regions share a name").toBe(RESULT_LISTS.length);
+    // With none, the list shows Support's empty block and no region at every staff width, theme, a short screen, 110% zoom and 200% text.
+    for (const list of RESULT_LISTS) {
+      const path = `${list.path}?q=${prefix}-none`;
+      await openHeading(page, path);
+      const check = async (label: string, width: number) => {
+        const block = page.locator("main .empty-state");
+        await expect(block, `${label}: the empty block`).toHaveCount(1);
+        await expect(block.getByRole("heading", { name: list.empty, exact: true }), `${label}: it says so`).toBeVisible();
+        await expect(page.locator("main [role=region]"), `${label}: no results region`).toHaveCount(0);
+        expect(await emptyTabStops(page), `${label}: no empty tab stop`).toEqual([]);
+        await expect.poll(() => page.evaluate(() => document.documentElement.scrollWidth - document.documentElement.clientWidth), `${label}: no sideways page scroll`).toBeLessThanOrEqual(1);
+        const box = await block.boundingBox();
+        expect(box && box.x >= 0 && box.x + box.width <= width + 1, `${label}: the empty block stays on screen`).toBe(true);
+      };
+      for (const colorScheme of ["light", "dark"] as const) for (const width of NAME_WIDTHS) {
+        await applyRenderedTheme(page, colorScheme, { width, height: 900 });
+        await check(`${path} ${colorScheme} ${width}px`, width);
+      }
+      await applyRenderedTheme(page, "light", { width: 844, height: 390 });
+      await check(`${path} 844x390`, 844);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.evaluate(() => { document.documentElement.style.zoom = "1.1"; });
+      await check(`${path} 110% zoom`, 1280);
+      await page.evaluate(() => { document.documentElement.style.zoom = ""; });
+      await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+      for (const width of [320, 1280]) { await page.setViewportSize({ width, height: 900 }); await check(`${path} ${width}px at 200% text`, width); }
+      await page.setViewportSize({ width: 1440, height: 900 });
+    }
+  } finally {
+    await prisma.waitlistDelivery.deleteMany({ where: { id: delivery.id } });
+    await prisma.referralAccessInvite.deleteMany({ where: { id: invite.id } });
+    await prisma.emailSuppression.deleteMany({ where: { id: suppression.id } });
+    await prisma.platformAuditEvent.deleteMany({ where: { actorUserId: owner.id } });
+    await prisma.user.delete({ where: { id: owner.id } });
+  }
+});
+
+/** Staff pages with .admin-content-tabs strips: the area tabs and the pages' own view tabs. */
+const STRIP_PAGES = ["/admin/operations", "/admin/operations/alerts", "/admin/email", "/admin/support", "/admin/waitlist", "/admin/templates", "/admin/marketplace", "/admin/reports", "/admin/reports/history", "/admin/audit", "/admin/team"];
+
+/** The strips whose tab stop disagrees with whether they scroll sideways (AdminNav's rule: content wider than the box beyond 1px rounding). */
+const misjudgedStrips = (page: Page) => page.evaluate(() => [...document.querySelectorAll<HTMLElement>(".admin-content-tabs")]
+  .map(strip => ({ name: strip.getAttribute("aria-label"), overflows: strip.scrollWidth > strip.clientWidth + 1, tabStop: strip.getAttribute("tabindex") === "0" }))
+  .filter(strip => strip.overflows !== strip.tabStop));
+
+test("a staff tab strip that scrolls sideways is a keyboard tab stop only while it overflows (JITM-UXS-05)", async ({ page }) => {
+  test.setTimeout(300_000);
+  const prefix = `ux-strips-${randomUUID()}`;
+  const owner = await staffMember(page, prefix);
+  try {
+    for (const path of STRIP_PAGES) {
+      await openHeading(page, path);
+      await expect(page.locator(".admin-content-tabs").first(), `${path}: has a tab strip`).toBeAttached();
+      const check = async (label: string) => expect.poll(() => misjudgedStrips(page), `${label}: overflowing strips, and only they, are tab stops`).toEqual([]);
+      for (const colorScheme of ["light", "dark"] as const) for (const width of NAME_WIDTHS) {
+        await applyRenderedTheme(page, colorScheme, { width, height: 900 });
+        await check(`${path} ${colorScheme} ${width}px`);
+        // Above 760px the strips wrap (admin CSS), so none scrolls and none takes a tab stop.
+        if (width > 760) await expect(page.locator(".admin-content-tabs[tabindex]"), `${path} ${width}px: wrapped strips take no tab stop`).toHaveCount(0);
+      }
+      await applyRenderedTheme(page, "light", { width: 844, height: 390 });
+      await check(`${path} 844x390`);
+      await page.setViewportSize({ width: 1280, height: 800 });
+      await page.evaluate(() => { document.documentElement.style.zoom = "1.1"; });
+      await check(`${path} 110% zoom`);
+      await page.evaluate(() => { document.documentElement.style.zoom = ""; });
+      await page.addStyleTag({ content: "html { font-size: 200% !important; }" });
+      for (const width of [320, 1280]) { await page.setViewportSize({ width, height: 900 }); await check(`${path} ${width}px at 200% text`); }
+    }
+
+    // By keyboard at a phone width: Tab reaches the Operations area strip, its focus ring shows and the arrow keys scroll it.
+    await page.setViewportSize({ width: 390, height: 844 });
+    await openHeading(page, "/admin/operations");
+    const strip = page.getByRole("navigation", { name: "Operations pages" });
+    await expect(strip, "the Operations strip overflows at 390px").toHaveAttribute("tabindex", "0");
+    await strip.evaluate(element => { element.scrollLeft = 0; });
+    await page.evaluate(() => (document.activeElement as HTMLElement | null)?.blur());
+    let reached = false;
+    for (let step = 0; step < 80 && !reached; step++) { await page.keyboard.press("Tab"); reached = await strip.evaluate(element => element === document.activeElement); }
+    expect(reached, "Tab reaches the strip itself").toBe(true);
+    expect(await strip.evaluate(element => element.matches(":focus-visible") && getComputedStyle(element).outlineStyle !== "none"), "the strip shows its focus ring").toBe(true);
+    await page.keyboard.press("ArrowRight");
+    await expect.poll(() => strip.evaluate(element => element.scrollLeft), "ArrowRight scrolls the strip").toBeGreaterThan(0);
+    // The tab stop follows the strip: it goes when the strip fits and comes back when it overflows again.
+    await page.setViewportSize({ width: 1440, height: 900 });
+    await expect(strip).not.toHaveAttribute("tabindex", /.*/);
+    await page.setViewportSize({ width: 390, height: 844 });
+    await expect(strip).toHaveAttribute("tabindex", "0");
+    // A page reached by client navigation streams in after the layout; its own strip is judged too.
+    await strip.getByRole("link", { name: adminAreaName("/admin/operations/alerts"), exact: true }).click();
+    await expect(page).toHaveURL(/\/admin\/operations\/alerts$/);
+    await expect(page.getByRole("navigation", { name: "Alert views" })).toBeVisible();
+    await expect.poll(() => misjudgedStrips(page), "after client navigation, overflowing strips, and only they, are tab stops").toEqual([]);
+  } finally {
+    await prisma.platformAuditEvent.deleteMany({ where: { actorUserId: owner.id } });
+    await prisma.user.delete({ where: { id: owner.id } });
+  }
+});

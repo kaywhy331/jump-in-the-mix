@@ -104,7 +104,7 @@ test("staff publishes reviewed System Mix wording and rolls back without changin
     await expect(page.getByRole("heading", { name: contacts[0].emails[0].email, exact: true })).toBeVisible();
     await expect(page.getByLabel("Invitation wording version")).toHaveValue("2");
     await page.goto("/admin/access?systemMixVersion=3");
-    await expect(page.getByText("No invitations match these filters.")).toBeVisible();
+    await expect(page.getByRole("heading", { name: "No invitations match these filters", exact: true })).toBeVisible();
     await page.goto("/admin/system-mix");
     await saveDraft(page, "Third edition"); await release(page, "Publish version 3");
     await page.getByRole("link", { name: "Version history", exact: true }).click();

@@ -96,12 +96,12 @@ export default async function AdminUsersPage({ searchParams }: { searchParams: P
       </form>
       <p>{total} matching accounts · Page {page}</p>
 
-      <div className="admin-queue" role="region" aria-label="Results" tabIndex={0}>
+      {users.length > 0 && <div className="admin-queue" role="region" aria-label="Matching accounts" tabIndex={0}>
         {users.map(user => <article className="admin-queue-row" key={user.id}>
           <div><h2><Link href={`/admin/users/${user.id}?returnTo=${encodeURIComponent(pageHref(page))}`}>{user.name}</Link></h2><p>{user.email}</p><small>{user.memberships.map(item => item.workspace.name).join(" · ") || "No customer workspace"} · Joined {formatDate(user.createdAt, displayPreferences)}</small><p>{user.memberships.some(item => item.workspace.profile?.onboardingDone) ? "First-use setup complete" : "First-use setup incomplete"} · {user.sessions[0] ? `Last active ${formatDate(user.sessions[0].lastSeenAt, displayPreferences)}` : "No active session"}</p></div>
           <div className="page-actions"><span className="status-pill">{user.suspendedAt ? "Suspended" : "Active"}</span>{user.staffMembership && <span className="status-pill">Staff · {user.staffMembership.role.toLowerCase()}</span>}<span>{user._count.sessions} sessions</span><Link className="button small" href={`/admin/users/${user.id}?returnTo=${encodeURIComponent(pageHref(page))}`}>View account</Link></div>
         </article>)}
-      </div>
+      </div>}
 
       {!users.length && <div className="empty-state"><h2>No users found</h2><p>Try another name, email address, or workspace.</p></div>}
       <AdminPagination page={page} total={total} pageSize={50} href={pageHref} />
