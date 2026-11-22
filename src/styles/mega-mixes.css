@@ -51,7 +51,7 @@
 .listing-favorite-button { display: inline-flex; align-items: center; gap: 4px; min-width: 44px; min-height: 44px; padding: 0 10px; border: 0; border-radius: 12px; background: transparent; color: var(--text-3); font: inherit; font-size: .8125rem; font-variant-numeric: tabular-nums; cursor: pointer; }
 .listing-favorite-button svg { width: 18px; height: 18px; }
 .listing-favorite-button[aria-pressed=true] { color: var(--danger); }
-.listing-favorite-button:hover:not(:disabled) { background: var(--surface); }
+@media (hover: hover) and (pointer: fine) { .listing-favorite-button:hover:not(:disabled) { background: var(--surface); } }
 .marketplace-byline { display: flex; align-items: center; gap: 6px; flex-wrap: wrap; margin: -16px 0 16px; color: var(--text-3); font-size: .8125rem; }
 .marketplace-byline svg { width: 16px; height: 16px; color: var(--violet-mark); }
 .share-form code { font-size: .8125rem; }

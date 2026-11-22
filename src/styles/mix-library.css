@@ -28,8 +28,8 @@
 .mix-library-row { position: relative; min-width: 0; }
 .mix-library-directory .mix-library-item { display: flex; align-items: center; gap: 12px; min-height: 65px; margin: 0; padding: 10px 52px 10px 12px; border: 0; border-bottom: 1px solid var(--line); border-radius: 0; background: var(--page); }
 .mix-library-directory .mix-library-item[aria-current=page] { border-radius: 12px; background: var(--violet-wash); }
-.mix-library-directory .mix-library-item:hover { background: var(--surface); }
-.mix-library-directory .mix-library-item[aria-current=page]:hover { background: var(--violet-wash); }
+@media (hover: hover) and (pointer: fine) { .mix-library-directory .mix-library-item:hover { background: var(--surface); } }
+@media (hover: hover) and (pointer: fine) { .mix-library-directory .mix-library-item[aria-current=page]:hover { background: var(--violet-wash); } }
 .mix-library-item .mix-row-icon { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 50%; background: var(--surface); color: var(--violet-text); }
 .mix-row-icon svg { width: 18px; height: 18px; }
 .mix-row-copy { display: block; min-width: 0; }

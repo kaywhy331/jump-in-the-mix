@@ -41,7 +41,8 @@ details > summary:focus-visible { outline-offset: -3px; }
 
 /* Per-item overflow menus share the 44px round "•••" control (export More control). */
 .disclosure-menu > summary { display: grid; place-items: center; width: 44px; min-height: 44px; padding: 0; border-radius: 50%; color: var(--text-2); }
-.disclosure-menu > summary:hover, .disclosure-menu[open] > summary { background: var(--surface); }
+.disclosure-menu[open] > summary { background: var(--surface); }
+@media (hover: hover) and (pointer: fine) { .disclosure-menu > summary:hover { background: var(--surface); } }
 .disclosure-menu > summary > svg { width: 20px; height: 20px; }
 
 /* Staff keep their compact desktop density; touch layouts restore 44px rows. */

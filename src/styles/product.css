@@ -464,7 +464,7 @@
    their title the same way. */
 .demo-beat.open { border-color: var(--brand); background: var(--beat-active-bg); box-shadow: 0 0 0 1px var(--brand) inset, 0 8px 22px rgba(93, 76, 242, .16); }
 .demo-beat.done { border-color: var(--success-border); }
-.demo-beat.open .demo-beat-toggle:hover { background: color-mix(in srgb, var(--brand) 10%, var(--beat-active-bg)); }
+@media (hover: hover) and (pointer: fine) { .demo-beat.open .demo-beat-toggle:hover { background: color-mix(in srgb, var(--brand) 10%, var(--beat-active-bg)); } }
 .demo-beat.open .demo-beat-number, .demo-beat.open .demo-beat-toggle > svg { color: var(--brand-dark); }
 .demo-beat.open .demo-beat-title { color: var(--muted); }
 .demo-beat.open .demo-beat-body { border-top-color: color-mix(in srgb, var(--brand) 35%, var(--line)); }
@@ -472,7 +472,7 @@
 .demo-beat-head { display: flex; align-items: center; gap: 8px; }
 .demo-beat-head > .demo-beat-stamp { margin-left: 14px; }
 .demo-beat-toggle { display: flex; flex: 1 1 auto; flex-wrap: wrap; align-items: center; gap: 6px 10px; min-width: 0; min-height: 48px; padding: 8px 14px; text-align: left; color: var(--ink); background: transparent; border: 0; cursor: pointer; }
-.demo-beat-toggle:hover { background: var(--surface-soft); }
+@media (hover: hover) and (pointer: fine) { .demo-beat-toggle:hover { background: var(--surface-soft); } }
 .demo-beat-toggle:focus-visible { outline: 3px solid var(--focus); outline-offset: -3px; }
 .demo-beat-toggle > svg { width: 18px; height: 18px; flex-shrink: 0; margin-left: auto; color: var(--muted); transition: transform var(--motion-fast) ease; }
 .demo-beat.open .demo-beat-toggle > svg { transform: rotate(180deg); }
@@ -482,7 +482,7 @@
 .demo-beat-meta svg { width: 16px; height: 16px; flex-shrink: 0; }
 .demo-beat-stamp { display: inline-flex; align-items: center; gap: 4px; min-height: 28px; padding: 2px 8px; border: 1px solid transparent; border-radius: 999px; color: var(--status-success-ink); background: var(--status-success-bg); font-size: .75rem; font-weight: 750; white-space: nowrap; cursor: pointer; }
 .demo-beat-stamp.skipped { color: var(--muted); background: var(--surface-soft); border-color: var(--line); }
-.demo-beat-stamp:hover { border-color: currentColor; }
+@media (hover: hover) and (pointer: fine) { .demo-beat-stamp:hover { border-color: currentColor; } }
 .demo-beat-stamp:focus-visible { outline: 3px solid var(--focus); outline-offset: 2px; }
 .demo-beat-stamp.editing { padding: 0; background: transparent; }
 .demo-beat-stamp.editing input { min-height: 32px; padding: 2px 8px; font-size: .8125rem; }
@@ -508,10 +508,12 @@
 .demo-message-field { margin: 0; }
 .demo-info { position: relative; display: inline-flex; align-items: center; }
 .demo-info-button { width: 44px; height: 44px; display: grid; place-items: center; border: 0; border-radius: 999px; background: transparent; color: var(--muted); cursor: pointer; }
-.demo-info-button:hover, .demo-info.open .demo-info-button { color: var(--brand-dark); background: var(--brand-soft); }
+.demo-info.open .demo-info-button { color: var(--brand-dark); background: var(--brand-soft); }
+@media (hover: hover) and (pointer: fine) { .demo-info-button:hover { color: var(--brand-dark); background: var(--brand-soft); } }
 .demo-info-button svg { width: 20px; height: 20px; }
 .demo-info-tip { display: none; position: absolute; right: 0; bottom: calc(100% + 6px); z-index: 5; width: max-content; max-width: min(260px, 80vw); padding: 10px 12px; border-radius: 10px; background: var(--ink); color: var(--on-violet); font-size: .8125rem; line-height: 1.4; box-shadow: var(--shadow-sm); }
-.demo-info:hover .demo-info-tip, .demo-info:focus-within .demo-info-tip, .demo-info.open .demo-info-tip { display: block; }
+.demo-info:focus-within .demo-info-tip, .demo-info.open .demo-info-tip { display: block; }
+@media (hover: hover) and (pointer: fine) { .demo-info:hover .demo-info-tip { display: block; } }
 
 /* Lead review remains a receipt workflow, separate from contact placement. */
 .needs-review-entry { display: flex; flex-wrap: wrap; align-items: center; gap: 8px 16px; padding-block: 12px; border-bottom: 1px solid var(--line); }

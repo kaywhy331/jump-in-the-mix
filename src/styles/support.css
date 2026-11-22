@@ -80,7 +80,7 @@
   border-radius: 12px;
   background: var(--surface-soft);
 }
-.support-ticket-row:hover { border-color: var(--violet-mark); background: var(--surface); }
+@media (hover: hover) and (pointer: fine) { .support-ticket-row:hover { border-color: var(--violet-mark); background: var(--surface); } }
 .support-ticket-row > div { min-width: 0; }
 .support-ticket-row strong, .support-ticket-row span, .support-ticket-row small { display: block; }
 .support-ticket-row strong { overflow: hidden; text-overflow: ellipsis; white-space: nowrap; }

@@ -83,7 +83,8 @@
   font-weight: 800;
   white-space: nowrap;
 }
-.admin-nav a:hover, .admin-nav a.active { background: var(--brand-soft); color: var(--brand-dark); }
+.admin-nav a.active { background: var(--brand-soft); color: var(--brand-dark); }
+@media (hover: hover) and (pointer: fine) { .admin-nav a:hover { background: var(--brand-soft); color: var(--brand-dark); } }
 .admin-metric-grid { display: grid; grid-template-columns: repeat(5, minmax(0, 1fr)); gap: 11px; margin-bottom: 18px; }
 .admin-overview-metrics { grid-template-columns: repeat(3, minmax(0, 1fr)); }
 .admin-metric-card { min-height: 136px; margin: 0; display: grid; align-content: center; gap: 5px; }

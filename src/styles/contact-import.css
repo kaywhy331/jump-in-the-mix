@@ -17,7 +17,7 @@
 .import-stage-actions { position: sticky; bottom: 86px; z-index: 12; display: flex; justify-content: flex-end; gap: 10px; padding: 12px; border: 1px solid var(--line); border-radius: 15px; background: color-mix(in srgb, var(--raised) 96%, transparent); box-shadow: var(--shadow); backdrop-filter: blur(12px); }
 
 .import-drop-zone { min-height: 250px; padding: 28px; border: 2px dashed var(--violet-mark); border-radius: 20px; background: linear-gradient(180deg, var(--surface), var(--surface)); display: grid; place-items: center; align-content: center; gap: 9px; text-align: center; cursor: pointer; }
-.import-drop-zone:hover { border-color: var(--brand); background: var(--brand-soft); }
+@media (hover: hover) and (pointer: fine) { .import-drop-zone:hover { border-color: var(--brand); background: var(--brand-soft); } }
 .import-drop-zone input { position: absolute; width: 1px; height: 1px; opacity: 0; pointer-events: none; }
 .import-drop-zone strong { font-size: 1.05rem; }
 .import-drop-zone small { max-width: 540px; color: var(--muted); line-height: 1.5; }
