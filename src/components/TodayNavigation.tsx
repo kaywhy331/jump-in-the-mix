@@ -14,9 +14,9 @@ const DraftGuard = createContext<(href: string) => boolean>(() => false);
 // intent outside that instance so its first effect can honor keyboard navigation.
 let focusNextTodayPage = false;
 
-export function TodayLink({ href, children, className, title, "aria-current": current }: { href: string; children: ReactNode; className?: string; title?: string; "aria-current"?: "page" }) {
+export function TodayLink({ href, children, className, title, "aria-current": current, "aria-describedby": describedBy }: { href: string; children: ReactNode; className?: string; title?: string; "aria-current"?: "page"; "aria-describedby"?: string }) {
   const blocked = useContext(DraftGuard);
-  return <Link href={href} className={className} title={title} aria-current={current} prefetch={false} onNavigate={event => {
+  return <Link href={href} className={className} title={title} aria-current={current} aria-describedby={describedBy} prefetch={false} onNavigate={event => {
     if (blocked(href)) event.preventDefault();
     else focusNextTodayPage = true;
   }}>{children}</Link>;
@@ -70,6 +70,8 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     if (previousKey.current === viewKey && !focusNextTodayPage) return;
     focusNextTodayPage = false;
     previousKey.current = viewKey;
+    // The list follows Today's search field as the owner types (TodaySearch): focus stays in the field.
+    if (document.activeElement?.closest("[data-today-live-search]")) return;
     let cancelled = false;
     const focusHeading = () => {
       if (cancelled) return;
@@ -107,9 +109,13 @@ export function TodayNavigation({ children, viewKey }: { children: ReactNode; vi
     if (target.origin !== location.origin || target.pathname !== "/jumps") return;
     event.preventDefault();
     const params = new URLSearchParams();
-    for (const [key, value] of new FormData(form)) if (typeof value === "string") params.append(key, value);
+    // A cleared search leaves no empty q in the address.
+    const live = form.dataset.todayLiveSearch === "true";
+    for (const [key, value] of new FormData(form)) if (typeof value === "string" && (value || !live)) params.append(key, value);
     const href = `/jumps?${params}`;
     if (blocked(href)) form.reset();
+    // A search typed into the field replaces this view rather than adding a history entry per pause in typing.
+    else if (live) router.replace(href, { scroll: false });
     else { focusNextTodayPage = true; router.push(href); }
   }}>
     {/* Confirmations go in the inner list, and an end-of-Mix question after it, so the order on screen is also the order

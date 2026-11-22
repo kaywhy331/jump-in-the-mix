@@ -23,7 +23,7 @@ import { MIXES_FAMILY_BACK, READY_MADE_MIXES } from "@/lib/app-navigation";
 export const metadata: Metadata = { title: READY_MADE_MIXES };
 const PAGE_SIZE = 20;
 
-type SearchParams = { setup?: string; mix?: string; favorites?: string; q?: string; category?: string; industry?: string; framework?: string; page?: string; error?: string; at?: string; sig?: string };
+type SearchParams = { setup?: string; create?: string; mix?: string; favorites?: string; q?: string; category?: string; industry?: string; framework?: string; page?: string; error?: string; at?: string; sig?: string };
 
 export default async function TemplatesPage({ searchParams }: { searchParams: Promise<SearchParams> }) {
   const [params, { session, workspace, user, impersonation }, configuredCategories, configuredIndustries, options] = await Promise.all([
@@ -63,9 +63,11 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
   const visible = templates.slice((currentPage - 1) * PAGE_SIZE, currentPage * PAGE_SIZE);
 
   const favoriteScope = { where: { workspaceId: workspace.id, userId: user.id }, select: { id: true } };
+  // Create a Mix (/mixes/new) opens this library with a choice of how to start, and nothing selected yet (JITM-09 §2.36).
+  const choosing = params.create === "1" && !params.mix;
   const selected = params.mix
     ? candidates.find(template => template.id === params.mix) ?? await prisma.sharedMix.findFirst({ where: { id: params.mix, status: "APPROVED" }, include: { favorites: favoriteScope } })
-    : visible[0];
+    : choosing ? undefined : visible[0];
   if (params.mix && !selected) notFound();
   const [selectedMetadata, copies] = selected ? await Promise.all([
     metadataById.get(selected.id) ?? prisma.sharedMixMetadata.findUnique({ where: { sharedMixId: selected.id } }),
@@ -88,13 +90,20 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
       <aside className="mix-library-directory" aria-label="Ready-made Mix library">
         {back}
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions">
-          <Link className="icon-button" href="/mixes/new?custom=1" aria-label="Create your own" title="Create your own"><AppIcon name="plus" /></Link>
+          {!choosing && <Link className="button mix-new-action" href="/mixes/new?custom=1"><AppIcon name="plus" />New Mix</Link>}
           <Sheet trigger={<button className="icon-button" type="button" aria-label="More ready-made Mix tools" title="More ready-made Mix tools"><AppIcon name="more" /></button>} title="Ready-made Mix tools">
             <nav className="contact-tools-links"><Link href="/mixes/system"><AppIcon name="people" />My invitations</Link></nav>
             <details className="workflow-options"><summary>Ideas for your business</summary><ProfessionExamples /></details>
             <details className="workflow-options"><summary>Browse by task</summary><nav className="contact-tools-links" aria-label="Choose a follow-up task">{[["Follow up a new lead", "lead"], ["Check an estimate", "estimate"], ["Reconnect with someone", "reconnect"]].map(([label, q]) => <Link href={`/templates?q=${q}`} key={q}>{label}</Link>)}<Link href="/templates">Browse all Mixes</Link></nav></details>
           </Sheet>
         </div></header>
+        {choosing && <section className="mix-start-chooser" aria-labelledby="mix-start-heading">
+          <h2 id="mix-start-heading">Create a Mix</h2>
+          <ul>
+            {visible.length > 0 && <li><a className="mix-start-option" href="#ready-made-mixes"><span className="mix-row-icon" aria-hidden="true"><AppIcon name="mixes" /></span><span className="mix-row-copy"><strong>Start from a ready-made Mix</strong><small>Pick one below and preview its Beats.</small></span><AppIcon name="chevronDown" className="mix-start-cue" /></a></li>}
+            <li><Link className="mix-start-option" href="/mixes/new?custom=1"><span className="mix-row-icon" aria-hidden="true"><AppIcon name="plus" /></span><span className="mix-row-copy"><strong>Start from scratch</strong><small>Name it, then write each Beat yourself.</small></span><AppIcon name="chevronRight" className="mix-start-cue" /></Link></li>
+          </ul>
+        </section>}
         <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My Mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace" aria-current="page"><AppIcon name="store" />Marketplace</Link></nav>
         <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Choose a complete Mega-Mix</Link>
         <div className="mix-directory-search">
@@ -114,7 +123,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
         <div className="mix-library-total"><span role="status">{templates.length} {templates.length === 1 ? "Mix" : "Mixes"}</span><Link className="mix-favorites-filter" href={href({ favorites: favorites ? undefined : "1", page: undefined })} aria-current={favorites ? "page" : undefined}><AppIcon name="heart" />Favorites</Link></div>
         {(query || filterCount || favorites) && <Link className="mix-clear-filters" href="/templates"><AppIcon name="close" />Clear filters</Link>}
         {industry && industry !== "Any business" && <p className="ready-made-directory-note">Includes Mixes for any business.</p>}
-        {visible.length ? <nav className="mix-library-nav" aria-label="Ready-made Mixes">{visible.map(template => {
+        {visible.length ? <nav id="ready-made-mixes" tabIndex={-1} className="mix-library-nav" aria-label="Ready-made Mixes">{visible.map(template => {
           const issue = sharedMixContentIssue(template.steps), steps = issue ? [] : normalizeSharedMixSteps(template.steps);
           return <div className="mix-library-row" key={template.id}>
             <Link className="mix-library-item" href={`${href({ mix: template.id })}#selected-mix`} aria-current={selected?.id === template.id ? "page" : undefined}>
@@ -124,7 +133,9 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
         })}</nav> : <p className="muted-copy">{favorites ? "Favorite a Mix to find it here." : "No Mixes found."}</p>}
         {totalPages > 1 && <nav className="mix-library-pagination" aria-label="Ready-made Mix result pages">{currentPage > 1 && <Link className="icon-button" href={href({ page: String(currentPage - 1) })} aria-label="Previous ready-made Mixes"><AppIcon name="arrowLeft" /></Link>}<span>{currentPage} / {totalPages}</span>{currentPage < totalPages && <Link className="icon-button" href={href({ page: String(currentPage + 1) })} aria-label="Next ready-made Mixes"><AppIcon name="arrowLeft" style={{ transform: "rotate(180deg)" }} /></Link>}</nav>}
       </aside>
-      {selected ? <ReadyMadeMixWorkspace key={selected.id} template={selected} metadata={selectedMetadata} copies={copies} canUse={!impersonation} /> : <EmptyState title={favorites ? "No favorite Mixes yet" : "No Mixes match"} description={favorites ? "Use the heart beside a Mix to keep it here." : "Try another search or clear your filters."} actionHref="/templates" actionLabel="Browse ready-made Mixes" />}
+      {selected ? <ReadyMadeMixWorkspace key={selected.id} template={selected} metadata={selectedMetadata} copies={copies} canUse={!impersonation} />
+        // The pane keeps a prompt until a Mix is chosen; on phones the list itself is that prompt (JITM-08 §2.32).
+        : choosing && visible.length ? <EmptyState className="mix-pane-prompt" icon="mixes" title="Select a ready-made Mix" description="Choose one from the list to preview its Beats here." /> : <EmptyState title={favorites ? "No favorite Mixes yet" : "No Mixes match"} description={favorites ? "Use the heart beside a Mix to keep it here." : "Try another search or clear your filters."} actionHref="/templates" actionLabel="Browse ready-made Mixes" />}
     </MixLibraryShell>
   </div>;
 }

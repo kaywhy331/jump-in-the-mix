@@ -6,11 +6,19 @@
 .inline-action-icon { width: 16px; height: 16px; margin-left: 2px; vertical-align: -3px; }
 .sheet-heading-icon { width: 18px; height: 18px; margin-right: 6px; vertical-align: -3px; }
 
-/* Today header: search magnifier beside Filter. */
-.today-header-tools { display: flex; align-items: flex-start; gap: 8px; }
-.today-search-trigger { display: grid; place-items: center; width: 44px; min-width: 44px; height: 44px; min-height: 44px; padding: 0; border-radius: 12px; }
-.today-search-trigger svg { width: 20px; height: 20px; }
-.today-search-trigger.active { border-color: var(--violet-mark); background: var(--violet-wash); color: var(--violet-text); }
+/* Today header: Filter beside the title, and the search field on its own row below it, its results following the
+   typing (JITM-08 §2.29). On phones the header is a grid, from 768px a wrapping row whose summary line has order 1. */
+.today-header-tools { display: flex; align-items: flex-start; gap: var(--space-2); }
+.today-page .today-page-header > .today-search { display: flex; align-items: center; gap: var(--space-2); grid-column: 1 / -1; order: 1; flex: 1 0 100%; min-width: 0; min-height: 44px; margin: 0; padding-left: var(--space-3); border-radius: var(--radius-control); background: var(--surface); }
+.today-search:focus-within { outline: 2px solid var(--violet-mark); outline-offset: 2px; }
+.today-search > svg { width: 18px; height: 18px; flex-shrink: 0; color: var(--text-3); }
+.today-search input[type="search"] { flex: 1; width: 100%; min-width: 0; min-height: 44px; padding: var(--space-2) 0; border: 0; background: transparent; outline: none; box-shadow: none; font-size: var(--font-size-md); }
+.today-search input[type="search"]::-webkit-search-cancel-button { appearance: none; }
+.today-search .icon-button { flex-shrink: 0; width: 44px; min-width: 44px; height: 44px; border: 0; background: transparent; color: var(--text-3); }
+/* Filter presets, each with its one-line description. */
+.today-presets ul { display: grid; gap: var(--space-3); margin: 0; padding: 0; list-style: none; }
+.today-presets li { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-1) var(--space-3); }
+.today-presets small { flex: 1 1 auto; min-width: 0; color: var(--text-2); font-size: var(--font-size-sm); line-height: var(--line-height-body); }
 
 /* Today queue: the channel icon carries a "Review" caption so it reads as
    "open this follow-up", not as a Call/Text button. */

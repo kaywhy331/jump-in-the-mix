@@ -18,7 +18,7 @@ export const metadata: Metadata = { title: "Create a Mix" };
 export default async function NewMixPage({ searchParams }: { searchParams: Promise<{ error?: string; at?: string; sig?: string; custom?: string }> }) {
   const [query, { session, workspace, user }] = await Promise.all([searchParams, requireWorkspace()]);
   const [timezone, activationPreference] = await Promise.all([timezoneForUser(user.id), prisma.userPreference.findUnique({ where: { userId: user.id }, select: { reviewMixActivation: true } })]);
-  if (query.custom !== "1" && !query.error) redirect("/templates");
+  if (query.custom !== "1" && !query.error) redirect("/templates?create=1");
   const [dateTypes, rawGroups, groupStates, jumps, categories, industries, activeContactCount, missingEmailCount, missingPhoneCount] = await Promise.all([
     prisma.dateType.findMany({ where: { isActive: true, OR: [{ workspaceId: workspace.id }, { workspaceId: null, isSystem: true }] }, orderBy: [{ isSystem: "asc" }, { name: "asc" }] }),
     prisma.group.findMany({ where: { workspaceId: workspace.id }, include: { _count: { select: { memberships: true } } }, orderBy: { name: "asc" } }),

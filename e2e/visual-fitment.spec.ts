@@ -179,7 +179,7 @@ test("mobile text actions stay readable instead of collapsing into blank control
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile header geometry is checked once.");
   await signIn(page);
   await page.goto("/templates");
-  // Collection tabs keep their words; creating is a labelled icon since the phone icon pass (3f85c77).
+  // Collection tabs keep their words; creating is a labelled "New Mix" button (JITM-06 §2.37, audit A-05).
   for (const label of ["My Mixes", "Mega-Mixes", "Marketplace"]) {
     const action = page.locator(".mix-library-tabs").getByRole("link", { name: label, exact: true });
     await expect(action).toBeVisible();
@@ -187,7 +187,7 @@ test("mobile text actions stay readable instead of collapsing into blank control
     expect(box).not.toBeNull();
     expect(box!.width).toBeGreaterThan(60);
   }
-  const create = page.getByRole("link", { name: "Create your own", exact: true });
+  const create = page.getByRole("link", { name: "New Mix", exact: true });
   await expect(create).toBeVisible();
   const createBox = (await create.boundingBox())!;
   expect(Math.min(createBox.width, createBox.height)).toBeGreaterThanOrEqual(44);

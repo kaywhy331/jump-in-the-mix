@@ -1004,8 +1004,8 @@ test.describe("JITM-BACK-03 origin Back on the Mixes family", () => {
       // No page outside Mega-Mixes links to a new Mega-Mix.
       second: { from: () => "/jumps", enter: page => push(page, "/mixes/mega?new=1"), at: () => /\/mixes\/mega\?new=1$/ } },
     { name: "Create a Mix", at: () => /\/mixes\/new\?custom=1$/, direct: () => "/mixes/new?custom=1", throughHistory: true,
-      fromMixes: page => workspaceLink(page, "Create a Mix"),
-      second: { from: () => "/templates", enter: page => workspaceLink(page, "Create your own"), at: () => /\/mixes\/new\?custom=1$/ } }
+      fromMixes: page => workspaceLink(page, "New Mix"),
+      second: { from: () => "/templates", enter: page => workspaceLink(page, "New Mix"), at: () => /\/mixes\/new\?custom=1$/ } }
   ];
 
   for (const family of FAMILY) {
@@ -1050,7 +1050,7 @@ test.describe("JITM-BACK-03 origin Back on the Mixes family", () => {
   }
 
   test("(e) Ready-made Mixes reached through the bare /mixes/new address, which redirects there: Back never returns to that address and never loops, by the control and by the edge swipe", async ({ page }) => {
-    const bare = "/mixes/new", atReadyMade = /\/templates$/;
+    const bare = "/mixes/new", atReadyMade = /\/templates\?create=1$/;
     /** A beat later Back has not come round again: still on `to`, not back on the redirect or Ready-made Mixes. */
     const stays = async (name: string) => {
       await page.waitForTimeout(1_000);
@@ -1200,7 +1200,7 @@ test.describe("JITM-BACK-03 origin Back on the Mixes family", () => {
     await asksOnceBeforeLeaving(page, {
       at: /\/mixes\/new\?custom=1$/, href: () => fallback,
       enters: [
-        ["Create a Mix from Mixes", async () => { await open(page, fallback); await workspaceLink(page, "Create a Mix"); }],
+        ["Create a Mix from Mixes", async () => { await open(page, fallback); await workspaceLink(page, "New Mix"); }],
         ["Create a Mix after another document", async () => { await open(page, "/jumps"); await open(page, "/mixes/new?custom=1"); }]
       ],
       left: name => expect(page, name).toHaveURL(atFallback)

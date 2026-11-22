@@ -7,6 +7,7 @@ import Link from "next/link";
 import type { Prisma } from "@/generated/prisma/client";
 import { ContactSavedViewsBar } from "@/components/ContactSavedViewsBar";
 import { ContactsBulkWorkspace, type ContactBulkDto } from "@/components/ContactsBulkWorkspace";
+import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
 import { UrlErrorNotice } from "@/components/UrlErrorNotice";
 import { AppIcon } from "@/components/AppIcon";
@@ -328,8 +329,10 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
   const resultStart = totalCount ? (page - 1) * PAGE_SIZE + 1 : 0;
   const resultEnd = Math.min(page * PAGE_SIZE, totalCount);
   const resultMessage = totalCount
-    ? `${totalCount.toLocaleString()} Contact${totalCount === 1 ? "" : "s"} found. Showing ${resultStart.toLocaleString()} through ${resultEnd.toLocaleString()}.`
-    : `No Contacts matched${q ? ` “${q}”` : " the current filters"}.`;
+    ? `${totalCount.toLocaleString()} contact${totalCount === 1 ? "" : "s"} found. Showing ${resultStart.toLocaleString()} through ${resultEnd.toLocaleString()}.`
+    : `No contacts matched${q ? ` “${q}”` : " the current filters"}.`;
+  // The search alone goes; the filters, sort and mode stay (a saved view's own search would return with its id).
+  const clearSearchHref = pageHref({ ...filters, q: "", viewId: "", page: 1, intent });
 
   return (
     <div className="page contacts-page">
@@ -378,6 +381,7 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
         todayKey={todayKey}
         listHref={listHref}
         noMixHref={noMixHref}
+        clearSearchHref={clearSearchHref}
         intent={intent}
       />
       {totalPages > 1 && <nav className="pagination-bar" aria-label="Contact result pages">
@@ -388,7 +392,9 @@ export default async function ContactsPage({ searchParams }: { searchParams: Pro
           {page < totalPages && <Link className="button" href={pageHref({ page: page + 1, q, groupId, priority, permission, mix: mixFilter, viewId: selectedView?.id ?? "", intent, importBatchId, sort })}>Next</Link>}
         </div>
       </nav>}
-      </section>{selectedContactId && <section className="contacts-selected" aria-label="Selected contact"><ContactProfile key={selectedContactId} contactId={selectedContactId} embedded directoryHref={pageHref({ ...filters, page, person: selectedContactId })} /></section>}</div>
+      </section>{selectedContactId ? <section className="contacts-selected" aria-label="Selected contact"><ContactProfile key={selectedContactId} contactId={selectedContactId} embedded directoryHref={pageHref({ ...filters, page, person: selectedContactId })} /></section>
+        // With nobody in the list the detail pane keeps a prompt rather than going blank (JITM-08 §2.32).
+        : <section className="contacts-selected contacts-selected-empty" aria-label="Selected contact"><EmptyState icon="contacts" title="Select a contact" description="Choose someone from the list to see their details here." /></section>}</div>
     </div>
   );
 }

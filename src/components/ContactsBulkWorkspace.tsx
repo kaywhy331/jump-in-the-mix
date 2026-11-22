@@ -68,6 +68,7 @@ export function ContactsBulkWorkspace({
   todayKey,
   listHref = "/contacts",
   noMixHref = "/contacts?mix=no-mix",
+  clearSearchHref = "/contacts",
   savedViews,
   intent
 }: {
@@ -89,6 +90,8 @@ export function ContactsBulkWorkspace({
   listHref?: string;
   /** The No Mix filter within the current search and filters. */
   noMixHref?: string;
+  /** This list without its search: its filters, sort and mode stay. */
+  clearSearchHref?: string;
   savedViews?: ReactNode;
   intent?: "important-date" | "one-time-jump" | "log-note";
 }) {
@@ -275,7 +278,7 @@ export function ContactsBulkWorkspace({
           </div>
           <div className="table-actions">{intent === "important-date" ? <Link className="button small primary" href={`/contacts/${contact.id}#add-date`} onClick={saveContactListState}>Add date</Link> : intent === "log-note" ? <Link className="button small primary" href={`/contacts/${contact.id}#add-note`} onClick={saveContactListState}>Add note</Link> : null}</div>
         </article>;
-      })}</div> : query || activeFilterCount ? <EmptyState title="No contacts matched" description="Try a different search or filter." actionHref="/contacts" actionLabel="Clear filters" /> : <EmptyState title="Start with one person" description="Make time for your circle. Add a customer, a friend, or someone you would like to know better." actionHref="/contacts/new" actionLabel="Add a person" />}
+      })}</div> : query ? <EmptyState title="No contacts matched" description={`No one matches “${query}”. Try a different name, email, phone, or company.`} actionHref={clearSearchHref} actionLabel="Clear search" /> : activeFilterCount ? <EmptyState title="No contacts matched" description="Try a different filter." actionHref="/contacts" actionLabel="Clear filters" /> : <EmptyState title="Start with one person" description="Make time for your circle. Add a customer, a friend, or someone you would like to know better." actionHref="/contacts/new" actionLabel="Add a person" />}
 
       {barShown && <aside ref={barRef} className="bulk-contact-bar" aria-label="Actions for selected contacts">
         <div className="bulk-selection-count"><strong>{selectedIds.length}</strong><span>selected</span><button type="button" className="text-button" onClick={() => setSelected(new Set())}>Clear</button>{contacts.length > 1 && <button type="button" className="text-button" onClick={toggleAll}>{allSelected ? "Deselect this page" : "Select this page"}</button>}</div>

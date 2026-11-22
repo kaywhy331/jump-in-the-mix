@@ -4,6 +4,9 @@ import { usePathname, useRouter, useSearchParams } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { allowFormNavigation } from "@/lib/form-navigation";
 
+/** How long typing pauses before a live search runs. Today's field (TodaySearch) waits the same. */
+export const LIVE_SEARCH_DELAY_MS = 280;
+
 const FILTER_FORM_SELECTOR = [
   "form.filter-bar",
   "form.live-search-form"
@@ -70,7 +73,7 @@ export function GlobalLiveSearch() {
       if (!form || !shouldEnhance(form)) return;
       const existing = timers.current.get(form);
       if (existing) window.clearTimeout(existing);
-      timers.current.set(form, window.setTimeout(() => navigate(form), 280));
+      timers.current.set(form, window.setTimeout(() => navigate(form), LIVE_SEARCH_DELAY_MS));
     };
 
     const onChange = (event: Event) => {

@@ -221,6 +221,8 @@ span.contact-missing-method { font-weight: inherit; color: inherit; }
   .contacts-page .contact-select-row.contact-current { border-radius: 12px; background: var(--violet-wash); }
   .contacts-page .contact-main h3 { font-size: .9375rem; }
   .contacts-selected { display: block; min-width: 0; padding: 0; }
+  /* No one in the list: the pane prompts rather than going blank (JITM-08 §2.32, audit A-21). */
+  .contacts-selected-empty > .empty-state { margin: var(--space-6) var(--space-5); }
   .contact-profile-embedded { width: 100%; max-width: none; margin: 0; padding: 40px 28px; }
   .contact-profile-embedded .contact-detail-header-actions { display: none; }
   .contact-profile-embedded .contact-profile-header { grid-template-columns: 56px minmax(0, 1fr) auto; }

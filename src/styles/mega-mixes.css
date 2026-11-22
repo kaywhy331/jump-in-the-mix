@@ -32,8 +32,10 @@
 .import-summary ul { margin: 8px 0 0; padding-left: 18px; line-height: 1.6; }
 .import-summary small { color: var(--text-3); }
 /* Three collection tabs share the directory width evenly instead of overflowing it. */
-.mix-library-directory .mix-library-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
-.mix-library-directory .mix-library-tabs a { justify-content: center; gap: 4px; min-width: 0; padding: 8px 4px; }
+/* The collection tabs share one row while their labels fit, with 8px between tabs and inside the column edge; an icon
+   moves above its label before a label would be cut, and the row wraps before it would overflow (audit A-05). */
+.mix-library-directory .mix-library-tabs { display: flex; flex-wrap: wrap; gap: var(--space-2); padding: var(--space-1); }
+.mix-library-directory .mix-library-tabs a { flex: 1 1 0; flex-wrap: wrap; justify-content: center; align-content: center; gap: var(--space-1); min-width: min-content; padding: var(--space-2) var(--space-1); }
 .mix-library-directory .mix-library-tabs a svg { flex-shrink: 0; }
 .import-file .checkbox-label { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; font-size: .875rem; line-height: 1.5; cursor: pointer; }
 .import-file .checkbox-label input { flex: 0 0 18px; width: 18px; height: 18px; min-height: 0; margin: 2px 0 0; }

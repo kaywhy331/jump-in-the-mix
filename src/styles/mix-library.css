@@ -5,9 +5,13 @@
 .mix-workspace-page > .notice { margin: 20px; }
 .mix-library-shell { display: block; min-width: 0; }
 .mix-library-directory { min-width: 0; padding: 20px; }
-.mix-directory-header { display: flex; align-items: center; justify-content: space-between; gap: 12px; min-height: 42px; margin-bottom: 18px; }
+/* The actions wrap below the title rather than collide with it on the narrowest phones (JITM-06 §2.37). */
+.mix-directory-header { display: flex; flex-wrap: wrap; align-items: center; justify-content: space-between; gap: var(--space-2) 12px; min-height: 42px; margin-bottom: 18px; }
 .mix-directory-header h1 { margin: 0; font-size: 30px; line-height: 1.2; letter-spacing: -.04em; }
-.mix-directory-actions { display: flex; align-items: center; gap: 4px; }
+.mix-directory-actions { display: flex; align-items: center; gap: 4px; margin-left: auto; }
+/* Creating a Mix is a labelled action at every size (JITM-06 §2.37, audit A-05). */
+.mix-directory-actions .mix-new-action { padding-inline: var(--space-3); white-space: nowrap; }
+.mix-directory-actions .mix-new-action svg { width: 18px; height: 18px; }
 .mix-directory-actions .icon-button { width: 44px; min-height: 44px; border: 0; background: transparent; }
 .mix-directory-actions svg { width: 20px; height: 20px; }
 .mix-library-directory .mix-library-tabs { display: flex; gap: 8px; margin: 0 0 16px; padding: 0; border: 0; }
@@ -30,7 +34,7 @@
 .mix-library-directory .mix-library-item[aria-current=page] { border-radius: 12px; background: var(--violet-wash); }
 .mix-library-directory .mix-library-item:hover { background: var(--surface); }
 .mix-library-directory .mix-library-item[aria-current=page]:hover { background: var(--violet-wash); }
-.mix-library-item .mix-row-icon { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 50%; background: var(--surface); color: var(--violet-text); }
+.mix-library-item .mix-row-icon, .mix-start-option .mix-row-icon { display: grid; place-items: center; width: 36px; height: 36px; flex: 0 0 36px; border-radius: 50%; background: var(--surface); color: var(--violet-text); }
 .mix-row-icon svg { width: 18px; height: 18px; }
 .mix-row-copy { display: block; min-width: 0; }
 .mix-row-copy strong { display: block; margin-bottom: 2px; color: var(--text); font-size: 1rem; line-height: 1.3; font-weight: 600; overflow-wrap: anywhere; }
@@ -42,8 +46,21 @@
 .mix-selected-header { display: flex; align-items: flex-start; justify-content: space-between; flex-wrap: wrap; gap: 16px; margin-bottom: 28px; }
 .mix-selected-header > div { display: flex; align-items: center; flex-wrap: wrap; gap: 8px; min-width: 0; }
 .mix-selected-header h2 { margin: 0; font-size: 28px; font-weight: 600; letter-spacing: -.04em; line-height: 1.2; overflow-wrap: anywhere; }
-.mix-view-tabs { display: flex; gap: 8px; }
-.mix-view-tabs [aria-current=page] { background: var(--violet-wash); border-color: transparent; color: var(--violet-text); }
+/* Preview and Edit are a segmented control, a raised segment on --surface, apart from the bordered Share and Start
+   buttons (JITM-06 §2.37 and its export anatomy, audit A-05). */
+.mix-view-toolbar { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-3); min-width: 0; }
+.mix-view-tabs { display: inline-flex; flex-wrap: wrap; gap: var(--space-1); padding: var(--space-1); border-radius: var(--radius-control); background: var(--surface); }
+.mix-view-tabs .button { border-color: transparent; border-radius: calc(var(--radius-control) - var(--space-1)); background: transparent; color: var(--text-2); }
+.mix-view-tabs .button[aria-current=page] { background: var(--raised); color: var(--text); box-shadow: var(--shadow-sm); }
+.mix-view-actions { display: flex; flex-wrap: wrap; align-items: center; gap: var(--space-2); }
+/* Create a Mix: how to start, with nothing chosen yet (audit A-16). */
+.mix-start-chooser { margin: 0 0 var(--space-5); }
+.mix-start-chooser h2 { margin: 0 0 var(--space-3); font-size: var(--font-size-lg); line-height: var(--line-height-tight); }
+.mix-start-chooser ul { display: grid; gap: var(--space-2); margin: 0; padding: 0; list-style: none; }
+.mix-start-option { display: flex; align-items: center; gap: var(--space-3); min-height: 44px; padding: var(--space-3); border: 1px solid var(--border); border-radius: var(--radius-control); background: var(--raised); color: var(--text); text-decoration: none; }
+.mix-start-option:hover { background: var(--surface); }
+.mix-start-option .mix-row-copy { flex: 1; }
+.mix-start-cue { width: 16px; height: 16px; flex-shrink: 0; color: var(--text-3); }
 .mix-selected-description { max-width: 65ch; margin: 0 0 28px; color: var(--text-2); font-size: .9375rem; line-height: 1.6; }
 .mix-beat-preview-heading { display: flex; align-items: center; gap: 8px; min-height: 28px; margin-bottom: 10px; padding-bottom: 6px; border-bottom: 1px solid var(--line); color: var(--text-3); font-size: .8125rem; }
 .mix-beat-preview h3 { margin: 0; font-size: inherit; font-weight: 500; }
@@ -133,6 +150,8 @@
   .mix-library-shell[data-mobile-pane=details] .mix-editor-workspace { display: none; }
   .mix-library-shell { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
   .mix-library-shell[data-mobile-pane=details] .mix-context-pane { border-top: 0; }
+  /* On phones the list itself is the prompt to choose a ready-made Mix. */
+  .mix-library-shell[data-mobile-pane=library] > .mix-pane-prompt { display: none; }
 }
 @media (max-width: 600px) {
   .mix-selected-header h2 { font-size: 24px; }

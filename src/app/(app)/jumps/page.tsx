@@ -32,6 +32,7 @@ import { PreparationNotice } from "@/components/PreparationNotice";
 import { Sheet } from "@/components/Sheet";
 import { TodayLink, TodayNavigation } from "@/components/TodayNavigation";
 import { TodayReviewSheet } from "@/components/TodayReviewPlacement";
+import { TodaySearch } from "@/components/TodaySearch";
 import { WhenField } from "@/components/WhenPicker";
 import type { Channel, JumpStatus, Prisma } from "@/generated/prisma/client";
 import { requireWorkspace } from "@/lib/auth";
@@ -543,6 +544,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
   const upcomingTotal = upcomingCount + (workflowAttention?.futureTotal ?? 0);
   const zeroLine = !workflowAttention ? "Your next steps could not be checked." : workflowAttention.total ? `${workflowAttention.total} item${workflowAttention.total === 1 ? " needs" : "s need"} your input.` : workflowAttention.preparing || preparation.state !== "ready" ? "Your follow-up list is awaiting preparation." : upcomingTotal ? `${upcomingTotal.toLocaleString()} upcoming follow-up${upcomingTotal === 1 ? "" : "s"}.` : activeFilterCount ? "No open follow-ups in this view." : "You’re caught up.";
 
+  const todayPresets = [
+    { id: "focus", label: "Focused work", description: "Marks the follow-up to do next.", current: !compact && priority !== "overdue", href: `/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "focus" })}` },
+    { id: "compact", label: "Compact scan", description: "A plain list, with nothing marked.", current: compact && priority !== "overdue", href: `/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "compact" })}` },
+    { id: "overdue", label: "Show overdue", description: "Only open follow-ups past their due date.", current: priority === "overdue", href: "/jumps?range=all&status=pending&priority=overdue&view=compact" }
+  ];
+
   return (
     <TodayNavigation key={workspace.id} viewKey={returnTo}>
       <TodayLiveCounts nextActions={filteredNextActions} categoryActions={plainDueView ? nextActions : filteredNextActions} dueGroups={dueGroups} readAt={now.toISOString()} overdue={overdueCount} doneCounts={doneCounts} zero={zeroLine} initial={{ overdue: overdueCount - movedOverdue, today: attentionCount - overdueCount + movedOverdue, upcoming: (upcomingCount || dueThisWeekCount) + (workflowAttention?.futureTotal ?? 0), done: doneSummaryCount(range, completed.length, completedTodayCount) }}>
@@ -567,10 +574,7 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
 
       <header className="page-header today-page-header">
         <div><h1 tabIndex={-1}>Today</h1><p><LiveAttentionSummary /></p>{(!workflowAttention || workflowAttention.total > 0) && <a className="text-button" href="#needs-your-input">Needs your input{workflowAttention ? ` · ${workflowAttention.total}` : ""}</a>}</div>
-        <div className="today-header-tools"><Sheet trigger={<button className={query ? "icon-button today-search-trigger active" : "icon-button today-search-trigger"} type="button" aria-label={query ? `Search: ${query}` : "Search Today"}><AppIcon name="search" /></button>} title="Search Today" description="Find a person, Mix, or reason.">
-          <form action="/jumps" className="search-row" role="search"><label className="field"><span>Find a person, Mix, or reason</span><input type="search" name="q" autoFocus defaultValue={query} maxLength={160} placeholder="Search this follow-up view" /></label>{[...viewParams].filter(([name]) => name !== "q").map(([name, value]) => <input key={name} type="hidden" name={name} value={value} />)}<button className="button primary" type="submit"><AppIcon name="search" />Search</button></form>
-          {query && <TodayLink className="button" href={`/jumps?${new URLSearchParams([...viewParams].filter(([name]) => name !== "q"))}`}>Clear search</TodayLink>}
-        </Sheet>
+        <div className="today-header-tools">
         <Sheet trigger={<button className={activeFilterCount ? "button filter-trigger active" : "button filter-trigger"} type="button"><AppIcon name="filter" />Filter{activeFilterCount ? ` ${activeFilterCount}` : ""}</button>} title="Filter Today" description="Changes apply as soon as you choose them.">
           <AutoSubmitForm key={viewParams.toString()} className="form-stack" action="/jumps" ariaLabel="Today filters">
             <input type="hidden" name="q" value={query} /><input type="hidden" name="view" value={compact ? "compact" : "focus"} /><label className="field"><span>Priority</span><select name="priority" defaultValue={priority}><option value="all">All priorities</option><option value="overdue">Overdue commitments</option></select></label>
@@ -579,10 +583,12 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
             <label className="field"><span>How</span><select name="channel" defaultValue={channel}><option value="all">Any method</option>{channels.map((item) => <option key={item} value={item}>{channelName(item)}</option>)}</select></label>
           </AutoSubmitForm>
 
-      <nav className="page-actions" aria-label="Today layout"><TodayLink className="button small" aria-current={!compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "focus" })}`}>Focused work</TodayLink><TodayLink className="button small" aria-current={compact ? "page" : undefined} href={`/jumps?${new URLSearchParams({ ...Object.fromEntries(viewParams), view: "compact" })}`}>Compact scan</TodayLink><TodayLink className="button small" href="/jumps?range=all&status=pending&priority=overdue&view=compact">Review overdue</TodayLink></nav>
+      {/* Each preset says what it shows (JITM-08 §2.29). "Show overdue" is the approved naming map's word (JITM-UXA-07 R7). */}
+      <nav className="today-presets" aria-label="Today layout"><ul>{todayPresets.map(preset => <li key={preset.id}><TodayLink className="button small" aria-current={preset.current ? "page" : undefined} aria-describedby={`today-preset-${preset.id}`} href={preset.href}>{preset.label}</TodayLink><small id={`today-preset-${preset.id}`}>{preset.description}</small></li>)}</ul></nav>
 
-          {activeFilterCount > 0 && <TodayLink className="button" href="/jumps">Clear filters</TodayLink>}
+          {(activeFilterCount > 0 || compact) && <TodayLink className="button" href="/jumps">Reset filters</TodayLink>}
         </Sheet></div>
+        <TodaySearch query={query} hidden={[...viewParams].filter(([name]) => name !== "q" && name !== "jump")} resultLine={totalCount ? `${totalCount.toLocaleString()} follow-up${totalCount === 1 ? "" : "s"} found.` : "No follow-ups found."} />
       </header>
       <LiveWorkCategories locale={displayPreferences.locale} />
 
@@ -615,7 +621,9 @@ export default async function TodayPage({ searchParams }: { searchParams: Promis
       </nav>}
       {!ordered.length && params.jump && <Notice type="info">{!exactRecord ? "This follow-up is unavailable. It may have been removed or belong to another account." : <>{["This follow-up is no longer pending.", followUpEndedReason(exactRecord.completionMethod)].filter(Boolean).join(" ")} <Link href={exactRecord.workflowInstanceId ? `/journey?${new URLSearchParams({ contactId: exactRecord.contactId, work: exactRecord.workflowInstanceId })}` : `/contacts/${exactRecord.contactId}`}>Review its current context</Link>.</>}</Notice>}
       {!ordered.length && !params.jump && workflowAttention && !workflowAttention.total && !workflowAttention.preparing && preparation.state === "ready" && (activeFilterCount
-        ? <EmptyState title="No follow-ups match these filters" description="Try clearing the filters to see what needs your attention today." actionHref="/jumps" actionLabel="Clear filters" />
+        ? (query
+          ? <EmptyState title={`No follow-ups match “${query}”`} description="Try a different name, Mix, or reason." actionHref={`/jumps?${new URLSearchParams([...viewParams].filter(([name]) => name !== "q"))}`} actionLabel="Clear search" />
+          : <EmptyState title="No follow-ups match these filters" description="Try resetting the filters to see what needs your attention today." actionHref="/jumps" actionLabel="Reset filters" />)
         : <EmptyState title="Nothing due right now" description="A little hello goes a long way. Add a person and choose a follow-up date; your next action will appear here." actionHref="/contacts/new" actionLabel="Add a person" />)}
       {!ordered.length && <div className="page-actions"><TodayLink className="button" href="/jumps?range=month&status=pending">Review upcoming</TodayLink><Link className="button" href="/contacts">Schedule with an existing person</Link></div>}
       </TodayLiveCounts>

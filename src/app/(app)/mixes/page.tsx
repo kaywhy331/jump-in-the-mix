@@ -48,7 +48,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
           <h1>Mixes</h1>
           <div className="mix-directory-actions">
             <BrandTermsHelp />
-            <Link className="icon-button" href="/mixes/new?custom=1" aria-label="Create a Mix" title="Create a Mix"><AppIcon name="plus" /></Link>
+            <Link className="button mix-new-action" href="/mixes/new?custom=1"><AppIcon name="plus" />New Mix</Link>
             <Sheet trigger={<button className="icon-button" type="button" aria-label="More Mix tools" title="More Mix tools"><AppIcon name="more" /></button>} title="Mix tools">
               <nav className="contact-tools-links"><Link href="/templates"><AppIcon name="import" />Ready-made Mixes</Link><Link href="/mixes/system"><AppIcon name="people" />My invitations</Link></nav>
             </Sheet>

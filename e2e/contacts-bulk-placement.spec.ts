@@ -163,7 +163,7 @@ test("Add to a Mix comes first in the bar, labeled and spaced at every width and
     await expect(pages.getByText("Page 1 of 2", { exact: true })).toBeVisible();
     await expect(page.locator(".pagination-bar")).toHaveCount(1);
     await expect(page.locator(".pagination-bar")).toBeVisible();
-    await expect(page.locator('p[role="status"][aria-live="polite"]')).toHaveText("51 Contacts found. Showing 1 through 50.");
+    await expect(page.locator('p[role="status"][aria-live="polite"]')).toHaveText("51 contacts found. Showing 1 through 50.");
     await expect(page.locator(".contact-row")).toHaveCount(50);
     await page.getByRole("button", { name: "Select", exact: true }).click();
     for (const name of names) await page.getByRole("checkbox", { name: `Select ${name}`, exact: true }).check();
