@@ -78,8 +78,8 @@ test.describe("on iPhone", () => {
 
       // The shortcut steps stay hidden until its link is set, except while the shortcut is being built.
       await page.goto("/contacts/from-phone?setup=shortcut");
-      const shortcut = page.getByRole("region", { name: "Share from Contacts", exact: true });
-      await expect(page.getByRole("heading", { level: 2, name: "Or save a contact card", exact: true })).toBeVisible();
+      const shortcut = page.getByRole("region", { name: "Advanced: add with a Shortcut", exact: true });
+      await expect(page.getByRole("heading", { level: 2, name: "Save a contact card", exact: true })).toBeVisible();
       await page.getByRole("button", { name: "Tips for adding on iPhone" }).click();
       await expect(page.getByRole("dialog", { name: "Tips for adding on iPhone" }).getByText("Add to Jump in the Mix").first()).toBeVisible();
       await page.keyboard.press("Escape");
@@ -127,7 +127,7 @@ test("computers see both phones' steps and no phone button on Add a contact", as
   await expect(page.getByText("Open this page in Chrome on your Android phone to choose people from its contacts.")).toBeVisible();
   await expect(page.getByRole("heading", { level: 2, name: "On iPhone: save a contact card", exact: true })).toBeVisible();
   await expect(page.getByRole("button", { name: "Tips for adding on iPhone" })).toBeVisible();
-  await expect(page.getByRole("heading", { level: 2, name: "On iPhone: share from Contacts", exact: true })).toHaveCount(0);
+  await expect(page.getByRole("heading", { level: 2, name: "On iPhone, advanced: add with a Shortcut", exact: true })).toHaveCount(0);
 });
 
 test("Add from your phone passes automated accessibility checks in both themes and works by keyboard", async ({ page }, testInfo) => {

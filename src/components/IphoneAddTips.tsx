@@ -5,13 +5,11 @@ import { Sheet } from "@/components/Sheet";
 
 /**
  * Short steps for sharing contacts from the iPhone Contacts app. Selecting several people is a hidden
- * two-finger gesture there, so the tips spell it out. `shortcut` says whether the share-sheet shortcut
- * is offered; without it, people save the card to Files and import it.
+ * two-finger gesture there, so the tips spell it out. Saving the card to Files and importing it comes first,
+ * as on the page; `shortcut` says whether the share-sheet shortcut is offered as the advanced way.
  */
 export function IphoneAddTips({ shortcut }: { shortcut: boolean }) {
-  const finish = shortcut
-    ? <li>Tap <strong>Add to Jump in the Mix</strong>.</li>
-    : <li>Tap <strong>Save to Files</strong>, then choose the file in Import contacts.</li>;
+  const finish = <li>Tap <strong>Save to Files</strong>, then choose the file in Import contacts.</li>;
   return (
     <Sheet
       className="iphone-add-tips"
@@ -35,7 +33,7 @@ export function IphoneAddTips({ shortcut }: { shortcut: boolean }) {
             {finish}
           </ol>
         </section>
-        {shortcut && <p>Don&apos;t see Add to Jump in the Mix? Scroll to the bottom of the share options, tap <strong>Edit Actions</strong> and add it.</p>}
+        {shortcut && <p>Added the Shortcut? Tap <strong>Add to Jump in the Mix</strong> instead of Save to Files. Don&apos;t see it? Scroll to the bottom of the share options, tap <strong>Edit Actions</strong> and add it.</p>}
       </div>
     </Sheet>
   );

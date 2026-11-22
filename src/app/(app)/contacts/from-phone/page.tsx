@@ -31,30 +31,32 @@ export default async function AddFromPhonePage({ searchParams }: { searchParams:
       <BackLink href="/contacts/new" label="Add a contact" />
       <header className="page-header"><div><h1>Add from your phone</h1><p>Only the people you choose are added. Someone already saved with the same email or phone isn&apos;t added twice.</p></div></header>
       {!owner && <Notice type="info">Only the account owner can add people from a phone.</Notice>}
-      {!android && <IphoneAddTips shortcut={owner && shortcutReady} />}
       {!iphone && (
         <section className="card phone-share-card" aria-labelledby="phone-share-android">
           <h2 id="phone-share-android">{android ? "Choose from your contacts" : "On Android"}</h2>
           <DeviceContactQuickAdd placement="page" />
         </section>
       )}
-      {!android && owner && shortcutReady && (
-        <ContactShareKeyPanel
-          title={iphone ? "Share from Contacts" : "On iPhone: share from Contacts"}
-          shortcutUrl={env.iphoneContactsShortcutUrl}
-          keyStatus={status ? { made: formatDate(status.createdAt, display), lastUsed: status.lastUsedAt ? formatDateTime(status.lastUsedAt, display) : null } : null}
-          viewOnly={Boolean(impersonation)}
-        />
-      )}
+      {/* On iPhone the simplest way leads: share a contact card and import it. The Shortcut is the advanced option (audit A-24). */}
       {!android && (
         <section className="card phone-share-card" aria-labelledby="phone-share-file">
-          <h2 id="phone-share-file">{!iphone ? "On iPhone: save a contact card" : shortcutReady ? "Or save a contact card" : "Save a contact card"}</h2>
+          <h2 id="phone-share-file">{iphone ? "Save a contact card" : "On iPhone: save a contact card"}</h2>
+          <p>There&apos;s nothing to set up.</p>
           <ol className="phone-share-steps">
             <li><strong>Share the contact</strong><small>In Contacts, open a person and tap Share Contact.</small></li>
             <li><strong>Save it</strong><small>Tap Save to Files.</small></li>
             <li><strong>Import it</strong><small>Choose the file in Import contacts.</small><div className="form-actions"><Link className="button" href="/contacts/import">Import contacts</Link></div></li>
           </ol>
+          <IphoneAddTips shortcut={owner && shortcutReady} />
         </section>
+      )}
+      {!android && owner && shortcutReady && (
+        <ContactShareKeyPanel
+          title={iphone ? "Advanced: add with a Shortcut" : "On iPhone, advanced: add with a Shortcut"}
+          shortcutUrl={env.iphoneContactsShortcutUrl}
+          keyStatus={status ? { made: formatDate(status.createdAt, display), lastUsed: status.lastUsedAt ? formatDateTime(status.lastUsedAt, display) : null } : null}
+          viewOnly={Boolean(impersonation)}
+        />
       )}
     </div>
   );

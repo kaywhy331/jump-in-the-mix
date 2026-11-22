@@ -152,6 +152,9 @@ export function ContactForm({
   const [primaryPhone, setPrimaryPhone] = useState(primaryIndex(contact?.phones));
   const [primaryAddress, setPrimaryAddress] = useState(primaryIndex(contact?.addresses));
   const [scheduleFollowUp, setScheduleFollowUp] = useState(Boolean(followUp?.defaultDate));
+  // "+ Add phone" and "+ Add email" move focus into the field they add.
+  const [focusId, setFocusId] = useState<string | null>(null);
+  useEffect(() => { if (focusId) { document.getElementById(focusId)?.focus(); setFocusId(null); } }, [focusId]);
 
   const removeEmail = (index: number) => {
     setUndoRemoval(() => () => { setEmails(current => [...current, emails[index]]); });
@@ -195,21 +198,38 @@ export function ContactForm({
       {contact?.id && revision && <input type="hidden" name="revision" value={revision} />}
 
       <section className="card contact-editor-section contact-quick-form">
-        <div className="card-header"><div><h2>{mode === "create" ? "Add a person" : "Contact details"}</h2><p>{mode === "create" ? "Enter at least a name, company, email, or phone number. Add a phone or email to prepare messages." : "Enter at least a name, company, email, or phone number."}</p></div></div>
-        <div className="form-grid">
+        <div className="card-header"><div><h2>{mode === "create" ? "Add a person" : "Contact details"}</h2><p>{mode === "create" ? "Add a phone or email to prepare messages." : "Enter at least a name, company, email, or phone number."}</p></div></div>
+        {mode === "create" ? <>
+          {/* The either-or group says its own rule once, so its fields carry no "optional" (JITM-08 §2.27). */}
+          <fieldset className="contact-identity">
+            <legend className="form-required-note">Add at least one: name, company, phone or email.</legend>
+            <div className="form-grid">
+              <div className="field"><label htmlFor="firstName">First name</label><input id="firstName" name="firstName" autoComplete="given-name" defaultValue={contact?.firstName ?? ""} autoFocus {...invalid("firstName")} /><FieldError name="firstName" /></div>
+              <div className="field"><label htmlFor="lastName">Last name</label><input id="lastName" name="lastName" autoComplete="family-name" defaultValue={contact?.lastName ?? ""} /></div>
+              <div className="field full"><label htmlFor="company">Company</label><input id="company" name="company" autoComplete="organization" defaultValue={contact?.company ?? ""} /></div>
+              {/* Each add-another control sits under the fields it extends (JITM-08 §2.27). */}
+              <div className="field-collection">
+                <input type="hidden" name="phonePrimaryIndex" value="0" />
+                {phones.map((item, index) => <div className="field" key={`quick-phone-${index}`}><label htmlFor={`quick-phone-${index}`}>{index ? `Phone ${index + 1}` : "Phone"}</label><input id={`quick-phone-${index}`} name="phoneValue" type="tel" inputMode="tel" autoComplete={index ? "off" : "tel"} value={item.value} onChange={(event) => setPhones((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} placeholder="(555) 555-0123" {...invalid(`phoneValue:${index}`)} /><input type="hidden" name="phoneLabel" value={index ? item.label || "Other" : "Mobile"} />{index > 0 && <button className="text-button" type="button" onClick={() => removePhone(index)}>Remove</button>}</div>)}
+                <button className="button small" type="button" onClick={() => { setPhones((current) => [...current, { value: "", label: "Other" }]); setFocusId(`quick-phone-${phones.length}`); }}>+ Add phone</button>
+              </div>
+              <div className="field-collection">
+                <input type="hidden" name="emailPrimaryIndex" value="0" />
+                {emails.map((item, index) => <div className="field" key={`quick-email-${index}`}><label htmlFor={`quick-email-${index}`}>{index ? `Email ${index + 1}` : "Email"}</label><input id={`quick-email-${index}`} name="emailValue" type="email" inputMode="email" autoComplete={index ? "off" : "email"} value={item.value} onChange={(event) => setEmails((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} {...invalid(`emailValue:${index}`)} /><FieldError name={`quick-email-${index}`} messages={{ typeMismatch: EMAIL_TYPE_MESSAGE }} /><input type="hidden" name="emailLabel" value={item.label || "Email"} />{index > 0 && <button className="text-button" type="button" onClick={() => removeEmail(index)}>Remove</button>}</div>)}
+                <button className="button small" type="button" onClick={() => { setEmails((current) => [...current, { value: "", label: "Other" }]); setFocusId(`quick-email-${emails.length}`); }}>+ Add email</button>
+              </div>
+            </div>
+          </fieldset>
+          <div className="form-grid">
+            {groups.length > 0 && <label className="field"><span>Tag <small>optional</small></span><select name="groupIds" defaultValue=""><option value="">No tag yet</option>{groups.filter((group) => group.isActive).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}
+            {/* Dictate and its note sit under the field, so the label keeps its line on a phone. */}
+            <div className="field full"><label htmlFor="publicNotes">Message context <small>optional · may appear in prepared messages</small></label><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Job, estimate, how you met, or anything worth remembering" /><VoiceNoteButton targetId="publicNotes" /></div>
+          </div>
+        </> : <div className="form-grid">
           <div className="field"><label htmlFor="firstName">First name</label><input id="firstName" name="firstName" autoComplete="given-name" defaultValue={contact?.firstName ?? ""} autoFocus {...invalid("firstName")} /><FieldError name="firstName" /></div>
           <div className="field"><label htmlFor="lastName">Last name <small>optional</small></label><input id="lastName" name="lastName" autoComplete="family-name" defaultValue={contact?.lastName ?? ""} /></div>
-          {mode === "edit" && <div className="field full"><label htmlFor="company">Company <small>optional</small></label><input id="company" name="company" defaultValue={contact?.company ?? ""} /></div>}
-          {mode === "create" && <>
-            <input type="hidden" name="phonePrimaryIndex" value="0" />
-            {phones.map((item, index) => <div className="field" key={`quick-phone-${index}`}><label htmlFor={`quick-phone-${index}`}>{index ? <>Phone {index + 1} <small>optional</small></> : "Phone"}</label><input id={`quick-phone-${index}`} name="phoneValue" type="tel" inputMode="tel" autoComplete={index ? "off" : "tel"} value={item.value} onChange={(event) => setPhones((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} placeholder="(555) 555-0123" {...invalid(`phoneValue:${index}`)} /><input type="hidden" name="phoneLabel" value={index ? item.label || "Other" : "Mobile"} />{index > 0 && <button className="text-button" type="button" onClick={() => removePhone(index)}>Remove</button>}</div>)}
-            <input type="hidden" name="emailPrimaryIndex" value="0" />
-            {emails.map((item, index) => <div className="field" key={`quick-email-${index}`}><label htmlFor={`quick-email-${index}`}>{index ? `Email ${index + 1}` : "Email"} <small>optional</small></label><input id={`quick-email-${index}`} name="emailValue" type="email" inputMode="email" autoComplete={index ? "off" : "email"} value={item.value} onChange={(event) => setEmails((current) => current.map((row, rowIndex) => rowIndex === index ? { ...row, value: event.target.value } : row))} {...invalid(`emailValue:${index}`)} /><FieldError name={`quick-email-${index}`} messages={{ typeMismatch: EMAIL_TYPE_MESSAGE }} /><input type="hidden" name="emailLabel" value={item.label || "Email"} />{index > 0 && <button className="text-button" type="button" onClick={() => removeEmail(index)}>Remove</button>}</div>)}
-            {groups.length > 0 && <label className="field"><span>Tag <small>optional</small></span><select name="groupIds" defaultValue=""><option value="">No tag yet</option>{groups.filter((group) => group.isActive).map((group) => <option key={group.id} value={group.id}>{group.name}</option>)}</select></label>}
-            <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Message context <small>optional · may appear in prepared messages</small></label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="Job, estimate, how you met, or anything worth remembering" /></div>
-          </>}
-        </div>
-        {mode === "create" && <div className="page-actions"><button className="button small" type="button" onClick={() => setPhones((current) => [...current, { value: "", label: "Other" }])}>Add another phone</button><button className="button small" type="button" onClick={() => setEmails((current) => [...current, { value: "", label: "Other" }])}>Add another email</button></div>}
+          <div className="field full"><label htmlFor="company">Company <small>optional</small></label><input id="company" name="company" defaultValue={contact?.company ?? ""} /></div>
+        </div>}
       </section>
 
       {mode === "create" && followUp && <section className="card contact-editor-section contact-first-follow-up">
@@ -255,7 +275,6 @@ export function ContactForm({
       </section>}
 
       <details className="contact-more-details"><summary>{mode === "create" ? "More details" : "Addresses, tags, and notes"}</summary>
-      {mode === "create" && <section className="card contact-editor-section"><div className="card-header"><div><h2>Company</h2><p>Optional.</p></div></div><label className="field"><span>Company</span><input id="company" name="company" defaultValue={contact?.company ?? ""} /></label></section>}
       <section className="card contact-editor-section">
         <div className="card-header"><div><h2>Addresses</h2><p>Optional. Save an address for visits, deliveries, or prepared messages.</p></div><button type="button" className="button small" onClick={() => setAddresses((current) => [...current, { label: "", street1: "", street2: "", city: "", state: "", postalCode: "", country: "" }])}>+ Add address</button></div>
         <div className="repeatable-list">
@@ -296,7 +315,7 @@ export function ContactForm({
           );
         })}</div> : <p className="muted-copy">No tags have been created yet. You can add them from the Contacts page.</p>}
         <div className="form-grid notes-grid">
-          <div className="field full"><div className="field-label-row"><label htmlFor="publicNotes">Notes <small>optional</small></label><VoiceNoteButton targetId="publicNotes" /></div><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="How you met, preferences, background, or details worth remembering." /><small>A Mix can use a note only when you deliberately add its note placeholder.</small></div>
+          <div className="field full"><label htmlFor="publicNotes">Notes <small>optional</small></label><textarea id="publicNotes" name="publicNotes" defaultValue={contact?.publicNotes ?? ""} placeholder="How you met, preferences, background, or details worth remembering." /><VoiceNoteButton targetId="publicNotes" /><small>A Mix can use a note only when you deliberately add its note placeholder.</small></div>
           <div className="field full"><label htmlFor="privateNotes">Private note <small>optional</small></label><textarea id="privateNotes" name="privateNotes" defaultValue={contact?.privateNotes ?? ""} placeholder="Sensitive context, commitments, or details for your eyes only." /><small>Private notes never appear in texts, emails, or WhatsApp messages.</small></div>
         </div>
       </section>}
@@ -306,7 +325,7 @@ export function ContactForm({
         {customFields.length ? <div className="form-grid">{customFields.map((field) => (
           <div className="field" key={field.id}>
             <input type="hidden" name="customFieldDefinitionId" value={field.id} />
-            <label htmlFor={`custom-field-${field.id}`}><span>{field.name}</span><code>{customFieldPlaceholder(field.key)}</code></label>
+            <label className="custom-field-label" htmlFor={`custom-field-${field.id}`}><span>{field.name}</span><code>{customFieldPlaceholder(field.key)}</code></label>
             <input id={`custom-field-${field.id}`} name="customFieldValue" defaultValue={customValueByDefinition.get(field.id) ?? ""} maxLength={2000} {...invalid(`custom:${field.id}`)} />
           </div>
         ))}</div> : <p className="muted-copy">No custom fields yet. Create one when your workflow needs data beyond the standard Contact fields.</p>}

@@ -82,10 +82,10 @@ test("a rejected email or phone is marked and focused in the Add and Edit forms"
   try {
     await page.goto("/contacts/new");
     // The form states its own rule (at least one of name, company, email or phone), not the general required-fields note.
-    await expect(page.getByText("Enter at least a name, company, email, or phone number.", { exact: false }).first()).toBeVisible();
+    await expect(page.getByText("Add at least one: name, company, phone or email.", { exact: false }).first()).toBeVisible();
     await expect(page.getByText("Everything is required unless marked optional.", { exact: true })).toHaveCount(0);
     await page.getByLabel("First name", { exact: true }).fill(firstName);
-    await page.getByRole("button", { name: "Add another email" }).click();
+    await page.getByRole("button", { name: "+ Add email" }).click();
     await page.locator("#quick-email-0").fill(`field-${suffix}@example.com`);
     // The browser accepts an address without a dot in the domain; the server does not.
     await page.locator("#quick-email-1").fill("second@example");

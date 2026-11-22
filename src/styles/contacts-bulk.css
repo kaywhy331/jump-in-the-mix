@@ -49,7 +49,15 @@
 .custom-field-row > div:first-child { display: grid; gap: 4px; min-width: 0; }
 .custom-field-row code, .contact-editor .field label code { width: fit-content; max-width: 100%; overflow-wrap: anywhere; color: var(--brand-dark); font-size: .72rem; }
 .custom-field-row small { color: var(--muted); }
-.contact-editor .field label { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+/* A custom field's placeholder sits at the label's far end; every other label keeps "optional" right beside its text (JITM-08 §2.27). */
+.contact-editor .field label.custom-field-label { display: flex; justify-content: space-between; gap: 8px; flex-wrap: wrap; }
+/* Add contact's either-or group: its rule is the legend, and each "+ Add" control sits under the fields it extends (audit A-09). */
+.contact-identity { min-width: 0; margin: 0 0 var(--space-4); padding: 0; border: 0; }
+.contact-identity > legend { padding: 0; }
+.field-collection { display: grid; align-content: start; gap: var(--space-3); min-width: 0; }
+.field-collection > .button { justify-self: start; }
+/* A full-width field keeps the whole row even where the contact form keeps two columns (768–900px). */
+.contact-quick-form .form-grid > .field.full { grid-column: 1 / -1; }
 .placeholder-chip.static { display: inline-flex; align-items: center; cursor: default; user-select: text; }
 
 .broadcast-fields { display: grid; gap: 12px; }
