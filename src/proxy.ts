@@ -16,7 +16,9 @@ const RECOVERY_PUBLIC_PATHS = new Set([
   "/brand-logo.png", "/relationship-preview.svg", "/relationship-preview.png", "/icon-source.svg",
   "/icon-192.png", "/icon-512.png", "/icon-maskable-512.png", "/apple-touch-icon.png",
   "/product-proof/today.png", "/product-proof/contacts.png", "/product-proof/mixes.png",
-  "/product-proof/mobile-jump.png", "/product-proof/quick-add.png"
+  "/product-proof/mobile-jump.png", "/product-proof/quick-add.png",
+  "/product-shots/today-desktop-light.webp", "/product-shots/today-desktop-dark.webp", "/product-shots/today-phone-light.webp",
+  "/product-shots/today-phone-dark.webp", "/product-shots/review-phone-light.webp", "/product-shots/review-phone-dark.webp"
 ]);
 
 function configuredOrigins(): Set<string> {

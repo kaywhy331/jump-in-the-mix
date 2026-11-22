@@ -75,6 +75,9 @@ input[type="checkbox"], input[type="radio"] { accent-color: var(--violet); }
 .speech-bubble { --bubble-fill: var(--surface); border: 0; border-radius: var(--radius-bubble); box-shadow: none; padding: 20px; }
 .speech-bubble::after { width: 20px; height: 20px; inset-inline-start: auto; inset-inline-end: 16px; bottom: -10px; border: 0; box-shadow: none; transform: skewY(30deg); background: var(--bubble-fill); }
 .speech-bubble--soft, .speech-bubble--compose { --bubble-fill: var(--violet-wash); }
+/* Quick Add's violet bubble for the app speaking to the owner: the shared tail mirrors to the left (JITM-03 §2.13–§2.15). */
+.speech-bubble--brand { --bubble-fill: var(--violet); color: var(--on-violet); }
+.speech-bubble--brand::after { inset-inline-start: 16px; inset-inline-end: auto; transform: skewY(-30deg); }
 .speech-bubble--compose textarea { background: transparent; border: 0; padding: 0; box-shadow: none; }
 .speech-bubble--compose textarea:focus-visible { outline: 2px solid var(--violet-mark); outline-offset: 8px; }
 .speech-bubble--compose textarea, .conversation-note, .prepared-call-notes p, .jump-snippet, .demo-message-preview, .demo-draft textarea, .quick-add-dialog textarea, .timeline-content > p, .contact-note-body, .profession-example blockquote { font-family: var(--font-voice); font-size: 1.125rem; line-height: 1.55; }
