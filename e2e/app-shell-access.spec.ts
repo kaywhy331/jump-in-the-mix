@@ -3,6 +3,7 @@ import { readdirSync, readFileSync } from "node:fs";
 import { join } from "node:path";
 import { expect, test, type Browser, type Page } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
+import { ROUTE_FOCUS_ATTRIBUTE } from "../src/lib/focus-visibility";
 import { axeInPage } from "./axe-in-page";
 import { applyRenderedTheme } from "./theme-fixture";
 
@@ -334,5 +335,146 @@ test("on a touch screen a tap leaves no hover look, and the N badge is hidden at
       // The shortcut still works from an attached keyboard, so its name stays for assistive technology.
       await expect(screen.page.getByRole("button", { name: "Quick Add", exact: true }).filter({ visible: true }).first()).toHaveAttribute("aria-keyshortcuts", "N");
     } finally { await screen.context.close(); }
+  }
+});
+
+/**
+ * Runs in the page, in one task so the page's own updates can't interleave: whether pressing the element, or focus leaving
+ * it and coming back, moves anything in the workspace main (every element's layout box, independent of scrolling and
+ * transforms). The shell's focus move must move nothing, or the owner's next press lands beside its control (E-179).
+ */
+function movesMain(element: Element, press: boolean) {
+  const main = document.getElementById("workspace-main")!, target = element as HTMLElement;
+  const boxes = () => [...main.querySelectorAll("*")].map(node => node instanceof HTMLElement ? [node.offsetLeft, node.offsetTop, node.offsetWidth, node.offsetHeight].join() : "").join(";");
+  const before = boxes();
+  if (press) { target.click(); return [boxes() !== before]; }
+  target.blur();
+  const left = boxes() !== before;
+  target.focus({ preventScroll: true });
+  return [left, boxes() !== before];
+}
+
+/** Each document load gets a new window: a mark that survives a flow proves it caused no reload or document navigation. */
+const markDocument = (page: Page) => page.evaluate(() => ((window as Window & { arrivalMark?: string }).arrivalMark = crypto.randomUUID()));
+const documentMark = (page: Page) => page.evaluate(() => (window as Window & { arrivalMark?: string }).arrivalMark);
+
+/** Lets the shell's move run another frame and see a document change, as on a page that keeps rendering. */
+const renderAgain = (page: Page) => page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => {
+  document.documentElement.style.setProperty("--arrival-probe", "1");
+  requestAnimationFrame(() => { document.documentElement.style.removeProperty("--arrival-probe"); requestAnimationFrame(() => resolve()); });
+})));
+
+const focusInside = (page: Page, name: string) => page.getByRole("dialog", { name, exact: true }).evaluate(dialog => dialog.contains(document.activeElement));
+
+/**
+ * After a client-side page change, the shell's focus move changed nothing the page shows or does: the same document, the
+ * loading screen gone, and, where the move placed focus, nothing in the page moves when focus leaves it. A layer the page
+ * opened keeps its focus (checked by the caller). Leaves focus where the move put it.
+ */
+async function expectArrivalChangesNothing(page: Page, label: string, mark: string) {
+  await expect(page.locator("#workspace-main h1", { hasText: /^Loading/ }), label).toHaveCount(0);
+  await renderAgain(page);
+  expect(await documentMark(page), `${label}: no reload or document navigation`).toBe(mark);
+  const placed = (await page.evaluateHandle(selector => document.activeElement?.matches(selector) ? document.activeElement : null, `[${ROUTE_FOCUS_ATTRIBUTE}]`)).asElement();
+  // Focus ends where the move put it, so the flow's next press starts from the state the owner meets.
+  if (placed) expect(await placed.evaluate(movesMain, false), `${label}: nothing moves as focus leaves the arrival target and returns`).toEqual([false, false]);
+}
+
+test("the focus move after a page change changes nothing the page shows or does: a step, sheet or dialog that opens on arrival keeps its state and focus (E-179)", async ({ page }, testInfo) => {
+  const phone = testInfo.project.name === "mobile-chromium";
+  const nav = page.locator(phone ? ".mobile-nav" : ".sidebar").getByRole("navigation", { name: "Primary navigation" });
+  const welcome = await prisma.mix.findFirstOrThrow({ where: { workspaceId, name: "Welcome" }, include: { steps: true } });
+  const person = await prisma.contact.create({ data: { workspaceId, displayName: "Arrival person", firstName: "Arrival", phones: { create: { phone: "+14155550123", normalized: "+14155550123", isPrimary: true } } } });
+  let jumpId = "";
+  try {
+    // The skip link and the account boundary's render order: no reload, and the page stays where it was.
+    await open(page, "/jumps");
+    let mark = await markDocument(page);
+    const skip = page.getByRole("link", { name: "Skip to content", exact: true });
+    await skip.focus();
+    await page.keyboard.press("Enter");
+    await expect(page.locator("main#workspace-main")).toBeFocused();
+    expect(await skip.evaluate(movesMain, true), "Skip to content: the page stays where it was").toEqual([false]);
+    await renderAgain(page);
+    expect(await documentMark(page), "Skip to content: no reload").toBe(mark);
+    expect(new URL(page.url()).hash, "Skip to content: no history entry").toBe("");
+
+    // Whatever a stylesheet does to a focused H1, the move changes nothing: here focus would show a label before it, as a
+    // visually hidden element is shown on focus, so the workspace main takes focus instead.
+    const probe = await page.addStyleTag({ content: '#workspace-main h1:focus::before { content: "Focused"; display: block; }' });
+    await nav.getByRole("link", { name: "Contacts", exact: true }).click();
+    await expect(page).toHaveURL(/\/contacts$/);
+    await expectArrivalChangesNothing(page, "an H1 restyled by focus", mark);
+    await expect(page.locator("main#workspace-main"), "an H1 restyled by focus: the workspace main has focus").toBeFocused();
+    await probe.evaluate(element => (element as HTMLStyleElement).remove());
+
+    // The Mega-Mix setup (the E-179 case): its H1 is visually hidden, and Review my setup opens the review step.
+    await open(page, "/mixes");
+    mark = await markDocument(page);
+    await page.getByRole("link", { name: "Choose a complete Mega-Mix", exact: true }).click();
+    await expect(page.getByRole("heading", { name: "Contractor Mega-Mix", exact: true })).toBeVisible();
+    await expectArrivalChangesNothing(page, "Mega-Mix setup", mark);
+    await expect(page.getByRole("heading", { name: "Mega-Mixes", level: 1 }), "Mega-Mix setup: its hidden H1 has focus").toBeFocused();
+    // The owner's first press after arrival lands: a phone shows the setup pane on request, a wide screen beside the preview.
+    const setUp = page.getByRole("button", { name: "Set up this journey", exact: true });
+    if (await setUp.isVisible()) await setUp.click();
+    await expect(page.getByRole("heading", { name: "Make this fit your day", exact: true })).toBeVisible();
+    await page.getByRole("button", { name: "Review my setup", exact: true }).click();
+    const reviewed = page.getByRole("checkbox", { name: "I’ve reviewed my journey and preferences." });
+    await reviewed.check();
+    await expect(reviewed).toBeChecked();
+    await expect(page.getByRole("heading", { name: "Ready when you are", exact: true })).toBeVisible();
+    expect(await documentMark(page)).toBe(mark);
+
+    // Journey's start step, opened by the page as it arrives (?start=1): it stays open and keeps its choice.
+    await open(page, `/mixes?mix=${welcome.id}`);
+    mark = await markDocument(page);
+    await page.getByRole("link", { name: `Start ${welcome.name} for someone`, exact: true }).click();
+    await expect(page).toHaveURL(/\/journey\?.*start=1/);
+    const start = page.getByRole("button", { name: "Start this Mix", exact: true });
+    await expect(start).toBeVisible();
+    await expectArrivalChangesNothing(page, "Journey start step", mark);
+    await page.getByRole("combobox", { name: "Person", exact: true }).selectOption(person.id);
+    await renderAgain(page);
+    await expect(page.getByRole("combobox", { name: "Person", exact: true })).toHaveValue(person.id);
+    await expect(start).toBeVisible();
+
+    // A profile's Add to a Mix sheet, then Schedule a one-time follow-up: Contacts opens its Message sheet as it arrives.
+    await open(page, `/contacts/${person.id}`);
+    mark = await markDocument(page);
+    await page.getByRole("button", { name: "Add to a Mix", exact: true }).click();
+    await page.getByRole("dialog", { name: `Add ${person.displayName} to a Mix`, exact: true }).getByRole("link", { name: "Schedule a one-time follow-up", exact: true }).click();
+    await expect(page).toHaveURL(/\/contacts\?.*intent=one-time-jump/);
+    const message = "Message 1 person";
+    await expect(page.getByRole("dialog", { name: message, exact: true })).toBeVisible();
+    await expect.poll(() => focusInside(page, message), "the Message sheet holds focus").toBe(true);
+    await expectArrivalChangesNothing(page, "one-time follow-up sheet", mark);
+    expect(await focusInside(page, message), "the Message sheet keeps focus").toBe(true);
+    await expect(page.getByRole("dialog", { name: message, exact: true })).toBeVisible();
+
+    // A follow-up's review, opened by Today as it arrives from Calendar (?jump=), with focus inside.
+    const now = new Date(), step = welcome.steps[0];
+    jumpId = (await prisma.jump.create({ data: { workspaceId, contactId: person.id, mixId: welcome.id, mixStepId: step.id, stepVersionId: step.stepVersionId, scheduledAt: now, baseScheduledAt: now, status: "PENDING", reason: "Arrival check", uniquenessKey: randomUUID(), templateSnapshot: { subject: null, body: null, script: "Fixture only", channel: "PHONE_CALL", originalLocalDate: now.toISOString().slice(0, 10), timezone: "UTC" }, renderedSnapshot: { subject: null, body: null, script: "Fixture only" } } })).id;
+    const review = `Follow up with ${person.displayName}`;
+    await open(page, "/calendar");
+    mark = await markDocument(page);
+    await page.getByRole("link", { name: new RegExp(review) }).first().click();
+    await expect(page).toHaveURL(new RegExp(`/jumps\\?jump=${jumpId}`));
+    await expect(page.getByRole("dialog", { name: review, exact: true })).toBeVisible();
+    await expect.poll(() => focusInside(page, review), "the review holds focus").toBe(true);
+    await expectArrivalChangesNothing(page, "review from Calendar", mark);
+    expect(await focusInside(page, review), "the review keeps focus").toBe(true);
+
+    // Today's first review docks beside the list on arrival without taking focus: the H1 gets it, and the review stays.
+    await open(page, "/contacts");
+    mark = await markDocument(page);
+    await nav.getByRole("link", { name: "Today", exact: true }).click();
+    await expect(page).toHaveURL(/\/jumps$/);
+    await expectHeadingFocused(page, "Today");
+    await expectArrivalChangesNothing(page, "Today with its docked review", mark);
+    if (!phone) await expect(page.getByRole("dialog", { name: review, exact: true }), "the docked review stays open").toBeVisible();
+  } finally {
+    if (jumpId) await prisma.jump.deleteMany({ where: { id: jumpId } });
+    await prisma.contact.deleteMany({ where: { id: person.id } });
   }
 });
