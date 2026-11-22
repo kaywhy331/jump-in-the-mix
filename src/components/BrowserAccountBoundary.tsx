@@ -168,9 +168,7 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
   }, [scope, present, restoreTitle]);
 
   return <AccountScope.Provider value={scope}><AccountConfirmation.Provider value={confirmAccount}>
-    <div ref={content} data-browser-scope={scope} inert={state !== "ready"} style={{ visibility: state === "ready" ? "visible" : "hidden" }} onFocusCapture={event => revealObscuredFocus(event.target)}>
-      {!discarded && children}
-    </div>
+    {/* The shield comes first: closing it leaves the keyboard's starting point here, so the first Tab reaches the page's skip link (JITM-10 §2.9). */}
     <dialog ref={gate} className={ACCOUNT_SHIELD_CLASS} aria-labelledby="browser-account-title" onCancel={event => event.preventDefault()} onKeyDown={event => {
       if (event.key === "Escape") { event.preventDefault(); event.stopPropagation(); return; }
       if (event.key !== "Tab") return;
@@ -191,5 +189,8 @@ export function BrowserAccountBoundary({ scope, children }: { scope: string; chi
       </div>}
       <noscript>Enable JavaScript to confirm your account and open your workspace.</noscript>
     </div></dialog>
+    <div ref={content} data-browser-scope={scope} inert={state !== "ready"} style={{ visibility: state === "ready" ? "visible" : "hidden" }} onFocusCapture={event => revealObscuredFocus(event.target)}>
+      {!discarded && children}
+    </div>
   </AccountConfirmation.Provider></AccountScope.Provider>;
 }

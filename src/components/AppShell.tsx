@@ -9,6 +9,7 @@ import { logoutAction } from "@/lib/auth-actions";
 import { QuickAddButton, QuickAddDialog } from "@/components/QuickAdd";
 import { AppIcon } from "@/components/AppIcon";
 import { BackNavigation } from "@/components/BackNavigation";
+import { RouteHeadingFocus } from "@/components/RouteHeadingFocus";
 import { SectionSwipe } from "@/components/SectionSwipe";
 import { formatDateTime, type DisplayFormatPreferences } from "@/lib/format";
 import { INVITATIONS_PATH, invitationsLeftLabel } from "@/lib/invitation-labels";
@@ -70,7 +71,8 @@ export function AppShell({
 
   return (
     <div className={impersonation ? "app-shell impersonating" : "app-shell"}>
-      <a className="public-skip-link" href="#workspace-main">Skip to content</a>
+      {/* Focus moves straight to the page: a #workspace-main history entry would make the router reload the page behind its loading screen. */}
+      <a className="public-skip-link" href="#workspace-main" onClick={event => { event.preventDefault(); document.getElementById("workspace-main")?.focus(); }}>Skip to content</a>
       <aside className="sidebar">
         <Logo />
         {!impersonation && <QuickAddButton />}
@@ -109,6 +111,7 @@ export function AppShell({
         </section>
       )}
       <main id="workspace-main" tabIndex={-1} className="app-main">{children}<Suspense fallback={null}><SectionSwipe /></Suspense></main>
+      <RouteHeadingFocus />
       <div ref={mobileNav} className="mobile-nav"><Nav quickAdd={!impersonation} /></div>
       {!impersonation && <QuickAddDialog timezone={displayPreferences.timeZone} locale={displayPreferences.locale} />}
       <Suspense fallback={null}><BackNavigation /></Suspense>
