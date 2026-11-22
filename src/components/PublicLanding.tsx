@@ -4,6 +4,7 @@ import { WaitlistForm } from "@/components/WaitlistForm";
 import { ProductDemo } from "@/components/ProductDemo";
 import { MixesFor } from "@/components/MixesFor";
 import { ProfessionMarks } from "@/components/ProfessionMarks";
+import { ProductShots } from "@/components/ProductShots";
 import { PublicHeader } from "@/components/PublicHeader";
 import { PublicFooter } from "@/components/PublicFooter";
 import { KeepHyphens } from "@/components/KeepHyphens";
@@ -38,6 +39,7 @@ export function PublicLanding({ persona }: { persona?: Pick<Persona, "id" | "hea
             <li><span className="workflow-number">2</span><div><h3>Set the rhythm</h3><p>Choose when each Beat belongs. Due Beats show up on your Today list, and you can turn on <Link href="/features/follow-up-reminders">reminders</Link> if you want them.</p></div></li>
             <li><span className="workflow-number">3</span><div><h3>Make it yours</h3><p>Review the draft, edit it, and send it from your own text or email app. Then record what happened.</p></div></li>
           </ol>
+          <ProductShots />
         </div>
       </section>
       <section className="public-definition" aria-labelledby="own-voice-title">
@@ -47,7 +49,7 @@ export function PublicLanding({ persona }: { persona?: Pick<Persona, "id" | "hea
           <p className="public-definition-links">{persona?.templates.map(template => <Link key={template.href} href={template.href}>{template.label}</Link>)}<Link href="/follow-up-templates">Client follow-up templates</Link><Link href="/faq">Questions before you jump in</Link></p>
       </section>
       <ProfessionMarks />
-      <section id="waitlist" className="section" aria-labelledby="waitlist-title"><div className="section-heading"><h2 id="waitlist-title"><KeepHyphens>Ready to put one follow-up in the mix?</KeepHyphens></h2><p>Join the waitlist and we’ll email you an invitation as space opens. We invite people in small groups, so we can’t promise a date. A member can also invite you directly. Accounts are free, with no card to enter. Until then, try a three-Beat Mix with a fictional contact: text today, email tomorrow, and a call in one week.</p></div><WaitlistForm scenarioId={persona?.id} /></section>
+      <section id="waitlist" className="section" aria-labelledby="waitlist-title"><div className="section-heading"><h2 id="waitlist-title" className="speech-bubble speech-bubble--brand"><KeepHyphens>Ready to put one follow-up in the mix?</KeepHyphens></h2><p>Join the waitlist and we’ll email you an invitation as space opens. We invite people in small groups, so we can’t promise a date. A member can also invite you directly. Accounts are free, with no card to enter. Until then, try a three-Beat Mix with a fictional contact: text today, email tomorrow, and a call in one week.</p></div><WaitlistForm scenarioId={persona?.id} /></section>
     </main>
     <PublicFooter />
     {!persona && <StructuredData data={publicStructuredData()} />}
