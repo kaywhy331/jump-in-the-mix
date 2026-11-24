@@ -10,6 +10,23 @@ const usable = (element: Element) => element.getClientRects().length > 0 && !ele
 /** A modal the page opened, or a dialog or popover holding focus, owns the keyboard and returns focus to its trigger. */
 const layerOwnsFocus = (active: Element | null) => Boolean(document.querySelector("dialog:modal") || active?.closest("dialog[open], [popover]"));
 
+/** The element the URL fragment names, which the page targets as it arrives. */
+function fragmentTarget() {
+  try { return location.hash.length > 1 ? document.getElementById(decodeURIComponent(location.hash.slice(1))) : null; } catch { return null; }
+}
+
+/** A form field: the owner types in it or picks its value. */
+const isField = (element: Element) => element instanceof HTMLInputElement || element instanceof HTMLTextAreaElement || element instanceof HTMLSelectElement || (element instanceof HTMLElement && element.isContentEditable);
+
+/**
+ * Focus the new page put on something it opened or targeted as it arrived, read from the page itself: anything inside the
+ * element the URL fragment names, or in the page anything that is not a form field (a disclosure's summary, a step, a
+ * card or a heading the page focused). A dialog, sheet or popover already keeps its focus (layerOwnsFocus). A form field
+ * the page focuses in its own content as it mounts (an autofocus First name or Mix name) opens nothing: the H1 takes it.
+ */
+const pageTargeted = (main: HTMLElement, active: HTMLElement) =>
+  usable(active) && (Boolean(fragmentTarget()?.contains(active)) || (active !== main && main.contains(active) && !isField(active)));
+
 /** The layout focus could change, independent of scrolling: the main's place and size, and the target's box within it. */
 function layout(main: HTMLElement, target: HTMLElement) {
   const page = main.getBoundingClientRect(), box = target.getBoundingClientRect();
@@ -50,8 +67,9 @@ function focusInPlace(main: HTMLElement, target: HTMLElement): "placed" | "chang
  *
  * The move changes nothing the page shows or does (E-179): focusing a target that would move or resize anything is not
  * done; a modal the page opened, or a dialog or popover holding focus, keeps it; the control the owner pressed keeps
- * focus when it survives inside the page, as in a pane of the same page; and once focus has landed, focus that the page
- * or the owner moves elsewhere stays theirs. It never navigates.
+ * focus when it survives inside the page, as in a pane of the same page; focus the new page put on something it opened
+ * or targeted as it arrived, before the move ran, stays there (pageTargeted); and once focus has landed, focus that the
+ * page or the owner moves elsewhere stays theirs. It never navigates.
  */
 export function RouteHeadingFocus() {
   const pathname = usePathname();
@@ -94,6 +112,8 @@ export function RouteHeadingFocus() {
         if (placed?.isConnected && usable(placed)) return stop();
         // The pressed control is still there: a pane of the same page changed around it.
         if (active === kept && active !== main && main!.contains(active) && usable(active)) return stop();
+        // The new page opened or targeted something and focused it as it arrived: a summary, step or fragment target.
+        if (active !== kept && pageTargeted(main!, active)) return stop();
       }
       // A page whose H1 sits in a pane hidden at this width (Journey's people pane) gets the workspace main instead,
       // which is already a programmatic target, so the next Tab still starts in the page.
