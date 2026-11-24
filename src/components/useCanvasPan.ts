@@ -1,6 +1,6 @@
 "use client";
 
-import { useEffect, useState, type RefObject } from "react";
+import { useEffect, useState, useSyncExternalStore, type RefObject } from "react";
 
 /** Where a plain left drag must stay a click, a connection drag or text entry instead of moving the map. */
 const INTERACTIVE = "button, a, input, select, textarea, summary, label, [role=button], [data-workflow-path], [data-workflow-edge-label], [contenteditable=true]";
@@ -60,4 +60,19 @@ export function useCanvasPan(ref: RefObject<HTMLElement | null>, enabled: boolea
     };
   }, [ref, enabled]);
   return mode;
+}
+
+const COARSE_POINTER = "(pointer: coarse)";
+const watchPointer = (change: () => void) => {
+  const media = matchMedia(COARSE_POINTER);
+  media.addEventListener("change", change);
+  return () => media.removeEventListener("change", change);
+};
+
+/**
+ * Whether the primary pointer is a finger, so the map's instructions name what that input can do (JITM-06 §2.36).
+ * It reads the input, never the screen width. The server and the first render assume a mouse.
+ */
+export function useCoarsePointer() {
+  return useSyncExternalStore(watchPointer, () => matchMedia(COARSE_POINTER).matches, () => false);
 }

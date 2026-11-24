@@ -4,6 +4,7 @@ import { notFound } from "next/navigation";
 import { MixLibraryShell } from "@/components/MixLibraryShell";
 import { BackLink } from "@/components/BackLink";
 import { AppIcon } from "@/components/AppIcon";
+import { MixCollectionTabs } from "@/components/MixCollectionTabs";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
 import { Sheet } from "@/components/Sheet";
@@ -71,7 +72,7 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
             <ImportFileForm />
           </Sheet>}
         </div></header>
-        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My Mixes</Link><Link href="/mixes/mega" aria-current="page"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace"><AppIcon name="store" />Marketplace</Link></nav>
+        <MixCollectionTabs current="mega" />
         <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Add a ready-made Mega-Mix</Link>
         <div className="mix-directory-search"><form className="mix-library-search" action="/mixes/mega" key={q}>
           <button className="icon-button" type="submit" aria-label="Search Mega-Mixes"><AppIcon name="search" /></button><label className="sr-only" htmlFor="mega-mix-search">Search Mega-Mixes</label><input id="mega-mix-search" name="q" type="search" defaultValue={q} placeholder="Search Mega-Mixes" />
@@ -98,7 +99,7 @@ export default async function MegaMixesPage({ searchParams }: { searchParams: Pr
             {selected.description && <p className="mix-selected-description">{selected.description}</p>}
             {exported ? <>
               {summary && <p className="mega-mix-facts">{summary.mixes} {summary.mixes === 1 ? "Mix" : "Mixes"} · {summary.beats} Beats · {summary.connections} {summary.connections === 1 ? "path" : "paths"} inside this Mega-Mix</p>}
-              <PortableOutline value={exported.package} label={`${selected.name} Beats in journey order`} />
+              <PortableOutline value={exported.package} label={`${selected.name} Beats in journey order`} fold />
             </> : <EmptyState title="No Mixes yet" description="Choose the Mixes that belong to this pipeline." actionHref={`/mixes/mega?megaMix=${encodeURIComponent(selected.id)}&edit=1`} actionLabel="Choose Mixes" />}
           </>}
         </section>

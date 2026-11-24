@@ -134,6 +134,16 @@
   .mix-library-shell { padding-bottom: calc(110px + env(safe-area-inset-bottom)); }
   .mix-library-shell[data-mobile-pane=details] .mix-context-pane { border-top: 0; }
 }
+/* Phones: Start is the one full-width action, and Edit and Share sit in the menu at the header's top right (JITM-06
+   §2.37, audit P-07). Preview shows only while editing, where it is the way back (JITM-BACK-03). */
+@media (width < 768px) {
+  .mix-selected-header:has(.mix-view-more) { position: relative; }
+  .mix-selected-header:has(.mix-view-more) > div { padding-inline-end: calc(44px + var(--space-2)); }
+  .mix-view-tabs.mix-view-actions { flex: 1 1 100%; flex-wrap: nowrap; }
+  .mix-view-actions > a[aria-current="page"], .mix-view-more .phone-menu-items > [aria-current="page"] { display: none; }
+  .mix-view-actions > .mix-view-more { position: absolute; inset-block-start: 0; inset-inline-end: 0; }
+  .mix-view-actions > .mix-start-action { flex: 1; justify-content: center; }
+}
 @media (max-width: 600px) {
   .mix-selected-header h2 { font-size: 24px; }
   .mix-beat-preview li { gap: 8px; }

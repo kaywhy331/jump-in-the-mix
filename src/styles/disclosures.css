@@ -48,3 +48,26 @@ details > summary:focus-visible { outline-offset: -3px; }
 @media (max-width: 760px) {
   .staff-shell details > summary, .staff-shell .admin-report-domain details > summary, .staff-shell .admin-audit-details > summary { min-height: 44px; padding-block: 10px; }
 }
+
+/* Phone menus (PhoneMenu): the controls sit in their own row from 768px and fold behind one 44px button below it
+   (JITM-06 §2.37). The menu opens below its button, inside the viewport. */
+.phone-menu, .phone-menu-items { display: contents; }
+.phone-menu-button { display: none; }
+@media (width < 768px) {
+  .phone-menu { position: relative; display: block; }
+  .phone-menu-button { display: inline-flex; align-items: center; justify-content: center; gap: var(--space-2); min-width: 44px; min-height: 44px; padding: 0; border: 0; border-radius: 50%; background: transparent; color: var(--text-2); font: inherit; cursor: pointer; }
+  .phone-menu-button > svg { flex: none; width: 20px; height: 20px; }
+  .phone-menu[data-open] > .phone-menu-button { background: var(--surface); }
+  .phone-menu:not([data-open]) > .phone-menu-items { display: none; }
+  .phone-menu[data-open] > .phone-menu-items { position: absolute; z-index: var(--z-popover); inset-block-start: calc(100% + var(--space-1)); inset-inline-end: 0; display: grid; gap: var(--space-1); inline-size: max-content; max-inline-size: calc(100vw - 2 * var(--space-5)); padding: var(--space-2); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--raised); box-shadow: var(--shadow-md); }
+  .phone-menu-items > :is(a, button), .phone-menu-items > .sheet-trigger > .button { justify-content: flex-start; width: 100%; }
+}
+@media (width < 768px) and (hover: hover) and (pointer: fine) { .phone-menu-button:hover { background: var(--surface); } }
+
+/* Show more (ShowMore, JITM-08 §2.21): long phone content shows its first part, and wider screens show all of it
+   with no control. App pages switch at 768px, public pages at the public menu boundary (JITM-07 §2.1). */
+.show-more-button { margin-block-start: var(--space-3); }
+@media (width < 768px) { .show-more[data-boundary="app"]:not([data-open]) [data-more] { display: none; } }
+@media (width >= 768px) { .show-more[data-boundary="app"] > .show-more-button { display: none; } }
+@media (width < 761px) { .show-more[data-boundary="public"]:not([data-open]) [data-more] { display: none; } }
+@media (width >= 761px) { .show-more[data-boundary="public"] > .show-more-button { display: none; } }

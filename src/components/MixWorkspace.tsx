@@ -5,6 +5,7 @@ import { customFieldPlaceholder } from "@/lib/contact-custom-fields";
 import { MixEditor } from "@/components/MixEditor";
 import { MixBeatPreview } from "@/components/MixBeatPreview";
 import { AppIcon } from "@/components/AppIcon";
+import { PhoneMenu } from "@/components/PhoneMenu";
 import { ConfirmDialog } from "@/components/ConfirmDialog";
 import { activateMixAction, pauseMixAction, archiveMixAction } from "@/lib/mix-lifecycle-actions";
 import { Notice } from "@/components/Notice";
@@ -96,7 +97,7 @@ export async function MixWorkspace({ mixId, query = {}, libraryHref }: { mixId: 
   return <div className="mix-edit-columns">
     <section id="selected-mix" className="mix-editor-workspace" aria-label="Selected Mix">
       <header className="mix-selected-header"><div><h2>{mix.name}</h2><span className="status-pill">{mixStatusLabel(mix.status)}</span></div>
-        <nav className="mix-view-tabs" aria-label="Mix view">{!impersonation && mix.source !== "ONE_TIME" && <MarketplaceShare kind="MIX" targetId={mix.id} targetName={mix.name} workspaceId={workspace.id} canEdit={workspace.ownerId === user.id} />}<Link className="button small" href={baseHref} aria-current={!editing ? "page" : undefined} data-back-link={editing || undefined}><AppIcon name="eye" />Preview</Link>{!impersonation && <Link className="button small" href={`${baseHref}&view=edit`} aria-current={editing ? "page" : undefined}><AppIcon name="edit" />Edit</Link>}{!impersonation && mix.status === "ACTIVE" && mix.source !== "ONE_TIME" && <Link className="button small primary mix-start-action" href={`/journey?mix=${encodeURIComponent(mix.id)}&start=1`} aria-label={`Start ${mix.name} for someone`}><AppIcon name="play" />Start</Link>}</nav>
+        <nav className="mix-view-tabs mix-view-actions" aria-label="Mix view"><Link className="button small" href={baseHref} aria-current={!editing ? "page" : undefined} data-back-link={editing || undefined}><AppIcon name="eye" />Preview</Link>{!impersonation && <PhoneMenu className="mix-view-more" label="More Mix actions" button={<AppIcon name="more" />}><Link className="button small" href={`${baseHref}&view=edit`} aria-current={editing ? "page" : undefined}><AppIcon name="edit" />Edit</Link>{mix.source !== "ONE_TIME" && <MarketplaceShare kind="MIX" targetId={mix.id} targetName={mix.name} workspaceId={workspace.id} canEdit={workspace.ownerId === user.id} />}</PhoneMenu>}{!impersonation && mix.status === "ACTIVE" && mix.source !== "ONE_TIME" && <Link className="button small primary mix-start-action" href={`/journey?mix=${encodeURIComponent(mix.id)}&start=1`} aria-label={`Start ${mix.name} for someone`}><AppIcon name="play" />Start</Link>}</nav>
       </header>
       <MarketplaceNotices workspaceId={workspace.id} mixId={mix.id} reports={false} />
       {query.created === "manual" && <Notice type="success">Mix created.</Notice>}

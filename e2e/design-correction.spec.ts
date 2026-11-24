@@ -130,6 +130,9 @@ test("Mix library exposes editable Beats, real membership, and mobile library ta
   await expect(selected.getByRole("link", { name: "Edit", exact: true })).toBeVisible();
   await expect(page.getByRole("complementary", { name: "People and Journey connections", exact: true })).toContainText("Ava Zoom");
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/mixes");
+  // On phones the collection tabs fold into one selector (JITM-UXB-07).
+  const collection = page.locator(".mix-library-tabs").getByRole("button", { name: "My Mixes", exact: true });
+  await expect(async () => { await collection.click(); await expect(collection).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 }); }).toPass();
   await expect(page.locator(".mix-library-tabs").getByRole("link", { name: "Marketplace", exact: true })).toBeVisible();
 });
 

@@ -1,5 +1,5 @@
 import { createHash, randomUUID } from "node:crypto";
-import { test, expect, type Page } from "@playwright/test";
+import { test, expect, type Locator, type Page } from "@playwright/test";
 import { SWIPE } from "../src/lib/gestures/swipe";
 import { prisma } from "../src/lib/prisma";
 
@@ -52,6 +52,10 @@ test.afterAll(async () => {
 async function open(page: Page, path: string) {
   await page.goto(path);
   await expect(page.locator("[data-browser-scope]")).not.toHaveAttribute("inert", "", { timeout: 60_000 });
+}
+/** Open a phone menu (JITM-UXB-07); a press before it hydrates is lost, so press until it opens. */
+async function openMenu(button: Locator) {
+  await expect(async () => { await button.click(); await expect(button).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 }); }).toPass();
 }
 const slides = (page: Page) => page.evaluate(() => (window as unknown as { slides: Array<{ side: string; top?: number; animations?: string[] }> }).slides);
 const historyIndex = (page: Page) => page.evaluate(() => (window as unknown as { navigation: { currentEntry: { index: number } } }).navigation.currentEntry.index);
@@ -129,7 +133,8 @@ test.describe("on a touch phone", () => {
     };
     await drillIn("/contacts", () => page.locator(`a.contact-open[href="/contacts/${contactId}"]`).click(), new RegExp(`/contacts/${contactId}$`));
     await drillIn("/mixes", () => page.locator(`a.mix-library-item[href*="mix=${mixId}"]`).first().click(), new RegExp(`/mixes\\?mix=${mixId}`));
-    await drillIn(`/mixes?mix=${mixId}`, () => page.locator(".mix-view-tabs").getByRole("link", { name: "Edit" }).click(), /view=edit/);
+    // On phones Edit sits in the Mix's menu (JITM-UXB-07).
+    await drillIn(`/mixes?mix=${mixId}`, async () => { await openMenu(page.getByRole("button", { name: "More Mix actions", exact: true })); await page.locator(".mix-view-tabs").getByRole("link", { name: "Edit" }).click(); }, /view=edit/);
     await drillIn("/settings", () => page.locator('a[href="/settings/jump-date-types"]').first().click(), /\/settings\/jump-date-types$/);
     await drillIn(`/contacts/${contactId}`, async () => { await page.locator(".contact-detail-more > summary").click(); await page.getByRole("link", { name: "View Journey" }).click(); }, /\/journey\?contactId=/);
   });
@@ -441,7 +446,7 @@ test.describe("the edge swipe needs the page's visible Back control", () => {
       const contact = new RegExp(`/contacts/${contactId}$`), editor = new RegExp(`/contacts/${contactId}/edit$`);
       await drillIn(`contact detail, ${colorScheme}`, "/contacts", () => page.locator(`a.contact-open[href="/contacts/${contactId}"]`).click(), contact);
       await drillIn(`contact editor, ${colorScheme}`, `/contacts/${contactId}`, () => page.locator(`#workspace-main a[href="/contacts/${contactId}/edit"]`).locator("visible=true").first().click(), editor);
-      await drillIn(`Mix editor, ${colorScheme}`, `/mixes?mix=${mixId}`, () => page.locator(".mix-view-tabs").getByRole("link", { name: "Edit" }).click(), /view=edit/);
+      await drillIn(`Mix editor, ${colorScheme}`, `/mixes?mix=${mixId}`, async () => { await openMenu(page.getByRole("button", { name: "More Mix actions", exact: true })); await page.locator(".mix-view-tabs").getByRole("link", { name: "Edit" }).click(); }, /view=edit/);
       await drillIn(`settings sub-page, ${colorScheme}`, "/settings", () => page.locator('#workspace-main a[href="/settings/business"]').first().click(), /\/settings\/business$/);
       // A phone-only Back control: shown on a phone, so the edge swipe goes back...
       await drillIn(`Settings from More, phone, ${colorScheme}`, "/more", () => page.locator('#workspace-main a.settings-hub-card[href="/settings"]').click(), /\/settings$/);
@@ -970,8 +975,13 @@ test.describe("JITM-BACK-03 origin Back on the Mixes family", () => {
   };
   /** The shell's own navigation, for an address no page of the app links to: what a link of the shell does. */
   const push = (page: Page, href: string) => page.evaluate(to => (window as unknown as { next: { router: { push(href: string): void } } }).next.router.push(to), href);
-  /** The Mix collection tabs every Mix library page shows. */
-  const collectionTab = (page: Page, name: string) => page.getByRole("navigation", { name: "Mix collection", exact: true }).getByRole("link", { name, exact: true }).click();
+  /** The Mix collection tabs every Mix library page shows; on phones they fold into one selector (JITM-UXB-07). */
+  const collectionTab = async (page: Page, name: string) => {
+    const tabs = page.getByRole("navigation", { name: "Mix collection", exact: true });
+    await expect(tabs).toBeVisible();
+    if (await tabs.getByRole("button").isVisible()) await openMenu(tabs.getByRole("button"));
+    await tabs.getByRole("link", { name, exact: true }).click();
+  };
   const workspaceLink = (page: Page, name: string) => page.locator("#workspace-main").getByRole("link", { name, exact: true }).locator("visible=true").first().click();
 
   const setup = () => `/templates/${sharedMixId}/use`;

@@ -3,6 +3,7 @@ import Link from "next/link";
 import { MixLibraryShell } from "@/components/MixLibraryShell";
 import { BackLink } from "@/components/BackLink";
 import { AppIcon } from "@/components/AppIcon";
+import { MixCollectionTabs } from "@/components/MixCollectionTabs";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
 import { Sheet } from "@/components/Sheet";
@@ -78,7 +79,7 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
       <aside className="mix-library-directory" aria-label="Marketplace">
         {back}
         <header className="mix-directory-header"><h1>Mixes</h1><div className="mix-directory-actions"><BrandTermsHelp /></div></header>
-        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My Mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace" aria-current="page"><AppIcon name="store" />Marketplace</Link></nav>
+        <MixCollectionTabs current="marketplace" />
         <nav className="marketplace-sections" aria-label="Marketplace section">
           <Link href="/marketplace" aria-current={section === "official" ? "page" : undefined}>Jump in the Mix</Link>
           <Link href="/marketplace?section=community" aria-current={section === "community" ? "page" : undefined}>Community</Link>
@@ -129,7 +130,7 @@ export default async function MarketplacePage({ searchParams }: { searchParams: 
           {item.type === "listing" && item.own && !item.value && <p className="notice" role="status">{item.archived ? "This Mix is archived, so it is left out of the Community list." : itemKind === "MEGA_MIX" ? "Nothing to show right now. A Mega-Mix is left out of the Community list while none of its Mixes can be shared: each is archived, has no Beats or starts on a fixed date." : "Nothing to show right now. A Mix is left out of the Community list while it has no Beats or starts on a fixed date."} Your share, its favorites and its reports are kept.</p>}
           {item.summary && <p className="mix-selected-description">{item.summary}</p>}
           {facts && <p className="mega-mix-facts">{itemKind === "MEGA_MIX" ? `${facts.mixes} Mixes · ` : ""}{facts.beats} Beats{itemKind === "MEGA_MIX" ? ` · ${facts.connections} paths` : ""} · {channels}{"favorites" in item && item.favorites !== undefined ? ` · ${item.favorites} ${item.favorites === 1 ? "favorite" : "favorites"}` : ""}{"added" in item && item.added ? ` · added ${item.added} ${item.added === 1 ? "time" : "times"}` : ""}</p>}
-          {item.value && <PortableOutline value={item.value} label={`${item.title} Beats in journey order`} />}
+          {item.value && <PortableOutline value={item.value} label={`${item.title} Beats in journey order`} fold />}
         </section>
         <aside className="mix-context-pane" aria-label="Add or share">
           {item.type === "official-mega" && <section><h3><AppIcon name="journey" />Add to your account</h3>{item.installed ? <p>Already in your account as <Link href={`/mixes/mega?megaMix=${encodeURIComponent(item.installed.id)}`}>{item.installed.name}</Link>.</p> : <p>Choose your working days and preferred channel, then review before anything is added.</p>}<Link className="button small" href={item.setupHref}><AppIcon name="plus" />{item.installed ? "Open setup" : "Set up this Mega-Mix"}</Link></section>}
