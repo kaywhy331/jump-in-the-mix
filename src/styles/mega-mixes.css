@@ -35,6 +35,17 @@
 .mix-library-directory .mix-library-tabs { display: grid; grid-template-columns: repeat(3, minmax(0, 1fr)); gap: 4px; }
 .mix-library-directory .mix-library-tabs a { justify-content: center; gap: 4px; min-width: 0; padding: 8px 4px; }
 .mix-library-directory .mix-library-tabs a svg { flex-shrink: 0; }
+/* Phones fold them into one selector under the Mixes / Beats / Details switcher, so the pane shows one tab bar. */
+@media (width < 768px) {
+  .mix-library-directory .mix-library-tabs { display: block; padding: 0; background: none; }
+  .mix-collection-menu > .phone-menu-button { justify-content: flex-start; width: 100%; padding-inline: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--raised); color: var(--text); font-size: var(--font-size-sm); font-weight: 600; }
+  .mix-collection-menu > .phone-menu-button > svg { width: 16px; height: 16px; }
+  .mix-collection-menu > .phone-menu-button > svg:last-child { margin-inline-start: auto; color: var(--text-3); }
+  .mix-collection-menu[data-open] > .phone-menu-button > svg:last-child { transform: rotate(180deg); }
+  .mix-collection-menu[data-open] > .phone-menu-items { inset-inline-start: 0; inline-size: auto; max-inline-size: none; }
+  .mix-library-directory .mix-collection-menu .phone-menu-items a { justify-content: flex-start; padding-inline: var(--space-3); }
+  .mix-library-directory .mix-collection-menu .phone-menu-items a[aria-current] { background: var(--violet-wash); color: var(--violet-text); box-shadow: none; }
+}
 .import-file .checkbox-label { display: flex; align-items: flex-start; gap: 10px; min-height: 44px; font-size: .875rem; line-height: 1.5; cursor: pointer; }
 .import-file .checkbox-label input { flex: 0 0 18px; width: 18px; height: 18px; min-height: 0; margin: 2px 0 0; }
 

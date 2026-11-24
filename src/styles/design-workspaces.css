@@ -251,8 +251,9 @@
 .today-no-mix-line > a { display: inline-flex; align-items: center; min-height: 44px; margin-left: auto; padding: 0 4px; font-weight: 600; color: var(--violet-text); white-space: nowrap; }
 /* With nothing done yet, the open group holds only this link: give it the summary's 44 px target height. */
 .today-queue-link { display: inline-flex; align-items: center; min-height: 44px; }
-/* Queue headers read "Overdue" / "Today" in sentence case, as in the export, not shouting caps. */
-.today-page .section-label h2 { text-transform: none; letter-spacing: 0; }
+/* Queue headers read "Overdue" / "Today", and Calendar's "Your next seven days" (audit P-09), in sentence case, as in
+   the export, not shouting caps. */
+:is(.today-page, .calendar-page) .section-label h2 { text-transform: none; letter-spacing: 0; }
 .review-beat-rhythm { display: flex; list-style: none; padding: 4px; margin: 16px 0 24px; overflow-x: auto; }
 .review-beat-rhythm li { position: relative; flex: 1; min-width: 70px; }
 .review-beat-rhythm li:not(:last-child)::after { content: ""; position: absolute; top: 8px; left: 8px; right: -8px; height: 1px; background: var(--track); }

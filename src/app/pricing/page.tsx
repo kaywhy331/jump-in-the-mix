@@ -3,6 +3,7 @@ import Link from "next/link";
 import { PublicHeader } from "@/components/PublicHeader";
 import { PublicFooter } from "@/components/PublicFooter";
 import { WaitlistLink } from "@/components/WaitlistLink";
+import { ShowMore } from "@/components/ShowMore";
 import { publicPageMetadata } from "@/lib/public-seo";
 import { PLANS, formatDollars } from "@/lib/plans";
 
@@ -11,6 +12,26 @@ export const metadata: Metadata = publicPageMetadata({
   title: "Plans and pricing",
   description: "Jump in the Mix is free during the beta, with no card required. When paid plans start: Free at $0, Plus at $15 a month and Pro at $29 a month."
 });
+
+// The two feature lists open on their first items on phones, with Show more for the rest (JITM-08 §2.21, audit P-08).
+const SHOW_FIRST = 2;
+const INCLUDED = [
+  "Today, your daily list of who to contact next, with each message prepared for you to review and send yourself.",
+  "Your contacts, with notes, saved dates and import from a file.",
+  "Mixes, your reusable follow-up plans, with a text, email and call version of every Beat.",
+  "Mega-Mixes, named sets of connected Mixes that cover your work from first inquiry to repeat business.",
+  "The Marketplace, where you find ready-made Mixes and Mega-Mixes to add.",
+  "Journey, a map of how your Mixes connect and where each person is right now.",
+  "Calendar, for your meetings and time blocks.",
+  "Quick Add, for adding a person, a note or a follow-up from any screen, by typing or speaking.",
+  "Exporting your data or deleting your account."
+];
+const LIMIT_RULES = [
+  "A person counts once, however many Mixes they’re in.",
+  "A Mega-Mix counts as one Mix.",
+  "Contacts without a follow-up don’t count, so importing your address book uses none of your limit.",
+  "Reaching a limit never removes anything. Your contacts, Mixes and history stay; you can add more once you’re under the limit or on a larger plan."
+];
 
 // Kevin set these plans on 2026-09-29. Paid plans have not started, so the page states the prices without a way to buy
 // them, and the structured data describes no offers (JITM-02 §2.18). The Free card carries the page's one action; Plus
@@ -40,29 +61,18 @@ export default function PricingPage() {
         </ul>
         <p className="pricing-note">Prices are in US dollars. You’re charged only if you choose a paid plan.</p>
         <div className="pricing-details">
-          <section aria-labelledby="pricing-included">
-            <h2 id="pricing-included">Every plan includes</h2>
-            <ul>
-              <li>Today, your daily list of who to contact next, with each message prepared for you to review and send yourself.</li>
-              <li>Your contacts, with notes, saved dates and import from a file.</li>
-              <li>Mixes, your reusable follow-up plans, with a text, email and call version of every Beat.</li>
-              <li>Mega-Mixes, named sets of connected Mixes that cover your work from first inquiry to repeat business.</li>
-              <li>The Marketplace, where you find ready-made Mixes and Mega-Mixes to add.</li>
-              <li>Journey, a map of how your Mixes connect and where each person is right now.</li>
-              <li>Calendar, for your meetings and time blocks.</li>
-              <li>Quick Add, for adding a person, a note or a follow-up from any screen, by typing or speaking.</li>
-              <li>Exporting your data or deleting your account.</li>
-            </ul>
-          </section>
-          <section aria-labelledby="pricing-limits">
-            <h2 id="pricing-limits">How the limits count</h2>
-            <ul>
-              <li>A person counts once, however many Mixes they’re in.</li>
-              <li>A Mega-Mix counts as one Mix.</li>
-              <li>Contacts without a follow-up don’t count, so importing your address book uses none of your limit.</li>
-              <li>Reaching a limit never removes anything. Your contacts, Mixes and history stay; you can add more once you’re under the limit or on a larger plan.</li>
-            </ul>
-          </section>
+          <ShowMore boundary="public" hidden={INCLUDED.length - SHOW_FIRST} label={`Show ${INCLUDED.length - SHOW_FIRST} more`} describedBy="pricing-included">
+            <section aria-labelledby="pricing-included">
+              <h2 id="pricing-included">Every plan includes</h2>
+              <ul>{INCLUDED.map((item, index) => <li key={item} data-more={index >= SHOW_FIRST || undefined}>{item}</li>)}</ul>
+            </section>
+          </ShowMore>
+          <ShowMore boundary="public" hidden={LIMIT_RULES.length - SHOW_FIRST} label={`Show ${LIMIT_RULES.length - SHOW_FIRST} more`} describedBy="pricing-limits">
+            <section aria-labelledby="pricing-limits">
+              <h2 id="pricing-limits">How the limits count</h2>
+              <ul>{LIMIT_RULES.map((item, index) => <li key={item} data-more={index >= SHOW_FIRST || undefined}>{item}</li>)}</ul>
+            </section>
+          </ShowMore>
         </div>
         <div className="pricing-join"><p><Link href="/faq">Questions about access and your data</Link></p></div>
       </section>

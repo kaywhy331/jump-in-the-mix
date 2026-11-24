@@ -5,6 +5,7 @@ import { MixLibraryShell } from "@/components/MixLibraryShell";
 import { MixWorkspace } from "@/components/MixWorkspace";
 import { MixLibraryNav } from "@/components/MixLibraryNav";
 import { AppIcon } from "@/components/AppIcon";
+import { MixCollectionTabs } from "@/components/MixCollectionTabs";
 import { EmptyState } from "@/components/EmptyState";
 import { Sheet } from "@/components/Sheet";
 import { Notice } from "@/components/Notice";
@@ -54,7 +55,7 @@ export default async function MixesPage({ searchParams }: { searchParams: Promis
             </Sheet>
           </div>
         </header>
-        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes" aria-current="page"><AppIcon name="mixes" />My Mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace"><AppIcon name="store" />Marketplace</Link></nav>
+        <MixCollectionTabs current="mixes" />
         <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Choose a complete Mega-Mix</Link>
         <div className="mix-directory-search">
           <form className="mix-library-search" key={`${q}:${status}:${favorites}`} action="/mixes">

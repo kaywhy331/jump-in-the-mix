@@ -5,6 +5,7 @@ import { MixLibraryShell } from "@/components/MixLibraryShell";
 import { BackLink } from "@/components/BackLink";
 import { ReadyMadeMixWorkspace } from "@/components/ReadyMadeMixWorkspace";
 import { AppIcon } from "@/components/AppIcon";
+import { MixCollectionTabs } from "@/components/MixCollectionTabs";
 import { MixFavoriteButton } from "@/components/MixFavoriteButton";
 import { EmptyState } from "@/components/EmptyState";
 import { Notice } from "@/components/Notice";
@@ -95,7 +96,7 @@ export default async function TemplatesPage({ searchParams }: { searchParams: Pr
             <details className="workflow-options"><summary>Browse by task</summary><nav className="contact-tools-links" aria-label="Choose a follow-up task">{[["Follow up a new lead", "lead"], ["Check an estimate", "estimate"], ["Reconnect with someone", "reconnect"]].map(([label, q]) => <Link href={`/templates?q=${q}`} key={q}>{label}</Link>)}<Link href="/templates">Browse all Mixes</Link></nav></details>
           </Sheet>
         </div></header>
-        <nav className="mix-library-tabs" aria-label="Mix collection"><Link href="/mixes"><AppIcon name="mixes" />My Mixes</Link><Link href="/mixes/mega"><AppIcon name="journey" />Mega-Mixes</Link><Link href="/marketplace" aria-current="page"><AppIcon name="store" />Marketplace</Link></nav>
+        <MixCollectionTabs current="marketplace" />
         <Link className="mix-clear-filters" href="/templates/journeys"><AppIcon name="journey" />Choose a complete Mega-Mix</Link>
         <div className="mix-directory-search">
           <form className="mix-library-search" action="/templates" key={`${query}:${category}:${industry}:${framework}:${favorites}`}>
