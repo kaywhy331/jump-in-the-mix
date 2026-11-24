@@ -79,6 +79,10 @@
      average character, so this value renders 64-71 characters a line, where 65ch renders about 100. It is
      resolved with the font of the element that uses it. */
   --reading-measure: 46ch;
+  /* Touch target (JITM-10 §2.1): the least width and height of a control on a phone. It has no theme. */
+  --touch-target: 44px;
+  /* Rail, list and tool-row icons (JITM-06 §2.22). It has no theme. */
+  --icon-row: 20px;
 }
 
 @media (prefers-color-scheme: dark) {

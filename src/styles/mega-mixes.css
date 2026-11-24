@@ -39,7 +39,7 @@
 @media (width < 768px) {
   .mix-library-directory .mix-library-tabs { display: block; padding: 0; background: none; }
   .mix-collection-menu > .phone-menu-button { justify-content: flex-start; width: 100%; padding-inline: var(--space-3); border: 1px solid var(--line); border-radius: var(--radius-control); background: var(--raised); color: var(--text); font-size: var(--font-size-sm); font-weight: 600; }
-  .mix-collection-menu > .phone-menu-button > svg { width: 16px; height: 16px; }
+  .mix-collection-menu > .phone-menu-button > svg { width: var(--space-4); height: var(--space-4); }
   .mix-collection-menu > .phone-menu-button > svg:last-child { margin-inline-start: auto; color: var(--text-3); }
   .mix-collection-menu[data-open] > .phone-menu-button > svg:last-child { transform: rotate(180deg); }
   .mix-collection-menu[data-open] > .phone-menu-items { inset-inline-start: 0; inline-size: auto; max-inline-size: none; }
