@@ -2,6 +2,7 @@ import { expect, test, type Page } from "@playwright/test";
 import { readFileSync } from "node:fs";
 import { createPendingJumpFixture, removePendingJumpFixture } from "./pending-jump-fixture";
 import { textBelowFloor } from "./text-floor";
+import { openPhoneMenu } from "./phone-menu";
 
 const userEmail = process.env.E2E_USER_EMAIL ?? "demo@jumpinthemix.local";
 const userPassword = process.env.E2E_USER_PASSWORD ?? "JumpInTheMix123!";
@@ -179,9 +180,17 @@ test("mobile text actions stay readable instead of collapsing into blank control
   test.skip(testInfo.project.name !== "mobile-chromium", "Mobile header geometry is checked once.");
   await signIn(page);
   await page.goto("/templates");
-  // Collection tabs keep their words; creating is a labelled icon since the phone icon pass (3f85c77).
+  // Collection tabs keep their words; creating is a labelled icon since the phone icon pass (3f85c77). On phones the
+  // tabs fold into one selector that reads the current collection (JITM-UXB-07), and each choice in it keeps its words.
+  const tabs = page.locator(".mix-library-tabs"), selector = tabs.getByRole("button");
+  const current = (await tabs.locator("a[aria-current='page']").textContent())?.trim();
+  expect(current).toBeTruthy();
+  await expect(selector).toBeVisible();
+  await expect(selector).toHaveText(current!);
+  expect((await selector.boundingBox())!.width).toBeGreaterThan(60);
+  await openPhoneMenu(selector);
   for (const label of ["My Mixes", "Mega-Mixes", "Marketplace"]) {
-    const action = page.locator(".mix-library-tabs").getByRole("link", { name: label, exact: true });
+    const action = tabs.getByRole("link", { name: label, exact: true });
     await expect(action).toBeVisible();
     const box = await action.boundingBox();
     expect(box).not.toBeNull();

@@ -4,6 +4,7 @@ import { test, expect, type Page } from "@playwright/test";
 import { NAV_LINKS, SECTION_RING } from "../src/lib/app-navigation";
 import { SWIPE } from "../src/lib/gestures/swipe";
 import { prisma } from "../src/lib/prisma";
+import { openPhoneMenu } from "./phone-menu";
 
 // Section swipe: the ring, peek and commit, the exclusions, the setting, reduced motion, focus and widths (JITM-NAV-03;
 // JITM-08 §2.46–§2.49; docs/design/NATIVE-NAVIGATION.md §3 A, §4, §9, §11).
@@ -278,10 +279,8 @@ test.describe("on a touch phone", () => {
       await open(page, from);
       await ready(page);
       // On phones the Mix's Edit sits in its menu (JITM-UXB-07).
-      if (from.startsWith("/mixes")) {
-        const more = page.getByRole("button", { name: "More Mix actions", exact: true });
-        await expect(async () => { await more.click(); await expect(more).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 }); }).toPass();
-      }
+      const more = page.getByRole("button", { name: "More Mix actions", exact: true });
+      if (await more.isVisible()) await openPhoneMenu(more);
       await page.locator(link).locator("visible=true").first().click();
       await expect(page).toHaveURL(at);
       await inert(page, `${at}, finger left`, Math.round(w * 0.8), -Math.round(w * 0.5));

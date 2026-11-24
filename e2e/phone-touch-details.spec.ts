@@ -5,6 +5,7 @@ import { prisma } from "../src/lib/prisma";
 import { installMegaMix } from "../src/lib/mega-mix-service";
 import { axeInPage } from "./axe-in-page";
 import { applyRenderedTheme } from "./theme-fixture";
+import { hydrated } from "./phone-menu";
 
 // JITM-UXB-07 (audit P-07, P-08, P-09, T-03): phone and tablet screens are designed for touch. Phone checks run in the
 // touch project and wide-screen checks in the desktop project, so each runs once. Boundaries: JITM-07 §2.1 (768 in the
@@ -52,11 +53,6 @@ const wideOnly = (name: string) => test.skip(name !== "desktop-chromium", "Wide-
 
 async function settle(page: Page) {
   await page.evaluate(() => new Promise<void>(resolve => requestAnimationFrame(() => requestAnimationFrame(() => resolve()))));
-}
-/** A press before React attaches to a control is lost: wait until it is hydrated and a frame has passed. */
-async function hydrated(control: Locator) {
-  await expect.poll(() => control.evaluate(element => Object.keys(element).some(key => key.startsWith("__reactProps")))).toBe(true);
-  await settle(control.page());
 }
 /** Choose a phone pane once its button is hydrated (each page's first render resets the pane). */
 async function choosePane(page: Page, panels: string, name: string) {

@@ -229,7 +229,8 @@ test("responsive destinations stay reachable and hydration stays consistent", as
     // The ready-made library is reached through the Marketplace collection tab (91e5aad replaced the Ready-made tab).
     // Below 768px the collection tabs fold into one selector, the control that reaches it there (JITM-UXB-07).
     const tabs = page.getByRole("navigation", { name: "Mix collection", exact: true });
-    const library = width < 768 ? tabs.getByRole("button", { name: "My Mixes", exact: true }) : tabs.getByRole("link", { name: "Marketplace", exact: true });
+    const selector = tabs.getByRole("button", { name: "My Mixes", exact: true });
+    const library = await selector.isVisible() ? selector : tabs.getByRole("link", { name: "Marketplace", exact: true });
     const bounds = await library.boundingBox();
     expect(bounds?.width).toBeGreaterThanOrEqual(44);
     expect(bounds?.height).toBeGreaterThanOrEqual(44);

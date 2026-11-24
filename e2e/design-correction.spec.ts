@@ -1,6 +1,7 @@
 import { createHash, randomUUID } from "node:crypto";
 import { expect, test } from "@playwright/test";
 import { prisma } from "../src/lib/prisma";
+import { openPhoneMenu } from "./phone-menu";
 
 const local = /^postgres(?:ql)?:\/\/[^@]*@(?:localhost|127\.0\.0\.1):\d+\/jitm_design_/.test(process.env.DATABASE_URL ?? "");
 test.skip(!local, "Disposable local database only");
@@ -131,8 +132,7 @@ test("Mix library exposes editable Beats, real membership, and mobile library ta
   await expect(page.getByRole("complementary", { name: "People and Journey connections", exact: true })).toContainText("Ava Zoom");
   await page.setViewportSize({ width: 390, height: 844 }); await page.goto("/mixes");
   // On phones the collection tabs fold into one selector (JITM-UXB-07).
-  const collection = page.locator(".mix-library-tabs").getByRole("button", { name: "My Mixes", exact: true });
-  await expect(async () => { await collection.click(); await expect(collection).toHaveAttribute("aria-expanded", "true", { timeout: 1_000 }); }).toPass();
+  await openPhoneMenu(page.locator(".mix-library-tabs").getByRole("button", { name: "My Mixes", exact: true }));
   await expect(page.locator(".mix-library-tabs").getByRole("link", { name: "Marketplace", exact: true })).toBeVisible();
 });
 
