@@ -478,3 +478,70 @@ test("the focus move after a page change changes nothing the page shows or does:
     await prisma.contact.deleteMany({ where: { id: person.id } });
   }
 });
+
+/** Where focus is now, to compare after the page renders again. */
+const focusedElement = (page: Page) => page.evaluateHandle(() => document.activeElement);
+
+test("a page that opens and focuses what a link targets keeps that focus after the page change: Help's support form (F2)", async ({ page }) => {
+  await open(page, "/account/tickets");
+  const mark = await markDocument(page);
+  const link = page.getByRole("link", { name: "New conversation", exact: true });
+  // The target comes from the link itself: its URL fragment names the element the new page opens.
+  const fragment = decodeURIComponent(new URL((await link.getAttribute("href")) ?? "", page.url()).hash.slice(1));
+  expect(fragment, "the link targets part of the new page").not.toBe("");
+  await link.click();
+  await expect(page).toHaveURL(url => decodeURIComponent(url.hash.slice(1)) === fragment);
+  const target = page.locator(`[id="${fragment}"]`);
+  await expect(target, "the page opened the disclosure the link targets").toHaveJSProperty("open", true);
+  const summary = target.locator(":scope > summary");
+  await expect(summary, "the page focused the disclosure it opened").toBeFocused();
+  await expectArrivalChangesNothing(page, "the support form opened on arrival", mark);
+  await expect(summary, "the arrival move leaves focus where the page put it").toBeFocused();
+  await expect(pageHeading(page), "the H1 does not take it").not.toBeFocused();
+  await expect(target).toHaveJSProperty("open", true);
+});
+
+test("saving a contact from Journey's start step returns to the step with the new person and the work label, and the arrival move keeps them and the focus (F4)", async ({ page }) => {
+  const welcome = await prisma.mix.findFirstOrThrow({ where: { workspaceId, name: "Welcome" } });
+  const label = `Arrival work ${randomUUID().slice(0, 8)}`, lastName = `Continuation ${randomUUID().slice(0, 8)}`;
+  const workLabel = page.getByRole("textbox", { name: "Work label (optional)", exact: true });
+  try {
+    await open(page, `/mixes?mix=${welcome.id}`);
+    const mark = await markDocument(page);
+    await page.getByRole("link", { name: `Start ${welcome.name} for someone`, exact: true }).click();
+    await expect(page).toHaveURL(/\/journey\?.*start=1/);
+    await workLabel.fill(label);
+    await page.getByRole("link", { name: "Add a person", exact: true }).click();
+    await expect(page).toHaveURL(/\/contacts\/new\?.*returnTo=/);
+    // The form focuses First name as it mounts: a plain field, not something the page opened, so the H1 takes focus.
+    await expectHeadingFocused(page, "the new-contact form opened from the start step");
+    await page.getByLabel("First name", { exact: true }).fill("Continuation");
+    await page.locator("#lastName").fill(lastName);
+    // The save is a server action whose redirect reopens the start step with the new person (contact-actions createContact).
+    await page.getByRole("button", { name: "Save contact", exact: true }).click();
+    await expect(page).toHaveURL(/\/journey\?.*contactId=/);
+    const query = new URL(page.url()).searchParams, contactId = query.get("contactId") ?? "";
+    expect(query.get("start"), "the redirect reopens the start step").toBe("1");
+    expect(query.get("label"), "the redirect carries the work label").toBe(label);
+    const contact = await prisma.contact.findFirstOrThrow({ where: { workspaceId, lastName } });
+    expect(contactId, "the redirect selects the saved person").toBe(contact.id);
+
+    const start = page.getByRole("button", { name: "Start this Mix", exact: true });
+    const person = page.getByRole("combobox", { name: "Person", exact: true });
+    await expect(start, "the start step is open").toBeVisible();
+    await expectArrivalChangesNothing(page, "the start step after the contact save", mark);
+    const focused = await focusedElement(page);
+    expect(await focused.evaluate(element => element !== document.body && Boolean(element?.closest("#workspace-main"))), "focus is in the new page").toBe(true);
+    // The page checks the selected person's schedule; once it has, the step, the person, the label and focus are unchanged.
+    await expect(page.getByText("Checking this person and schedule…", { exact: true })).toHaveCount(0, { timeout: 30_000 });
+    await renderAgain(page);
+    await expect(start, "the start step stays open").toBeVisible();
+    await expect(person, "the new person stays selected").toHaveValue(contact.id);
+    await expect(person.locator("option:checked")).toHaveText(contact.displayName);
+    await expect(workLabel, "the work label stays").toHaveValue(label);
+    expect(await focused.evaluate(element => element === document.activeElement), "focus stays where it was put on arrival").toBe(true);
+    expect(await documentMark(page), "no reload or document navigation").toBe(mark);
+  } finally {
+    await prisma.contact.deleteMany({ where: { workspaceId, lastName } });
+  }
+});
